@@ -13,6 +13,7 @@ import { createSunCoronaMesh } from '../procedural/sun-shader';
 import { createAtmosphereMesh } from '../procedural/atmosphere-shader';
 import { createPlanetaryRings } from '../procedural/planet-rings';
 import { createSunRays, SunRaysController } from '../procedural/sun-rays';
+import { ensureLoreSystems } from '../procedural/lore-systems';
 
 export const activeCoronaMeshes: THREE.Object3D[] = [];
 export const activeCoronaUpdaters: ((dt: number) => void)[] = [];
@@ -55,6 +56,7 @@ export async function checkUniverseData() {
         }
 
         if (data && data.systems && data.systems.length > 0) {
+            ensureLoreSystems(data.systems);
             STATE.universe = data;
             const sysCount = data.systems.length;
             const meta = data.meta;

@@ -143,6 +143,15 @@ export function completeHarvesting() {
             addLogEntry("SENSOR", `MAGNETOSPHÄREN-INDUKTION: Hyper-Magnetfeld von ${planet.name} induziert Bio-Ladung (+25 Bio-Energie).`);
         }
 
+        // Easter Egg: Melange (Das Gewürz / Spice) Extraction on Arrakis
+        if (planet.name && planet.name.includes("Arrakis")) {
+            const spiceBioBonus = 80;
+            const spicePsiBonus = 50;
+            STATE.bioRes += spiceBioBonus;
+            STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + spicePsiBonus);
+            addLogEntry("SYSTEM", `✨ MELANGE-EXTRAKTION: Das heilige Gewürz von Arrakis durchströmt Najmafars Zellkerne! (+${spiceBioBonus} Melange-Biomasse | +${spicePsiBonus} Psionik).`);
+        }
+
         addLogEntry("SYSTEM", `Assimilation von ${planet.name} abgeschlossen! +${bioGain} Biomasse | +${silGain} Silizium absorbiert. Vorkommen erschöpft.`);
         updateMutationUI();
     }

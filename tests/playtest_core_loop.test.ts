@@ -90,6 +90,8 @@ if (typeof globalThis.window === 'undefined') {
 import { STATE, activePlanets } from '../src/core/state';
 import { triggerHarvestStart, updateHarvesting, completeHarvesting } from '../src/systems/harvesting';
 import { triggerScanStart, updateScanning, completeScanning, generatePlanetAttributes, generateFallbackMoons } from '../src/systems/scanner';
+import { completeAbduction } from '../src/systems/abduction';
+import { getLoreSolSystem, getLoreArrakisSystem, getLoreSolarisSystem, ensureLoreSystems } from '../src/procedural/lore-systems';
 import { AUDIO_SETTINGS } from '../src/engine/audio';
 import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets } from '../src/systems/universe';
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
@@ -771,6 +773,92 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.mentalEnergy).toBe(70);
         // Hyper-Magnetic induction gives +25 base bioEnergy recharge + 25 hyper-magnetic induction = 100
         expect(STATE.bioEnergy).toBe(100);
+    });
+
+    test("20. Sol-System & Iconic Sci-Fi Easter-Eggs (Arrakis / Dune & Solaris): Guarantees 9 planets of Sol, Melange harvesting surge, and Fremen abduction unlocking Augen des Ibad", () => {
+        // 1. Sol System Verification
+        const solSys = getLoreSolSystem();
+        expect(solSys.name).toContain("Sol");
+        expect(solSys.star.type).toBe("Yellow Sun");
+        expect(solSys.planets.length).toBe(9);
+
+        const planetNames = solSys.planets.map((p: any) => p.name);
+        expect(planetNames).toContain("Merkur");
+        expect(planetNames).toContain("Venus");
+        expect(planetNames).toContain("Erde (Terra)");
+        expect(planetNames).toContain("Mars");
+        expect(planetNames).toContain("Jupiter");
+        expect(planetNames).toContain("Saturn");
+        expect(planetNames).toContain("Uranus");
+        expect(planetNames).toContain("Neptun");
+        expect(planetNames).toContain("Pluto");
+
+        const erde = solSys.planets.find((p: any) => p.name === "Erde (Terra)");
+        expect(erde.moons.length).toBe(1);
+        expect(erde.moons[0].name).toContain("Luna");
+        expect(erde.species.name).toContain("Menschheit");
+        expect(erde.species.candidates.some((c: any) => c.name.includes("Carl Sagan"))).toBe(true);
+
+        const jupiter = solSys.planets.find((p: any) => p.name === "Jupiter");
+        expect(jupiter.moons.length).toBe(4); // Io, Europa, Ganymed, Kallisto
+        expect(jupiter.magnetosphere).toBe("Hyper-Magnetic");
+
+        const saturn = solSys.planets.find((p: any) => p.name === "Saturn");
+        expect(saturn.moons.some((m: any) => m.name.includes("Titan"))).toBe(true);
+
+        // 2. Arrakis & Canopus System Verification
+        const arrakisSys = getLoreArrakisSystem();
+        expect(arrakisSys.name).toContain("Canopus");
+        const arrakis = arrakisSys.planets.find((p: any) => p.name.includes("Arrakis"));
+        expect(arrakis).toBeDefined();
+        expect(arrakis.res).toContain("Melange");
+        expect(arrakis.species.name).toContain("Fremen");
+        expect(arrakis.species.candidates.some((c: any) => c.name.includes("Stilgar"))).toBe(true);
+        expect(arrakis.species.candidates.some((c: any) => c.name.includes("Chani"))).toBe(true);
+
+        // 3. Fallback injector guarantee
+        const mockUniverseSystems = [
+            { id: 0, name: "Center Core" },
+            { id: 1, name: "Perseus" }
+        ];
+        ensureLoreSystems(mockUniverseSystems);
+        expect(mockUniverseSystems.some(s => s.name.includes("Sol"))).toBe(true);
+        expect(mockUniverseSystems.some(s => s.name.includes("Arrakis"))).toBe(true);
+        expect(mockUniverseSystems.some(s => s.name.includes("Solaris"))).toBe(true);
+
+        // 4. Melange (Spice) Harvesting on Arrakis
+        STATE.extractingPlanet = arrakis;
+        STATE.bioRes = 50;
+        STATE.siliconRes = 20;
+        STATE.mentalEnergy = 40;
+        STATE.maxMentalEnergy = 100;
+        STATE.bioEnergy = 60;
+        STATE.crewBuffs = { bioGain: 1.0, scanSpeed: 1.0, propulsionSpeed: 1.0, repairEfficiency: 1.0, psionicCostReduction: 0.0 };
+
+        completeHarvesting();
+
+        // Base Rocky yield: 25 bio, 50 silicon. Plus Arrakis Melange bonus: +80 bio, +50 mentalEnergy.
+        // Total bioRes = 50 + 25 + 80 = 155
+        expect(STATE.bioRes).toBe(155);
+        // Total mentalEnergy = min(100, 40 + 50) = 90
+        expect(STATE.mentalEnergy).toBe(90);
+
+        // 5. Fremen Abduction unlocks Augen des Ibad mutation
+        expect(STATE.mutations.ibad).toBeDefined();
+        STATE.mutations.ibad!.purchased = false;
+        STATE.crew = [];
+        STATE.maxCrewCapacity = 4;
+
+        // Mock Abduction Target
+        STATE.abductTarget = arrakis;
+        completeAbduction();
+
+        // Must have recruited a Fremen candidate (Stilgar or Chani)
+        expect(STATE.crew.length).toBe(1);
+        expect(STATE.crew[0].species).toBe("Fremen");
+        // Must have unlocked Augen des Ibad
+        expect(STATE.mutations.ibad!.purchased).toBe(true);
+        expect(STATE.mutations.ibad!.desc).toContain("Psychosen");
     });
 });
 

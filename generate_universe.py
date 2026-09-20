@@ -393,6 +393,668 @@ def build_galaxy(qrng, meta_info, count=1000):
             sector_name = "Perseus-Rand (Das Erwachen)"
             anomaly_type = "none"
             is_core_anchor = False
+
+        elif i == 2:
+            sys_name = "Sol (Heimat der Menschheit)"
+            x, z = -140.0, 150.0
+            existing_coords.append((x, z))
+            star_type = "Yellow Sun"
+            sector_id = "sector_mid_rim"
+            sector_name = "Orion-Zyklus (Zivilisations-Gürtel)"
+            anomaly_type = "none"
+            is_core_anchor = False
+
+            planets = [
+                {
+                    "name": "Merkur",
+                    "type": "Rocky",
+                    "size": 1.6,
+                    "distance": 18.0,
+                    "color": "0x78716c",
+                    "temp": "+430°C / -180°C",
+                    "atmos": "Extrem dünne Exosphäre (Vakuum)",
+                    "bio": "Steril",
+                    "res": "Eisen, Silizium & Schwermetalle",
+                    "species": None,
+                    "moons": [],
+                    "tidalLock": True,
+                    "magnetosphere": "Weak",
+                    "geothermal": "Dead",
+                    "radiationLevel": "High",
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
+                },
+                {
+                    "name": "Venus",
+                    "type": "Rocky",
+                    "size": 2.8,
+                    "distance": 28.0,
+                    "color": "0xf59e0b",
+                    "temp": "+465°C",
+                    "atmos": "Superdichtes CO2 & Schwefelsäure-Wolken",
+                    "bio": "Steril (Extremer Treibhauseffekt)",
+                    "res": "Schwefel-Verbindungen & Basaltgestein",
+                    "species": None,
+                    "moons": [],
+                    "tidalLock": False,
+                    "magnetosphere": "None",
+                    "geothermal": "Hyper-Volcanic",
+                    "radiationLevel": "Moderate",
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
+                },
+                {
+                    "name": "Erde (Terra)",
+                    "type": "Habitable",
+                    "size": 3.0,
+                    "distance": 42.0,
+                    "color": "0x0ea5e9",
+                    "temp": "15°C",
+                    "atmos": "Stickstoff & Sauerstoff (N2/O2 - Atembar)",
+                    "bio": "Reiche Biosphäre der Menschheit (Ursprungswelt)",
+                    "res": "Wasser, Biomasse & Voyager-Gedächtnis",
+                    "species": {
+                        "hasSentient": True,
+                        "name": "Menschheit (Homo Sapiens)",
+                        "population": 8000000000,
+                        "techLevel": "Spacefaring",
+                        "defenseRating": 55,
+                        "fleetDisposition": "Defensive",
+                        "candidates": [
+                            {
+                                "name": "Dr. Carl Sagan (Gedächtnis-Echo)",
+                                "species": "Mensch",
+                                "speciesType": "human",
+                                "role": "cryptologist",
+                                "roleName": "🔭 Kosmischer Astronom & Botschafter",
+                                "buffDesc": "+50% Psionische Sensor-Klarheit & Paläo-Astronomie",
+                                "baseStressRate": 0.08,
+                                "age": 42,
+                                "maxLifespan": 3600,
+                                "ageCategory": "mature",
+                                "rejuvenationCount": 0
+                            },
+                            {
+                                "name": "Kommandantin Elena Rostova",
+                                "species": "Mensch",
+                                "speciesType": "human",
+                                "role": "pilot",
+                                "roleName": "🚀 Sternenflotten-Navigatorin",
+                                "buffDesc": "+35% Antriebs-Effizienz & Trägheits-Dämpfung",
+                                "baseStressRate": 0.09,
+                                "age": 34,
+                                "maxLifespan": 3600,
+                                "ageCategory": "vital",
+                                "rejuvenationCount": 0
+                            }
+                        ]
+                    },
+                    "moons": [
+                        {
+                            "name": "Luna (Der Mond)",
+                            "type": "Kratermond",
+                            "size": 0.9,
+                            "distance": 6.8,
+                            "speed": 1.2,
+                            "color": "0xcbcfd6",
+                            "temp": "-130°C / +120°C",
+                            "atmos": "Vakuum",
+                            "bio": "Steril",
+                            "res": "Regolith-Gestein, Titan & Helium-3",
+                            "tidalLock": True,
+                            "geothermal": "Dead",
+                            "parentPlanetName": "Erde (Terra)"
+                        }
+                    ],
+                    "tidalLock": False,
+                    "magnetosphere": "Strong",
+                    "geothermal": "Dormant",
+                    "radiationLevel": "Low",
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
+                },
+                {
+                    "name": "Mars",
+                    "type": "Rocky",
+                    "size": 2.2,
+                    "distance": 58.0,
+                    "color": "0xef4444",
+                    "temp": "-60°C",
+                    "atmos": "Dünnes Kohlendioxid (Roter Planet)",
+                    "bio": "Fossile mikrobielle Biosignaturen",
+                    "res": "Eisenoxid-Sand & gefrorenes Wassereis",
+                    "species": None,
+                    "moons": [
+                        {
+                            "name": "Phobos",
+                            "type": "Kratermond",
+                            "size": 0.5,
+                            "distance": 4.2,
+                            "speed": 1.8,
+                            "color": "0x78716c",
+                            "temp": "-40°C",
+                            "atmos": "Vakuum",
+                            "bio": "Steril",
+                            "res": "Kohlenstoffhaltiges Chondrit-Gestein",
+                            "tidalLock": True,
+                            "geothermal": "Dead",
+                            "parentPlanetName": "Mars"
+                        },
+                        {
+                            "name": "Deimos",
+                            "type": "Kratermond",
+                            "size": 0.4,
+                            "distance": 6.5,
+                            "speed": 1.3,
+                            "color": "0x78716c",
+                            "temp": "-40°C",
+                            "atmos": "Vakuum",
+                            "bio": "Steril",
+                            "res": "Regolith-Staub & Silikate",
+                            "tidalLock": True,
+                            "geothermal": "Dead",
+                            "parentPlanetName": "Mars"
+                        }
+                    ],
+                    "tidalLock": False,
+                    "magnetosphere": "None",
+                    "geothermal": "Dormant",
+                    "radiationLevel": "Moderate",
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
+                },
+                {
+                    "name": "Jupiter",
+                    "type": "Gas Giant",
+                    "size": 7.2,
+                    "distance": 84.0,
+                    "color": "0xf97316",
+                    "temp": "-110°C",
+                    "atmos": "Wasserstoff & Helium (Großer Roter Fleck)",
+                    "bio": "Atmosphärische Bio-Spuren",
+                    "res": "Superdichtes Deuterium & Magneto-Plasma",
+                    "species": None,
+                    "moons": [
+                        {
+                            "name": "Io",
+                            "type": "Vulkanmond",
+                            "size": 1.0,
+                            "distance": 11.2,
+                            "speed": 1.5,
+                            "color": "0xf97316",
+                            "temp": "+150°C",
+                            "atmos": "Schwefeldioxid-Ausgasungen",
+                            "bio": "Schwefel-Mikroben",
+                            "res": "Geschmolzenes Titan & Schwefel",
+                            "tidalLock": True,
+                            "geothermal": "Hyper-Volcanic",
+                            "parentPlanetName": "Jupiter"
+                        },
+                        {
+                            "name": "Europa",
+                            "type": "Eismond",
+                            "size": 0.95,
+                            "distance": 13.8,
+                            "speed": 1.3,
+                            "color": "0x38bdf8",
+                            "temp": "-160°C",
+                            "atmos": "Wasserdampf-Geysire",
+                            "bio": "Subozeanische Extremophile",
+                            "res": "Flüssiges Wasser & Deuterium-Eis",
+                            "tidalLock": True,
+                            "geothermal": "Active Geysers",
+                            "parentPlanetName": "Jupiter"
+                        },
+                        {
+                            "name": "Ganymed",
+                            "type": "Eismond",
+                            "size": 1.25,
+                            "distance": 16.5,
+                            "speed": 1.1,
+                            "color": "0x94a3b8",
+                            "temp": "-150°C",
+                            "atmos": "Dünne Sauerstoff-Exosphäre",
+                            "bio": "Kryophile Bakterien",
+                            "res": "Silikatgestein & Wassereis",
+                            "tidalLock": True,
+                            "geothermal": "Dormant",
+                            "parentPlanetName": "Jupiter"
+                        },
+                        {
+                            "name": "Kallisto",
+                            "type": "Kratermond",
+                            "size": 1.15,
+                            "distance": 19.5,
+                            "speed": 0.9,
+                            "color": "0x64748b",
+                            "temp": "-140°C",
+                            "atmos": "CO2-Spuren",
+                            "bio": "Steril",
+                            "res": "Eis-Gesteins-Gemisch",
+                            "tidalLock": True,
+                            "geothermal": "Dead",
+                            "parentPlanetName": "Jupiter"
+                        }
+                    ],
+                    "tidalLock": False,
+                    "magnetosphere": "Hyper-Magnetic",
+                    "geothermal": "Dead",
+                    "radiationLevel": "Extreme",
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
+                },
+                {
+                    "name": "Saturn",
+                    "type": "Gas Giant",
+                    "size": 6.2,
+                    "distance": 110.0,
+                    "color": "0xeab308",
+                    "temp": "-140°C",
+                    "atmos": "Wasserstoff & Ammoniak-Eiskristalle",
+                    "bio": "Steril",
+                    "res": "Flüssiges Methan & Ring-Eis",
+                    "species": None,
+                    "moons": [
+                        {
+                            "name": "Titan",
+                            "type": "Eismond",
+                            "size": 1.2,
+                            "distance": 12.5,
+                            "speed": 1.2,
+                            "color": "0xf59e0b",
+                            "temp": "-179°C",
+                            "atmos": "Dichter Stickstoff & flüssiges Methan",
+                            "bio": "Methanogene Präbiotik",
+                            "res": "Kohlenwasserstoffe & flüssiges Ethan",
+                            "tidalLock": True,
+                            "geothermal": "Active Geysers",
+                            "parentPlanetName": "Saturn"
+                        },
+                        {
+                            "name": "Enceladus",
+                            "type": "Eismond",
+                            "size": 0.7,
+                            "distance": 15.2,
+                            "speed": 1.4,
+                            "color": "0xe0f2fe",
+                            "temp": "-198°C",
+                            "atmos": "Kryovulkanische Geysir-Fontänen",
+                            "bio": "Hydrothermale Mikroorganismen",
+                            "res": "Subglaziales Meerwasser & Silikate",
+                            "tidalLock": True,
+                            "geothermal": "Active Geysers",
+                            "parentPlanetName": "Saturn"
+                        }
+                    ],
+                    "tidalLock": False,
+                    "magnetosphere": "Strong",
+                    "geothermal": "Dead",
+                    "radiationLevel": "Moderate",
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
+                },
+                {
+                    "name": "Uranus",
+                    "type": "Ice",
+                    "size": 4.4,
+                    "distance": 136.0,
+                    "color": "0x38bdf8",
+                    "temp": "-215°C",
+                    "atmos": "Methan, Wasserstoff & Helium",
+                    "bio": "Steril",
+                    "res": "Ammoniak-Eis & Diamant-Schichten",
+                    "species": None,
+                    "moons": [
+                        {
+                            "name": "Miranda",
+                            "type": "Kratermond",
+                            "size": 0.65,
+                            "distance": 8.5,
+                            "speed": 1.4,
+                            "color": "0xa5f3fc",
+                            "temp": "-210°C",
+                            "atmos": "Vakuum",
+                            "bio": "Steril",
+                            "res": "Verwerfungs-Eis & Gestein",
+                            "tidalLock": True,
+                            "geothermal": "Dead",
+                            "parentPlanetName": "Uranus"
+                        }
+                    ],
+                    "tidalLock": False,
+                    "magnetosphere": "Weak",
+                    "geothermal": "Dead",
+                    "radiationLevel": "Low",
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
+                },
+                {
+                    "name": "Neptun",
+                    "type": "Ice",
+                    "size": 4.3,
+                    "distance": 162.0,
+                    "color": "0x0284c7",
+                    "temp": "-220°C",
+                    "atmos": "Dynamisches Methan-Plasma (Überschall-Stürme)",
+                    "bio": "Steril",
+                    "res": "Gefrorenes Wasser, Methan & Ammoniak",
+                    "species": None,
+                    "moons": [
+                        {
+                            "name": "Triton",
+                            "type": "Eismond",
+                            "size": 0.95,
+                            "distance": 9.2,
+                            "speed": 1.3,
+                            "color": "0x38bdf8",
+                            "temp": "-235°C",
+                            "atmos": "Stickstoff-Geysire",
+                            "bio": "Kryophile Bakterien",
+                            "res": "Gefrorener Stickstoff & Wassereis",
+                            "tidalLock": True,
+                            "geothermal": "Active Geysers",
+                            "parentPlanetName": "Neptun"
+                        }
+                    ],
+                    "tidalLock": False,
+                    "magnetosphere": "Weak",
+                    "geothermal": "Dead",
+                    "radiationLevel": "Low",
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
+                },
+                {
+                    "name": "Pluto",
+                    "type": "Ice",
+                    "size": 1.5,
+                    "distance": 188.0,
+                    "color": "0x94a3b8",
+                    "temp": "-230°C",
+                    "atmos": "Dünner Stickstoffdampf (Sublimation)",
+                    "bio": "Steril",
+                    "res": "Methan-Eis, Stickstoff & Tholine",
+                    "species": None,
+                    "moons": [
+                        {
+                            "name": "Charon",
+                            "type": "Eismond",
+                            "size": 0.8,
+                            "distance": 5.0,
+                            "speed": 1.1,
+                            "color": "0xcbcfd6",
+                            "temp": "-230°C",
+                            "atmos": "Vakuum",
+                            "bio": "Steril",
+                            "res": "Ammoniak-Hydrate & Wassereis",
+                            "tidalLock": True,
+                            "geothermal": "Dead",
+                            "parentPlanetName": "Pluto"
+                        }
+                    ],
+                    "tidalLock": True,
+                    "magnetosphere": "None",
+                    "geothermal": "Dormant",
+                    "radiationLevel": "Low",
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
+                }
+            ]
+
+            asteroids = []
+            for a_idx in range(16):
+                a_dist = 68.0 + (a_idx * 0.9)
+                a_angle = a_idx * (math.pi / 8)
+                asteroids.append({
+                    "x": round(a_dist * math.cos(a_angle), 2),
+                    "z": round(a_dist * math.sin(a_angle), 2),
+                    "type": "energy" if a_idx % 2 == 0 else "bio"
+                })
+
+            systems.append({
+                "id": 2,
+                "name": sys_name,
+                "x": x,
+                "z": z,
+                "sectorId": sector_id,
+                "sectorName": sector_name,
+                "anomalyType": anomaly_type,
+                "isCoreAnchor": is_core_anchor,
+                "star": {
+                    "type": star_type,
+                    "color": "0xfacc15",
+                    "size": 6.2,
+                    "mass": 280
+                },
+                "planets": planets,
+                "asteroids": asteroids
+            })
+            continue
+
+        elif i == 3:
+            sys_name = "Canopus (Arrakis-System)"
+            x, z = -85.0, 195.0
+            existing_coords.append((x, z))
+            star_type = "Yellow Sun"
+            sector_id = "sector_mid_rim"
+            sector_name = "Orion-Zyklus (Zivilisations-Gürtel)"
+            anomaly_type = "ancient_beacon"
+            is_core_anchor = False
+
+            planets = [
+                {
+                    "name": "Arrakis (Dune)",
+                    "type": "Rocky",
+                    "size": 3.4,
+                    "distance": 48.0,
+                    "color": "0xd97706",
+                    "temp": "+58°C (Glühende Wüste)",
+                    "atmos": "Stickstoff-Sauerstoff mit feinstem Gewürz-Staub (Melange)",
+                    "bio": "Sandwürmer (Shai-Hulud) & Wüstenflora",
+                    "res": "✨ Melange (Das Gewürz), Silizium-Wüstenglas & Feuchtigkeit",
+                    "species": {
+                        "hasSentient": True,
+                        "name": "Fremen (Die Wüstenkrieger von Arrakis)",
+                        "population": 15000000,
+                        "techLevel": "Spacefaring",
+                        "defenseRating": 85,
+                        "fleetDisposition": "Militaristic",
+                        "candidates": [
+                            {
+                                "name": "Naib Stilgar (Sietch Tabr)",
+                                "species": "Fremen",
+                                "speciesType": "fremen",
+                                "role": "commander",
+                                "roleName": "🗡️ Wüsten-Naib & Shai-Hulud-Reiter",
+                                "buffDesc": "+70 Kampfbereitschaft & Geistes-Harmonisierung (Prescience)",
+                                "baseStressRate": 0.04,
+                                "age": 45,
+                                "maxLifespan": 3600,
+                                "ageCategory": "mature",
+                                "rejuvenationCount": 0
+                            },
+                            {
+                                "name": "Chani (Fedajin)",
+                                "species": "Fremen",
+                                "speciesType": "fremen",
+                                "role": "cryptologist",
+                                "roleName": "👁️ Sayyadina & Seherin der Wüste",
+                                "buffDesc": "+85 Psionische Weitsicht & Heilung von Seelenqualen",
+                                "baseStressRate": 0.03,
+                                "age": 28,
+                                "maxLifespan": 3600,
+                                "ageCategory": "vital",
+                                "rejuvenationCount": 0
+                            },
+                            {
+                                "name": "Liet Kynes (Planetologe)",
+                                "species": "Fremen",
+                                "speciesType": "fremen",
+                                "role": "engineer",
+                                "roleName": "🌿 Meister-Ökologe & Gewürz-Forscher",
+                                "buffDesc": "+60% Siphon-Gewinn & Melange-Raffination",
+                                "baseStressRate": 0.05,
+                                "age": 49,
+                                "maxLifespan": 3600,
+                                "ageCategory": "mature",
+                                "rejuvenationCount": 0
+                            }
+                        ]
+                    },
+                    "moons": [
+                        {
+                            "name": "Krelln (Erster Wüstenmond)",
+                            "type": "Kratermond",
+                            "size": 0.85,
+                            "distance": 7.5,
+                            "speed": 1.3,
+                            "color": "0xb45309",
+                            "temp": "+30°C / -90°C",
+                            "atmos": "Vakuum",
+                            "bio": "Steril",
+                            "res": "Wüstenglas-Regolith & Titan",
+                            "tidalLock": True,
+                            "geothermal": "Dead",
+                            "parentPlanetName": "Arrakis (Dune)"
+                        },
+                        {
+                            "name": "Arvorn (Maus-Mond Muad'Dib)",
+                            "type": "Kratermond",
+                            "size": 0.65,
+                            "distance": 11.2,
+                            "speed": 1.0,
+                            "color": "0x78716c",
+                            "temp": "-110°C",
+                            "atmos": "Vakuum",
+                            "bio": "Steril",
+                            "res": "Silizium-Chondrit",
+                            "tidalLock": True,
+                            "geothermal": "Dead",
+                            "parentPlanetName": "Arrakis (Dune)"
+                        }
+                    ],
+                    "tidalLock": False,
+                    "magnetosphere": "Weak",
+                    "geothermal": "Active Geysers",
+                    "radiationLevel": "Moderate",
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
+                }
+            ]
+
+            asteroids = []
+            for a_idx in range(16):
+                a_dist = 28.0 + (a_idx * 3.5)
+                a_angle = a_idx * (math.pi / 8)
+                asteroids.append({
+                    "x": round(a_dist * math.cos(a_angle), 2),
+                    "z": round(a_dist * math.sin(a_angle), 2),
+                    "type": "bio" if a_idx % 2 == 0 else "energy"
+                })
+
+            systems.append({
+                "id": 3,
+                "name": sys_name,
+                "x": x,
+                "z": z,
+                "sectorId": sector_id,
+                "sectorName": sector_name,
+                "anomalyType": anomaly_type,
+                "isCoreAnchor": is_core_anchor,
+                "star": {
+                    "type": star_type,
+                    "color": "0xfef08a",
+                    "size": 7.5,
+                    "mass": 360
+                },
+                "planets": planets,
+                "asteroids": asteroids
+            })
+            continue
+
+        elif i == 4:
+            sys_name = "Solaris (Doppelstern Alpha)"
+            x, z = 240.0, -170.0
+            existing_coords.append((x, z))
+            star_type = "Blue Giant"
+            sector_id = "sector_outer_rim"
+            sector_name = "Perseus-Rand (Das Erwachen)"
+            anomaly_type = "dark_energy_rift"
+            is_core_anchor = False
+
+            planets = [
+                {
+                    "name": "Solaris",
+                    "type": "Habitable",
+                    "size": 3.8,
+                    "distance": 52.0,
+                    "color": "0x06b6d4",
+                    "temp": "18°C",
+                    "atmos": "Dichte gallertartige Aerosole & Psionische Ausdünstungen",
+                    "bio": "Einziger planetarer Hyper-Organismus (Lebender Kolloid-Ozean)",
+                    "res": "Psionische Kolloid-Gelatine & Neutrino-Plasmen",
+                    "species": {
+                        "hasSentient": True,
+                        "name": "Der Ozean von Solaris (Lebende Welt)",
+                        "population": 1,
+                        "techLevel": "Hyper-Advanced",
+                        "defenseRating": 99,
+                        "fleetDisposition": "Pacifist",
+                        "candidates": [
+                            {
+                                "name": "Harey (Solaris-Manifestation)",
+                                "species": "Neutrino-Konstrukt",
+                                "speciesType": "ancient",
+                                "role": "cryptologist",
+                                "roleName": "🌊 Manifestiertes Gedächtnis-Echo",
+                                "buffDesc": "+90 Psionische Resonanz & Traumabewältigung",
+                                "baseStressRate": 0.02,
+                                "age": 25,
+                                "maxLifespan": 3600,
+                                "ageCategory": "vital",
+                                "rejuvenationCount": 0
+                            }
+                        ]
+                    },
+                    "moons": [],
+                    "tidalLock": False,
+                    "magnetosphere": "Hyper-Magnetic",
+                    "geothermal": "Active Geysers",
+                    "radiationLevel": "Moderate",
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
+                }
+            ]
+
+            asteroids = []
+            for a_idx in range(12):
+                a_dist = 32.0 + (a_idx * 4.0)
+                a_angle = a_idx * (math.pi / 6)
+                asteroids.append({
+                    "x": round(a_dist * math.cos(a_angle), 2),
+                    "z": round(a_dist * math.sin(a_angle), 2),
+                    "type": "bio"
+                })
+
+            systems.append({
+                "id": 4,
+                "name": sys_name,
+                "x": x,
+                "z": z,
+                "sectorId": sector_id,
+                "sectorName": sector_name,
+                "anomalyType": anomaly_type,
+                "isCoreAnchor": is_core_anchor,
+                "star": {
+                    "type": star_type,
+                    "color": "0x60a5fa",
+                    "size": 8.0,
+                    "mass": 420
+                },
+                "planets": planets,
+                "asteroids": asteroids
+            })
+            continue
+
         else:
             arm = i % arms
             arm_offset = arm * (2.0 * math.pi / arms)

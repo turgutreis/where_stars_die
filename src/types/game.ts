@@ -268,6 +268,8 @@ export interface MutationItem {
     purchased: boolean;
     bioCost: number;
     siliconCost: number;
+    name?: string;
+    desc?: string;
 }
 
 export interface CrewBuffs {
@@ -316,6 +318,7 @@ export interface GameState {
         hivemind: MutationItem;
         folddrive: MutationItem;
         translator: MutationItem;
+        ibad?: MutationItem;
     };
 
     // Physics

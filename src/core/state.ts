@@ -44,7 +44,14 @@ export const STATE: GameState = {
         cocoon: { purchased: false, bioCost: 320, siliconCost: 140 },
         hivemind: { purchased: false, bioCost: 500, siliconCost: 320 },
         folddrive: { purchased: false, bioCost: 380, siliconCost: 420 },
-        translator: { purchased: false, bioCost: 120, siliconCost: 80 }
+        translator: { purchased: false, bioCost: 120, siliconCost: 80 },
+        ibad: { 
+            purchased: false, 
+            bioCost: 0, 
+            siliconCost: 0,
+            name: "Augen des Ibad (Melange-Erleuchtung)",
+            desc: "Blau-in-blau gefärbte Sklera durch Melange-Sättigung. Schaltet prophetische Weitsicht (Prescience) frei und harmonisiert neuronale Instabilitäten (Heilung von Psychosen & Geisteskrankheiten)."
+        }
     },
 
     // Physics & Newtonian Space Flight Dynamics
