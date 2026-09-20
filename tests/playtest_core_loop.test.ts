@@ -23,7 +23,23 @@ if (typeof globalThis.document === 'undefined') {
         children: [],
         scrollTop: 0,
         scrollHeight: 0,
-        addEventListener: () => {}
+        addEventListener: () => {},
+        getContext: () => ({
+            createRadialGradient: () => ({ addColorStop: () => {} }),
+            createLinearGradient: () => ({ addColorStop: () => {} }),
+            fillRect: () => {},
+            clearRect: () => {},
+            arc: () => {},
+            beginPath: () => {},
+            fill: () => {},
+            stroke: () => {},
+            moveTo: () => {},
+            lineTo: () => {},
+            closePath: () => {},
+            createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+            getImageData: () => ({ data: new Uint8ClampedArray(1024) }),
+            putImageData: () => {}
+        })
     };
     (globalThis as any).document = {
         getElementById: () => dummyEl,
@@ -102,6 +118,8 @@ import { advanceFtueStep, FTUE_DIRECTIVES } from '../src/ui/directives';
 import { openVoyagerDialog, closeVoyagerDialog, isVoyagerDialogOpen } from '../src/ui/voyager-dialog';
 import { handleVoyagerScan, setLockedTarget } from '../src/input/controls';
 import { calculateGravityAndCheckCollision, TRAJECTORY_SEGMENTS } from '../src/engine/trajectory';
+import { createRealisticStarfield } from '../src/engine/starfield';
+import { createAlienBioShip } from '../src/procedural/alien-ship';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -892,6 +910,78 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         // 3. Updating scanner UI for scanned body must not throw
         expect(() => updateScannerUI(rawBody, 5)).not.toThrow();
+    });
+
+    test("22. Infinite Celestial Skybox & Dynamic Space Dust: Skybox tracks camera position to infinity, zero translation parallax preserves constellations, and space dust streams dynamically with velocity", () => {
+        const starfield = createRealisticStarfield();
+
+        expect(starfield.group).toBeDefined();
+        expect(starfield.celestialGroup).toBeDefined();
+        expect(starfield.dustPoints).toBeDefined();
+
+        // 1. Initial position check
+        expect(starfield.group.position.x).toBe(0);
+        expect(starfield.group.position.z).toBe(0);
+
+        // 2. Camera translation to extreme coordinates (e.g. 50,000 units out)
+        const distantCamPos = new THREE.Vector3(50000, 65, -35000);
+        const playerVel = new THREE.Vector3(0, 0, 0); // Resting
+        starfield.update(0.016, distantCamPos, playerVel);
+
+        // Skybox group MUST follow camera translation to ensure infinite celestial background
+        expect(starfield.group.position.x).toBe(50000);
+        expect(starfield.group.position.z).toBe(-35000);
+
+        // Celestial group must maintain ZERO local translation offset (zero translation parallax)
+        expect(starfield.celestialGroup.position.x).toBe(0);
+        expect(starfield.celestialGroup.position.z).toBe(0);
+
+        // 3. Resting ship has subtle ambient deep-sea motes (Tiefsee-Quantenglimmer)
+        const dustMat = starfield.dustPoints.material as THREE.PointsMaterial;
+        const restingOpacity = dustMat.opacity;
+        expect(restingOpacity).toBeLessThanOrEqual(0.10);
+
+        // 4. Subtle abyssal quantum motes reaction during flight (refined, never a snowstorm)
+        const highSpeedVel = new THREE.Vector3(30, 0, 40); // 50 units/sec velocity
+        starfield.update(0.1, distantCamPos, highSpeedVel);
+
+        // Dust material gently increases opacity relative to resting state, maintaining elegance
+        expect(dustMat.opacity).toBeGreaterThan(restingOpacity);
+        expect(dustMat.opacity).toBeLessThanOrEqual(0.25);
+
+        // 5. Space dust particles must remain strictly bounded within local bounding box
+        const dustPositions = starfield.dustPoints.geometry.attributes.position.array as Float32Array;
+        let allBounded = true;
+        for (let i = 0; i < dustPositions.length; i += 3) {
+            const px = dustPositions[i];
+            const pz = dustPositions[i + 2];
+            if (Math.abs(px) > 86 || Math.abs(pz) > 86) {
+                allBounded = false;
+                break;
+            }
+        }
+        expect(allBounded).toBe(true);
+
+        // 6. Bio-Kielwasser: Wingtip slipstream ribbons on Najmafar
+        const ship = createAlienBioShip();
+        expect(ship.leftSlipstream).toBeDefined();
+        expect(ship.rightSlipstream).toBeDefined();
+
+        // Resting ship: slipstream opacity collapses to 0
+        STATE.isThrusting = false;
+        STATE.playerVelocity.set(0, 0, 0);
+        ship.update(0.016);
+        const slipstreamMat = ship.leftSlipstream!.material as THREE.LineBasicMaterial;
+        expect(slipstreamMat.opacity).toBeLessThanOrEqual(0.15);
+
+        // Active thrust: slipstream flares up at wingtips creating organic bio-wake
+        STATE.isThrusting = true;
+        STATE.playerVelocity.set(30, 0, 15);
+        ship.update(0.1);
+        expect(slipstreamMat.opacity).toBeGreaterThan(0.20);
+
+        // 7. Clean disposal
+        expect(() => starfield.dispose()).not.toThrow();
     });
 });
 
