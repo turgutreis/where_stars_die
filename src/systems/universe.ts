@@ -13,6 +13,7 @@ import { createSunCoronaMesh } from '../procedural/sun-shader';
 import { createAtmosphereMesh } from '../procedural/atmosphere-shader';
 import { createPlanetaryRings } from '../procedural/planet-rings';
 import { createSunRays, SunRaysController } from '../procedural/sun-rays';
+import { ensureLoreSystems } from '../procedural/lore-systems';
 
 export const activeCoronaMeshes: THREE.Object3D[] = [];
 export const activeCoronaUpdaters: ((dt: number) => void)[] = [];
@@ -55,6 +56,7 @@ export async function checkUniverseData() {
         }
 
         if (data && data.systems && data.systems.length > 0) {
+            ensureLoreSystems(data.systems);
             STATE.universe = data;
             const sysCount = data.systems.length;
             const meta = data.meta;
@@ -295,6 +297,7 @@ export function spawnPlanetsAndAsteroids() {
         let bodyMesh: THREE.Object3D | null = null;
         let cloudMesh: THREE.Mesh | null = null;
         let psioAuraMesh: THREE.Mesh | null = null;
+        let auroraMesh: THREE.Mesh | null = null;
         let generated: any = null;
         let finalSpecies: any = null;
 
@@ -402,6 +405,37 @@ export function spawnPlanetsAndAsteroids() {
                 const pRings = createPlanetaryRings(p.size, ringColor, seed);
                 planetGroup.add(pRings);
             }
+
+            // Auroral Glow on Hyper-Magnetic worlds
+            const isHyperMag = (p.magnetosphere === 'Hyper-Magnetic') || (generated && generated.magnetosphere === 'Hyper-Magnetic');
+            if (isHyperMag) {
+                const aurGeo = new THREE.RingGeometry(p.size * 1.06, p.size * 1.28, 32);
+                const aurMat = new THREE.MeshBasicMaterial({
+                    color: 0x38bdf8,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.42,
+                    blending: THREE.AdditiveBlending
+                });
+                auroraMesh = new THREE.Mesh(aurGeo, aurMat);
+                auroraMesh.rotation.x = Math.PI * 0.45;
+                planetGroup.add(auroraMesh);
+            }
+
+            // Quantum Resonant Aura on Entangled Twin worlds
+            const isEntangled = !!(p.entangledTwinId || (generated && generated.entangledTwinId));
+            if (isEntangled) {
+                const auraGeo = new THREE.SphereGeometry(p.size * 1.12, 24, 24);
+                const auraMat = new THREE.MeshBasicMaterial({
+                    color: 0xa855f7,
+                    transparent: true,
+                    opacity: 0.28,
+                    blending: THREE.AdditiveBlending,
+                    wireframe: true
+                });
+                psioAuraMesh = new THREE.Mesh(auraGeo, auraMat);
+                planetGroup.add(psioAuraMesh);
+            }
         }
 
         scene.add(planetGroup);
@@ -428,6 +462,7 @@ export function spawnPlanetsAndAsteroids() {
             bodyMesh: bodyMesh,
             cloudMesh: cloudMesh,
             psioAuraMesh: psioAuraMesh,
+            auroraMesh: auroraMesh,
             source: sourceObj,
             ringMesh: null,
             angle: angle,
@@ -445,7 +480,13 @@ export function spawnPlanetsAndAsteroids() {
                 temp: p.temp || (generated ? generated.temp : "0°C"),
                 bio: p.bio || (generated ? generated.bio : "Steril"),
                 res: p.res || (generated ? generated.res : "Gestein"),
-                species: finalSpecies || p.species || null
+                species: finalSpecies || p.species || null,
+                tidalLock: typeof p.tidalLock === 'boolean' ? p.tidalLock : (generated ? generated.tidalLock : (scaledDist < 160 || (p.type === 'Rocky' && seed % 4 === 0))),
+                magnetosphere: p.magnetosphere || (generated ? generated.magnetosphere : (isGas ? 'Hyper-Magnetic' : (isHab ? 'Strong' : 'Weak'))),
+                geothermal: p.geothermal || (generated ? generated.geothermal : (isGas ? 'Dead' : (isHab ? 'Active Geysers' : 'Dormant'))),
+                radiationLevel: p.radiationLevel || (generated ? generated.radiationLevel : 'Moderate'),
+                entangledTwinId: p.entangledTwinId || (generated ? generated.entangledTwinId : null),
+                quantumResonance: p.quantumResonance || (generated ? generated.quantumResonance : (p.entangledTwinId ? 0.85 : 0.0))
             }
         };
         activePlanets.push(planetEntry);
@@ -524,7 +565,10 @@ export function spawnPlanetsAndAsteroids() {
                     temp: m.temp,
                     bio: m.bio,
                     res: m.res,
-                    species: null
+                    species: null,
+                    tidalLock: typeof m.tidalLock === 'boolean' ? m.tidalLock : true,
+                    geothermal: m.geothermal || (m.type === 'Eismond' ? 'Active Geysers' : (m.type === 'Vulkanmond' ? 'Hyper-Volcanic' : 'Dead')),
+                    parentPlanetName: m.parentPlanetName || planetEntry.name
                 }
             };
             activePlanets.push(moonEntry);
@@ -748,7 +792,19 @@ export function updateActivePlanets(dt: number) {
             p.source.radius = p.size * curScale;
 
             if (p.bodyMesh && p.bodyMesh instanceof THREE.Mesh) {
-                p.bodyMesh.rotation.y += 0.08 * dt;
+                if (p.attributes && p.attributes.tidalLock) {
+                    // Synchronous 1:1 rotation: one side eternally faces central star
+                    p.bodyMesh.rotation.y = p.angle + Math.PI;
+                } else {
+                    p.bodyMesh.rotation.y += 0.08 * dt;
+                }
+            }
+            if (p.psioAuraMesh) {
+                p.psioAuraMesh.rotation.y -= 0.15 * dt;
+                p.psioAuraMesh.rotation.x += 0.08 * dt;
+            }
+            if (p.auroraMesh) {
+                p.auroraMesh.rotation.z += 0.05 * dt;
             }
             if (p.cloudMesh) {
                 p.cloudMesh.rotation.y += 0.12 * dt;
@@ -776,7 +832,12 @@ export function updateActivePlanets(dt: number) {
             p.source.position.set(mx, 0, mz);
 
             if (p.bodyMesh && p.bodyMesh instanceof THREE.Mesh) {
-                p.bodyMesh.rotation.y += 0.15 * dt;
+                if (p.attributes && p.attributes.tidalLock) {
+                    // Synchronous 1:1 rotation: one side eternally faces parent planet
+                    p.bodyMesh.rotation.y = p.angle + Math.PI;
+                } else {
+                    p.bodyMesh.rotation.y += 0.15 * dt;
+                }
             }
             if (p.ringMesh) {
                 p.ringMesh.position.set(parentPos.x, 0, parentPos.z);

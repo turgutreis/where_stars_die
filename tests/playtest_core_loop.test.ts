@@ -89,9 +89,11 @@ if (typeof globalThis.window === 'undefined') {
 
 import { STATE, activePlanets } from '../src/core/state';
 import { triggerHarvestStart, updateHarvesting, completeHarvesting } from '../src/systems/harvesting';
-import { triggerScanStart, updateScanning, completeScanning } from '../src/systems/scanner';
+import { triggerScanStart, updateScanning, completeScanning, generatePlanetAttributes, generateFallbackMoons, updateScannerUI } from '../src/systems/scanner';
+import { completeAbduction } from '../src/systems/abduction';
+import { getLoreSolSystem, getLoreArrakisSystem, getLoreSolarisSystem, ensureLoreSystems } from '../src/procedural/lore-systems';
 import { AUDIO_SETTINGS } from '../src/engine/audio';
-import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe } from '../src/systems/universe';
+import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets } from '../src/systems/universe';
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
 import { updatePhysics } from '../src/engine/physics';
 import { generateProceduralCandidates, getCrewReactiveThought } from '../src/systems/crew-generation';
@@ -684,6 +686,212 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         // 4. Verify that in cruising mode, the ship glides without abrupt drag decay
         // (speed should remain high and not drop to 0)
         expect(STATE.playerVelocity.length()).toBeGreaterThan(15.0);
+    });
+
+    test("19. Quantum-entangled star systems & deep planetary physics: Deterministic physical parameters, entangled twin linking, synchronous tidal locking, and magnetospheric induction", () => {
+        // 1. Deterministic planetary physics parameter generation
+        const mockRawPlanet = {
+            name: "Zeta Reticuli B",
+            type: "Rocky",
+            size: 2.8,
+            distance: 22.0, // close to star -> tidal locking expected
+            color: "0xd97706"
+        };
+        const attrs1 = generatePlanetAttributes(mockRawPlanet);
+        const attrs2 = generatePlanetAttributes(mockRawPlanet);
+
+        // Strict determinism
+        expect(attrs1).toEqual(attrs2);
+        expect(typeof attrs1.tidalLock).toBe('boolean');
+        expect(attrs1.tidalLock).toBe(true); // distance < 28 -> tidally locked
+        expect(['None', 'Weak', 'Strong', 'Hyper-Magnetic']).toContain(attrs1.magnetosphere!);
+        expect(['Dead', 'Dormant', 'Active Geysers', 'Hyper-Volcanic']).toContain(attrs1.geothermal!);
+        expect(['Low', 'Moderate', 'High', 'Extreme']).toContain(attrs1.radiationLevel!);
+
+        // 2. Fallback moons generate tidal locking, geothermals and parentPlanetName
+        const fallbackMoons = generateFallbackMoons({ name: "Zeus Prime", type: "Gas Giant", size: 6.0 });
+        expect(fallbackMoons.length).toBeGreaterThan(0);
+        fallbackMoons.forEach((m: any) => {
+            expect(m.tidalLock).toBe(true);
+            expect(m.parentPlanetName).toBe("Zeus Prime");
+            expect(m.geothermal).toBeDefined();
+        });
+
+        // 3. Tidally locked celestial rotation
+        const testPlanetEntry: any = {
+            name: "Locked World",
+            type: "Rocky",
+            size: 2.5,
+            angle: 1.25,
+            speed: 0.05,
+            distance: 30.0,
+            mesh: new THREE.Group(),
+            bodyMesh: new THREE.Mesh(new THREE.SphereGeometry(2.5)),
+            source: { position: new THREE.Vector3() },
+            isMoon: false,
+            attributes: { tidalLock: true }
+        };
+        activePlanets.length = 0;
+        activePlanets.push(testPlanetEntry);
+
+        updateActivePlanets(0.1);
+        // Rotation should synchronously match angle + Math.PI
+        expect(testPlanetEntry.bodyMesh.rotation.y).toBeCloseTo(testPlanetEntry.angle + Math.PI, 4);
+
+        // 4. Quantum-Entangled Twin Planet Harvesting Resonance
+        const twinA: any = {
+            name: "Entangled Alpha",
+            type: "Habitable",
+            size: 3.2,
+            mesh: new THREE.Group(),
+            scanned: true,
+            attributes: {
+                atmos: "O2",
+                temp: "22°C",
+                bio: "Bio",
+                res: "C",
+                species: null,
+                entangledTwinId: "Entangled Beta",
+                quantumResonance: 0.90,
+                magnetosphere: "Hyper-Magnetic"
+            }
+        };
+
+        STATE.extractingPlanet = twinA;
+        STATE.bioRes = 100;
+        STATE.mentalEnergy = 50;
+        STATE.bioEnergy = 50;
+        STATE.maxBioEnergy = 100;
+        STATE.crewBuffs = { bioGain: 1.0, scanSpeed: 1.0, propulsionSpeed: 1.0, repairEfficiency: 1.0, psionicCostReduction: 0.0 };
+
+        completeHarvesting();
+
+        // Habitable yields 65 base bio. With resonance 0.90, bonus bio = round(65 * 0.90 * 0.4) = 23
+        // Total bioRes = 100 + 65 + 23 = 188
+        expect(STATE.bioRes).toBe(188);
+        // Mental energy boosted by +20
+        expect(STATE.mentalEnergy).toBe(70);
+        // Hyper-Magnetic induction gives +25 base bioEnergy recharge + 25 hyper-magnetic induction = 100
+        expect(STATE.bioEnergy).toBe(100);
+    });
+
+    test("20. Sol-System & Iconic Sci-Fi Easter-Eggs (Arrakis / Dune & Solaris): Guarantees 9 planets of Sol, Melange harvesting surge, and Fremen abduction unlocking Augen des Ibad", () => {
+        // 1. Sol System Verification
+        const solSys = getLoreSolSystem();
+        expect(solSys.name).toContain("Sol");
+        expect(solSys.star.type).toBe("Yellow Sun");
+        expect(solSys.planets.length).toBe(9);
+
+        const planetNames = solSys.planets.map((p: any) => p.name);
+        expect(planetNames).toContain("Merkur");
+        expect(planetNames).toContain("Venus");
+        expect(planetNames).toContain("Erde (Terra)");
+        expect(planetNames).toContain("Mars");
+        expect(planetNames).toContain("Jupiter");
+        expect(planetNames).toContain("Saturn");
+        expect(planetNames).toContain("Uranus");
+        expect(planetNames).toContain("Neptun");
+        expect(planetNames).toContain("Pluto");
+
+        const erde = solSys.planets.find((p: any) => p.name === "Erde (Terra)");
+        expect(erde.moons.length).toBe(1);
+        expect(erde.moons[0].name).toContain("Luna");
+        expect(erde.species.name).toContain("Menschheit");
+        expect(erde.species.candidates.some((c: any) => c.name.includes("Carl Sagan"))).toBe(true);
+
+        const jupiter = solSys.planets.find((p: any) => p.name === "Jupiter");
+        expect(jupiter.moons.length).toBe(4); // Io, Europa, Ganymed, Kallisto
+        expect(jupiter.magnetosphere).toBe("Hyper-Magnetic");
+
+        const saturn = solSys.planets.find((p: any) => p.name === "Saturn");
+        expect(saturn.moons.some((m: any) => m.name.includes("Titan"))).toBe(true);
+
+        // 2. Arrakis & Canopus System Verification
+        const arrakisSys = getLoreArrakisSystem();
+        expect(arrakisSys.name).toContain("Canopus");
+        const arrakis = arrakisSys.planets.find((p: any) => p.name.includes("Arrakis"));
+        expect(arrakis).toBeDefined();
+        expect(arrakis.res).toContain("Melange");
+        expect(arrakis.species.name).toContain("Fremen");
+        expect(arrakis.species.candidates.some((c: any) => c.name.includes("Stilgar"))).toBe(true);
+        expect(arrakis.species.candidates.some((c: any) => c.name.includes("Chani"))).toBe(true);
+
+        // 3. Fallback injector guarantee
+        const mockUniverseSystems = [
+            { id: 0, name: "Center Core" },
+            { id: 1, name: "Perseus" }
+        ];
+        ensureLoreSystems(mockUniverseSystems);
+        expect(mockUniverseSystems.some(s => s.name.includes("Sol"))).toBe(true);
+        expect(mockUniverseSystems.some(s => s.name.includes("Arrakis"))).toBe(true);
+        expect(mockUniverseSystems.some(s => s.name.includes("Solaris"))).toBe(true);
+
+        // 4. Melange (Spice) Harvesting on Arrakis
+        STATE.extractingPlanet = arrakis;
+        STATE.bioRes = 50;
+        STATE.siliconRes = 20;
+        STATE.mentalEnergy = 40;
+        STATE.maxMentalEnergy = 100;
+        STATE.bioEnergy = 60;
+        STATE.crewBuffs = { bioGain: 1.0, scanSpeed: 1.0, propulsionSpeed: 1.0, repairEfficiency: 1.0, psionicCostReduction: 0.0 };
+
+        completeHarvesting();
+
+        // Base Rocky yield: 25 bio, 50 silicon. Plus Arrakis Melange bonus: +80 bio, +50 mentalEnergy.
+        // Total bioRes = 50 + 25 + 80 = 155
+        expect(STATE.bioRes).toBe(155);
+        // Total mentalEnergy = min(100, 40 + 50) = 90
+        expect(STATE.mentalEnergy).toBe(90);
+
+        // 5. Fremen Abduction unlocks Augen des Ibad mutation
+        expect(STATE.mutations.ibad).toBeDefined();
+        STATE.mutations.ibad!.purchased = false;
+        STATE.crew = [];
+        STATE.maxCrewCapacity = 4;
+
+        // Mock Abduction Target
+        STATE.abductTarget = arrakis;
+        completeAbduction();
+
+        // Must have recruited a Fremen candidate (Stilgar or Chani)
+        expect(STATE.crew.length).toBe(1);
+        expect(STATE.crew[0].species).toBe("Fremen");
+        // Must have unlocked Augen des Ibad
+        expect(STATE.mutations.ibad!.purchased).toBe(true);
+        expect(STATE.mutations.ibad!.desc).toContain("Psychosen");
+    });
+
+    test("21. Robust null-safety for celestial scanning: Bodies without pre-existing attributes auto-generate attributes without throwing TypeError", () => {
+        // Create a raw celestial body with NO .attributes object
+        const rawBody: any = {
+            name: "Anomalous-Void-Moon",
+            type: "Rocky",
+            size: 2.0,
+            distance: 45,
+            mesh: {
+                position: new THREE.Vector3(12, 0, 12),
+                scale: new THREE.Vector3(1, 1, 1)
+            },
+            scanned: false,
+            attributes: undefined // Deliberately undefined
+        };
+
+        // 1. Updating scanner UI for unscanned body without attributes must not throw
+        expect(() => updateScannerUI(rawBody, 5)).not.toThrow();
+
+        // 2. Complete scanning on body without attributes must not throw (fixes entangledTwinId / temp errors)
+        STATE.scanningPlanet = rawBody;
+        expect(() => completeScanning()).not.toThrow();
+
+        // Body must now be scanned and attributes populated
+        expect(rawBody.scanned).toBe(true);
+        expect(rawBody.attributes).toBeDefined();
+        expect(typeof rawBody.attributes.temp).toBe("string");
+        expect(typeof rawBody.attributes.bio).toBe("string");
+        expect(typeof rawBody.attributes.atmos).toBe("string");
+
+        // 3. Updating scanner UI for scanned body must not throw
+        expect(() => updateScannerUI(rawBody, 5)).not.toThrow();
     });
 });
 

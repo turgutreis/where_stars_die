@@ -6,6 +6,7 @@ import { calculateCrewBuffs, renderCrewUI } from './crew';
 import { updatePartyGrid } from '../ui/party-grid';
 import { updateScannerUI, generatePlanetAttributes } from './scanner';
 import { advanceFtueStep } from '../ui/directives';
+import { updateMutationUI } from '../ui/deck';
 
 let abductOsc: OscillatorNode | null = null;
 let abductGain: GainNode | null = null;
@@ -32,6 +33,9 @@ export function triggerAbductStart() {
     }
 
     // Ensure candidate pool exists for habitable planet
+    if (!p.attributes) {
+        p.attributes = generatePlanetAttributes(p);
+    }
     if (!p.attributes.species || !p.attributes.species.candidates || p.attributes.species.candidates.length === 0) {
         const generated = generatePlanetAttributes(p);
         if (generated.species && generated.species.candidates && generated.species.candidates.length > 0) {
@@ -104,6 +108,14 @@ export function completeAbduction() {
 
     const planet = STATE.abductTarget;
     if (planet) {
+        if (!planet.attributes) {
+            planet.attributes = generatePlanetAttributes(planet);
+            const rawSpecies = (planet as any).species;
+            if (rawSpecies) {
+                planet.attributes.species = rawSpecies;
+            }
+        }
+
         if (!planet.attributes.species || !planet.attributes.species.candidates || planet.attributes.species.candidates.length === 0) {
             const gen = generatePlanetAttributes(planet);
             if (gen.species && gen.species.candidates && gen.species.candidates.length > 0) {
@@ -124,6 +136,15 @@ export function completeAbduction() {
                 STATE.crew.push(candidate);
                 STATE.crewSatietyTimer = 0;
                 calculateCrewBuffs();
+
+                // Easter Egg: Fremen Abduction on Arrakis unlocks Augen des Ibad mutation
+                if (candidate.species === 'Fremen' || (candidate.speciesType as any) === 'fremen' || (planet.name && planet.name.includes('Arrakis'))) {
+                    if (STATE.mutations.ibad && !STATE.mutations.ibad.purchased) {
+                        STATE.mutations.ibad.purchased = true;
+                        updateMutationUI();
+                        addLogEntry("SYSTEM", `👁️ AUGEN DES IBAD ERWACHT: Durch Assimilation des Fremen ${candidate.name} mutieren Najmafars Sehnerven blau-in-blau! Die Weitsicht des Gewürzes (Prescience) stabilisiert den Geist und schaltet die spätere Heilung von Psychosen frei.`);
+                    }
+                }
 
                 // Immediate Loneliness Drop on successful Abduction
                 const crewCount = STATE.crew.length;

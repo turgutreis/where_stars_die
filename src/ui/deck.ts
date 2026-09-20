@@ -137,4 +137,9 @@ export function updateMutationUI() {
             }
         }
     });
+
+    const ibadCard = document.getElementById('mut-ibad');
+    if (ibadCard) {
+        ibadCard.style.display = (STATE.mutations.ibad && STATE.mutations.ibad.purchased) ? 'flex' : 'none';
+    }
 }

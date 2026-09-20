@@ -9,21 +9,54 @@ import { SpeciesData, PlanetAttributes } from '../types/game';
 import { generateProceduralCandidates } from './crew-generation';
 import { advanceFtueStep, triggerVoyagerSignalDetection } from '../ui/directives';
 
-export function generatePlanetAttributes(p: any) {
+export function generatePlanetAttributes(p: any): PlanetAttributes {
+    const sysId = STATE.currentSystemId || 0;
+    const nameHash = (p.name || '').split('').reduce((acc: number, char: string) => (acc * 31 + char.charCodeAt(0)) >>> 0, 0);
+    const distFactor = Math.floor((p.distance || 1) * 73);
+    const hash = ((sysId * 7919) ^ (nameHash * 17) ^ distFactor) >>> 0;
+
+    const tidalLock = typeof p.tidalLock === 'boolean'
+        ? p.tidalLock
+        : ((p.distance || 50) < 28 || (p.type === 'Rocky' && hash % 4 === 0));
+
+    const magnetosphere: 'None' | 'Weak' | 'Strong' | 'Hyper-Magnetic' = p.magnetosphere || (
+        p.type === 'Gas Giant'
+            ? (hash % 3 === 0 ? 'Hyper-Magnetic' : 'Strong')
+            : (p.type === 'Habitable'
+                ? (hash % 3 === 0 ? 'Weak' : 'Strong')
+                : (p.type === 'Rocky' ? (hash % 3 === 0 ? 'None' : (hash % 3 === 1 ? 'Weak' : 'Strong')) : 'Weak'))
+    );
+
+    const geothermal: 'Dead' | 'Dormant' | 'Active Geysers' | 'Hyper-Volcanic' = p.geothermal || (
+        p.type === 'Gas Giant'
+            ? (hash % 2 === 0 ? 'Dead' : 'Dormant')
+            : (p.type === 'Habitable'
+                ? (hash % 2 === 0 ? 'Dormant' : 'Active Geysers')
+                : (p.type === 'Rocky' ? (hash % 3 === 0 ? 'Hyper-Volcanic' : (hash % 3 === 1 ? 'Active Geysers' : 'Dead')) : 'Active Geysers'))
+    );
+
+    const radiationLevel: 'Low' | 'Moderate' | 'High' | 'Extreme' = p.radiationLevel || (
+        hash % 4 === 0 ? 'Extreme' : (hash % 4 === 1 ? 'High' : (hash % 4 === 2 ? 'Moderate' : 'Low'))
+    );
+
+    const entangledTwinId = p.entangledTwinId ?? null;
+    const quantumResonance = p.quantumResonance ?? (entangledTwinId ? 0.85 : 0.0);
+
     if (p.atmos && p.temp && p.bio && p.res && (p.type !== 'Habitable' || (p.species && p.species.candidates && p.species.candidates.length > 0))) {
         return {
             atmos: p.atmos,
             temp: p.temp,
             bio: p.bio,
             res: p.res,
-            species: p.species || null
+            species: p.species || null,
+            tidalLock,
+            magnetosphere,
+            geothermal,
+            radiationLevel,
+            entangledTwinId,
+            quantumResonance
         };
     }
-
-    const sysId = STATE.currentSystemId || 0;
-    const nameHash = p.name.split('').reduce((acc: number, char: string) => (acc * 31 + char.charCodeAt(0)) >>> 0, 0);
-    const distFactor = Math.floor((p.distance || 1) * 73);
-    const hash = ((sysId * 7919) ^ (nameHash * 17) ^ distFactor) >>> 0;
 
     let atmos: string, temp: string, bio: string, res: string, species: any;
     if (p.type === 'Habitable') {
@@ -62,7 +95,19 @@ export function generatePlanetAttributes(p: any) {
         species = null;
     }
 
-    return { atmos, temp, bio, res, species };
+    return { 
+        atmos, 
+        temp, 
+        bio, 
+        res, 
+        species,
+        tidalLock,
+        magnetosphere,
+        geothermal,
+        radiationLevel,
+        entangledTwinId,
+        quantumResonance
+    };
 }
 
 export function generateFallbackMoons(p: any) {
@@ -76,6 +121,7 @@ export function generateFallbackMoons(p: any) {
     for (let i = 0; i < count; i++) {
         const mType = (p.type === 'Gas Giant' || (hash + i) % 3 === 0) ? "Eismond" : (((hash + i) % 3 === 1) ? "Vulkanmond" : "Kratermond");
         const mColor = mType === 'Eismond' ? "0x38bdf8" : (mType === 'Vulkanmond' ? "0xf97316" : "0x94a3b8");
+        const mGeo = mType === 'Eismond' ? "Active Geysers" : (mType === 'Vulkanmond' ? "Hyper-Volcanic" : "Dead");
         moons.push({
             name: `${p.name}-${String.fromCharCode(73 + i)}`,
             type: mType,
@@ -86,7 +132,10 @@ export function generateFallbackMoons(p: any) {
             temp: mType === 'Eismond' ? "-170°C" : (mType === 'Vulkanmond' ? "+220°C" : "-40°C"),
             atmos: mType === 'Eismond' ? "Subglazialer Wasserdampf" : (mType === 'Vulkanmond' ? "Schwefeldioxid-Ausgasungen" : "Vakuum"),
             bio: mType === 'Eismond' ? "Kryophile Mikroben" : (mType === 'Vulkanmond' ? "Schwefel-Synthetisierer" : "Steril"),
-            res: mType === 'Eismond' ? "Reich an Deuterium-Eis" : (mType === 'Vulkanmond' ? "Geschmolzenes Titan & Silizium" : "Regolith & Schwermetalle")
+            res: mType === 'Eismond' ? "Reich an Deuterium-Eis" : (mType === 'Vulkanmond' ? "Geschmolzenes Titan & Silizium" : "Regolith & Schwermetalle"),
+            tidalLock: true,
+            geothermal: mGeo,
+            parentPlanetName: p.name
         });
     }
     return moons;
@@ -180,6 +229,9 @@ export function completeScanning() {
     const planet = STATE.scanningPlanet;
     try {
         if (planet) {
+            if (!planet.attributes) {
+                planet.attributes = generatePlanetAttributes(planet);
+            }
             planet.scanned = true;
             STATE.scannedPlanets[planet.name] = true;
 
@@ -189,10 +241,14 @@ export function completeScanning() {
 
             addLogEntry("SYSTEM", `Spektral-Scan von ${planet.name} abgeschlossen! Atmosphärendatenbank aktualisiert (+15 Bio | +10 Silizium).`);
 
-            if (planet.attributes.species && planet.attributes.species.population > 0) {
+            if (planet.attributes?.entangledTwinId) {
+                addLogEntry("SYSTEM", `QUANTEN-KOPPLUNG: ${planet.name} ist resonant verschränkt mit ${planet.attributes.entangledTwinId} (${Math.round((planet.attributes.quantumResonance || 0.85) * 100)}% Resonanz)!`);
+            }
+
+            if (planet.attributes?.species && planet.attributes.species.population > 0) {
                 addLogEntry("SYSTEM", `PSIO-DETEKTION: Intelligentes Leben (${planet.attributes.species.name}) auf ${planet.name} entdeckt! Psionischer Transfer [F] bereit.`);
             } else {
-                addLogEntry("SENSOR", `Atmosphärendaten: ${planet.attributes.atmos || 'Vakuum'} | Bio: ${planet.attributes.bio || 'Steril'}. Keine Lebensformen detektiert.`);
+                addLogEntry("SENSOR", `Atmosphärendaten: ${planet.attributes?.atmos || 'Vakuum'} | Bio: ${planet.attributes?.bio || 'Steril'}. Keine Lebensformen detektiert.`);
             }
 
             // If in FTUE early exploration phases, first planet scan triggers archaic Voyager signal detection
@@ -220,9 +276,10 @@ export function dismissScannerPanel(): void {
         scannerPanel.classList.remove('visible');
     }
     if (STATE.lockedTarget) {
-        STATE.lockedTarget = null;
+        manuallyDismissedTarget = STATE.lockedTarget.name;
+    } else if (STATE.nearestPlanet) {
+        manuallyDismissedTarget = STATE.nearestPlanet.name;
     }
-    manuallyDismissedTarget = STATE.nearestPlanet ? STATE.nearestPlanet.name : '__all__';
 }
 
 export function resetDismissedScanner(): void {
@@ -230,40 +287,31 @@ export function resetDismissedScanner(): void {
 }
 
 export function updateScannerUI(planet: any, dist: number) {
-    const scannerPanel = document.getElementById('left-deck-panel');
-    const nameEl = document.getElementById('nearest-planet-name');
-    const distEl = document.getElementById('nearest-planet-distance');
-    const scanBtn = document.getElementById('start-scan-btn') as HTMLButtonElement;
+    const nameEl = document.getElementById('scan-planet-name');
+    const distEl = document.getElementById('scan-planet-dist');
+    const scanBtn = document.getElementById('start-scan-btn') as HTMLButtonElement | null;
+    const placeholderBox = document.getElementById('scan-placeholder-box');
+    const resultsBox = document.getElementById('scan-results-box');
     const harvestBtn = document.getElementById('start-harvest-btn');
     const abductBtn = document.getElementById('start-abduct-btn');
-    const resultsBox = document.getElementById('scan-results-box');
-    const placeholderBox = document.getElementById('scan-placeholder-box');
+    const scannerPanel = document.getElementById('left-deck-panel');
 
     if (!planet) {
-        if (scannerPanel) {
-            scannerPanel.classList.remove('visible');
-        }
-        if (nameEl) nameEl.innerText = "Keiner in Reichweite";
-        if (distEl) distEl.innerText = "-";
-        if (scanBtn) scanBtn.disabled = true;
-        if (resultsBox) resultsBox.style.display = 'none';
-        if (placeholderBox) placeholderBox.style.display = 'block';
+        if (scannerPanel) scannerPanel.classList.remove('visible');
         return;
     }
 
-    // Reset manual dismissal if approaching a different body
-    if (manuallyDismissedTarget && planet && manuallyDismissedTarget !== planet.name) {
+    // Reset manual dismissal if target changed
+    if (manuallyDismissedTarget && manuallyDismissedTarget !== planet.name) {
         manuallyDismissedTarget = null;
     }
 
-    const isDismissed = manuallyDismissedTarget === planet.name || manuallyDismissedTarget === '__all__';
-    const isLocked = STATE.lockedTarget !== null && STATE.lockedTarget === planet;
-    const isInOrbit = STATE.isInPlanetOrbit && (STATE.orbitPlanet === planet || STATE.activeMoonOrbit === planet);
+    const isLocked = STATE.lockedTarget && STATE.lockedTarget.name === planet.name;
+    const isInOrbit = (STATE.orbitPlanet && STATE.orbitPlanet.name === planet.name) ||
+                      (STATE.activeMoonOrbit && STATE.activeMoonOrbit.name === planet.name);
     const isCurrentlyVisible = scannerPanel ? scannerPanel.classList.contains('visible') : false;
+    const isDismissed = manuallyDismissedTarget === planet.name;
 
-    // Scan interaction range is 25 units.
-    // Auto-open when within scan interaction range (dist <= 25).
-    // Auto-close with hysteresis when flying away (dist > 30).
     let shouldShow = false;
     if (!isDismissed) {
         if (isInOrbit || isLocked) {
@@ -341,6 +389,11 @@ export function updateScannerUI(planet: any, dist: number) {
     }
 
     if (isScanned) {
+        if (!planet.attributes) {
+            planet.attributes = generatePlanetAttributes(planet);
+        }
+        const attrs = planet.attributes;
+
         if (placeholderBox) placeholderBox.style.display = 'none';
         if (resultsBox) resultsBox.style.display = 'block';
 
@@ -351,16 +404,53 @@ export function updateScannerUI(planet: any, dist: number) {
         if (typeEl) typeEl.innerText = `${planet.type} (${planet.size}x)`;
 
         const tempEl = document.getElementById('scan-planet-temp');
-        if (tempEl) tempEl.innerText = planet.attributes.temp;
+        if (tempEl) tempEl.innerText = attrs.temp || '-';
 
         const bioEl = document.getElementById('scan-planet-bio');
-        if (bioEl) bioEl.innerText = planet.attributes.bio;
+        if (bioEl) bioEl.innerText = attrs.bio || '-';
 
         const atmosEl = document.getElementById('scan-planet-atmos');
-        if (atmosEl) atmosEl.innerText = planet.attributes.atmos;
+        if (atmosEl) atmosEl.innerText = attrs.atmos || '-';
+
+        const quantumRow = document.getElementById('scan-planet-quantum-row');
+        const quantumEl = document.getElementById('scan-planet-quantum');
+        if (quantumRow && quantumEl) {
+            if (attrs.entangledTwinId) {
+                quantumRow.style.display = 'flex';
+                const resPct = Math.round((attrs.quantumResonance || 0.85) * 100);
+                quantumEl.innerHTML = `🔗 Verschränkt mit <span style="color: #c084fc; font-weight: bold;">${attrs.entangledTwinId}</span> (${resPct}% Resonanz)`;
+            } else {
+                quantumRow.style.display = 'none';
+            }
+        }
+
+        const physicsRow = document.getElementById('scan-planet-physics-row');
+        const physicsEl = document.getElementById('scan-planet-physics');
+        if (physicsRow && physicsEl) {
+            physicsRow.style.display = 'flex';
+            const rotText = attrs.tidalLock ? "Gebundene Rotation (1:1)" : "Freie Rotation";
+            const geoText = attrs.geothermal ? ` • ${attrs.geothermal}` : "";
+            physicsEl.innerText = `${rotText}${geoText}`;
+        }
+
+        const radiationRow = document.getElementById('scan-planet-radiation-row');
+        const radiationEl = document.getElementById('scan-planet-radiation');
+        if (radiationRow && radiationEl) {
+            radiationRow.style.display = 'flex';
+            const radLevel = attrs.radiationLevel || 'Normal';
+            const magLevel = attrs.magnetosphere ? ` • 🧲 ${attrs.magnetosphere}` : "";
+            radiationEl.innerText = `${radLevel}${magLevel}`;
+            if (radLevel === 'Extreme') {
+                radiationEl.style.color = '#f43f5e';
+            } else if (radLevel === 'High') {
+                radiationEl.style.color = '#fb923c';
+            } else {
+                radiationEl.style.color = '#facc15';
+            }
+        }
 
         const resEl = document.getElementById('scan-planet-resources');
-        if (resEl) resEl.innerText = planet.attributes.res;
+        if (resEl) resEl.innerText = attrs.res || '-';
 
         const speciesRow = document.getElementById('scan-planet-species-row');
         const speciesEl = document.getElementById('scan-planet-species');
@@ -369,7 +459,7 @@ export function updateScannerUI(planet: any, dist: number) {
         const fleetRow = document.getElementById('scan-planet-fleet-row');
         const fleetEl = document.getElementById('scan-planet-fleet');
 
-        const spec = planet.attributes.species;
+        const spec = attrs.species;
         const hasSentient = spec && spec.population > 0;
 
         if (speciesRow && speciesEl) {

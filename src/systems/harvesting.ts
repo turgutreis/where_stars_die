@@ -128,6 +128,30 @@ export function completeHarvesting() {
         STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 25);
         STATE.health = Math.min(STATE.maxHealth, STATE.health + 15);
 
+        // Quantum Resonance Boost: Entangled Twin worlds amplify extraction
+        if (planet.attributes && planet.attributes.entangledTwinId) {
+            const resonance = planet.attributes.quantumResonance || 0.85;
+            const bonusBio = Math.round(bioGain * resonance * 0.4);
+            STATE.bioRes += bonusBio;
+            STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 20);
+            addLogEntry("SYSTEM", `QUANTEN-RESONANZ: Verschränkungsbrücke zu ${planet.attributes.entangledTwinId} aktiv! +${bonusBio} Resonanz-Biomasse | +20 Psionik.`);
+        }
+
+        // Magnetospheric Induction: Hyper-magnetic planets feed back into Najmafar's capacitor
+        if (planet.attributes && planet.attributes.magnetosphere === 'Hyper-Magnetic') {
+            STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 25);
+            addLogEntry("SENSOR", `MAGNETOSPHÄREN-INDUKTION: Hyper-Magnetfeld von ${planet.name} induziert Bio-Ladung (+25 Bio-Energie).`);
+        }
+
+        // Easter Egg: Melange (Das Gewürz / Spice) Extraction on Arrakis
+        if (planet.name && planet.name.includes("Arrakis")) {
+            const spiceBioBonus = 80;
+            const spicePsiBonus = 50;
+            STATE.bioRes += spiceBioBonus;
+            STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + spicePsiBonus);
+            addLogEntry("SYSTEM", `✨ MELANGE-EXTRAKTION: Das heilige Gewürz von Arrakis durchströmt Najmafars Zellkerne! (+${spiceBioBonus} Melange-Biomasse | +${spicePsiBonus} Psionik).`);
+        }
+
         addLogEntry("SYSTEM", `Assimilation von ${planet.name} abgeschlossen! +${bioGain} Biomasse | +${silGain} Silizium absorbiert. Vorkommen erschöpft.`);
         updateMutationUI();
     }
