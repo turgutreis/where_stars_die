@@ -16,7 +16,7 @@ function generateAlienGlyphs(length = 120): string {
 }
 
 export function openDiplomacyComms(planet: PlanetEntry) {
-    if (!planet || !planet.attributes.species) return;
+    if (!planet || !planet.attributes?.species) return;
 
     STATE.activeDiplomacyPlanet = planet;
     const spec = planet.attributes.species;

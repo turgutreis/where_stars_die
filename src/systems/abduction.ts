@@ -33,6 +33,9 @@ export function triggerAbductStart() {
     }
 
     // Ensure candidate pool exists for habitable planet
+    if (!p.attributes) {
+        p.attributes = generatePlanetAttributes(p);
+    }
     if (!p.attributes.species || !p.attributes.species.candidates || p.attributes.species.candidates.length === 0) {
         const generated = generatePlanetAttributes(p);
         if (generated.species && generated.species.candidates && generated.species.candidates.length > 0) {

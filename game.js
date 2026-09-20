@@ -34258,7 +34258,7 @@ function generateAlienGlyphs(length = 120) {
   return s;
 }
 function openDiplomacyComms(planet) {
-  if (!planet || !planet.attributes.species)
+  if (!planet || !planet.attributes?.species)
     return;
   STATE.activeDiplomacyPlanet = planet;
   const spec = planet.attributes.species;
@@ -34903,19 +34903,22 @@ function completeScanning() {
   const planet = STATE.scanningPlanet;
   try {
     if (planet) {
+      if (!planet.attributes) {
+        planet.attributes = generatePlanetAttributes(planet);
+      }
       planet.scanned = true;
       STATE.scannedPlanets[planet.name] = true;
       STATE.bioRes += 15;
       STATE.siliconRes += 10;
       STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 15);
       addLogEntry("SYSTEM", `Spektral-Scan von ${planet.name} abgeschlossen! Atmosphärendatenbank aktualisiert (+15 Bio | +10 Silizium).`);
-      if (planet.attributes.entangledTwinId) {
+      if (planet.attributes?.entangledTwinId) {
         addLogEntry("SYSTEM", `QUANTEN-KOPPLUNG: ${planet.name} ist resonant verschränkt mit ${planet.attributes.entangledTwinId} (${Math.round((planet.attributes.quantumResonance || 0.85) * 100)}% Resonanz)!`);
       }
-      if (planet.attributes.species && planet.attributes.species.population > 0) {
+      if (planet.attributes?.species && planet.attributes.species.population > 0) {
         addLogEntry("SYSTEM", `PSIO-DETEKTION: Intelligentes Leben (${planet.attributes.species.name}) auf ${planet.name} entdeckt! Psionischer Transfer [F] bereit.`);
       } else {
-        addLogEntry("SENSOR", `Atmosphärendaten: ${planet.attributes.atmos || "Vakuum"} | Bio: ${planet.attributes.bio || "Steril"}. Keine Lebensformen detektiert.`);
+        addLogEntry("SENSOR", `Atmosphärendaten: ${planet.attributes?.atmos || "Vakuum"} | Bio: ${planet.attributes?.bio || "Steril"}. Keine Lebensformen detektiert.`);
       }
       if ((STATE.ftueStep || 0) <= 1 && !STATE.voyagerSignalDetected) {
         triggerVoyagerSignalDetection();
@@ -34938,45 +34941,35 @@ function dismissScannerPanel() {
     scannerPanel.classList.remove("visible");
   }
   if (STATE.lockedTarget) {
-    STATE.lockedTarget = null;
+    manuallyDismissedTarget = STATE.lockedTarget.name;
+  } else if (STATE.nearestPlanet) {
+    manuallyDismissedTarget = STATE.nearestPlanet.name;
   }
-  manuallyDismissedTarget = STATE.nearestPlanet ? STATE.nearestPlanet.name : "__all__";
 }
 function resetDismissedScanner() {
   manuallyDismissedTarget = null;
 }
 function updateScannerUI(planet, dist) {
-  const scannerPanel = document.getElementById("left-deck-panel");
-  const nameEl = document.getElementById("nearest-planet-name");
-  const distEl = document.getElementById("nearest-planet-distance");
+  const nameEl = document.getElementById("scan-planet-name");
+  const distEl = document.getElementById("scan-planet-dist");
   const scanBtn = document.getElementById("start-scan-btn");
+  const placeholderBox = document.getElementById("scan-placeholder-box");
+  const resultsBox = document.getElementById("scan-results-box");
   const harvestBtn = document.getElementById("start-harvest-btn");
   const abductBtn = document.getElementById("start-abduct-btn");
-  const resultsBox = document.getElementById("scan-results-box");
-  const placeholderBox = document.getElementById("scan-placeholder-box");
+  const scannerPanel = document.getElementById("left-deck-panel");
   if (!planet) {
-    if (scannerPanel) {
+    if (scannerPanel)
       scannerPanel.classList.remove("visible");
-    }
-    if (nameEl)
-      nameEl.innerText = "Keiner in Reichweite";
-    if (distEl)
-      distEl.innerText = "-";
-    if (scanBtn)
-      scanBtn.disabled = true;
-    if (resultsBox)
-      resultsBox.style.display = "none";
-    if (placeholderBox)
-      placeholderBox.style.display = "block";
     return;
   }
-  if (manuallyDismissedTarget && planet && manuallyDismissedTarget !== planet.name) {
+  if (manuallyDismissedTarget && manuallyDismissedTarget !== planet.name) {
     manuallyDismissedTarget = null;
   }
-  const isDismissed = manuallyDismissedTarget === planet.name || manuallyDismissedTarget === "__all__";
-  const isLocked = STATE.lockedTarget !== null && STATE.lockedTarget === planet;
-  const isInOrbit = STATE.isInPlanetOrbit && (STATE.orbitPlanet === planet || STATE.activeMoonOrbit === planet);
+  const isLocked = STATE.lockedTarget && STATE.lockedTarget.name === planet.name;
+  const isInOrbit = STATE.orbitPlanet && STATE.orbitPlanet.name === planet.name || STATE.activeMoonOrbit && STATE.activeMoonOrbit.name === planet.name;
   const isCurrentlyVisible = scannerPanel ? scannerPanel.classList.contains("visible") : false;
+  const isDismissed = manuallyDismissedTarget === planet.name;
   let shouldShow = false;
   if (!isDismissed) {
     if (isInOrbit || isLocked) {
@@ -35047,6 +35040,10 @@ function updateScannerUI(planet, dist) {
     }
   }
   if (isScanned) {
+    if (!planet.attributes) {
+      planet.attributes = generatePlanetAttributes(planet);
+    }
+    const attrs = planet.attributes;
     if (placeholderBox)
       placeholderBox.style.display = "none";
     if (resultsBox)
@@ -35059,20 +35056,20 @@ function updateScannerUI(planet, dist) {
       typeEl.innerText = `${planet.type} (${planet.size}x)`;
     const tempEl = document.getElementById("scan-planet-temp");
     if (tempEl)
-      tempEl.innerText = planet.attributes.temp;
+      tempEl.innerText = attrs.temp || "-";
     const bioEl = document.getElementById("scan-planet-bio");
     if (bioEl)
-      bioEl.innerText = planet.attributes.bio;
+      bioEl.innerText = attrs.bio || "-";
     const atmosEl = document.getElementById("scan-planet-atmos");
     if (atmosEl)
-      atmosEl.innerText = planet.attributes.atmos;
+      atmosEl.innerText = attrs.atmos || "-";
     const quantumRow = document.getElementById("scan-planet-quantum-row");
     const quantumEl = document.getElementById("scan-planet-quantum");
     if (quantumRow && quantumEl) {
-      if (planet.attributes.entangledTwinId) {
+      if (attrs.entangledTwinId) {
         quantumRow.style.display = "flex";
-        const resPct = Math.round((planet.attributes.quantumResonance || 0.85) * 100);
-        quantumEl.innerHTML = `\uD83D\uDD17 Verschränkt mit <span style="color: #c084fc; font-weight: bold;">${planet.attributes.entangledTwinId}</span> (${resPct}% Resonanz)`;
+        const resPct = Math.round((attrs.quantumResonance || 0.85) * 100);
+        quantumEl.innerHTML = `\uD83D\uDD17 Verschränkt mit <span style="color: #c084fc; font-weight: bold;">${attrs.entangledTwinId}</span> (${resPct}% Resonanz)`;
       } else {
         quantumRow.style.display = "none";
       }
@@ -35081,16 +35078,16 @@ function updateScannerUI(planet, dist) {
     const physicsEl = document.getElementById("scan-planet-physics");
     if (physicsRow && physicsEl) {
       physicsRow.style.display = "flex";
-      const rotText = planet.attributes.tidalLock ? "Gebundene Rotation (1:1)" : "Freie Rotation";
-      const geoText = planet.attributes.geothermal ? ` • ${planet.attributes.geothermal}` : "";
+      const rotText = attrs.tidalLock ? "Gebundene Rotation (1:1)" : "Freie Rotation";
+      const geoText = attrs.geothermal ? ` • ${attrs.geothermal}` : "";
       physicsEl.innerText = `${rotText}${geoText}`;
     }
     const radiationRow = document.getElementById("scan-planet-radiation-row");
     const radiationEl = document.getElementById("scan-planet-radiation");
     if (radiationRow && radiationEl) {
       radiationRow.style.display = "flex";
-      const radLevel = planet.attributes.radiationLevel || "Normal";
-      const magLevel = planet.attributes.magnetosphere ? ` • \uD83E\uDDF2 ${planet.attributes.magnetosphere}` : "";
+      const radLevel = attrs.radiationLevel || "Normal";
+      const magLevel = attrs.magnetosphere ? ` • \uD83E\uDDF2 ${attrs.magnetosphere}` : "";
       radiationEl.innerText = `${radLevel}${magLevel}`;
       if (radLevel === "Extreme") {
         radiationEl.style.color = "#f43f5e";
@@ -35102,14 +35099,14 @@ function updateScannerUI(planet, dist) {
     }
     const resEl = document.getElementById("scan-planet-resources");
     if (resEl)
-      resEl.innerText = planet.attributes.res;
+      resEl.innerText = attrs.res || "-";
     const speciesRow = document.getElementById("scan-planet-species-row");
     const speciesEl = document.getElementById("scan-planet-species");
     const techRow = document.getElementById("scan-planet-tech-row");
     const techEl = document.getElementById("scan-planet-tech");
     const fleetRow = document.getElementById("scan-planet-fleet-row");
     const fleetEl = document.getElementById("scan-planet-fleet");
-    const spec = planet.attributes.species;
+    const spec = attrs.species;
     const hasSentient = spec && spec.population > 0;
     if (speciesRow && speciesEl) {
       if (hasSentient) {
@@ -38744,6 +38741,9 @@ function triggerAbductStart() {
   if (dist > maxStartDist) {
     addLogEntry("SYSTEM", `Zu weit entfernt für psionischen Traktorstrahl (Distanz: ${dist.toFixed(1)} / Max ${maxStartDist.toFixed(0)}).`);
     return;
+  }
+  if (!p.attributes) {
+    p.attributes = generatePlanetAttributes(p);
   }
   if (!p.attributes.species || !p.attributes.species.candidates || p.attributes.species.candidates.length === 0) {
     const generated = generatePlanetAttributes(p);

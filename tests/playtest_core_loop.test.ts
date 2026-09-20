@@ -89,7 +89,7 @@ if (typeof globalThis.window === 'undefined') {
 
 import { STATE, activePlanets } from '../src/core/state';
 import { triggerHarvestStart, updateHarvesting, completeHarvesting } from '../src/systems/harvesting';
-import { triggerScanStart, updateScanning, completeScanning, generatePlanetAttributes, generateFallbackMoons } from '../src/systems/scanner';
+import { triggerScanStart, updateScanning, completeScanning, generatePlanetAttributes, generateFallbackMoons, updateScannerUI } from '../src/systems/scanner';
 import { completeAbduction } from '../src/systems/abduction';
 import { getLoreSolSystem, getLoreArrakisSystem, getLoreSolarisSystem, ensureLoreSystems } from '../src/procedural/lore-systems';
 import { AUDIO_SETTINGS } from '../src/engine/audio';
@@ -859,6 +859,39 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         // Must have unlocked Augen des Ibad
         expect(STATE.mutations.ibad!.purchased).toBe(true);
         expect(STATE.mutations.ibad!.desc).toContain("Psychosen");
+    });
+
+    test("21. Robust null-safety for celestial scanning: Bodies without pre-existing attributes auto-generate attributes without throwing TypeError", () => {
+        // Create a raw celestial body with NO .attributes object
+        const rawBody: any = {
+            name: "Anomalous-Void-Moon",
+            type: "Rocky",
+            size: 2.0,
+            distance: 45,
+            mesh: {
+                position: new THREE.Vector3(12, 0, 12),
+                scale: new THREE.Vector3(1, 1, 1)
+            },
+            scanned: false,
+            attributes: undefined // Deliberately undefined
+        };
+
+        // 1. Updating scanner UI for unscanned body without attributes must not throw
+        expect(() => updateScannerUI(rawBody, 5)).not.toThrow();
+
+        // 2. Complete scanning on body without attributes must not throw (fixes entangledTwinId / temp errors)
+        STATE.scanningPlanet = rawBody;
+        expect(() => completeScanning()).not.toThrow();
+
+        // Body must now be scanned and attributes populated
+        expect(rawBody.scanned).toBe(true);
+        expect(rawBody.attributes).toBeDefined();
+        expect(typeof rawBody.attributes.temp).toBe("string");
+        expect(typeof rawBody.attributes.bio).toBe("string");
+        expect(typeof rawBody.attributes.atmos).toBe("string");
+
+        // 3. Updating scanner UI for scanned body must not throw
+        expect(() => updateScannerUI(rawBody, 5)).not.toThrow();
     });
 });
 
