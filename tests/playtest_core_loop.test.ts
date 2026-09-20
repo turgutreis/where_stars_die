@@ -109,7 +109,7 @@ import { triggerScanStart, updateScanning, completeScanning, generatePlanetAttri
 import { completeAbduction } from '../src/systems/abduction';
 import { getLoreSolSystem, getLoreArrakisSystem, getLoreSolarisSystem, ensureLoreSystems } from '../src/procedural/lore-systems';
 import { AUDIO_SETTINGS } from '../src/engine/audio';
-import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets } from '../src/systems/universe';
+import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets, spawnPlanetsAndAsteroids } from '../src/systems/universe';
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
 import { updatePhysics } from '../src/engine/physics';
 import { generateProceduralCandidates, getCrewReactiveThought } from '../src/systems/crew-generation';
@@ -120,6 +120,8 @@ import { handleVoyagerScan, setLockedTarget } from '../src/input/controls';
 import { calculateGravityAndCheckCollision, TRAJECTORY_SEGMENTS } from '../src/engine/trajectory';
 import { createRealisticStarfield } from '../src/engine/starfield';
 import { createAlienBioShip } from '../src/procedural/alien-ship';
+import { createHabitableTextures, createGasGiantTextures, createRockyTextures, createIceMoonTextures, createVolcanicMoonTextures } from '../src/procedural/textures';
+import { createAtmosphereMesh } from '../src/procedural/atmosphere-shader';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -982,6 +984,119 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         // 7. Clean disposal
         expect(() => starfield.dispose()).not.toThrow();
+    });
+
+    test("23. High-End PBR Planetary Graphics, Specular/Roughness Maps & Atmospheric Twilight Terminator", () => {
+        // 1. Habitable Planet PBR generation
+        const habTex = createHabitableTextures(0x38bdf8, 42);
+        expect(habTex.map).toBeInstanceOf(THREE.CanvasTexture);
+        expect(habTex.bumpMap).toBeInstanceOf(THREE.CanvasTexture);
+        expect(habTex.roughnessMap).toBeInstanceOf(THREE.CanvasTexture);
+
+        // 2. Roughness maps for Gas Giants, Rocky Worlds, and Moons
+        const gasTex = createGasGiantTextures(0xf59e0b, 77);
+        expect(gasTex.map).toBeInstanceOf(THREE.CanvasTexture);
+        expect(gasTex.roughnessMap).toBeInstanceOf(THREE.CanvasTexture);
+
+        const rockyTex = createRockyTextures(0x888888, 99);
+        expect(rockyTex.map).toBeInstanceOf(THREE.CanvasTexture);
+        expect(rockyTex.bumpMap).toBeInstanceOf(THREE.CanvasTexture);
+        expect(rockyTex.roughnessMap).toBeInstanceOf(THREE.CanvasTexture);
+
+        const iceMoonTex = createIceMoonTextures(0xe0f2fe, 123);
+        expect(iceMoonTex.map).toBeInstanceOf(THREE.CanvasTexture);
+        expect(iceMoonTex.roughnessMap).toBeInstanceOf(THREE.CanvasTexture);
+
+        const volcanicMoonTex = createVolcanicMoonTextures(0xf97316, 321);
+        expect(volcanicMoonTex.map).toBeInstanceOf(THREE.CanvasTexture);
+        expect(volcanicMoonTex.emissiveMap).toBeInstanceOf(THREE.CanvasTexture);
+        expect(volcanicMoonTex.roughnessMap).toBeInstanceOf(THREE.CanvasTexture);
+
+        // 3. Atmospheric Shader with Rayleigh Twilight Scattering
+        const atmoMesh = createAtmosphereMesh(12, 0x38bdf8, 1.25);
+        expect(atmoMesh).toBeInstanceOf(THREE.Mesh);
+        expect(atmoMesh.material).toBeInstanceOf(THREE.ShaderMaterial);
+
+        const atmoMat = atmoMesh.material as THREE.ShaderMaterial;
+        expect(atmoMat.uniforms.glowColor).toBeDefined();
+        expect(atmoMat.uniforms.intensityMultiplier).toBeDefined();
+        expect(atmoMat.uniforms.uStarPosition).toBeDefined();
+        expect(atmoMat.uniforms.uStarPosition.value).toBeInstanceOf(THREE.Vector3);
+
+        // Verify vertex shader computes world normals for true planetary lighting
+        expect(atmoMat.vertexShader).toContain('vWorldNormal');
+        expect(atmoMat.vertexShader).toContain('modelMatrix');
+
+        // Verify fragment shader contains Rayleigh sunset twilight scattering formulas
+        expect(atmoMat.fragmentShader).toContain('twilightFactor');
+        expect(atmoMat.fragmentShader).toContain('sunsetColor');
+        expect(atmoMat.fragmentShader).toContain('uStarPosition');
+
+        // 4. System Arrival Integration: Planar Mesh, atmoMesh, and Night-Side City Lights
+        const testSys: any = {
+            id: 'pbr-test-sys',
+            name: 'PBR Prime',
+            dominantFaction: 'Verbund Freier Siedler',
+            star: {
+                type: 'Yellow Sun',
+                color: '0xffd700',
+                size: 24,
+                mass: 100
+            },
+            planets: [
+                {
+                    name: 'Gaia Nova',
+                    type: 'Habitable',
+                    size: 8,
+                    color: '0x38bdf8',
+                    moons: [
+                        { name: 'Io Prime', type: 'Vulkanmond', size: 2.2, color: '0xf97316' },
+                        { name: 'Europa Secundus', type: 'Eismond', size: 2.0, color: '0xe0f2fe' }
+                    ],
+                    species: {
+                        name: 'Aethelgardianer',
+                        population: 4500000,
+                        techLevel: 'Spacefaring',
+                        candidates: [{ id: 'c-1', name: 'Test', bioStation: 'Botaniker' }]
+                    }
+                },
+                {
+                    name: 'Titanus Gas',
+                    type: 'Gas Giant',
+                    size: 16,
+                    color: '0xf59e0b',
+                    moons: []
+                }
+            ]
+        };
+
+        STATE.universe = { systems: [testSys] };
+        STATE.currentSystemId = 0;
+        activePlanets.length = 0;
+        spawnPlanetsAndAsteroids();
+
+        const habPlanet = activePlanets.find(p => p.name === 'Gaia Nova');
+        expect(habPlanet).toBeDefined();
+        expect(habPlanet!.atmoMesh).toBeDefined();
+        expect(habPlanet!.atmoMesh).toBeInstanceOf(THREE.Mesh);
+
+        // Body mesh material must be standard PBR with roughnessMap and city lights terminator hook
+        const bodyMesh = habPlanet!.bodyMesh as THREE.Mesh;
+        expect(bodyMesh).toBeInstanceOf(THREE.Mesh);
+        const bodyMat = bodyMesh.material as THREE.MeshStandardMaterial;
+        expect(bodyMat.roughnessMap).toBeDefined();
+        expect(bodyMat.roughness).toBe(1.0); // full dynamic range utilized by roughnessMap
+        expect(bodyMat.customProgramCacheKey).toBeDefined();
+        expect(bodyMat.customProgramCacheKey!()).toBe('cityLightsTerminator');
+
+        // Moons must also possess PBR materials with roughnessMap and volcanic emission
+        const volcanicMoon = activePlanets.find(p => p.name === 'Io Prime');
+        expect(volcanicMoon).toBeDefined();
+        const vMoonMesh = volcanicMoon!.bodyMesh as THREE.Mesh;
+        const vMoonMat = vMoonMesh.material as THREE.MeshStandardMaterial;
+        expect(vMoonMat.roughnessMap).toBeDefined();
+        expect(vMoonMat.emissiveMap).toBeDefined();
+        expect(vMoonMat.emissiveIntensity).toBeGreaterThan(0.0);
     });
 });
 

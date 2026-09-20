@@ -296,6 +296,7 @@ export function spawnPlanetsAndAsteroids() {
 
         let bodyMesh: THREE.Object3D | null = null;
         let cloudMesh: THREE.Mesh | null = null;
+        let atmoMesh: THREE.Mesh | null = null;
         let psioAuraMesh: THREE.Mesh | null = null;
         let auroraMesh: THREE.Mesh | null = null;
         let generated: any = null;
@@ -359,15 +360,54 @@ export function spawnPlanetsAndAsteroids() {
                 map: texData.map,
                 bumpMap: texData.bumpMap || null,
                 bumpScale: isGas ? 0 : 0.08,
-                roughness: isGas ? 0.35 : 0.68,
-                metalness: isGas ? 0.1 : 0.12,
+                roughnessMap: texData.roughnessMap || null,
+                roughness: texData.roughnessMap ? 1.0 : (isGas ? 0.35 : 0.68),
+                metalness: isGas ? 0.04 : 0.08,
                 emissive: cityLightsTexture ? new THREE.Color(0xffffff) : new THREE.Color(0x000000),
                 emissiveMap: cityLightsTexture || null,
-                emissiveIntensity: cityLightsTexture ? 0.85 : 0.0,
+                emissiveIntensity: cityLightsTexture ? 1.0 : 0.0,
                 transparent: false,
                 depthWrite: true,
                 depthTest: true
             });
+
+            if (cityLightsTexture) {
+                mat.customProgramCacheKey = () => 'cityLightsTerminator';
+                mat.onBeforeCompile = (shader) => {
+                    shader.uniforms.uStarWorldPos = { value: new THREE.Vector3(0, 0, 0) };
+                    mat.userData.shader = shader;
+
+                    shader.vertexShader = shader.vertexShader.replace(
+                        '#include <common>',
+                        `#include <common>
+                        varying vec3 vCustomWorldPos;
+                        varying vec3 vCustomWorldNorm;`
+                    );
+                    shader.vertexShader = shader.vertexShader.replace(
+                        '#include <worldpos_vertex>',
+                        `#include <worldpos_vertex>
+                        vCustomWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                        vCustomWorldNorm = normalize((modelMatrix * vec4(objectNormal, 0.0)).xyz);`
+                    );
+
+                    shader.fragmentShader = shader.fragmentShader.replace(
+                        '#include <common>',
+                        `#include <common>
+                        uniform vec3 uStarWorldPos;
+                        varying vec3 vCustomWorldPos;
+                        varying vec3 vCustomWorldNorm;`
+                    );
+                    shader.fragmentShader = shader.fragmentShader.replace(
+                        '#include <emissivemap_fragment>',
+                        `#include <emissivemap_fragment>
+                        vec3 starDir = normalize(uStarWorldPos - vCustomWorldPos);
+                        float sunDot = dot(vCustomWorldNorm, starDir);
+                        // Daylight suppresses city lights; dark night hemisphere fully illuminates them
+                        float nightMask = smoothstep(0.08, -0.15, sunDot);
+                        totalEmissiveRadiance *= nightMask;`
+                    );
+                };
+            }
 
             const mesh = new THREE.Mesh(geo, mat);
             const axialTilt = (((seed % 17) + 12) * Math.PI) / 180;
@@ -378,7 +418,7 @@ export function spawnPlanetsAndAsteroids() {
 
             if (isHab || isGas) {
                 const atmoHex = isHab ? 0x38bdf8 : parseInt(p.color);
-                const atmoMesh = createAtmosphereMesh(p.size, atmoHex, isHab ? 1.2 : 1.0);
+                atmoMesh = createAtmosphereMesh(p.size, atmoHex, isHab ? 1.25 : 1.0);
                 planetGroup.add(atmoMesh);
             }
 
@@ -461,6 +501,7 @@ export function spawnPlanetsAndAsteroids() {
             mesh: planetGroup,
             bodyMesh: bodyMesh,
             cloudMesh: cloudMesh,
+            atmoMesh: atmoMesh || null,
             psioAuraMesh: psioAuraMesh,
             auroraMesh: auroraMesh,
             source: sourceObj,
@@ -517,8 +558,12 @@ export function spawnPlanetsAndAsteroids() {
                 map: mTex.map,
                 bumpMap: mTex.bumpMap || null,
                 bumpScale: 0.06,
-                roughness: 0.75,
-                metalness: 0.1
+                roughnessMap: mTex.roughnessMap || null,
+                roughness: mTex.roughnessMap ? 1.0 : 0.75,
+                metalness: 0.08,
+                emissive: mTex.emissiveMap ? new THREE.Color(0xffffff) : new THREE.Color(0x000000),
+                emissiveMap: mTex.emissiveMap || null,
+                emissiveIntensity: mTex.emissiveMap ? 1.2 : 0.0
             });
             const mMesh = new THREE.Mesh(mGeo, mMat);
 

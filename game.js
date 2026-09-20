@@ -30368,6 +30368,12 @@ function createHabitableTextures(colorHex, seed = 42) {
   const bumpCtx = bumpCanvas.getContext("2d");
   const bumpImg = bumpCtx.createImageData(w, h);
   const bumpData = bumpImg.data;
+  const roughnessCanvas = document.createElement("canvas");
+  roughnessCanvas.width = w;
+  roughnessCanvas.height = h;
+  const roughnessCtx = roughnessCanvas.getContext("2d");
+  const roughnessImg = roughnessCtx.createImageData(w, h);
+  const roughnessData = roughnessImg.data;
   const rgb = hexToRgb(colorHex);
   for (let y = 0;y < h; y++) {
     const lat = Math.abs(y - h / 2) / (h / 2);
@@ -30377,23 +30383,26 @@ function createHabitableTextures(colorHex, seed = 42) {
       const ny = y / h * 3.5;
       const n = fbm(nx, ny, 5, seed);
       const detailNoise = smoothNoise(nx * 18, ny * 18, seed + 101);
-      let r, g, b, bumpVal;
+      let r, g, b, bumpVal, roughnessVal;
       if (lat > 0.82 + n * 0.1) {
         r = 230 + Math.floor(n * 25);
         g = 245 + Math.floor(n * 10);
         b = 255;
         bumpVal = 40 + Math.floor(detailNoise * 20);
+        roughnessVal = 64 + Math.floor(detailNoise * 18);
       } else if (n < 0.47) {
         const oceanDepth = n / 0.47;
         if (oceanDepth < 0.8) {
           r = 6;
           g = 45 + Math.floor(oceanDepth * 45);
           b = 135 + Math.floor(oceanDepth * 85);
+          roughnessVal = 12;
         } else {
           const shallowT = (oceanDepth - 0.8) / 0.2;
           r = 8 + Math.floor(shallowT * 20);
           g = 150 + Math.floor(shallowT * 70);
           b = 200 + Math.floor(shallowT * 35);
+          roughnessVal = 18;
         }
         bumpVal = 0;
       } else if (n < 0.51) {
@@ -30401,18 +30410,21 @@ function createHabitableTextures(colorHex, seed = 42) {
         g = 185 + Math.floor(detailNoise * 20);
         b = 115;
         bumpVal = 18;
+        roughnessVal = 140 + Math.floor(detailNoise * 20);
       } else if (n < 0.72) {
         const vegT = (n - 0.51) / 0.21;
         r = Math.floor(rgb.r * 0.32 + (1 - vegT) * 25 + detailNoise * 15);
         g = Math.floor(rgb.g * 0.92 + vegT * 45 + detailNoise * 20);
         b = Math.floor(rgb.b * 0.42 + vegT * 25);
         bumpVal = 55 + Math.floor(vegT * 65 + detailNoise * 25);
+        roughnessVal = 195 + Math.floor(detailNoise * 25);
       } else {
         const mountainT = (n - 0.72) / 0.28;
         r = 145 + Math.floor(mountainT * 95 + detailNoise * 15);
         g = 150 + Math.floor(mountainT * 90 + detailNoise * 15);
         b = 165 + Math.floor(mountainT * 90);
         bumpVal = 140 + Math.floor(mountainT * 115);
+        roughnessVal = mountainT > 0.75 ? 160 : 238;
       }
       colData[idx] = Math.min(255, r);
       colData[idx + 1] = Math.min(255, g);
@@ -30422,13 +30434,19 @@ function createHabitableTextures(colorHex, seed = 42) {
       bumpData[idx + 1] = bumpVal;
       bumpData[idx + 2] = bumpVal;
       bumpData[idx + 3] = 255;
+      roughnessData[idx] = roughnessVal;
+      roughnessData[idx + 1] = roughnessVal;
+      roughnessData[idx + 2] = roughnessVal;
+      roughnessData[idx + 3] = 255;
     }
   }
   colCtx.putImageData(colImg, 0, 0);
   bumpCtx.putImageData(bumpImg, 0, 0);
+  roughnessCtx.putImageData(roughnessImg, 0, 0);
   const map = new CanvasTexture(colCanvas);
   const bumpMap = new CanvasTexture(bumpCanvas);
-  return { map, bumpMap };
+  const roughnessMap = new CanvasTexture(roughnessCanvas);
+  return { map, bumpMap, roughnessMap };
 }
 function createCityLightsTexture(seed = 42, techLevel = "Spacefaring") {
   const w = 1024, h = 512;
@@ -30492,6 +30510,12 @@ function createGasGiantTextures(colorHex, seed = 77) {
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(w, h);
   const data = img.data;
+  const roughnessCanvas = document.createElement("canvas");
+  roughnessCanvas.width = w;
+  roughnessCanvas.height = h;
+  const roughnessCtx = roughnessCanvas.getContext("2d");
+  const roughnessImg = roughnessCtx.createImageData(w, h);
+  const roughnessData = roughnessImg.data;
   const base = hexToRgb(colorHex);
   const stormX = Math.abs(seed) % 100 / 100 * w * 0.6 + w * 0.2;
   const stormY = h * 0.58;
@@ -30504,27 +30528,35 @@ function createGasGiantTextures(colorHex, seed = 77) {
       const microTurb = smoothNoise(nx * 14, ny * 14, seed + 42) * 0.15;
       const band = Math.sin(y * 0.18 + (turb + microTurb) * 5);
       const sDist = Math.hypot((x - stormX) / 2, y - stormY);
-      let r, g, b;
+      let r, g, b, roughnessVal;
       if (sDist < 35) {
         const swirl = Math.sin(sDist * 0.25 + Math.atan2(y - stormY, x - stormX) * 3);
         r = Math.min(255, base.r * 1.6 + swirl * 45);
         g = Math.min(255, base.g * 0.8 + swirl * 25);
         b = Math.min(255, base.b * 1.5 + swirl * 35);
+        roughnessVal = 105 + Math.floor(swirl * 20);
       } else {
         const bandWeight = (band + 1) * 0.5;
         r = Math.floor(base.r * (0.38 + bandWeight * 0.72) + turb * 40);
         g = Math.floor(base.g * (0.38 + bandWeight * 0.72) + turb * 40);
         b = Math.floor(base.b * (0.38 + bandWeight * 0.72) + turb * 40);
+        roughnessVal = Math.floor(80 + bandWeight * 70 + turb * 25);
       }
       data[idx] = Math.min(255, Math.max(0, r));
       data[idx + 1] = Math.min(255, Math.max(0, g));
       data[idx + 2] = Math.min(255, Math.max(0, b));
       data[idx + 3] = 255;
+      roughnessData[idx] = roughnessVal;
+      roughnessData[idx + 1] = roughnessVal;
+      roughnessData[idx + 2] = roughnessVal;
+      roughnessData[idx + 3] = 255;
     }
   }
   ctx.putImageData(img, 0, 0);
+  roughnessCtx.putImageData(roughnessImg, 0, 0);
   const map = new CanvasTexture(canvas);
-  return { map, bumpMap: null };
+  const roughnessMap = new CanvasTexture(roughnessCanvas);
+  return { map, bumpMap: null, roughnessMap };
 }
 function createRockyTextures(colorHex, seed = 99) {
   const w = 1024, h = 512;
@@ -30540,6 +30572,12 @@ function createRockyTextures(colorHex, seed = 99) {
   const bumpCtx = bumpCanvas.getContext("2d");
   const bumpImg = bumpCtx.createImageData(w, h);
   const bumpData = bumpImg.data;
+  const roughnessCanvas = document.createElement("canvas");
+  roughnessCanvas.width = w;
+  roughnessCanvas.height = h;
+  const roughnessCtx = roughnessCanvas.getContext("2d");
+  const roughnessImg = roughnessCtx.createImageData(w, h);
+  const roughnessData = roughnessImg.data;
   const base = hexToRgb(colorHex);
   const craters = [];
   for (let c = 0;c < 24; c++) {
@@ -30557,6 +30595,7 @@ function createRockyTextures(colorHex, seed = 99) {
       const n = fbm(nx, ny, 5, seed);
       const microN = smoothNoise(nx * 22, ny * 22, seed + 33);
       let bumpVal = Math.floor(n * 160 + microN * 30);
+      let roughnessVal = Math.floor(180 + microN * 30);
       let r = Math.floor(base.r * (0.55 + n * 0.5 + microN * 0.15));
       let g = Math.floor(base.g * (0.55 + n * 0.5 + microN * 0.15));
       let b = Math.floor(base.b * (0.55 + n * 0.5 + microN * 0.15));
@@ -30570,11 +30609,13 @@ function createRockyTextures(colorHex, seed = 99) {
             g = Math.floor(g * 0.55);
             b = Math.floor(b * 0.55);
             bumpVal = Math.max(0, bumpVal - 70);
+            roughnessVal = 140;
           } else {
             r = Math.min(255, r + 45);
             g = Math.min(255, g + 45);
             b = Math.min(255, b + 45);
             bumpVal = Math.min(255, bumpVal + 80);
+            roughnessVal = 230;
           }
         }
       }
@@ -30586,13 +30627,19 @@ function createRockyTextures(colorHex, seed = 99) {
       bumpData[idx + 1] = bumpVal;
       bumpData[idx + 2] = bumpVal;
       bumpData[idx + 3] = 255;
+      roughnessData[idx] = roughnessVal;
+      roughnessData[idx + 1] = roughnessVal;
+      roughnessData[idx + 2] = roughnessVal;
+      roughnessData[idx + 3] = 255;
     }
   }
   colCtx.putImageData(colImg, 0, 0);
   bumpCtx.putImageData(bumpImg, 0, 0);
+  roughnessCtx.putImageData(roughnessImg, 0, 0);
   return {
     map: new CanvasTexture(colCanvas),
-    bumpMap: new CanvasTexture(bumpCanvas)
+    bumpMap: new CanvasTexture(bumpCanvas),
+    roughnessMap: new CanvasTexture(roughnessCanvas)
   };
 }
 function createIceMoonTextures(colorHex, seed = 123) {
@@ -30609,6 +30656,12 @@ function createIceMoonTextures(colorHex, seed = 123) {
   const bumpCtx = bumpCanvas.getContext("2d");
   const bumpImg = bumpCtx.createImageData(w, h);
   const bumpData = bumpImg.data;
+  const roughnessCanvas = document.createElement("canvas");
+  roughnessCanvas.width = w;
+  roughnessCanvas.height = h;
+  const roughnessCtx = roughnessCanvas.getContext("2d");
+  const roughnessImg = roughnessCtx.createImageData(w, h);
+  const roughnessData = roughnessImg.data;
   for (let y = 0;y < h; y++) {
     for (let x = 0;x < w; x++) {
       const idx = (y * w + x) * 4;
@@ -30616,17 +30669,19 @@ function createIceMoonTextures(colorHex, seed = 123) {
       const crack1 = Math.abs(Math.sin(x * 0.08 + n * 3.5 + y * 0.04));
       const crack2 = Math.abs(Math.sin(y * 0.1 - x * 0.05 + n * 2.8));
       const isCrack = crack1 < 0.09 || crack2 < 0.07;
-      let r, g, b, bumpVal;
+      let r, g, b, bumpVal, roughnessVal;
       if (isCrack) {
         r = 180 + Math.floor(n * 30);
         g = 100 + Math.floor(n * 20);
         b = 80;
         bumpVal = 180;
+        roughnessVal = 195;
       } else {
         r = 210 + Math.floor(n * 40);
         g = 235 + Math.floor(n * 20);
         b = 255;
         bumpVal = 60 + Math.floor(n * 50);
+        roughnessVal = 35 + Math.floor(n * 25);
       }
       colData[idx] = Math.min(255, r);
       colData[idx + 1] = Math.min(255, g);
@@ -30636,13 +30691,19 @@ function createIceMoonTextures(colorHex, seed = 123) {
       bumpData[idx + 1] = bumpVal;
       bumpData[idx + 2] = bumpVal;
       bumpData[idx + 3] = 255;
+      roughnessData[idx] = roughnessVal;
+      roughnessData[idx + 1] = roughnessVal;
+      roughnessData[idx + 2] = roughnessVal;
+      roughnessData[idx + 3] = 255;
     }
   }
   colCtx.putImageData(colImg, 0, 0);
   bumpCtx.putImageData(bumpImg, 0, 0);
+  roughnessCtx.putImageData(roughnessImg, 0, 0);
   return {
     map: new CanvasTexture(colCanvas),
-    bumpMap: new CanvasTexture(bumpCanvas)
+    bumpMap: new CanvasTexture(bumpCanvas),
+    roughnessMap: new CanvasTexture(roughnessCanvas)
   };
 }
 function createVolcanicMoonTextures(colorHex, seed = 321) {
@@ -30665,13 +30726,19 @@ function createVolcanicMoonTextures(colorHex, seed = 321) {
   const emCtx = emCanvas.getContext("2d");
   const emImg = emCtx.createImageData(w, h);
   const emData = emImg.data;
+  const roughnessCanvas = document.createElement("canvas");
+  roughnessCanvas.width = w;
+  roughnessCanvas.height = h;
+  const roughnessCtx = roughnessCanvas.getContext("2d");
+  const roughnessImg = roughnessCtx.createImageData(w, h);
+  const roughnessData = roughnessImg.data;
   for (let y = 0;y < h; y++) {
     for (let x = 0;x < w; x++) {
       const idx = (y * w + x) * 4;
       const n = fbm(x / w * 7, y / h * 5, 4, seed);
       const magma = Math.abs(Math.sin(x * 0.08 + y * 0.1 + n * 4));
       const isMagma = magma < 0.1;
-      let r, g, b, emR, emG, emB, bumpVal;
+      let r, g, b, emR, emG, emB, bumpVal, roughnessVal;
       if (isMagma) {
         r = 255;
         g = 110;
@@ -30680,6 +30747,7 @@ function createVolcanicMoonTextures(colorHex, seed = 321) {
         emG = 90;
         emB = 0;
         bumpVal = 20;
+        roughnessVal = 16;
       } else if (n > 0.6) {
         r = 230;
         g = 190;
@@ -30688,6 +30756,7 @@ function createVolcanicMoonTextures(colorHex, seed = 321) {
         emG = 0;
         emB = 0;
         bumpVal = 130;
+        roughnessVal = 230;
       } else {
         r = 60 + Math.floor(n * 40);
         g = 40 + Math.floor(n * 30);
@@ -30696,6 +30765,7 @@ function createVolcanicMoonTextures(colorHex, seed = 321) {
         emG = 0;
         emB = 0;
         bumpVal = 80;
+        roughnessVal = 85 + Math.floor(n * 40);
       }
       colData[idx] = r;
       colData[idx + 1] = g;
@@ -30709,15 +30779,21 @@ function createVolcanicMoonTextures(colorHex, seed = 321) {
       bumpData[idx + 1] = bumpVal;
       bumpData[idx + 2] = bumpVal;
       bumpData[idx + 3] = 255;
+      roughnessData[idx] = roughnessVal;
+      roughnessData[idx + 1] = roughnessVal;
+      roughnessData[idx + 2] = roughnessVal;
+      roughnessData[idx + 3] = 255;
     }
   }
   colCtx.putImageData(colImg, 0, 0);
   bumpCtx.putImageData(bumpImg, 0, 0);
   emCtx.putImageData(emImg, 0, 0);
+  roughnessCtx.putImageData(roughnessImg, 0, 0);
   return {
     map: new CanvasTexture(colCanvas),
     bumpMap: new CanvasTexture(bumpCanvas),
-    emissiveMap: new CanvasTexture(emCanvas)
+    emissiveMap: new CanvasTexture(emCanvas),
+    roughnessMap: new CanvasTexture(roughnessCanvas)
   };
 }
 function createStarTexture(colorHex, seed = 555) {
@@ -36401,9 +36477,11 @@ var atmosphereVertexShader = `
 varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPosition;
+varying vec3 vWorldNormal;
 
 void main() {
     vNormal = normalize(normalMatrix * normal);
+    vWorldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
     vec4 worldPos = modelMatrix * vec4(position, 1.0);
     vWorldPosition = worldPos.xyz;
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
@@ -36414,9 +36492,12 @@ void main() {
 var atmosphereFragmentShader = `
 uniform vec3 glowColor;
 uniform float intensityMultiplier;
+uniform vec3 uStarPosition;
+
 varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPosition;
+varying vec3 vWorldNormal;
 
 void main() {
     // 1. Soft Fresnel limb darkening / atmospheric rim
@@ -36424,19 +36505,31 @@ void main() {
     float fresnel = 1.0 - max(dotNV, 0.0);
     float glow = pow(fresnel, 3.2) * intensityMultiplier;
 
-    // 2. Solar illumination direction (Sun at origin 0,0,0)
-    vec3 lightDir = normalize(-vWorldPosition);
-    vec3 worldNormal = normalize(vWorldPosition);
-    float sunDot = dot(worldNormal, lightDir);
-    float dayFactor = clamp(sunDot * 0.75 + 0.35, 0.18, 1.0);
+    // 2. Solar illumination direction towards star
+    vec3 lightDir = normalize(uStarPosition - vWorldPosition);
+    float sunDot = dot(vWorldNormal, lightDir);
 
-    // 3. Twilight Rayleigh tint at day/night terminator line
-    vec3 twilightColor = mix(vec3(0.95, 0.58, 0.32), glowColor, clamp(sunDot * 3.2 + 0.5, 0.0, 1.0));
+    // Day/Night factor: sunlit hemisphere is bright, night drops off cleanly
+    float dayFactor = smoothstep(-0.18, 0.28, sunDot);
 
-    gl_FragColor = vec4(twilightColor, glow * dayFactor * 0.95);
+    // Subtle ionospheric night airglow (avoids unphysical black void while preserving night)
+    float nightAirglow = 0.035 * intensityMultiplier;
+
+    // 3. Rayleigh Twilight Sunset scattering at day/night terminator (sunDot around 0.0)
+    // Long-wavelength Rayleigh scattering leaves fiery golden-amber-red sunset colors on the limb
+    float twilightFactor = smoothstep(0.32, 0.0, abs(sunDot - 0.02));
+    vec3 sunsetColor = vec3(1.0, 0.42, 0.12);
+
+    // Smoothly blend day atmospheric color, fiery twilight terminator, and starlight
+    vec3 finalColor = mix(glowColor, sunsetColor, twilightFactor * 0.88);
+
+    // Atmosphere alpha combines day illumination, twilight peak, and subtle night airglow
+    float alpha = glow * (dayFactor + twilightFactor * 0.45 + nightAirglow);
+
+    gl_FragColor = vec4(finalColor, clamp(alpha, 0.0, 1.0));
 }
 `;
-function createAtmosphereMesh(planetRadius, hexColor, intensity = 1.25) {
+function createAtmosphereMesh(planetRadius, hexColor, intensity = 1.25, starPos = new Vector3(0, 0, 0)) {
   const color = new Color(hexColor);
   const atmosphereGeo = new SphereGeometry(planetRadius * 1.045, 36, 36);
   const atmosphereMat = new ShaderMaterial({
@@ -36444,7 +36537,8 @@ function createAtmosphereMesh(planetRadius, hexColor, intensity = 1.25) {
     fragmentShader: atmosphereFragmentShader,
     uniforms: {
       glowColor: { value: color },
-      intensityMultiplier: { value: intensity }
+      intensityMultiplier: { value: intensity },
+      uStarPosition: { value: starPos }
     },
     blending: AdditiveBlending,
     side: FrontSide,
@@ -37494,6 +37588,7 @@ function spawnPlanetsAndAsteroids() {
     planetGroup.position.set(px2, 0, pz2);
     let bodyMesh = null;
     let cloudMesh = null;
+    let atmoMesh = null;
     let psioAuraMesh = null;
     let auroraMesh = null;
     let generated = null;
@@ -37551,15 +37646,39 @@ function spawnPlanetsAndAsteroids() {
         map: texData.map,
         bumpMap: texData.bumpMap || null,
         bumpScale: isGas ? 0 : 0.08,
-        roughness: isGas ? 0.35 : 0.68,
-        metalness: isGas ? 0.1 : 0.12,
+        roughnessMap: texData.roughnessMap || null,
+        roughness: texData.roughnessMap ? 1 : isGas ? 0.35 : 0.68,
+        metalness: isGas ? 0.04 : 0.08,
         emissive: cityLightsTexture ? new Color(16777215) : new Color(0),
         emissiveMap: cityLightsTexture || null,
-        emissiveIntensity: cityLightsTexture ? 0.85 : 0,
+        emissiveIntensity: cityLightsTexture ? 1 : 0,
         transparent: false,
         depthWrite: true,
         depthTest: true
       });
+      if (cityLightsTexture) {
+        mat.customProgramCacheKey = () => "cityLightsTerminator";
+        mat.onBeforeCompile = (shader) => {
+          shader.uniforms.uStarWorldPos = { value: new Vector3(0, 0, 0) };
+          mat.userData.shader = shader;
+          shader.vertexShader = shader.vertexShader.replace("#include <common>", `#include <common>
+                        varying vec3 vCustomWorldPos;
+                        varying vec3 vCustomWorldNorm;`);
+          shader.vertexShader = shader.vertexShader.replace("#include <worldpos_vertex>", `#include <worldpos_vertex>
+                        vCustomWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                        vCustomWorldNorm = normalize((modelMatrix * vec4(objectNormal, 0.0)).xyz);`);
+          shader.fragmentShader = shader.fragmentShader.replace("#include <common>", `#include <common>
+                        uniform vec3 uStarWorldPos;
+                        varying vec3 vCustomWorldPos;
+                        varying vec3 vCustomWorldNorm;`);
+          shader.fragmentShader = shader.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+                        vec3 starDir = normalize(uStarWorldPos - vCustomWorldPos);
+                        float sunDot = dot(vCustomWorldNorm, starDir);
+                        // Daylight suppresses city lights; dark night hemisphere fully illuminates them
+                        float nightMask = smoothstep(0.08, -0.15, sunDot);
+                        totalEmissiveRadiance *= nightMask;`);
+        };
+      }
       const mesh = new Mesh(geo, mat);
       const axialTilt = (seed % 17 + 12) * Math.PI / 180;
       mesh.rotation.z = axialTilt;
@@ -37568,7 +37687,7 @@ function spawnPlanetsAndAsteroids() {
       bodyMesh = mesh;
       if (isHab || isGas) {
         const atmoHex = isHab ? 3718648 : parseInt(p.color);
-        const atmoMesh = createAtmosphereMesh(p.size, atmoHex, isHab ? 1.2 : 1);
+        atmoMesh = createAtmosphereMesh(p.size, atmoHex, isHab ? 1.25 : 1);
         planetGroup.add(atmoMesh);
       }
       if (cloudTexture && isHab) {
@@ -37639,6 +37758,7 @@ function spawnPlanetsAndAsteroids() {
       mesh: planetGroup,
       bodyMesh,
       cloudMesh,
+      atmoMesh: atmoMesh || null,
       psioAuraMesh,
       auroraMesh,
       source: sourceObj,
@@ -37690,8 +37810,12 @@ function spawnPlanetsAndAsteroids() {
         map: mTex.map,
         bumpMap: mTex.bumpMap || null,
         bumpScale: 0.06,
-        roughness: 0.75,
-        metalness: 0.1
+        roughnessMap: mTex.roughnessMap || null,
+        roughness: mTex.roughnessMap ? 1 : 0.75,
+        metalness: 0.08,
+        emissive: mTex.emissiveMap ? new Color(16777215) : new Color(0),
+        emissiveMap: mTex.emissiveMap || null,
+        emissiveIntensity: mTex.emissiveMap ? 1.2 : 0
       });
       const mMesh = new Mesh(mGeo, mMat);
       const moonGroup = new Group;

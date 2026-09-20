@@ -59,6 +59,12 @@ export function createHabitableTextures(colorHex: string | number, seed = 42) {
     const bumpImg = bumpCtx.createImageData(w, h);
     const bumpData = bumpImg.data;
 
+    const roughnessCanvas = document.createElement('canvas');
+    roughnessCanvas.width = w; roughnessCanvas.height = h;
+    const roughnessCtx = roughnessCanvas.getContext('2d')!;
+    const roughnessImg = roughnessCtx.createImageData(w, h);
+    const roughnessData = roughnessImg.data;
+
     const rgb = hexToRgb(colorHex);
 
     for (let y = 0; y < h; y++) {
@@ -71,25 +77,28 @@ export function createHabitableTextures(colorHex: string | number, seed = 42) {
             const n = fbm(nx, ny, 5, seed);
             const detailNoise = smoothNoise(nx * 18.0, ny * 18.0, seed + 101);
 
-            let r, g, b, bumpVal;
+            let r, g, b, bumpVal, roughnessVal;
 
             if (lat > 0.82 + n * 0.10) {
-                // Polar Ice Caps with icy crystalline sheen
+                // Polar Ice Caps with semi-gloss crystalline sheen
                 r = 230 + Math.floor(n * 25);
                 g = 245 + Math.floor(n * 10);
                 b = 255;
                 bumpVal = 40 + Math.floor(detailNoise * 20);
+                roughnessVal = 64 + Math.floor(detailNoise * 18);
             } else if (n < 0.47) {
-                // Deep Ocean & Shallow Shelf
+                // Deep Ocean & Shallow Shelf (Glass-smooth specular starlight response)
                 const oceanDepth = n / 0.47;
                 if (oceanDepth < 0.8) {
                     r = 6; g = 45 + Math.floor(oceanDepth * 45); b = 135 + Math.floor(oceanDepth * 85);
+                    roughnessVal = 12; // ~0.047: mirror-smooth ocean glint
                 } else {
                     // Shallow Cyan Coral Reef & Coastal Waters
                     const shallowT = (oceanDepth - 0.8) / 0.2;
                     r = 8 + Math.floor(shallowT * 20);
                     g = 150 + Math.floor(shallowT * 70);
                     b = 200 + Math.floor(shallowT * 35);
+                    roughnessVal = 18; // ~0.07: gentle shallow ripples
                 }
                 bumpVal = 0;
             } else if (n < 0.51) {
@@ -98,13 +107,15 @@ export function createHabitableTextures(colorHex: string | number, seed = 42) {
                 g = 185 + Math.floor(detailNoise * 20);
                 b = 115;
                 bumpVal = 18;
+                roughnessVal = 140 + Math.floor(detailNoise * 20);
             } else if (n < 0.72) {
-                // Alien Biosphere / Lush Continents
+                // Alien Biosphere / Lush Continents (Matte organic vegetation canopy)
                 const vegT = (n - 0.51) / 0.21;
                 r = Math.floor(rgb.r * 0.32 + (1 - vegT) * 25 + detailNoise * 15);
                 g = Math.floor(rgb.g * 0.92 + vegT * 45 + detailNoise * 20);
                 b = Math.floor(rgb.b * 0.42 + vegT * 25);
                 bumpVal = 55 + Math.floor(vegT * 65 + detailNoise * 25);
+                roughnessVal = 195 + Math.floor(detailNoise * 25);
             } else {
                 // Mountain Peaks & Alpine Snow Ridges
                 const mountainT = (n - 0.72) / 0.28;
@@ -112,6 +123,7 @@ export function createHabitableTextures(colorHex: string | number, seed = 42) {
                 g = 150 + Math.floor(mountainT * 90 + detailNoise * 15);
                 b = 165 + Math.floor(mountainT * 90);
                 bumpVal = 140 + Math.floor(mountainT * 115);
+                roughnessVal = mountainT > 0.75 ? 160 : 238; // snow caps vs rough scree rock
             }
 
             colData[idx] = Math.min(255, r);
@@ -123,15 +135,22 @@ export function createHabitableTextures(colorHex: string | number, seed = 42) {
             bumpData[idx + 1] = bumpVal;
             bumpData[idx + 2] = bumpVal;
             bumpData[idx + 3] = 255;
+
+            roughnessData[idx] = roughnessVal;
+            roughnessData[idx + 1] = roughnessVal;
+            roughnessData[idx + 2] = roughnessVal;
+            roughnessData[idx + 3] = 255;
         }
     }
 
     colCtx.putImageData(colImg, 0, 0);
     bumpCtx.putImageData(bumpImg, 0, 0);
+    roughnessCtx.putImageData(roughnessImg, 0, 0);
 
     const map = new THREE.CanvasTexture(colCanvas);
     const bumpMap = new THREE.CanvasTexture(bumpCanvas);
-    return { map, bumpMap };
+    const roughnessMap = new THREE.CanvasTexture(roughnessCanvas);
+    return { map, bumpMap, roughnessMap };
 }
 
 // 1.1 City Lights Texture Generator for Night-Side Civilizations (HD 1024x512)
@@ -205,6 +224,12 @@ export function createGasGiantTextures(colorHex: string | number, seed = 77) {
     const img = ctx.createImageData(w, h);
     const data = img.data;
 
+    const roughnessCanvas = document.createElement('canvas');
+    roughnessCanvas.width = w; roughnessCanvas.height = h;
+    const roughnessCtx = roughnessCanvas.getContext('2d')!;
+    const roughnessImg = roughnessCtx.createImageData(w, h);
+    const roughnessData = roughnessImg.data;
+
     const base = hexToRgb(colorHex);
     const stormX = (Math.abs(seed) % 100) / 100 * w * 0.6 + w * 0.2;
     const stormY = h * 0.58;
@@ -222,29 +247,40 @@ export function createGasGiantTextures(colorHex: string | number, seed = 77) {
             // Distance to atmospheric Great Storm
             const sDist = Math.hypot((x - stormX) / 2.0, y - stormY);
 
-            let r, g, b;
+            let r, g, b, roughnessVal;
             if (sDist < 35) {
                 // Great Storm Eye
                 const swirl = Math.sin(sDist * 0.25 + Math.atan2(y - stormY, x - stormX) * 3);
                 r = Math.min(255, base.r * 1.6 + swirl * 45);
                 g = Math.min(255, base.g * 0.8 + swirl * 25);
                 b = Math.min(255, base.b * 1.5 + swirl * 35);
+                roughnessVal = 105 + Math.floor(swirl * 20); // dense cyclonic cloud deck
             } else {
                 const bandWeight = (band + 1) * 0.5;
                 r = Math.floor(base.r * (0.38 + bandWeight * 0.72) + turb * 40);
                 g = Math.floor(base.g * (0.38 + bandWeight * 0.72) + turb * 40);
                 b = Math.floor(base.b * (0.38 + bandWeight * 0.72) + turb * 40);
+                // High-altitude reflective haze zones vs deeper turbulent belts
+                roughnessVal = Math.floor(80 + bandWeight * 70 + turb * 25);
             }
 
             data[idx] = Math.min(255, Math.max(0, r));
             data[idx + 1] = Math.min(255, Math.max(0, g));
             data[idx + 2] = Math.min(255, Math.max(0, b));
             data[idx + 3] = 255;
+
+            roughnessData[idx] = roughnessVal;
+            roughnessData[idx + 1] = roughnessVal;
+            roughnessData[idx + 2] = roughnessVal;
+            roughnessData[idx + 3] = 255;
         }
     }
     ctx.putImageData(img, 0, 0);
+    roughnessCtx.putImageData(roughnessImg, 0, 0);
+
     const map = new THREE.CanvasTexture(canvas);
-    return { map, bumpMap: null as THREE.CanvasTexture | null };
+    const roughnessMap = new THREE.CanvasTexture(roughnessCanvas);
+    return { map, bumpMap: null as THREE.CanvasTexture | null, roughnessMap };
 }
 
 // 3. Rocky Planet / Moon Textures (Crater Impact Basins, Regolith Fissures - HD 1024x512)
@@ -261,6 +297,12 @@ export function createRockyTextures(colorHex: string | number, seed = 99) {
     const bumpCtx = bumpCanvas.getContext('2d')!;
     const bumpImg = bumpCtx.createImageData(w, h);
     const bumpData = bumpImg.data;
+
+    const roughnessCanvas = document.createElement('canvas');
+    roughnessCanvas.width = w; roughnessCanvas.height = h;
+    const roughnessCtx = roughnessCanvas.getContext('2d')!;
+    const roughnessImg = roughnessCtx.createImageData(w, h);
+    const roughnessData = roughnessImg.data;
 
     const base = hexToRgb(colorHex);
 
@@ -282,11 +324,12 @@ export function createRockyTextures(colorHex: string | number, seed = 99) {
             const microN = smoothNoise(nx * 22.0, ny * 22.0, seed + 33);
 
             let bumpVal = Math.floor(n * 160 + microN * 30);
+            let roughnessVal = Math.floor(180 + microN * 30); // default basaltic regolith
             let r = Math.floor(base.r * (0.55 + n * 0.5 + microN * 0.15));
             let g = Math.floor(base.g * (0.55 + n * 0.5 + microN * 0.15));
             let b = Math.floor(base.b * (0.55 + n * 0.5 + microN * 0.15));
 
-            // Crater impacts with elevated rims
+            // Crater impacts with elevated rims & melt floor
             for (let c = 0; c < craters.length; c++) {
                 const cr = craters[c];
                 const d = Math.hypot(x - cr.x, y - cr.y);
@@ -297,11 +340,13 @@ export function createRockyTextures(colorHex: string | number, seed = 99) {
                         g = Math.floor(g * 0.55);
                         b = Math.floor(b * 0.55);
                         bumpVal = Math.max(0, bumpVal - 70);
+                        roughnessVal = 140; // glassy impact melt floor
                     } else {
                         r = Math.min(255, r + 45);
                         g = Math.min(255, g + 45);
                         b = Math.min(255, b + 45);
                         bumpVal = Math.min(255, bumpVal + 80);
+                        roughnessVal = 230; // pulverised high-diffuse rim
                     }
                 }
             }
@@ -315,14 +360,21 @@ export function createRockyTextures(colorHex: string | number, seed = 99) {
             bumpData[idx + 1] = bumpVal;
             bumpData[idx + 2] = bumpVal;
             bumpData[idx + 3] = 255;
+
+            roughnessData[idx] = roughnessVal;
+            roughnessData[idx + 1] = roughnessVal;
+            roughnessData[idx + 2] = roughnessVal;
+            roughnessData[idx + 3] = 255;
         }
     }
     colCtx.putImageData(colImg, 0, 0);
     bumpCtx.putImageData(bumpImg, 0, 0);
+    roughnessCtx.putImageData(roughnessImg, 0, 0);
 
     return {
         map: new THREE.CanvasTexture(colCanvas),
-        bumpMap: new THREE.CanvasTexture(bumpCanvas)
+        bumpMap: new THREE.CanvasTexture(bumpCanvas),
+        roughnessMap: new THREE.CanvasTexture(roughnessCanvas)
     };
 }
 
@@ -341,6 +393,12 @@ export function createIceMoonTextures(colorHex: string | number, seed = 123) {
     const bumpImg = bumpCtx.createImageData(w, h);
     const bumpData = bumpImg.data;
 
+    const roughnessCanvas = document.createElement('canvas');
+    roughnessCanvas.width = w; roughnessCanvas.height = h;
+    const roughnessCtx = roughnessCanvas.getContext('2d')!;
+    const roughnessImg = roughnessCtx.createImageData(w, h);
+    const roughnessData = roughnessImg.data;
+
     for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
             const idx = (y * w + x) * 4;
@@ -349,17 +407,19 @@ export function createIceMoonTextures(colorHex: string | number, seed = 123) {
             const crack2 = Math.abs(Math.sin(y * 0.1 - x * 0.05 + n * 2.8));
             const isCrack = crack1 < 0.09 || crack2 < 0.07;
 
-            let r, g, b, bumpVal;
+            let r, g, b, bumpVal, roughnessVal;
             if (isCrack) {
                 r = 180 + Math.floor(n * 30);
                 g = 100 + Math.floor(n * 20);
                 b = 80;
                 bumpVal = 180;
+                roughnessVal = 195; // rough mineral salt fracture
             } else {
                 r = 210 + Math.floor(n * 40);
                 g = 235 + Math.floor(n * 20);
                 b = 255;
                 bumpVal = 60 + Math.floor(n * 50);
+                roughnessVal = 35 + Math.floor(n * 25); // ~0.14 - 0.23: mirror ice specular sheen
             }
 
             colData[idx] = Math.min(255, r);
@@ -371,14 +431,21 @@ export function createIceMoonTextures(colorHex: string | number, seed = 123) {
             bumpData[idx + 1] = bumpVal;
             bumpData[idx + 2] = bumpVal;
             bumpData[idx + 3] = 255;
+
+            roughnessData[idx] = roughnessVal;
+            roughnessData[idx + 1] = roughnessVal;
+            roughnessData[idx + 2] = roughnessVal;
+            roughnessData[idx + 3] = 255;
         }
     }
     colCtx.putImageData(colImg, 0, 0);
     bumpCtx.putImageData(bumpImg, 0, 0);
+    roughnessCtx.putImageData(roughnessImg, 0, 0);
 
     return {
         map: new THREE.CanvasTexture(colCanvas),
-        bumpMap: new THREE.CanvasTexture(bumpCanvas)
+        bumpMap: new THREE.CanvasTexture(bumpCanvas),
+        roughnessMap: new THREE.CanvasTexture(roughnessCanvas)
     };
 }
 
@@ -403,6 +470,12 @@ export function createVolcanicMoonTextures(colorHex: string | number, seed = 321
     const emImg = emCtx.createImageData(w, h);
     const emData = emImg.data;
 
+    const roughnessCanvas = document.createElement('canvas');
+    roughnessCanvas.width = w; roughnessCanvas.height = h;
+    const roughnessCtx = roughnessCanvas.getContext('2d')!;
+    const roughnessImg = roughnessCtx.createImageData(w, h);
+    const roughnessData = roughnessImg.data;
+
     for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
             const idx = (y * w + x) * 4;
@@ -410,36 +483,42 @@ export function createVolcanicMoonTextures(colorHex: string | number, seed = 321
             const magma = Math.abs(Math.sin(x * 0.08 + y * 0.10 + n * 4.0));
             const isMagma = magma < 0.10;
 
-            let r, g, b, emR, emG, emB, bumpVal;
+            let r, g, b, emR, emG, emB, bumpVal, roughnessVal;
             if (isMagma) {
                 r = 255; g = 110; b = 10;
                 emR = 255; emG = 90; emB = 0;
                 bumpVal = 20;
+                roughnessVal = 16; // liquid molten lava (ultra-gloss specular)
             } else if (n > 0.6) {
                 r = 230; g = 190; b = 25;
                 emR = 0; emG = 0; emB = 0;
                 bumpVal = 130;
+                roughnessVal = 230; // matte sulfur dust
             } else {
                 r = 60 + Math.floor(n * 40);
                 g = 40 + Math.floor(n * 30);
                 b = 30 + Math.floor(n * 20);
                 emR = 0; emG = 0; emB = 0;
                 bumpVal = 80;
+                roughnessVal = 85 + Math.floor(n * 40); // cooled obsidian/basalt
             }
 
             colData[idx] = r; colData[idx + 1] = g; colData[idx + 2] = b; colData[idx + 3] = 255;
             emData[idx] = emR; emData[idx + 1] = emG; emData[idx + 2] = emB; emData[idx + 3] = 255;
             bumpData[idx] = bumpVal; bumpData[idx + 1] = bumpVal; bumpData[idx + 2] = bumpVal; bumpData[idx + 3] = 255;
+            roughnessData[idx] = roughnessVal; roughnessData[idx + 1] = roughnessVal; roughnessData[idx + 2] = roughnessVal; roughnessData[idx + 3] = 255;
         }
     }
     colCtx.putImageData(colImg, 0, 0);
     bumpCtx.putImageData(bumpImg, 0, 0);
     emCtx.putImageData(emImg, 0, 0);
+    roughnessCtx.putImageData(roughnessImg, 0, 0);
 
     return {
         map: new THREE.CanvasTexture(colCanvas),
         bumpMap: new THREE.CanvasTexture(bumpCanvas),
-        emissiveMap: new THREE.CanvasTexture(emCanvas)
+        emissiveMap: new THREE.CanvasTexture(emCanvas),
+        roughnessMap: new THREE.CanvasTexture(roughnessCanvas)
     };
 }
 
