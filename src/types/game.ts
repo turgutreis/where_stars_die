@@ -102,6 +102,12 @@ export interface PlanetAttributes {
     bio: string;
     res: string;
     species: SpeciesData | null;
+    tidalLock?: boolean;
+    magnetosphere?: 'None' | 'Weak' | 'Strong' | 'Hyper-Magnetic';
+    geothermal?: 'Dead' | 'Dormant' | 'Active Geysers' | 'Hyper-Volcanic';
+    radiationLevel?: 'Low' | 'Moderate' | 'High' | 'Extreme';
+    entangledTwinId?: string | null;
+    quantumResonance?: number;
 }
 
 export interface MoonData {
@@ -115,6 +121,9 @@ export interface MoonData {
     atmos: string;
     bio: string;
     res: string;
+    tidalLock?: boolean;
+    geothermal?: 'Dead' | 'Dormant' | 'Active Geysers' | 'Hyper-Volcanic' | string;
+    parentPlanetName?: string;
 }
 
 export interface PlanetData {
@@ -129,6 +138,12 @@ export interface PlanetData {
     res?: string;
     species?: SpeciesData | null;
     moons?: MoonData[];
+    tidalLock?: boolean;
+    magnetosphere?: 'None' | 'Weak' | 'Strong' | 'Hyper-Magnetic';
+    geothermal?: 'Dead' | 'Dormant' | 'Active Geysers' | 'Hyper-Volcanic';
+    radiationLevel?: 'Low' | 'Moderate' | 'High' | 'Extreme';
+    entangledTwinId?: string | null;
+    quantumResonance?: number;
 }
 
 export type SectorId = 'sector_outer_rim' | 'sector_mid_rim' | 'sector_core';
@@ -196,6 +211,7 @@ export interface PlanetEntry {
     bodyMesh: THREE.Mesh;
     cloudMesh?: THREE.Mesh | null;
     psioAuraMesh?: THREE.Mesh | null;
+    auroraMesh?: THREE.Mesh | null;
     source: GravitySource;
     ringMesh?: THREE.Mesh | null;
     angle: number;

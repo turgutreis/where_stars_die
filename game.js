@@ -34749,19 +34749,31 @@ function updateVoyagerHUDTracker() {
 
 // src/systems/scanner.ts
 function generatePlanetAttributes(p) {
+  const sysId = STATE.currentSystemId || 0;
+  const nameHash = (p.name || "").split("").reduce((acc, char) => acc * 31 + char.charCodeAt(0) >>> 0, 0);
+  const distFactor = Math.floor((p.distance || 1) * 73);
+  const hash = (sysId * 7919 ^ nameHash * 17 ^ distFactor) >>> 0;
+  const tidalLock = typeof p.tidalLock === "boolean" ? p.tidalLock : (p.distance || 50) < 28 || p.type === "Rocky" && hash % 4 === 0;
+  const magnetosphere = p.magnetosphere || (p.type === "Gas Giant" ? hash % 3 === 0 ? "Hyper-Magnetic" : "Strong" : p.type === "Habitable" ? hash % 3 === 0 ? "Weak" : "Strong" : p.type === "Rocky" ? hash % 3 === 0 ? "None" : hash % 3 === 1 ? "Weak" : "Strong" : "Weak");
+  const geothermal = p.geothermal || (p.type === "Gas Giant" ? hash % 2 === 0 ? "Dead" : "Dormant" : p.type === "Habitable" ? hash % 2 === 0 ? "Dormant" : "Active Geysers" : p.type === "Rocky" ? hash % 3 === 0 ? "Hyper-Volcanic" : hash % 3 === 1 ? "Active Geysers" : "Dead" : "Active Geysers");
+  const radiationLevel = p.radiationLevel || (hash % 4 === 0 ? "Extreme" : hash % 4 === 1 ? "High" : hash % 4 === 2 ? "Moderate" : "Low");
+  const entangledTwinId = p.entangledTwinId ?? null;
+  const quantumResonance = p.quantumResonance ?? (entangledTwinId ? 0.85 : 0);
   if (p.atmos && p.temp && p.bio && p.res && (p.type !== "Habitable" || p.species && p.species.candidates && p.species.candidates.length > 0)) {
     return {
       atmos: p.atmos,
       temp: p.temp,
       bio: p.bio,
       res: p.res,
-      species: p.species || null
+      species: p.species || null,
+      tidalLock,
+      magnetosphere,
+      geothermal,
+      radiationLevel,
+      entangledTwinId,
+      quantumResonance
     };
   }
-  const sysId = STATE.currentSystemId || 0;
-  const nameHash = p.name.split("").reduce((acc, char) => acc * 31 + char.charCodeAt(0) >>> 0, 0);
-  const distFactor = Math.floor((p.distance || 1) * 73);
-  const hash = (sysId * 7919 ^ nameHash * 17 ^ distFactor) >>> 0;
   let atmos, temp, bio, res, species;
   if (p.type === "Habitable") {
     atmos = hash % 2 === 0 ? "Stickstoff & Sauerstoff (Klasse M)" : "Dichte Aerosole & Wasserdampf";
@@ -34795,7 +34807,19 @@ function generatePlanetAttributes(p) {
     res = "Reich an Silizium-Kristallen, Eisen & Schwermetallen";
     species = null;
   }
-  return { atmos, temp, bio, res, species };
+  return {
+    atmos,
+    temp,
+    bio,
+    res,
+    species,
+    tidalLock,
+    magnetosphere,
+    geothermal,
+    radiationLevel,
+    entangledTwinId,
+    quantumResonance
+  };
 }
 function triggerScanStart() {
   const target = STATE.orbitLevel === "moon" && STATE.activeMoonOrbit ? STATE.activeMoonOrbit : STATE.nearestPlanet;
@@ -34878,6 +34902,9 @@ function completeScanning() {
       STATE.siliconRes += 10;
       STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 15);
       addLogEntry("SYSTEM", `Spektral-Scan von ${planet.name} abgeschlossen! Atmosphärendatenbank aktualisiert (+15 Bio | +10 Silizium).`);
+      if (planet.attributes.entangledTwinId) {
+        addLogEntry("SYSTEM", `QUANTEN-KOPPLUNG: ${planet.name} ist resonant verschränkt mit ${planet.attributes.entangledTwinId} (${Math.round((planet.attributes.quantumResonance || 0.85) * 100)}% Resonanz)!`);
+      }
       if (planet.attributes.species && planet.attributes.species.population > 0) {
         addLogEntry("SYSTEM", `PSIO-DETEKTION: Intelligentes Leben (${planet.attributes.species.name}) auf ${planet.name} entdeckt! Psionischer Transfer [F] bereit.`);
       } else {
@@ -35032,6 +35059,40 @@ function updateScannerUI(planet, dist) {
     const atmosEl = document.getElementById("scan-planet-atmos");
     if (atmosEl)
       atmosEl.innerText = planet.attributes.atmos;
+    const quantumRow = document.getElementById("scan-planet-quantum-row");
+    const quantumEl = document.getElementById("scan-planet-quantum");
+    if (quantumRow && quantumEl) {
+      if (planet.attributes.entangledTwinId) {
+        quantumRow.style.display = "flex";
+        const resPct = Math.round((planet.attributes.quantumResonance || 0.85) * 100);
+        quantumEl.innerHTML = `\uD83D\uDD17 Verschränkt mit <span style="color: #c084fc; font-weight: bold;">${planet.attributes.entangledTwinId}</span> (${resPct}% Resonanz)`;
+      } else {
+        quantumRow.style.display = "none";
+      }
+    }
+    const physicsRow = document.getElementById("scan-planet-physics-row");
+    const physicsEl = document.getElementById("scan-planet-physics");
+    if (physicsRow && physicsEl) {
+      physicsRow.style.display = "flex";
+      const rotText = planet.attributes.tidalLock ? "Gebundene Rotation (1:1)" : "Freie Rotation";
+      const geoText = planet.attributes.geothermal ? ` • ${planet.attributes.geothermal}` : "";
+      physicsEl.innerText = `${rotText}${geoText}`;
+    }
+    const radiationRow = document.getElementById("scan-planet-radiation-row");
+    const radiationEl = document.getElementById("scan-planet-radiation");
+    if (radiationRow && radiationEl) {
+      radiationRow.style.display = "flex";
+      const radLevel = planet.attributes.radiationLevel || "Normal";
+      const magLevel = planet.attributes.magnetosphere ? ` • \uD83E\uDDF2 ${planet.attributes.magnetosphere}` : "";
+      radiationEl.innerText = `${radLevel}${magLevel}`;
+      if (radLevel === "Extreme") {
+        radiationEl.style.color = "#f43f5e";
+      } else if (radLevel === "High") {
+        radiationEl.style.color = "#fb923c";
+      } else {
+        radiationEl.style.color = "#facc15";
+      }
+    }
     const resEl = document.getElementById("scan-planet-resources");
     if (resEl)
       resEl.innerText = planet.attributes.res;
@@ -36600,6 +36661,7 @@ function spawnPlanetsAndAsteroids() {
     let bodyMesh = null;
     let cloudMesh = null;
     let psioAuraMesh = null;
+    let auroraMesh = null;
     let generated = null;
     let finalSpecies = null;
     const isConstruct = p.type === "Vorläufer-Konstrukt";
@@ -36696,6 +36758,33 @@ function spawnPlanetsAndAsteroids() {
         const pRings = createPlanetaryRings(p.size, ringColor, seed);
         planetGroup.add(pRings);
       }
+      const isHyperMag = p.magnetosphere === "Hyper-Magnetic" || generated && generated.magnetosphere === "Hyper-Magnetic";
+      if (isHyperMag) {
+        const aurGeo = new RingGeometry(p.size * 1.06, p.size * 1.28, 32);
+        const aurMat = new MeshBasicMaterial({
+          color: 3718648,
+          side: DoubleSide,
+          transparent: true,
+          opacity: 0.42,
+          blending: AdditiveBlending
+        });
+        auroraMesh = new Mesh(aurGeo, aurMat);
+        auroraMesh.rotation.x = Math.PI * 0.45;
+        planetGroup.add(auroraMesh);
+      }
+      const isEntangled = !!(p.entangledTwinId || generated && generated.entangledTwinId);
+      if (isEntangled) {
+        const auraGeo = new SphereGeometry(p.size * 1.12, 24, 24);
+        const auraMat = new MeshBasicMaterial({
+          color: 11032055,
+          transparent: true,
+          opacity: 0.28,
+          blending: AdditiveBlending,
+          wireframe: true
+        });
+        psioAuraMesh = new Mesh(auraGeo, auraMat);
+        planetGroup.add(psioAuraMesh);
+      }
     }
     scene.add(planetGroup);
     const pMass = p.size * 4 * (isGas ? 1.4 : 1);
@@ -36717,6 +36806,7 @@ function spawnPlanetsAndAsteroids() {
       bodyMesh,
       cloudMesh,
       psioAuraMesh,
+      auroraMesh,
       source: sourceObj,
       ringMesh: null,
       angle,
@@ -36734,7 +36824,13 @@ function spawnPlanetsAndAsteroids() {
         temp: p.temp || (generated ? generated.temp : "0°C"),
         bio: p.bio || (generated ? generated.bio : "Steril"),
         res: p.res || (generated ? generated.res : "Gestein"),
-        species: finalSpecies || p.species || null
+        species: finalSpecies || p.species || null,
+        tidalLock: typeof p.tidalLock === "boolean" ? p.tidalLock : generated ? generated.tidalLock : scaledDist < 160 || p.type === "Rocky" && seed % 4 === 0,
+        magnetosphere: p.magnetosphere || (generated ? generated.magnetosphere : isGas ? "Hyper-Magnetic" : isHab ? "Strong" : "Weak"),
+        geothermal: p.geothermal || (generated ? generated.geothermal : isGas ? "Dead" : isHab ? "Active Geysers" : "Dormant"),
+        radiationLevel: p.radiationLevel || (generated ? generated.radiationLevel : "Moderate"),
+        entangledTwinId: p.entangledTwinId || (generated ? generated.entangledTwinId : null),
+        quantumResonance: p.quantumResonance || (generated ? generated.quantumResonance : p.entangledTwinId ? 0.85 : 0)
       }
     };
     activePlanets.push(planetEntry);
@@ -36804,7 +36900,10 @@ function spawnPlanetsAndAsteroids() {
           temp: m.temp,
           bio: m.bio,
           res: m.res,
-          species: null
+          species: null,
+          tidalLock: typeof m.tidalLock === "boolean" ? m.tidalLock : true,
+          geothermal: m.geothermal || (m.type === "Eismond" ? "Active Geysers" : m.type === "Vulkanmond" ? "Hyper-Volcanic" : "Dead"),
+          parentPlanetName: m.parentPlanetName || planetEntry.name
         }
       };
       activePlanets.push(moonEntry);
@@ -37895,6 +37994,17 @@ function completeHarvesting() {
     STATE.siliconRes += silGain;
     STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 25);
     STATE.health = Math.min(STATE.maxHealth, STATE.health + 15);
+    if (planet.attributes && planet.attributes.entangledTwinId) {
+      const resonance = planet.attributes.quantumResonance || 0.85;
+      const bonusBio = Math.round(bioGain * resonance * 0.4);
+      STATE.bioRes += bonusBio;
+      STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 20);
+      addLogEntry("SYSTEM", `QUANTEN-RESONANZ: Verschränkungsbrücke zu ${planet.attributes.entangledTwinId} aktiv! +${bonusBio} Resonanz-Biomasse | +20 Psionik.`);
+    }
+    if (planet.attributes && planet.attributes.magnetosphere === "Hyper-Magnetic") {
+      STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 25);
+      addLogEntry("SENSOR", `MAGNETOSPHÄREN-INDUKTION: Hyper-Magnetfeld von ${planet.name} induziert Bio-Ladung (+25 Bio-Energie).`);
+    }
     addLogEntry("SYSTEM", `Assimilation von ${planet.name} abgeschlossen! +${bioGain} Biomasse | +${silGain} Silizium absorbiert. Vorkommen erschöpft.`);
     updateMutationUI();
   }

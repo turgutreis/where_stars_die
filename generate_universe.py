@@ -121,6 +121,9 @@ def generate_quantum_bits(api_key=None, use_qpu=False):
 
     qc = QuantumCircuit(qubits, qubits)
     qc.h(range(qubits))
+    # Apply CNOT Bell-State Entanglement Gates across qubit pairs
+    for q in range(0, qubits - 1, 2):
+        qc.cx(q, q + 1)
     qc.measure(range(qubits), range(qubits))
 
     if use_qpu:
@@ -298,9 +301,18 @@ def build_galaxy(qrng, meta_info, count=1000):
                             "temp": "-270°C",
                             "atmos": "Quanten-Verschränkungsfeld",
                             "bio": "Kybernetisches Neuro-Geflecht",
-                            "res": "Tachyonen-Kristalle & Naniten"
+                            "res": "Tachyonen-Kristalle & Naniten",
+                            "tidalLock": True,
+                            "geothermal": "Active Geysers",
+                            "parentPlanetName": "Chronos-Anker (Vorläufer-Konstrukt)"
                         }
-                    ]
+                    ],
+                    "tidalLock": True,
+                    "magnetosphere": "Hyper-Magnetic",
+                    "geothermal": "Dormant",
+                    "radiationLevel": "Extreme",
+                    "entangledTwinId": "Ereignis-Knoten Alpha (Akkretions-Wirbel)",
+                    "quantumResonance": 0.99
                 },
                 {
                     "name": "S2-Stern (Gefangener Hyper-Riese)",
@@ -313,7 +325,13 @@ def build_galaxy(qrng, meta_info, count=1000):
                     "bio": "Steril",
                     "res": "Hochenergetisches Plasma & Gravitations-Echos",
                     "species": None,
-                    "moons": []
+                    "moons": [],
+                    "tidalLock": True,
+                    "magnetosphere": "Hyper-Magnetic",
+                    "geothermal": "Hyper-Volcanic",
+                    "radiationLevel": "Extreme",
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
                 },
                 {
                     "name": "Ereignis-Knoten Alpha (Akkretions-Wirbel)",
@@ -326,7 +344,13 @@ def build_galaxy(qrng, meta_info, count=1000):
                     "bio": "Steril",
                     "res": "Dunkle Materie & Antimaterie-Kerne",
                     "species": None,
-                    "moons": []
+                    "moons": [],
+                    "tidalLock": True,
+                    "magnetosphere": "Hyper-Magnetic",
+                    "geothermal": "Hyper-Volcanic",
+                    "radiationLevel": "Extreme",
+                    "entangledTwinId": "Chronos-Anker (Vorläufer-Konstrukt)",
+                    "quantumResonance": 0.99
                 }
             ]
 
@@ -489,7 +513,13 @@ def build_galaxy(qrng, meta_info, count=1000):
                     "bio": p_bio,
                     "res": p_res,
                     "species": None,
-                    "moons": []
+                    "moons": [],
+                    "tidalLock": True,
+                    "magnetosphere": "Hyper-Magnetic" if p_idx == 0 else "Strong",
+                    "geothermal": "Hyper-Volcanic" if p_idx == 0 else "Dead",
+                    "radiationLevel": "Extreme",
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
                 })
         else:
             planet_count = 1 + (qrng.get_bits(4) % 5)
@@ -589,6 +619,7 @@ def build_galaxy(qrng, meta_info, count=1000):
                         m_res = "Regolith-Gestein & Nickel"
                         
                     m_name = f"{p_name}-{chr(73 + m_idx)}"
+                    m_geo = "Active Geysers" if m_type == "Eismond" else ("Hyper-Volcanic" if m_type == "Vulkanmond" else "Dead")
                     moons.append({
                         "name": m_name,
                         "type": m_type,
@@ -599,9 +630,33 @@ def build_galaxy(qrng, meta_info, count=1000):
                         "temp": m_temp,
                         "atmos": m_atmos,
                         "bio": m_bio,
-                        "res": m_res
+                        "res": m_res,
+                        "tidalLock": True,
+                        "geothermal": m_geo,
+                        "parentPlanetName": p_name
                     })
                 
+                p_tidal = (p_dist < 28.0) or (star_type == "Red Dwarf" and p_dist < 38.0) or (p_type == "Rocky" and qrng.get_bits(3) == 0)
+                if p_type == "Gas Giant":
+                    p_mag = qrng.choose(["Strong", "Hyper-Magnetic"])
+                    p_geo = qrng.choose(["Dead", "Dormant"])
+                elif p_type == "Habitable":
+                    p_mag = qrng.choose(["Weak", "Strong"])
+                    p_geo = qrng.choose(["Dormant", "Active Geysers"])
+                elif p_type == "Rocky":
+                    p_mag = qrng.choose(["None", "Weak", "Strong"])
+                    p_geo = qrng.choose(["Dead", "Dormant", "Hyper-Volcanic"])
+                else:
+                    p_mag = qrng.choose(["None", "Weak"])
+                    p_geo = qrng.choose(["Dead", "Active Geysers", "Dormant"])
+
+                if star_type in ["White Dwarf", "Blue Giant"]:
+                    p_rad = qrng.choose(["High", "Extreme"])
+                elif star_type == "Red Dwarf":
+                    p_rad = qrng.choose(["Moderate", "High"])
+                else:
+                    p_rad = qrng.choose(["Low", "Moderate"])
+
                 planets.append({
                     "name": p_name,
                     "type": p_type,
@@ -613,8 +668,25 @@ def build_galaxy(qrng, meta_info, count=1000):
                     "bio": p_bio,
                     "res": p_res,
                     "species": species,
-                    "moons": moons
+                    "moons": moons,
+                    "tidalLock": p_tidal,
+                    "magnetosphere": p_mag,
+                    "geothermal": p_geo,
+                    "radiationLevel": p_rad,
+                    "entangledTwinId": None,
+                    "quantumResonance": 0.0
                 })
+            
+            if len(planets) >= 2:
+                entangle_roll = qrng.get_bits(3)
+                if entangle_roll < 3 or i == 1:
+                    p1 = planets[0]
+                    p2 = planets[1]
+                    res = round(0.78 + (qrng.get_bits(4) / 15.0) * 0.20, 2)
+                    p1["entangledTwinId"] = p2["name"]
+                    p1["quantumResonance"] = res
+                    p2["entangledTwinId"] = p1["name"]
+                    p2["quantumResonance"] = res
             
         asteroids = []
         tpl = STAR_SYSTEM_TEMPLATES[star_type]

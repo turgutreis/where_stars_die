@@ -89,9 +89,9 @@ if (typeof globalThis.window === 'undefined') {
 
 import { STATE, activePlanets } from '../src/core/state';
 import { triggerHarvestStart, updateHarvesting, completeHarvesting } from '../src/systems/harvesting';
-import { triggerScanStart, updateScanning, completeScanning } from '../src/systems/scanner';
+import { triggerScanStart, updateScanning, completeScanning, generatePlanetAttributes, generateFallbackMoons } from '../src/systems/scanner';
 import { AUDIO_SETTINGS } from '../src/engine/audio';
-import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe } from '../src/systems/universe';
+import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets } from '../src/systems/universe';
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
 import { updatePhysics } from '../src/engine/physics';
 import { generateProceduralCandidates, getCrewReactiveThought } from '../src/systems/crew-generation';
@@ -684,6 +684,93 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         // 4. Verify that in cruising mode, the ship glides without abrupt drag decay
         // (speed should remain high and not drop to 0)
         expect(STATE.playerVelocity.length()).toBeGreaterThan(15.0);
+    });
+
+    test("19. Quantum-entangled star systems & deep planetary physics: Deterministic physical parameters, entangled twin linking, synchronous tidal locking, and magnetospheric induction", () => {
+        // 1. Deterministic planetary physics parameter generation
+        const mockRawPlanet = {
+            name: "Zeta Reticuli B",
+            type: "Rocky",
+            size: 2.8,
+            distance: 22.0, // close to star -> tidal locking expected
+            color: "0xd97706"
+        };
+        const attrs1 = generatePlanetAttributes(mockRawPlanet);
+        const attrs2 = generatePlanetAttributes(mockRawPlanet);
+
+        // Strict determinism
+        expect(attrs1).toEqual(attrs2);
+        expect(typeof attrs1.tidalLock).toBe('boolean');
+        expect(attrs1.tidalLock).toBe(true); // distance < 28 -> tidally locked
+        expect(['None', 'Weak', 'Strong', 'Hyper-Magnetic']).toContain(attrs1.magnetosphere!);
+        expect(['Dead', 'Dormant', 'Active Geysers', 'Hyper-Volcanic']).toContain(attrs1.geothermal!);
+        expect(['Low', 'Moderate', 'High', 'Extreme']).toContain(attrs1.radiationLevel!);
+
+        // 2. Fallback moons generate tidal locking, geothermals and parentPlanetName
+        const fallbackMoons = generateFallbackMoons({ name: "Zeus Prime", type: "Gas Giant", size: 6.0 });
+        expect(fallbackMoons.length).toBeGreaterThan(0);
+        fallbackMoons.forEach((m: any) => {
+            expect(m.tidalLock).toBe(true);
+            expect(m.parentPlanetName).toBe("Zeus Prime");
+            expect(m.geothermal).toBeDefined();
+        });
+
+        // 3. Tidally locked celestial rotation
+        const testPlanetEntry: any = {
+            name: "Locked World",
+            type: "Rocky",
+            size: 2.5,
+            angle: 1.25,
+            speed: 0.05,
+            distance: 30.0,
+            mesh: new THREE.Group(),
+            bodyMesh: new THREE.Mesh(new THREE.SphereGeometry(2.5)),
+            source: { position: new THREE.Vector3() },
+            isMoon: false,
+            attributes: { tidalLock: true }
+        };
+        activePlanets.length = 0;
+        activePlanets.push(testPlanetEntry);
+
+        updateActivePlanets(0.1);
+        // Rotation should synchronously match angle + Math.PI
+        expect(testPlanetEntry.bodyMesh.rotation.y).toBeCloseTo(testPlanetEntry.angle + Math.PI, 4);
+
+        // 4. Quantum-Entangled Twin Planet Harvesting Resonance
+        const twinA: any = {
+            name: "Entangled Alpha",
+            type: "Habitable",
+            size: 3.2,
+            mesh: new THREE.Group(),
+            scanned: true,
+            attributes: {
+                atmos: "O2",
+                temp: "22°C",
+                bio: "Bio",
+                res: "C",
+                species: null,
+                entangledTwinId: "Entangled Beta",
+                quantumResonance: 0.90,
+                magnetosphere: "Hyper-Magnetic"
+            }
+        };
+
+        STATE.extractingPlanet = twinA;
+        STATE.bioRes = 100;
+        STATE.mentalEnergy = 50;
+        STATE.bioEnergy = 50;
+        STATE.maxBioEnergy = 100;
+        STATE.crewBuffs = { bioGain: 1.0, scanSpeed: 1.0, propulsionSpeed: 1.0, repairEfficiency: 1.0, psionicCostReduction: 0.0 };
+
+        completeHarvesting();
+
+        // Habitable yields 65 base bio. With resonance 0.90, bonus bio = round(65 * 0.90 * 0.4) = 23
+        // Total bioRes = 100 + 65 + 23 = 188
+        expect(STATE.bioRes).toBe(188);
+        // Mental energy boosted by +20
+        expect(STATE.mentalEnergy).toBe(70);
+        // Hyper-Magnetic induction gives +25 base bioEnergy recharge + 25 hyper-magnetic induction = 100
+        expect(STATE.bioEnergy).toBe(100);
     });
 });
 
