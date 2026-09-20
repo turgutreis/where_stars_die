@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import { STATE } from '../core/state';
+import { scene } from '../engine/scene';
 import { createAlienCarapaceTexture, createAlienWingTexture, createAlienVeinTexture } from './textures';
+
+export interface SpacetimeRipple {
+    position: THREE.Vector3;
+    progress: number;
+    worldRadius: number;
+}
 
 export interface AlienShipController {
     group: THREE.Group;
@@ -12,7 +19,10 @@ export interface AlienShipController {
     leftMandible: THREE.Group;
     rightMandible: THREE.Group;
     ventFlaps: THREE.Mesh[];
+    dorsalPlates: THREE.Mesh[];
     tendrils: THREE.Group[];
+    pulseRingsGroup: THREE.Group;
+    getRipples: () => SpacetimeRipple[];
     update: (dt: number) => void;
 }
 
@@ -89,6 +99,7 @@ export function createAlienBioShip(): AlienShipController {
 
     // 4. Segmented Dorsal Carapace Plates (Trilobite spinal crests)
     const plateCount = 5;
+    const dorsalPlates: THREE.Mesh[] = [];
     for (let i = 0; i < plateCount; i++) {
         const pSize = 1.6 - i * 0.22;
         const plateGeo = new THREE.CylinderGeometry(pSize * 0.65, pSize, 0.55, 12);
@@ -97,6 +108,7 @@ export function createAlienBioShip(): AlienShipController {
         const plate = new THREE.Mesh(plateGeo, dorsalPlateMat);
         plate.position.set(0.8 - i * 0.75, 0.28 - i * 0.03, 0);
         group.add(plate);
+        dorsalPlates.push(plate);
     }
 
     // 5. Central Psionic Neural Core (Pulsing Bio-Heart)
@@ -220,6 +232,23 @@ export function createAlienBioShip(): AlienShipController {
     // Set prominent scale for clear, crisp visibility
     group.scale.set(1.5, 1.5, 1.5);
 
+    // 11. Mathematical Spacetime Distortion Wave Tracker (Pure optical distortion, NO visible mesh rings)
+    const pulseRingsGroup = new THREE.Group();
+    if (scene) {
+        scene.add(pulseRingsGroup);
+    }
+
+    interface SpacetimeWave {
+        position: THREE.Vector3;
+        life: number;
+        maxLife: number;
+        velocity: THREE.Vector3;
+        currentRadius: number;
+    }
+
+    const activeSpacetimeWaves: SpacetimeWave[] = [];
+
+    let pulseEmitTimer = 0;
     let animTime = 0;
 
     return {
@@ -232,13 +261,32 @@ export function createAlienBioShip(): AlienShipController {
         leftMandible,
         rightMandible,
         ventFlaps,
+        dorsalPlates,
         tendrils,
+        pulseRingsGroup,
+        getRipples: () => {
+            return activeSpacetimeWaves.map(r => ({
+                position: r.position,
+                progress: r.life / r.maxLife,
+                worldRadius: r.currentRadius
+            }));
+        },
         update: (dt: number) => {
             animTime += dt;
 
-            // A. Breathing Psionic Core Pulse
-            const breath = Math.sin(animTime * 2.5);
-            const coreScale = 1.0 + breath * 0.08;
+            // Ensure pulseRingsGroup stays attached to scene
+            if (scene && pulseRingsGroup.parent !== scene) {
+                scene.add(pulseRingsGroup);
+            }
+
+            const isThrusting = Boolean(STATE.isThrusting || (STATE.keys && STATE.keys.w));
+            const isRetroBraking = Boolean(STATE.isRetroBraking || (STATE.keys && STATE.keys.s));
+            const speedMagnitude = STATE.playerVelocity ? STATE.playerVelocity.length() : 0;
+
+            // A. Breathing Psionic Core Pulse & Bioluminescent Intensity Flare
+            const breathSpeed = isThrusting ? 5.5 : 2.5;
+            const breath = Math.sin(animTime * breathSpeed);
+            const coreScale = 1.0 + breath * (isThrusting ? 0.14 : 0.08);
             psioCoreMesh.scale.set(1.4 * coreScale, 0.55 * coreScale, 0.75 * coreScale);
 
             // Dynamic color state
@@ -247,47 +295,80 @@ export function createAlienBioShip(): AlienShipController {
                 activeColor = 0xf43f5e; // Emergency red
             } else if (STATE.telepathyActive) {
                 activeColor = 0xa855f7; // Psionic trance violet
+            } else if (isThrusting) {
+                activeColor = 0x38bdf8; // Cyber cyan bio-flux on full thrust
             }
 
+            const targetEmissive = isThrusting ? 2.4 : (isRetroBraking ? 1.8 : 1.1);
             (psioCoreMesh.material as THREE.MeshPhysicalMaterial).color.setHex(activeColor);
             (psioCoreMesh.material as THREE.MeshPhysicalMaterial).emissive.setHex(activeColor);
+            (psioCoreMesh.material as THREE.MeshPhysicalMaterial).emissiveIntensity = THREE.MathUtils.lerp(
+                (psioCoreMesh.material as THREE.MeshPhysicalMaterial).emissiveIntensity,
+                targetEmissive,
+                Math.min(1.0, dt * 6.0)
+            );
+
             (biolumMat as THREE.MeshStandardMaterial).color.setHex(activeColor);
             (biolumMat as THREE.MeshStandardMaterial).emissive.setHex(activeColor);
+            (biolumMat as THREE.MeshStandardMaterial).emissiveIntensity = THREE.MathUtils.lerp(
+                (biolumMat as THREE.MeshStandardMaterial).emissiveIntensity,
+                targetEmissive,
+                Math.min(1.0, dt * 6.0)
+            );
 
-            // B. Undulating Wing Motion (Manta wave)
-            const speedMagnitude = STATE.playerVelocity ? STATE.playerVelocity.length() : 0;
-            const wingFreq = 3.2 + Math.min(speedMagnitude * 0.15, 3.5);
-            const wingWave = Math.sin(animTime * wingFreq) * 0.22;
+            // B. Undulating Wing Motion (Progressive traveling wave from shoulder to wingtips)
+            const wingFreq = isThrusting ? (5.8 + Math.min(speedMagnitude * 0.22, 4.0)) : (2.4 + Math.min(speedMagnitude * 0.1, 1.8));
+            const wingAmp = isThrusting ? 0.42 : (isRetroBraking ? 0.12 : 0.22);
+            const wingWave = Math.sin(animTime * wingFreq) * wingAmp;
+            const wingTipWave = Math.cos(animTime * wingFreq - 0.45) * (isThrusting ? 0.18 : 0.08);
 
             leftWing.rotation.x = wingWave;
-            leftWing.rotation.z = Math.cos(animTime * wingFreq) * 0.08;
+            leftWing.rotation.z = wingTipWave;
 
             rightWing.rotation.x = -wingWave;
-            rightWing.rotation.z = -Math.cos(animTime * wingFreq) * 0.08;
+            rightWing.rotation.z = -wingTipWave;
 
-            // C. Front Mandibles Swaying / Grasping
+            // Wing pitch angle: Cups backwards during retro-braking, angles sleek during forward thrust
+            const targetWingPitch = isRetroBraking ? -0.35 : (isThrusting ? 0.10 : 0.0);
+            leftWing.rotation.y = THREE.MathUtils.lerp(leftWing.rotation.y, targetWingPitch, Math.min(1.0, dt * 8.0));
+            rightWing.rotation.y = THREE.MathUtils.lerp(rightWing.rotation.y, -targetWingPitch, Math.min(1.0, dt * 8.0));
+
+            // C. Dorsal Carapace Plates & Spine Wave (Wellenförmige Bio-Rückenbewegung)
+            const spineWaveFreq = wingFreq * 0.75;
+            coreMesh.position.y = Math.sin(animTime * spineWaveFreq) * 0.06;
+
+            dorsalPlates.forEach((plate, idx) => {
+                const waveDelay = idx * 0.38;
+                const spinalWave = Math.sin(animTime * spineWaveFreq - waveDelay) * 0.04;
+                const targetRotZ = isRetroBraking ? (-Math.PI / 2 - 0.38 * (idx + 1) * 0.18) : (-Math.PI / 2 + spinalWave * 0.6);
+                const targetPosY = isRetroBraking ? (0.42 - idx * 0.02) : (0.28 - idx * 0.03 + spinalWave);
+                plate.rotation.z = THREE.MathUtils.lerp(plate.rotation.z, targetRotZ, Math.min(1.0, dt * 9.0));
+                plate.position.y = THREE.MathUtils.lerp(plate.position.y, targetPosY, Math.min(1.0, dt * 9.0));
+            });
+
+            // D. Front Mandibles Swaying / Grasping
             const isAbducting = STATE.abductActive || STATE.extractingPlanet !== null;
             const mandAngle = isAbducting ? 0.45 + Math.sin(animTime * 8.0) * 0.15 : 0.08 + Math.sin(animTime * 1.5) * 0.05;
             leftMandible.rotation.y = mandAngle;
             rightMandible.rotation.y = -mandAngle;
 
-            // D. Breathing Rear Vents (Flares open when thrusting)
-            const isThrusting = STATE.keys ? STATE.keys.w : false;
-            const targetVentAngle = isThrusting ? 0.55 : 0.08 + Math.sin(animTime * 2.0) * 0.04;
+            // E. Breathing Rear Vents (Flares wide on thrust)
+            const targetVentAngle = isThrusting ? 0.65 : (isRetroBraking ? -0.25 : 0.08 + Math.sin(animTime * 2.0) * 0.04);
             ventFlaps.forEach((f, idx) => {
-                f.rotation.z = targetVentAngle * (idx === 1 ? 1.3 : 0.9);
+                f.rotation.z = THREE.MathUtils.lerp(f.rotation.z, targetVentAngle * (idx === 1 ? 1.3 : 0.9), Math.min(1.0, dt * 8.0));
             });
 
-            // E. Twin Tail Tendril Physics Simulation
+            // F. Twin Tail Tendril Physics Simulation (Streams back tightly on thrust with traveling wave)
             tendrils.forEach((tGroup, tIdx) => {
                 let currentJoint: any = tGroup;
                 let depth = 0;
                 while (currentJoint && currentJoint.children && currentJoint.children.length > 0) {
                     const next = currentJoint.children[0];
                     if (next) {
-                        const phase = animTime * 4.0 + depth * 0.6 + tIdx * Math.PI;
-                        next.rotation.z = Math.sin(phase) * 0.16;
-                        next.rotation.y = Math.cos(phase * 0.8) * 0.12;
+                        const phase = animTime * (isThrusting ? 7.0 : 3.8) + depth * 0.65 + tIdx * Math.PI;
+                        const tendrilAmp = isThrusting ? 0.10 : 0.18;
+                        next.rotation.z = Math.sin(phase) * tendrilAmp;
+                        next.rotation.y = Math.cos(phase * 0.8) * (tendrilAmp * 0.7);
                         currentJoint = next;
                         depth++;
                     } else {
@@ -295,6 +376,51 @@ export function createAlienBioShip(): AlienShipController {
                     }
                 }
             });
+
+            // G. Invisible Spacetime Distortion Waves Emission (Pure optical wake, no visible rings)
+            if (isThrusting) {
+                pulseEmitTimer += dt;
+                const emitInterval = Math.max(0.12, 0.20 - Math.min(speedMagnitude * 0.005, 0.07));
+                if (pulseEmitTimer >= emitInterval) {
+                    pulseEmitTimer = 0;
+                    const forwardX = Math.cos(STATE.shipHeading);
+                    const forwardZ = -Math.sin(STATE.shipHeading);
+                    const shipScale = STATE.playerGroup ? STATE.playerGroup.scale.x : 0.42;
+
+                    // Counter-drift velocity with gentle wave dispersion
+                    const driftVel = new THREE.Vector3(-forwardX * 3.4, 0, -forwardZ * 3.4);
+                    if (STATE.playerVelocity) {
+                        driftVel.addScaledVector(STATE.playerVelocity, 0.15);
+                    }
+
+                    activeSpacetimeWaves.push({
+                        position: new THREE.Vector3(
+                            STATE.playerPosition.x - forwardX * (3.8 * shipScale),
+                            0.0,
+                            STATE.playerPosition.z - forwardZ * (3.8 * shipScale)
+                        ),
+                        life: 0,
+                        maxLife: 0.65,
+                        velocity: driftVel,
+                        currentRadius: 1.2
+                    });
+                }
+            }
+
+            // Update active spacetime distortion waves
+            for (let i = activeSpacetimeWaves.length - 1; i >= 0; i--) {
+                const wave = activeSpacetimeWaves[i];
+                wave.life += dt;
+                const progress = wave.life / wave.maxLife;
+                if (progress >= 1.0) {
+                    activeSpacetimeWaves.splice(i, 1);
+                } else {
+                    const waveRipple = Math.sin(progress * Math.PI * 3.0) * 0.25;
+                    const expandScale = THREE.MathUtils.lerp(0.65, 4.8, Math.pow(progress, 0.58)) + waveRipple;
+                    wave.currentRadius = expandScale * 1.5;
+                    wave.position.addScaledVector(wave.velocity, dt);
+                }
+            }
         }
     };
 }

@@ -29401,7 +29401,9 @@ var STATE = {
   turnSpeed: 2.85,
   shipHeading: 0,
   shipAngularVelocity: 0,
-  flightAssist: false,
+  flightAssist: true,
+  isThrusting: false,
+  isRetroBraking: false,
   shipSpeed: 2,
   progradeVector: new Vector3(1, 0, 0),
   drag: 0.005,
@@ -30306,472 +30308,6 @@ class OutputPass extends Pass {
   }
 }
 
-// src/engine/postprocessing.ts
-var composer = null;
-var bloomPass = null;
-function initPostProcessing() {
-  if (!renderer || !scene || !camera)
-    return;
-  composer = new EffectComposer(renderer);
-  const renderPass = new RenderPass(scene, camera);
-  composer.addPass(renderPass);
-  const bloomResolution = new Vector2(window.innerWidth, window.innerHeight);
-  bloomPass = new UnrealBloomPass(bloomResolution, 0.55, 0.28, 0.88);
-  composer.addPass(bloomPass);
-  const outputPass = new OutputPass;
-  composer.addPass(outputPass);
-}
-function resizePostProcessing(width, height) {
-  if (composer) {
-    composer.setSize(width, height);
-  }
-  if (bloomPass) {
-    bloomPass.resolution.set(width, height);
-  }
-}
-function renderPostProcessing() {
-  if (composer) {
-    composer.render();
-  } else if (renderer && scene && camera) {
-    renderer.render(scene, camera);
-  }
-}
-
-// src/engine/starfield.ts
-function createRealisticStarfield() {
-  const group = new Group;
-  const microCount = 4500;
-  const microGeo = new BufferGeometry;
-  const microPos = new Float32Array(microCount * 3);
-  const microCol = new Float32Array(microCount * 3);
-  for (let i = 0;i < microCount; i++) {
-    const r = Math.sqrt(Math.random()) * 650;
-    const theta = Math.random() * Math.PI * 2;
-    microPos[i * 3] = Math.cos(theta) * r;
-    microPos[i * 3 + 1] = -180 - Math.random() * 120;
-    microPos[i * 3 + 2] = Math.sin(theta) * r;
-    const rand = Math.random();
-    if (rand < 0.4) {
-      microCol[i * 3] = 0.95;
-      microCol[i * 3 + 1] = 0.95;
-      microCol[i * 3 + 2] = 1;
-    } else if (rand < 0.65) {
-      microCol[i * 3] = 1;
-      microCol[i * 3 + 1] = 0.9;
-      microCol[i * 3 + 2] = 0.65;
-    } else if (rand < 0.85) {
-      microCol[i * 3] = 0.45;
-      microCol[i * 3 + 1] = 0.85;
-      microCol[i * 3 + 2] = 1;
-    } else {
-      microCol[i * 3] = 1;
-      microCol[i * 3 + 1] = 0.55;
-      microCol[i * 3 + 2] = 0.45;
-    }
-  }
-  microGeo.setAttribute("position", new BufferAttribute(microPos, 3));
-  microGeo.setAttribute("color", new BufferAttribute(microCol, 3));
-  const microMat = new PointsMaterial({
-    size: 0.55,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.75,
-    depthWrite: false
-  });
-  const microPoints = new Points(microGeo, microMat);
-  group.add(microPoints);
-  const midCount = 1200;
-  const midGeo = new BufferGeometry;
-  const midPos = new Float32Array(midCount * 3);
-  const midCol = new Float32Array(midCount * 3);
-  for (let i = 0;i < midCount; i++) {
-    const r = Math.sqrt(Math.random()) * 600;
-    const theta = Math.random() * Math.PI * 2;
-    midPos[i * 3] = Math.cos(theta) * r;
-    midPos[i * 3 + 1] = -140 - Math.random() * 60;
-    midPos[i * 3 + 2] = Math.sin(theta) * r;
-    const rand = Math.random();
-    if (rand < 0.35) {
-      midCol[i * 3] = 1;
-      midCol[i * 3 + 1] = 1;
-      midCol[i * 3 + 2] = 1;
-    } else if (rand < 0.6) {
-      midCol[i * 3] = 0.35;
-      midCol[i * 3 + 1] = 0.88;
-      midCol[i * 3 + 2] = 1;
-    } else if (rand < 0.85) {
-      midCol[i * 3] = 1;
-      midCol[i * 3 + 1] = 0.82;
-      midCol[i * 3 + 2] = 0.35;
-    } else {
-      midCol[i * 3] = 0.95;
-      midCol[i * 3 + 1] = 0.45;
-      midCol[i * 3 + 2] = 0.85;
-    }
-  }
-  midGeo.setAttribute("position", new BufferAttribute(midPos, 3));
-  midGeo.setAttribute("color", new BufferAttribute(midCol, 3));
-  const midMat = new PointsMaterial({
-    size: 1.1,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.9,
-    depthWrite: false
-  });
-  const midPoints = new Points(midGeo, midMat);
-  group.add(midPoints);
-  const beaconCount = 120;
-  const beaconGeo = new BufferGeometry;
-  const beaconPos = new Float32Array(beaconCount * 3);
-  const beaconCol = new Float32Array(beaconCount * 3);
-  for (let i = 0;i < beaconCount; i++) {
-    const r = Math.sqrt(Math.random()) * 550;
-    const theta = Math.random() * Math.PI * 2;
-    beaconPos[i * 3] = Math.cos(theta) * r;
-    beaconPos[i * 3 + 1] = -110 - Math.random() * 40;
-    beaconPos[i * 3 + 2] = Math.sin(theta) * r;
-    const rand = Math.random();
-    if (rand < 0.4) {
-      beaconCol[i * 3] = 0.5;
-      beaconCol[i * 3 + 1] = 0.95;
-      beaconCol[i * 3 + 2] = 1;
-    } else if (rand < 0.7) {
-      beaconCol[i * 3] = 1;
-      beaconCol[i * 3 + 1] = 0.88;
-      beaconCol[i * 3 + 2] = 0.3;
-    } else {
-      beaconCol[i * 3] = 1;
-      beaconCol[i * 3 + 1] = 1;
-      beaconCol[i * 3 + 2] = 1;
-    }
-  }
-  beaconGeo.setAttribute("position", new BufferAttribute(beaconPos, 3));
-  beaconGeo.setAttribute("color", new BufferAttribute(beaconCol, 3));
-  const beaconMat = new PointsMaterial({
-    size: 1.7,
-    vertexColors: true,
-    transparent: true,
-    opacity: 1,
-    depthWrite: false
-  });
-  const beaconPoints = new Points(beaconGeo, beaconMat);
-  group.add(beaconPoints);
-  const nebulaCanvas = document.createElement("canvas");
-  nebulaCanvas.width = 256;
-  nebulaCanvas.height = 256;
-  const nCtx = nebulaCanvas.getContext("2d");
-  const gradient = nCtx.createRadialGradient(128, 128, 10, 128, 128, 128);
-  gradient.addColorStop(0, "rgba(168, 85, 247, 0.45)");
-  gradient.addColorStop(0.35, "rgba(56, 189, 248, 0.25)");
-  gradient.addColorStop(0.7, "rgba(15, 23, 42, 0.12)");
-  gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
-  nCtx.fillStyle = gradient;
-  nCtx.fillRect(0, 0, 256, 256);
-  const nebulaTex = new CanvasTexture(nebulaCanvas);
-  const nebulaGeo = new PlaneGeometry(350, 350);
-  nebulaGeo.rotateX(-Math.PI / 2);
-  const nebulaColors = [6514417, 440020, 14239471, 3900150];
-  const nebulaMeshes = [];
-  for (let k = 0;k < 6; k++) {
-    const nMat = new MeshBasicMaterial({
-      map: nebulaTex,
-      color: nebulaColors[k % nebulaColors.length],
-      transparent: true,
-      opacity: 0.16,
-      depthWrite: false,
-      blending: AdditiveBlending,
-      side: DoubleSide
-    });
-    const nMesh = new Mesh(nebulaGeo, nMat);
-    const ang = k / 6 * Math.PI * 2 + 0.4;
-    const dist = 120 + k % 3 * 110;
-    nMesh.position.set(Math.cos(ang) * dist, -240 - k * 15, Math.sin(ang) * dist);
-    nMesh.rotation.y = k * 1.1;
-    group.add(nMesh);
-    nebulaMeshes.push(nMesh);
-  }
-  let totalTime = 0;
-  return {
-    group,
-    update: (dt, playerPos) => {
-      totalTime += dt;
-      group.rotation.y = totalTime * 0.0015;
-      if (playerPos) {
-        microPoints.position.x = playerPos.x * 0.015;
-        microPoints.position.z = playerPos.z * 0.015;
-        midPoints.position.x = playerPos.x * 0.035;
-        midPoints.position.z = playerPos.z * 0.035;
-        beaconPoints.position.x = playerPos.x * 0.06;
-        beaconPoints.position.z = playerPos.z * 0.06;
-      }
-    },
-    dispose: () => {
-      microGeo.dispose();
-      microMat.dispose();
-      midGeo.dispose();
-      midMat.dispose();
-      beaconGeo.dispose();
-      beaconMat.dispose();
-      nebulaGeo.dispose();
-      nebulaTex.dispose();
-      nebulaMeshes.forEach((m) => m.material.dispose());
-    }
-  };
-}
-
-// src/engine/scene.ts
-var scene = new Scene;
-var camera;
-var renderer;
-var starfieldController = null;
-function initScene(container) {
-  const target = container || document.getElementById("canvas-container") || document.body;
-  scene = new Scene;
-  camera = new PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 65, 0);
-  camera.lookAt(0, 0, 0);
-  renderer = new WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setClearColor(66312, 1);
-  renderer.toneMapping = ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
-  target.appendChild(renderer.domElement);
-  const ambientLight = new AmbientLight(396312, 0.18);
-  scene.add(ambientLight);
-  starfieldController = createRealisticStarfield();
-  scene.add(starfieldController.group);
-  window.addEventListener("resize", onWindowResize);
-}
-function onWindowResize() {
-  if (!camera || !renderer)
-    return;
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  resizePostProcessing(window.innerWidth, window.innerHeight);
-}
-
-// src/engine/trajectory.ts
-var FLOW_SEGMENTS = 36;
-var FLOW_DT = 0.075;
-var DASH_RATIO = 0.72;
-var SOFTENING_SQ = 25;
-var trajectoryGeometry;
-var trajectoryLines;
-var trajectoryPositions;
-var trajectoryColors;
-var progradeGroup;
-var progradeRingMesh;
-var progradeDotMesh;
-var progradeChevronMesh;
-var progradeMaterial;
-var progradeDotMaterial;
-var _predPos = new Vector3;
-var _predVel = new Vector3;
-var _predAcc = new Vector3;
-var _segmentStart = new Vector3;
-var _segmentEnd = new Vector3;
-var _impactPos = new Vector3;
-var _reticleTargetPos = new Vector3;
-function initTrajectory() {
-  const vertexCount = FLOW_SEGMENTS * 2;
-  trajectoryGeometry = new BufferGeometry;
-  trajectoryPositions = new Float32Array(vertexCount * 3);
-  trajectoryColors = new Float32Array(vertexCount * 3);
-  trajectoryGeometry.setAttribute("position", new BufferAttribute(trajectoryPositions, 3));
-  trajectoryGeometry.setAttribute("color", new BufferAttribute(trajectoryColors, 3));
-  const lineMaterial = new LineBasicMaterial({
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.95,
-    linewidth: 2,
-    blending: AdditiveBlending,
-    depthWrite: false
-  });
-  trajectoryLines = new LineSegments(trajectoryGeometry, lineMaterial);
-  trajectoryLines.frustumCulled = false;
-  trajectoryLines.renderOrder = 999;
-  scene.add(trajectoryLines);
-  progradeGroup = new Group;
-  progradeGroup.renderOrder = 1000;
-  progradeMaterial = new MeshBasicMaterial({
-    color: 3718648,
-    transparent: true,
-    opacity: 0,
-    side: DoubleSide,
-    blending: AdditiveBlending,
-    depthWrite: false
-  });
-  progradeDotMaterial = new MeshBasicMaterial({
-    color: 1096065,
-    transparent: true,
-    opacity: 0,
-    blending: AdditiveBlending,
-    depthWrite: false
-  });
-  const ringGeo = new RingGeometry(0.65, 0.85, 32);
-  ringGeo.rotateX(Math.PI / 2);
-  progradeRingMesh = new Mesh(ringGeo, progradeMaterial);
-  progradeGroup.add(progradeRingMesh);
-  const dotGeo = new SphereGeometry(0.22, 16, 16);
-  progradeDotMesh = new Mesh(dotGeo, progradeDotMaterial);
-  progradeDotMesh.position.y = 0.25;
-  progradeGroup.add(progradeDotMesh);
-  const chevronGeo = new ConeGeometry(0.35, 0.8, 4);
-  chevronGeo.rotateX(Math.PI / 2);
-  progradeChevronMesh = new Mesh(chevronGeo, progradeMaterial);
-  progradeChevronMesh.position.set(0, 0.25, 0.95);
-  progradeGroup.add(progradeChevronMesh);
-  progradeGroup.visible = false;
-  scene.add(progradeGroup);
-}
-function calculateGravityAndCheckCollision(pos, simTime, outAcc, outImpactPoint) {
-  outAcc.set(0, 0, 0);
-  const sources = STATE.gravitySources;
-  const count = sources.length;
-  let collided = false;
-  for (let s = 0;s < count; s++) {
-    const source = sources[s];
-    if (source.isAbsorbed)
-      continue;
-    let sourceX = source.position.x;
-    let sourceZ = source.position.z;
-    if (source.type === "planet") {
-      const planetEntry = activePlanets.find((p) => p.source === source);
-      if (planetEntry && !planetEntry.isMoon) {
-        const futureAngle = planetEntry.angle + planetEntry.speed * simTime;
-        sourceX = planetEntry.distance * Math.cos(futureAngle);
-        sourceZ = planetEntry.distance * Math.sin(futureAngle);
-      }
-    }
-    const dx = sourceX - pos.x;
-    const dz = sourceZ - pos.z;
-    const distSq = dx * dx + dz * dz;
-    const impactClearance = source.type === "star" ? source.radius + 1.2 : source.radius + 0.6;
-    if (distSq <= impactClearance * impactClearance) {
-      collided = true;
-      if (outImpactPoint) {
-        const dist = Math.max(0.01, Math.sqrt(distSq));
-        outImpactPoint.set(sourceX - dx / dist * impactClearance, 0.25, sourceZ - dz / dist * impactClearance);
-      }
-      break;
-    }
-    const rangeSq = source.gravityRange * source.gravityRange;
-    if (distSq < rangeSq) {
-      const distance = Math.sqrt(distSq);
-      const forceStrength = STATE.gConstant * source.mass / (distSq + SOFTENING_SQ);
-      const invDist = 1 / Math.max(0.1, distance);
-      outAcc.x += dx * invDist * forceStrength;
-      outAcc.z += dz * invDist * forceStrength;
-    }
-  }
-  return collided;
-}
-function updateTrajectory() {
-  if (!trajectoryLines || !progradeGroup)
-    return;
-  const curSpeed = STATE.playerVelocity.length();
-  const speedFactor = Math.min(1, Math.max(0, (curSpeed - 0.8) / 4));
-  if (curSpeed < 0.6) {
-    trajectoryLines.visible = false;
-    progradeGroup.visible = false;
-    return;
-  }
-  trajectoryLines.visible = true;
-  progradeGroup.visible = true;
-  _predPos.copy(STATE.playerPosition);
-  _predVel.copy(STATE.playerVelocity);
-  let hasImpacted = false;
-  _reticleTargetPos.copy(STATE.playerPosition);
-  const timeNow = Date.now() * 0.001;
-  const wavePhase = timeNow * 4.2 % (Math.PI * 2);
-  for (let seg = 0;seg < FLOW_SEGMENTS; seg++) {
-    const v0 = seg * 2;
-    const v1 = seg * 2 + 1;
-    if (hasImpacted) {
-      trajectoryPositions[v0 * 3 + 0] = _impactPos.x;
-      trajectoryPositions[v0 * 3 + 1] = 0.25;
-      trajectoryPositions[v0 * 3 + 2] = _impactPos.z;
-      trajectoryPositions[v1 * 3 + 0] = _impactPos.x;
-      trajectoryPositions[v1 * 3 + 1] = 0.25;
-      trajectoryPositions[v1 * 3 + 2] = _impactPos.z;
-      trajectoryColors[v0 * 3 + 0] = 0;
-      trajectoryColors[v0 * 3 + 1] = 0;
-      trajectoryColors[v0 * 3 + 2] = 0;
-      trajectoryColors[v1 * 3 + 0] = 0;
-      trajectoryColors[v1 * 3 + 1] = 0;
-      trajectoryColors[v1 * 3 + 2] = 0;
-      continue;
-    }
-    const simTime = seg * FLOW_DT;
-    _segmentStart.copy(_predPos);
-    if (calculateGravityAndCheckCollision(_segmentStart, simTime, _predAcc, _impactPos)) {
-      hasImpacted = true;
-      _segmentStart.copy(_impactPos);
-      _segmentEnd.copy(_impactPos);
-      _reticleTargetPos.copy(_impactPos);
-    } else {
-      const dashDt = FLOW_DT * DASH_RATIO;
-      _predVel.addScaledVector(_predAcc, dashDt);
-      _predVel.multiplyScalar(Math.exp(-STATE.currentDrag * dashDt));
-      _predPos.addScaledVector(_predVel, dashDt);
-      _segmentEnd.copy(_predPos);
-      _reticleTargetPos.copy(_segmentEnd);
-      if (calculateGravityAndCheckCollision(_segmentEnd, simTime + dashDt, _predAcc, _impactPos)) {
-        hasImpacted = true;
-        _segmentEnd.copy(_impactPos);
-        _reticleTargetPos.copy(_impactPos);
-      } else {
-        const gapDt = FLOW_DT * (1 - DASH_RATIO);
-        calculateGravityAndCheckCollision(_predPos, simTime + dashDt, _predAcc);
-        _predVel.addScaledVector(_predAcc, gapDt);
-        _predVel.multiplyScalar(Math.exp(-STATE.currentDrag * gapDt));
-        _predPos.addScaledVector(_predVel, gapDt);
-      }
-    }
-    trajectoryPositions[v0 * 3 + 0] = _segmentStart.x;
-    trajectoryPositions[v0 * 3 + 1] = 0.25;
-    trajectoryPositions[v0 * 3 + 2] = _segmentStart.z;
-    trajectoryPositions[v1 * 3 + 0] = _segmentEnd.x;
-    trajectoryPositions[v1 * 3 + 1] = 0.25;
-    trajectoryPositions[v1 * 3 + 2] = _segmentEnd.z;
-    const progress = seg / FLOW_SEGMENTS;
-    const distFade = Math.pow(1 - progress, 1.4);
-    const nearFade = Math.min(1, seg * 0.4);
-    const flowWave = Math.sin(seg * 0.5 - wavePhase);
-    const pulseBoost = flowWave > 0 ? flowWave * 0.45 : 0;
-    const totalAlpha = (distFade * nearFade * 0.75 + pulseBoost * 0.35) * speedFactor;
-    const r = 0.12 * totalAlpha;
-    const g = 0.85 * totalAlpha;
-    const b = 0.95 * totalAlpha;
-    trajectoryColors[v0 * 3 + 0] = r;
-    trajectoryColors[v0 * 3 + 1] = g;
-    trajectoryColors[v0 * 3 + 2] = b;
-    trajectoryColors[v1 * 3 + 0] = r;
-    trajectoryColors[v1 * 3 + 1] = g;
-    trajectoryColors[v1 * 3 + 2] = b;
-  }
-  trajectoryGeometry.attributes.position.needsUpdate = true;
-  trajectoryGeometry.attributes.color.needsUpdate = true;
-  if (progradeGroup) {
-    progradeGroup.position.set(_reticleTargetPos.x, 0.25, _reticleTargetPos.z);
-    const velHeading = Math.atan2(-STATE.playerVelocity.z, STATE.playerVelocity.x);
-    progradeGroup.rotation.y = velHeading - Math.PI / 2;
-    const reticleAlpha = speedFactor * (hasImpacted ? 0.95 : 0.8);
-    const pulseScale = 1 + Math.sin(timeNow * 6) * 0.08;
-    progradeGroup.scale.set(pulseScale, pulseScale, pulseScale);
-    if (hasImpacted) {
-      progradeMaterial.color.setHex(16007006);
-      progradeDotMaterial.color.setHex(16096779);
-    } else {
-      progradeMaterial.color.setHex(3718648);
-      progradeDotMaterial.color.setHex(1096065);
-    }
-    progradeMaterial.opacity = reticleAlpha;
-    progradeDotMaterial.opacity = reticleAlpha;
-  }
-}
-
 // src/procedural/textures.ts
 function pseudoNoise(x, y, seed = 1) {
   const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 43.123) * 43758.5453;
@@ -31385,6 +30921,7 @@ function createAlienBioShip() {
   coreMesh.position.x = 0.5;
   group.add(coreMesh);
   const plateCount = 5;
+  const dorsalPlates = [];
   for (let i = 0;i < plateCount; i++) {
     const pSize = 1.6 - i * 0.22;
     const plateGeo = new CylinderGeometry(pSize * 0.65, pSize, 0.55, 12);
@@ -31393,6 +30930,7 @@ function createAlienBioShip() {
     const plate = new Mesh(plateGeo, dorsalPlateMat);
     plate.position.set(0.8 - i * 0.75, 0.28 - i * 0.03, 0);
     group.add(plate);
+    dorsalPlates.push(plate);
   }
   const nucGeo = new SphereGeometry(0.85, 24, 24);
   nucGeo.scale(1.4, 0.55, 0.75);
@@ -31483,6 +31021,12 @@ function createAlienBioShip() {
     tendrils.push(tendrilGroup);
   }
   group.scale.set(1.5, 1.5, 1.5);
+  const pulseRingsGroup = new Group;
+  if (scene) {
+    scene.add(pulseRingsGroup);
+  }
+  const activeSpacetimeWaves = [];
+  let pulseEmitTimer = 0;
   let animTime = 0;
   return {
     group,
@@ -31494,37 +31038,71 @@ function createAlienBioShip() {
     leftMandible,
     rightMandible,
     ventFlaps,
+    dorsalPlates,
     tendrils,
+    pulseRingsGroup,
+    getRipples: () => {
+      return activeSpacetimeWaves.map((r) => ({
+        position: r.position,
+        progress: r.life / r.maxLife,
+        worldRadius: r.currentRadius
+      }));
+    },
     update: (dt) => {
       animTime += dt;
-      const breath = Math.sin(animTime * 2.5);
-      const coreScale = 1 + breath * 0.08;
+      if (scene && pulseRingsGroup.parent !== scene) {
+        scene.add(pulseRingsGroup);
+      }
+      const isThrusting = Boolean(STATE.isThrusting || STATE.keys && STATE.keys.w);
+      const isRetroBraking = Boolean(STATE.isRetroBraking || STATE.keys && STATE.keys.s);
+      const speedMagnitude = STATE.playerVelocity ? STATE.playerVelocity.length() : 0;
+      const breathSpeed = isThrusting ? 5.5 : 2.5;
+      const breath = Math.sin(animTime * breathSpeed);
+      const coreScale = 1 + breath * (isThrusting ? 0.14 : 0.08);
       psioCoreMesh.scale.set(1.4 * coreScale, 0.55 * coreScale, 0.75 * coreScale);
       let activeColor = 65416;
       if (STATE.health < 30) {
         activeColor = 16007006;
       } else if (STATE.telepathyActive) {
         activeColor = 11032055;
+      } else if (isThrusting) {
+        activeColor = 3718648;
       }
+      const targetEmissive = isThrusting ? 2.4 : isRetroBraking ? 1.8 : 1.1;
       psioCoreMesh.material.color.setHex(activeColor);
       psioCoreMesh.material.emissive.setHex(activeColor);
+      psioCoreMesh.material.emissiveIntensity = MathUtils.lerp(psioCoreMesh.material.emissiveIntensity, targetEmissive, Math.min(1, dt * 6));
       biolumMat.color.setHex(activeColor);
       biolumMat.emissive.setHex(activeColor);
-      const speedMagnitude = STATE.playerVelocity ? STATE.playerVelocity.length() : 0;
-      const wingFreq = 3.2 + Math.min(speedMagnitude * 0.15, 3.5);
-      const wingWave = Math.sin(animTime * wingFreq) * 0.22;
+      biolumMat.emissiveIntensity = MathUtils.lerp(biolumMat.emissiveIntensity, targetEmissive, Math.min(1, dt * 6));
+      const wingFreq = isThrusting ? 5.8 + Math.min(speedMagnitude * 0.22, 4) : 2.4 + Math.min(speedMagnitude * 0.1, 1.8);
+      const wingAmp = isThrusting ? 0.42 : isRetroBraking ? 0.12 : 0.22;
+      const wingWave = Math.sin(animTime * wingFreq) * wingAmp;
+      const wingTipWave = Math.cos(animTime * wingFreq - 0.45) * (isThrusting ? 0.18 : 0.08);
       leftWing.rotation.x = wingWave;
-      leftWing.rotation.z = Math.cos(animTime * wingFreq) * 0.08;
+      leftWing.rotation.z = wingTipWave;
       rightWing.rotation.x = -wingWave;
-      rightWing.rotation.z = -Math.cos(animTime * wingFreq) * 0.08;
+      rightWing.rotation.z = -wingTipWave;
+      const targetWingPitch = isRetroBraking ? -0.35 : isThrusting ? 0.1 : 0;
+      leftWing.rotation.y = MathUtils.lerp(leftWing.rotation.y, targetWingPitch, Math.min(1, dt * 8));
+      rightWing.rotation.y = MathUtils.lerp(rightWing.rotation.y, -targetWingPitch, Math.min(1, dt * 8));
+      const spineWaveFreq = wingFreq * 0.75;
+      coreMesh.position.y = Math.sin(animTime * spineWaveFreq) * 0.06;
+      dorsalPlates.forEach((plate, idx) => {
+        const waveDelay = idx * 0.38;
+        const spinalWave = Math.sin(animTime * spineWaveFreq - waveDelay) * 0.04;
+        const targetRotZ = isRetroBraking ? -Math.PI / 2 - 0.38 * (idx + 1) * 0.18 : -Math.PI / 2 + spinalWave * 0.6;
+        const targetPosY = isRetroBraking ? 0.42 - idx * 0.02 : 0.28 - idx * 0.03 + spinalWave;
+        plate.rotation.z = MathUtils.lerp(plate.rotation.z, targetRotZ, Math.min(1, dt * 9));
+        plate.position.y = MathUtils.lerp(plate.position.y, targetPosY, Math.min(1, dt * 9));
+      });
       const isAbducting = STATE.abductActive || STATE.extractingPlanet !== null;
       const mandAngle = isAbducting ? 0.45 + Math.sin(animTime * 8) * 0.15 : 0.08 + Math.sin(animTime * 1.5) * 0.05;
       leftMandible.rotation.y = mandAngle;
       rightMandible.rotation.y = -mandAngle;
-      const isThrusting = STATE.keys ? STATE.keys.w : false;
-      const targetVentAngle = isThrusting ? 0.55 : 0.08 + Math.sin(animTime * 2) * 0.04;
+      const targetVentAngle = isThrusting ? 0.65 : isRetroBraking ? -0.25 : 0.08 + Math.sin(animTime * 2) * 0.04;
       ventFlaps.forEach((f, idx) => {
-        f.rotation.z = targetVentAngle * (idx === 1 ? 1.3 : 0.9);
+        f.rotation.z = MathUtils.lerp(f.rotation.z, targetVentAngle * (idx === 1 ? 1.3 : 0.9), Math.min(1, dt * 8));
       });
       tendrils.forEach((tGroup, tIdx) => {
         let currentJoint = tGroup;
@@ -31532,9 +31110,10 @@ function createAlienBioShip() {
         while (currentJoint && currentJoint.children && currentJoint.children.length > 0) {
           const next = currentJoint.children[0];
           if (next) {
-            const phase = animTime * 4 + depth * 0.6 + tIdx * Math.PI;
-            next.rotation.z = Math.sin(phase) * 0.16;
-            next.rotation.y = Math.cos(phase * 0.8) * 0.12;
+            const phase = animTime * (isThrusting ? 7 : 3.8) + depth * 0.65 + tIdx * Math.PI;
+            const tendrilAmp = isThrusting ? 0.1 : 0.18;
+            next.rotation.z = Math.sin(phase) * tendrilAmp;
+            next.rotation.y = Math.cos(phase * 0.8) * (tendrilAmp * 0.7);
             currentJoint = next;
             depth++;
           } else {
@@ -31542,6 +31121,40 @@ function createAlienBioShip() {
           }
         }
       });
+      if (isThrusting) {
+        pulseEmitTimer += dt;
+        const emitInterval = Math.max(0.12, 0.2 - Math.min(speedMagnitude * 0.005, 0.07));
+        if (pulseEmitTimer >= emitInterval) {
+          pulseEmitTimer = 0;
+          const forwardX = Math.cos(STATE.shipHeading);
+          const forwardZ = -Math.sin(STATE.shipHeading);
+          const shipScale = STATE.playerGroup ? STATE.playerGroup.scale.x : 0.42;
+          const driftVel = new Vector3(-forwardX * 3.4, 0, -forwardZ * 3.4);
+          if (STATE.playerVelocity) {
+            driftVel.addScaledVector(STATE.playerVelocity, 0.15);
+          }
+          activeSpacetimeWaves.push({
+            position: new Vector3(STATE.playerPosition.x - forwardX * (3.8 * shipScale), 0, STATE.playerPosition.z - forwardZ * (3.8 * shipScale)),
+            life: 0,
+            maxLife: 0.65,
+            velocity: driftVel,
+            currentRadius: 1.2
+          });
+        }
+      }
+      for (let i = activeSpacetimeWaves.length - 1;i >= 0; i--) {
+        const wave = activeSpacetimeWaves[i];
+        wave.life += dt;
+        const progress = wave.life / wave.maxLife;
+        if (progress >= 1) {
+          activeSpacetimeWaves.splice(i, 1);
+        } else {
+          const waveRipple = Math.sin(progress * Math.PI * 3) * 0.25;
+          const expandScale = MathUtils.lerp(0.65, 4.8, Math.pow(progress, 0.58)) + waveRipple;
+          wave.currentRadius = expandScale * 1.5;
+          wave.position.addScaledVector(wave.velocity, dt);
+        }
+      }
     }
   };
 }
@@ -32150,6 +31763,704 @@ function createVoyagerProbeMesh(size = 2.2) {
       signalHalo.material.opacity = 0.25 + pulse * 0.4;
     }
   };
+}
+
+// src/engine/postprocessing.ts
+var composer = null;
+var bloomPass = null;
+var distortionPass = null;
+var SpacetimeDistortionShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uResolution: { value: new Vector2(1920, 1080) },
+    uTime: { value: 0 },
+    uWarpBubblePos: { value: new Vector2(0.5, 0.5) },
+    uWarpIntensity: { value: 0 },
+    uRippleCount: { value: 0 },
+    uRipples: {
+      value: [
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, 0),
+        new Vector3(0, 0, 0)
+      ]
+    }
+  },
+  vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+  fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform vec2 uResolution;
+        uniform float uTime;
+        uniform vec2 uWarpBubblePos;
+        uniform float uWarpIntensity;
+        uniform int uRippleCount;
+        uniform vec3 uRipples[8];
+        varying vec2 vUv;
+
+        void main() {
+            vec2 aspect = vec2(uResolution.x / max(1.0, uResolution.y), 1.0);
+            vec2 uv = vUv;
+            vec2 totalOffset = vec2(0.0);
+
+            // 1. Expanding Spacetime Gravitational Pulse Waves in the ship's wake
+            for (int i = 0; i < 8; i++) {
+                if (i >= uRippleCount) break;
+                vec3 r = uRipples[i]; // r.x, r.y = screen center, r.z = screen radius
+                if (r.z <= 0.001) continue;
+
+                vec2 dVec = (uv - r.xy) * aspect;
+                float dist = length(dVec);
+                float diff = dist - r.z;
+                float waveWidth = 0.040; // Broad, soft optical wave distortion instead of thin sharp ring
+
+                if (abs(diff) < waveWidth && dist > 0.0005) {
+                    float waveProgress = clamp(r.z / 0.35, 0.0, 1.0);
+                    float strength = (1.0 - waveProgress) * (1.0 - waveProgress); // Soft quadratic dispersion
+                    float waveShape = sin(diff / waveWidth * 3.14159);
+                    
+                    // Subtle, authentic optical refraction ripple across background stars
+                    float displaceMag = waveShape * strength * 0.003;
+                    totalOffset += (dVec / dist) * displaceMag / aspect;
+                }
+            }
+
+            // 2. CRITICAL: Absolute Ship Protection Mask
+            // Najmafar itself remains 100% crystal clear, sharp and completely undistorted
+            float distToShip = length((uv - uWarpBubblePos) * aspect);
+            float shipProtection = smoothstep(0.025, 0.065, distToShip);
+            totalOffset *= shipProtection;
+
+            // Cap total offset to guarantee subtlety and prevent visual jarring
+            float maxDisplace = 0.0055;
+            float totalLen = length(totalOffset);
+            if (totalLen > maxDisplace) {
+                totalOffset = (totalOffset / totalLen) * maxDisplace;
+            }
+
+            // 3. Chromatic Gravitational Lensing (Delicate prism dispersion in the wake)
+            float offsetLen = length(totalOffset);
+            if (offsetLen > 0.00005) {
+                float rCol = texture2D(tDiffuse, uv + totalOffset * 1.03).r;
+                float gCol = texture2D(tDiffuse, uv + totalOffset).g;
+                float bCol = texture2D(tDiffuse, uv + totalOffset * 0.97).b;
+                float aCol = texture2D(tDiffuse, uv).a;
+                gl_FragColor = vec4(rCol, gCol, bCol, aCol);
+            } else {
+                gl_FragColor = texture2D(tDiffuse, uv);
+            }
+        }
+    `
+};
+function initPostProcessing() {
+  if (!renderer || !scene || !camera)
+    return;
+  composer = new EffectComposer(renderer);
+  const renderPass = new RenderPass(scene, camera);
+  composer.addPass(renderPass);
+  const distortionResolution = new Vector2(window.innerWidth, window.innerHeight);
+  SpacetimeDistortionShader.uniforms.uResolution.value.copy(distortionResolution);
+  distortionPass = new ShaderPass(SpacetimeDistortionShader);
+  composer.addPass(distortionPass);
+  const bloomResolution = new Vector2(window.innerWidth, window.innerHeight);
+  bloomPass = new UnrealBloomPass(bloomResolution, 0.55, 0.28, 0.88);
+  composer.addPass(bloomPass);
+  const outputPass = new OutputPass;
+  composer.addPass(outputPass);
+}
+function resizePostProcessing(width, height) {
+  if (composer) {
+    composer.setSize(width, height);
+  }
+  if (bloomPass) {
+    bloomPass.resolution.set(width, height);
+  }
+  if (distortionPass && distortionPass.uniforms.uResolution) {
+    distortionPass.uniforms.uResolution.value.set(width, height);
+  }
+}
+var lastDistortionTime = performance.now();
+function updateSpacetimeDistortion() {
+  if (!distortionPass || !camera)
+    return;
+  const now = performance.now();
+  const dt = Math.min(0.1, (now - lastDistortionTime) * 0.001);
+  lastDistortionTime = now;
+  const uniforms = distortionPass.uniforms;
+  uniforms.uTime.value += dt;
+  if (typeof window !== "undefined" && window.innerWidth) {
+    uniforms.uResolution.value.set(window.innerWidth, window.innerHeight);
+  }
+  if (STATE.playerPosition) {
+    const shipScreen = STATE.playerPosition.clone().project(camera);
+    const uvX = (shipScreen.x + 1) * 0.5;
+    const uvY = (shipScreen.y + 1) * 0.5;
+    uniforms.uWarpBubblePos.value.set(uvX, uvY);
+    const isThrusting = Boolean(STATE.isThrusting || STATE.keys && STATE.keys.w);
+    const targetWarp = isThrusting ? 1 : 0;
+    uniforms.uWarpIntensity.value = MathUtils.lerp(uniforms.uWarpIntensity.value, targetWarp, Math.min(1, dt * 9));
+  }
+  if (alienShipController && typeof alienShipController.getRipples === "function") {
+    const ripples = alienShipController.getRipples();
+    const count = Math.min(ripples.length, 8);
+    uniforms.uRippleCount.value = count;
+    const camHeight = Math.max(20, camera.position.y || 65);
+    for (let i = 0;i < count; i++) {
+      const r = ripples[i];
+      const screenPos = r.position.clone().project(camera);
+      const rX = (screenPos.x + 1) * 0.5;
+      const rY = (screenPos.y + 1) * 0.5;
+      const screenRadius = r.worldRadius / camHeight * 0.72;
+      uniforms.uRipples.value[i].set(rX, rY, screenRadius);
+    }
+  } else {
+    uniforms.uRippleCount.value = 0;
+  }
+}
+function renderPostProcessing() {
+  if (composer) {
+    updateSpacetimeDistortion();
+    composer.render();
+  } else if (renderer && scene && camera) {
+    renderer.render(scene, camera);
+  }
+}
+
+// src/engine/starfield.ts
+function createRealisticStarfield() {
+  const group = new Group;
+  const microCount = 4500;
+  const microGeo = new BufferGeometry;
+  const microPos = new Float32Array(microCount * 3);
+  const microCol = new Float32Array(microCount * 3);
+  for (let i = 0;i < microCount; i++) {
+    const r = Math.sqrt(Math.random()) * 650;
+    const theta = Math.random() * Math.PI * 2;
+    microPos[i * 3] = Math.cos(theta) * r;
+    microPos[i * 3 + 1] = -180 - Math.random() * 120;
+    microPos[i * 3 + 2] = Math.sin(theta) * r;
+    const rand = Math.random();
+    if (rand < 0.4) {
+      microCol[i * 3] = 0.95;
+      microCol[i * 3 + 1] = 0.95;
+      microCol[i * 3 + 2] = 1;
+    } else if (rand < 0.65) {
+      microCol[i * 3] = 1;
+      microCol[i * 3 + 1] = 0.9;
+      microCol[i * 3 + 2] = 0.65;
+    } else if (rand < 0.85) {
+      microCol[i * 3] = 0.45;
+      microCol[i * 3 + 1] = 0.85;
+      microCol[i * 3 + 2] = 1;
+    } else {
+      microCol[i * 3] = 1;
+      microCol[i * 3 + 1] = 0.55;
+      microCol[i * 3 + 2] = 0.45;
+    }
+  }
+  microGeo.setAttribute("position", new BufferAttribute(microPos, 3));
+  microGeo.setAttribute("color", new BufferAttribute(microCol, 3));
+  const microMat = new PointsMaterial({
+    size: 0.55,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.75,
+    depthWrite: false
+  });
+  const microPoints = new Points(microGeo, microMat);
+  group.add(microPoints);
+  const midCount = 1200;
+  const midGeo = new BufferGeometry;
+  const midPos = new Float32Array(midCount * 3);
+  const midCol = new Float32Array(midCount * 3);
+  for (let i = 0;i < midCount; i++) {
+    const r = Math.sqrt(Math.random()) * 600;
+    const theta = Math.random() * Math.PI * 2;
+    midPos[i * 3] = Math.cos(theta) * r;
+    midPos[i * 3 + 1] = -140 - Math.random() * 60;
+    midPos[i * 3 + 2] = Math.sin(theta) * r;
+    const rand = Math.random();
+    if (rand < 0.35) {
+      midCol[i * 3] = 1;
+      midCol[i * 3 + 1] = 1;
+      midCol[i * 3 + 2] = 1;
+    } else if (rand < 0.6) {
+      midCol[i * 3] = 0.35;
+      midCol[i * 3 + 1] = 0.88;
+      midCol[i * 3 + 2] = 1;
+    } else if (rand < 0.85) {
+      midCol[i * 3] = 1;
+      midCol[i * 3 + 1] = 0.82;
+      midCol[i * 3 + 2] = 0.35;
+    } else {
+      midCol[i * 3] = 0.95;
+      midCol[i * 3 + 1] = 0.45;
+      midCol[i * 3 + 2] = 0.85;
+    }
+  }
+  midGeo.setAttribute("position", new BufferAttribute(midPos, 3));
+  midGeo.setAttribute("color", new BufferAttribute(midCol, 3));
+  const midMat = new PointsMaterial({
+    size: 1.1,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false
+  });
+  const midPoints = new Points(midGeo, midMat);
+  group.add(midPoints);
+  const beaconCount = 120;
+  const beaconGeo = new BufferGeometry;
+  const beaconPos = new Float32Array(beaconCount * 3);
+  const beaconCol = new Float32Array(beaconCount * 3);
+  for (let i = 0;i < beaconCount; i++) {
+    const r = Math.sqrt(Math.random()) * 550;
+    const theta = Math.random() * Math.PI * 2;
+    beaconPos[i * 3] = Math.cos(theta) * r;
+    beaconPos[i * 3 + 1] = -110 - Math.random() * 40;
+    beaconPos[i * 3 + 2] = Math.sin(theta) * r;
+    const rand = Math.random();
+    if (rand < 0.4) {
+      beaconCol[i * 3] = 0.5;
+      beaconCol[i * 3 + 1] = 0.95;
+      beaconCol[i * 3 + 2] = 1;
+    } else if (rand < 0.7) {
+      beaconCol[i * 3] = 1;
+      beaconCol[i * 3 + 1] = 0.88;
+      beaconCol[i * 3 + 2] = 0.3;
+    } else {
+      beaconCol[i * 3] = 1;
+      beaconCol[i * 3 + 1] = 1;
+      beaconCol[i * 3 + 2] = 1;
+    }
+  }
+  beaconGeo.setAttribute("position", new BufferAttribute(beaconPos, 3));
+  beaconGeo.setAttribute("color", new BufferAttribute(beaconCol, 3));
+  const beaconMat = new PointsMaterial({
+    size: 1.7,
+    vertexColors: true,
+    transparent: true,
+    opacity: 1,
+    depthWrite: false
+  });
+  const beaconPoints = new Points(beaconGeo, beaconMat);
+  group.add(beaconPoints);
+  const nebulaCanvas = document.createElement("canvas");
+  nebulaCanvas.width = 256;
+  nebulaCanvas.height = 256;
+  const nCtx = nebulaCanvas.getContext("2d");
+  const gradient = nCtx.createRadialGradient(128, 128, 10, 128, 128, 128);
+  gradient.addColorStop(0, "rgba(168, 85, 247, 0.45)");
+  gradient.addColorStop(0.35, "rgba(56, 189, 248, 0.25)");
+  gradient.addColorStop(0.7, "rgba(15, 23, 42, 0.12)");
+  gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+  nCtx.fillStyle = gradient;
+  nCtx.fillRect(0, 0, 256, 256);
+  const nebulaTex = new CanvasTexture(nebulaCanvas);
+  const nebulaGeo = new PlaneGeometry(350, 350);
+  nebulaGeo.rotateX(-Math.PI / 2);
+  const nebulaColors = [6514417, 440020, 14239471, 3900150];
+  const nebulaMeshes = [];
+  for (let k = 0;k < 6; k++) {
+    const nMat = new MeshBasicMaterial({
+      map: nebulaTex,
+      color: nebulaColors[k % nebulaColors.length],
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      side: DoubleSide
+    });
+    const nMesh = new Mesh(nebulaGeo, nMat);
+    const ang = k / 6 * Math.PI * 2 + 0.4;
+    const dist = 120 + k % 3 * 110;
+    nMesh.position.set(Math.cos(ang) * dist, -240 - k * 15, Math.sin(ang) * dist);
+    nMesh.rotation.y = k * 1.1;
+    group.add(nMesh);
+    nebulaMeshes.push(nMesh);
+  }
+  let totalTime = 0;
+  return {
+    group,
+    update: (dt, playerPos) => {
+      totalTime += dt;
+      group.rotation.y = totalTime * 0.0015;
+      if (playerPos) {
+        microPoints.position.x = playerPos.x * 0.015;
+        microPoints.position.z = playerPos.z * 0.015;
+        midPoints.position.x = playerPos.x * 0.035;
+        midPoints.position.z = playerPos.z * 0.035;
+        beaconPoints.position.x = playerPos.x * 0.06;
+        beaconPoints.position.z = playerPos.z * 0.06;
+      }
+    },
+    dispose: () => {
+      microGeo.dispose();
+      microMat.dispose();
+      midGeo.dispose();
+      midMat.dispose();
+      beaconGeo.dispose();
+      beaconMat.dispose();
+      nebulaGeo.dispose();
+      nebulaTex.dispose();
+      nebulaMeshes.forEach((m) => m.material.dispose());
+    }
+  };
+}
+
+// src/engine/scene.ts
+var scene = new Scene;
+var camera;
+var renderer;
+var starfieldController = null;
+function initScene(container) {
+  const target = container || document.getElementById("canvas-container") || document.body;
+  scene = new Scene;
+  camera = new PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 65, 0);
+  camera.lookAt(0, 0, 0);
+  renderer = new WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(66312, 1);
+  renderer.toneMapping = ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  target.appendChild(renderer.domElement);
+  const ambientLight = new AmbientLight(396312, 0.18);
+  scene.add(ambientLight);
+  starfieldController = createRealisticStarfield();
+  scene.add(starfieldController.group);
+  window.addEventListener("resize", onWindowResize);
+}
+function onWindowResize() {
+  if (!camera || !renderer)
+    return;
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  resizePostProcessing(window.innerWidth, window.innerHeight);
+}
+
+// src/engine/trajectory.ts
+var TRAJECTORY_SEGMENTS = 140;
+var DASH_RATIO = 0.75;
+var SOFTENING_SQ = 25;
+var trajectoryGeometry;
+var trajectoryLines;
+var trajectoryPositions;
+var trajectoryColors;
+var progradeGroup;
+var progradeRingMesh;
+var progradeDotMesh;
+var progradeChevronMesh;
+var progradeMaterial;
+var progradeDotMaterial;
+var periapsisGroup;
+var periapsisMaterial;
+var periapsisDotMaterial;
+var _predPos = new Vector3;
+var _predVel = new Vector3;
+var _predAcc = new Vector3;
+var _segmentStart = new Vector3;
+var _segmentEnd = new Vector3;
+var _impactPos = new Vector3;
+var _reticleTargetPos = new Vector3;
+var _pePos = new Vector3;
+var projectedTrajectoryPoints = [];
+function initTrajectory() {
+  const vertexCount = TRAJECTORY_SEGMENTS * 2;
+  trajectoryGeometry = new BufferGeometry;
+  trajectoryPositions = new Float32Array(vertexCount * 3);
+  trajectoryColors = new Float32Array(vertexCount * 3);
+  trajectoryGeometry.setAttribute("position", new BufferAttribute(trajectoryPositions, 3));
+  trajectoryGeometry.setAttribute("color", new BufferAttribute(trajectoryColors, 3));
+  const lineMaterial = new LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.95,
+    linewidth: 2,
+    blending: AdditiveBlending,
+    depthWrite: false
+  });
+  trajectoryLines = new LineSegments(trajectoryGeometry, lineMaterial);
+  trajectoryLines.frustumCulled = false;
+  trajectoryLines.renderOrder = 999;
+  scene.add(trajectoryLines);
+  progradeGroup = new Group;
+  progradeGroup.renderOrder = 1000;
+  progradeMaterial = new MeshBasicMaterial({
+    color: 3718648,
+    transparent: true,
+    opacity: 0,
+    side: DoubleSide,
+    blending: AdditiveBlending,
+    depthWrite: false
+  });
+  progradeDotMaterial = new MeshBasicMaterial({
+    color: 1096065,
+    transparent: true,
+    opacity: 0,
+    blending: AdditiveBlending,
+    depthWrite: false
+  });
+  const ringGeo = new RingGeometry(0.65, 0.85, 32);
+  ringGeo.rotateX(Math.PI / 2);
+  progradeRingMesh = new Mesh(ringGeo, progradeMaterial);
+  progradeGroup.add(progradeRingMesh);
+  const dotGeo = new SphereGeometry(0.22, 16, 16);
+  progradeDotMesh = new Mesh(dotGeo, progradeDotMaterial);
+  progradeDotMesh.position.y = 0.25;
+  progradeGroup.add(progradeDotMesh);
+  const chevronGeo = new ConeGeometry(0.35, 0.8, 4);
+  chevronGeo.rotateX(Math.PI / 2);
+  progradeChevronMesh = new Mesh(chevronGeo, progradeMaterial);
+  progradeChevronMesh.position.set(0, 0.25, 0.95);
+  progradeGroup.add(progradeChevronMesh);
+  progradeGroup.visible = false;
+  scene.add(progradeGroup);
+  periapsisGroup = new Group;
+  periapsisGroup.renderOrder = 1001;
+  periapsisMaterial = new MeshBasicMaterial({
+    color: 14239471,
+    transparent: true,
+    opacity: 0,
+    side: DoubleSide,
+    blending: AdditiveBlending,
+    depthWrite: false
+  });
+  periapsisDotMaterial = new MeshBasicMaterial({
+    color: 16096779,
+    transparent: true,
+    opacity: 0,
+    blending: AdditiveBlending,
+    depthWrite: false
+  });
+  const peRingGeo = new RingGeometry(0.6, 0.85, 4);
+  peRingGeo.rotateX(Math.PI / 2);
+  peRingGeo.rotateY(Math.PI / 4);
+  const peRingMesh = new Mesh(peRingGeo, periapsisMaterial);
+  periapsisGroup.add(peRingMesh);
+  const peDotGeo = new SphereGeometry(0.18, 12, 12);
+  const peDotMesh = new Mesh(peDotGeo, periapsisDotMaterial);
+  peDotMesh.position.y = 0.25;
+  periapsisGroup.add(peDotMesh);
+  periapsisGroup.visible = false;
+  scene.add(periapsisGroup);
+}
+function calculateGravityAndCheckCollision(pos, simTime, outAcc, outImpactPoint, outClosestInfo) {
+  outAcc.set(0, 0, 0);
+  const sources = STATE.gravitySources;
+  const count = sources.length;
+  let collided = false;
+  let maxGravityRatio = 0;
+  let minDist = Infinity;
+  let closestSource = null;
+  for (let s = 0;s < count; s++) {
+    const source = sources[s];
+    if (source.isAbsorbed)
+      continue;
+    let sourceX = source.position.x;
+    let sourceZ = source.position.z;
+    if (source.type === "planet") {
+      const planetEntry = activePlanets.find((p) => p.source === source);
+      if (planetEntry && !planetEntry.isMoon) {
+        const futureAngle = planetEntry.angle + planetEntry.speed * simTime;
+        sourceX = planetEntry.distance * Math.cos(futureAngle);
+        sourceZ = planetEntry.distance * Math.sin(futureAngle);
+      }
+    }
+    const dx = sourceX - pos.x;
+    const dz = sourceZ - pos.z;
+    const distSq = dx * dx + dz * dz;
+    const distance = Math.max(0.01, Math.sqrt(distSq));
+    if (distance < minDist) {
+      minDist = distance;
+      closestSource = source;
+    }
+    const impactClearance = source.type === "star" ? source.radius + 1.2 : source.radius + 0.6;
+    if (distSq <= impactClearance * impactClearance) {
+      collided = true;
+      if (outImpactPoint) {
+        outImpactPoint.set(sourceX - dx / distance * impactClearance, 0.25, sourceZ - dz / distance * impactClearance);
+      }
+      break;
+    }
+    const rangeSq = source.gravityRange * source.gravityRange;
+    if (distSq < rangeSq) {
+      const forceStrength = STATE.gConstant * source.mass / (distSq + SOFTENING_SQ);
+      const invDist = 1 / distance;
+      outAcc.x += dx * invDist * forceStrength;
+      outAcc.z += dz * invDist * forceStrength;
+      const wellRatio = 1 - distance / source.gravityRange;
+      if (wellRatio > maxGravityRatio) {
+        maxGravityRatio = wellRatio;
+      }
+    }
+  }
+  if (outClosestInfo && closestSource) {
+    outClosestInfo.source = closestSource;
+    outClosestInfo.dist = minDist;
+  }
+  return { collided, maxGravityRatio };
+}
+function updateTrajectory() {
+  if (!trajectoryLines || !progradeGroup || !periapsisGroup)
+    return;
+  const curSpeed = STATE.playerVelocity.length();
+  const speedFactor = Math.min(1, Math.max(0, (curSpeed - 0.4) / 3));
+  if (curSpeed < 0.35) {
+    trajectoryLines.visible = false;
+    progradeGroup.visible = false;
+    periapsisGroup.visible = false;
+    projectedTrajectoryPoints.length = 0;
+    return;
+  }
+  trajectoryLines.visible = true;
+  progradeGroup.visible = true;
+  _predPos.copy(STATE.playerPosition);
+  _predVel.copy(STATE.playerVelocity);
+  let hasImpacted = false;
+  _reticleTargetPos.copy(STATE.playerPosition);
+  const baseDt = MathUtils.clamp(3.6 / Math.max(1, curSpeed), 0.12, 0.26);
+  const timeNow = Date.now() * 0.001;
+  const wavePhase = timeNow * 4.5 % (Math.PI * 2);
+  let bestPeFound = false;
+  let bestPeDist = Infinity;
+  let lastDistToSource = Infinity;
+  let hasApproached = false;
+  projectedTrajectoryPoints.length = 0;
+  projectedTrajectoryPoints.push({ x: _predPos.x, z: _predPos.z, isGravityArc: false });
+  for (let seg = 0;seg < TRAJECTORY_SEGMENTS; seg++) {
+    const v0 = seg * 2;
+    const v1 = seg * 2 + 1;
+    if (hasImpacted) {
+      trajectoryPositions[v0 * 3 + 0] = _impactPos.x;
+      trajectoryPositions[v0 * 3 + 1] = 0.25;
+      trajectoryPositions[v0 * 3 + 2] = _impactPos.z;
+      trajectoryPositions[v1 * 3 + 0] = _impactPos.x;
+      trajectoryPositions[v1 * 3 + 1] = 0.25;
+      trajectoryPositions[v1 * 3 + 2] = _impactPos.z;
+      trajectoryColors[v0 * 3 + 0] = 0;
+      trajectoryColors[v0 * 3 + 1] = 0;
+      trajectoryColors[v0 * 3 + 2] = 0;
+      trajectoryColors[v1 * 3 + 0] = 0;
+      trajectoryColors[v1 * 3 + 1] = 0;
+      trajectoryColors[v1 * 3 + 2] = 0;
+      continue;
+    }
+    const simTime = seg * baseDt;
+    _segmentStart.copy(_predPos);
+    const closestInfo = { source: null, dist: Infinity };
+    const gCheck = calculateGravityAndCheckCollision(_segmentStart, simTime, _predAcc, _impactPos, closestInfo);
+    if (closestInfo.source && closestInfo.dist < closestInfo.source.gravityRange) {
+      if (closestInfo.dist < lastDistToSource) {
+        hasApproached = true;
+      } else if (hasApproached && !bestPeFound && closestInfo.dist < closestInfo.source.gravityRange * 0.85) {
+        bestPeFound = true;
+        bestPeDist = closestInfo.dist;
+        _pePos.copy(_segmentStart);
+      }
+      lastDistToSource = closestInfo.dist;
+    }
+    const isGravityArc = gCheck.maxGravityRatio > 0.12;
+    if (gCheck.collided) {
+      hasImpacted = true;
+      _segmentStart.copy(_impactPos);
+      _segmentEnd.copy(_impactPos);
+      _reticleTargetPos.copy(_impactPos);
+    } else {
+      const dashDt = baseDt * DASH_RATIO;
+      _predVel.addScaledVector(_predAcc, dashDt);
+      _predVel.multiplyScalar(Math.exp(-STATE.currentDrag * dashDt));
+      _predPos.addScaledVector(_predVel, dashDt);
+      _segmentEnd.copy(_predPos);
+      _reticleTargetPos.copy(_segmentEnd);
+      const endCheck = calculateGravityAndCheckCollision(_segmentEnd, simTime + dashDt, _predAcc, _impactPos);
+      if (endCheck.collided) {
+        hasImpacted = true;
+        _segmentEnd.copy(_impactPos);
+        _reticleTargetPos.copy(_impactPos);
+      } else {
+        const gapDt = baseDt * (1 - DASH_RATIO);
+        calculateGravityAndCheckCollision(_predPos, simTime + dashDt, _predAcc);
+        _predVel.addScaledVector(_predAcc, gapDt);
+        _predVel.multiplyScalar(Math.exp(-STATE.currentDrag * gapDt));
+        _predPos.addScaledVector(_predVel, gapDt);
+      }
+    }
+    trajectoryPositions[v0 * 3 + 0] = _segmentStart.x;
+    trajectoryPositions[v0 * 3 + 1] = 0.25;
+    trajectoryPositions[v0 * 3 + 2] = _segmentStart.z;
+    trajectoryPositions[v1 * 3 + 0] = _segmentEnd.x;
+    trajectoryPositions[v1 * 3 + 1] = 0.25;
+    trajectoryPositions[v1 * 3 + 2] = _segmentEnd.z;
+    if (seg % 2 === 0 || hasImpacted) {
+      projectedTrajectoryPoints.push({
+        x: _segmentEnd.x,
+        z: _segmentEnd.z,
+        isGravityArc
+      });
+    }
+    const progress = seg / TRAJECTORY_SEGMENTS;
+    const distFade = Math.pow(1 - progress, 1.15);
+    const nearFade = Math.min(1, seg * 0.3);
+    const flowWave = Math.sin(seg * 0.42 - wavePhase);
+    const pulseBoost = flowWave > 0 ? flowWave * 0.4 : 0;
+    const totalAlpha = (distFade * nearFade * 0.8 + pulseBoost * 0.3) * speedFactor;
+    const gravBoost = MathUtils.clamp(gCheck.maxGravityRatio * 1.5, 0, 1);
+    const baseR = MathUtils.lerp(0.12, 0.88, gravBoost);
+    const baseG = MathUtils.lerp(0.85, 0.28, gravBoost);
+    const baseB = MathUtils.lerp(0.95, 0.98, gravBoost);
+    const r = baseR * totalAlpha;
+    const g = baseG * totalAlpha;
+    const b = baseB * totalAlpha;
+    trajectoryColors[v0 * 3 + 0] = r;
+    trajectoryColors[v0 * 3 + 1] = g;
+    trajectoryColors[v0 * 3 + 2] = b;
+    trajectoryColors[v1 * 3 + 0] = r;
+    trajectoryColors[v1 * 3 + 1] = g;
+    trajectoryColors[v1 * 3 + 2] = b;
+  }
+  trajectoryGeometry.attributes.position.needsUpdate = true;
+  trajectoryGeometry.attributes.color.needsUpdate = true;
+  if (progradeGroup) {
+    progradeGroup.position.set(_reticleTargetPos.x, 0.25, _reticleTargetPos.z);
+    const velHeading = Math.atan2(-_predVel.z, _predVel.x);
+    progradeGroup.rotation.y = velHeading - Math.PI / 2;
+    const reticleAlpha = speedFactor * (hasImpacted ? 0.95 : 0.8);
+    const pulseScale = 1 + Math.sin(timeNow * 6) * 0.08;
+    progradeGroup.scale.set(pulseScale, pulseScale, pulseScale);
+    if (hasImpacted) {
+      progradeMaterial.color.setHex(16007006);
+      progradeDotMaterial.color.setHex(16096779);
+    } else {
+      progradeMaterial.color.setHex(3718648);
+      progradeDotMaterial.color.setHex(1096065);
+    }
+    progradeMaterial.opacity = reticleAlpha;
+    progradeDotMaterial.opacity = reticleAlpha;
+  }
+  if (periapsisGroup) {
+    if (bestPeFound && !hasImpacted) {
+      periapsisGroup.visible = true;
+      periapsisGroup.position.set(_pePos.x, 0.25, _pePos.z);
+      const pePulse = 1 + Math.sin(timeNow * 7.5) * 0.15;
+      periapsisGroup.scale.set(pePulse, pePulse, pePulse);
+      const peAlpha = speedFactor * 0.9;
+      periapsisMaterial.opacity = peAlpha;
+      periapsisDotMaterial.opacity = peAlpha;
+    } else {
+      periapsisGroup.visible = false;
+    }
+  }
 }
 
 // src/engine/audio.ts
@@ -35239,6 +35550,36 @@ function updateMinimap() {
       minimapCtx.fillRect(sx - 1, sy - 1, 2, 2);
     }
   });
+  if (projectedTrajectoryPoints && projectedTrajectoryPoints.length > 1) {
+    minimapCtx.save();
+    minimapCtx.lineWidth = 1.5;
+    for (let i = 0;i < projectedTrajectoryPoints.length - 1; i++) {
+      const p0 = projectedTrajectoryPoints[i];
+      const p1 = projectedTrajectoryPoints[i + 1];
+      const dx0 = p0.x - STATE.playerPosition.x;
+      const dz0 = p0.z - STATE.playerPosition.z;
+      const dx1 = p1.x - STATE.playerPosition.x;
+      const dz1 = p1.z - STATE.playerPosition.z;
+      const dist0 = Math.hypot(dx0, dz0);
+      const dist1 = Math.hypot(dx1, dz1);
+      if (dist0 > range && dist1 > range)
+        continue;
+      const sx0 = cx + dx0 * invRangeRadius;
+      const sy0 = cy + dz0 * invRangeRadius;
+      const sx1 = cx + dx1 * invRangeRadius;
+      const sy1 = cy + dz1 * invRangeRadius;
+      const r0 = Math.hypot(sx0 - cx, sy0 - cy);
+      const r1 = Math.hypot(sx1 - cx, sy1 - cy);
+      if (r0 <= radius && r1 <= radius) {
+        minimapCtx.strokeStyle = p0.isGravityArc ? "rgba(217, 70, 239, 0.85)" : "rgba(56, 189, 248, 0.55)";
+        minimapCtx.beginPath();
+        minimapCtx.moveTo(sx0, sy0);
+        minimapCtx.lineTo(sx1, sy1);
+        minimapCtx.stroke();
+      }
+    }
+    minimapCtx.restore();
+  }
   const heading = STATE.playerGroup ? STATE.playerGroup.rotation.y : 0;
   minimapCtx.save();
   minimapCtx.translate(cx, cy);
@@ -38398,9 +38739,9 @@ function toggleFlightAssist() {
   if (dockBtn)
     dockBtn.classList.toggle("active", STATE.flightAssist);
   if (STATE.flightAssist) {
-    addLogEntry("SYSTEM", "\uD83D\uDD79️ Flug-Assistent AKTIVIERT: Automatische Trägheitsbremsen online.");
+    addLogEntry("SYSTEM", "\uD83D\uDD79️ Bio-Flug-Assistent AKTIVIERT: Organische Kurvenführung & Querkraftdämpfung online.");
   } else {
-    addLogEntry("SYSTEM", "\uD83C\uDF0C Newton'scher DRIFT-Modus: Trägheitsdämpfer deaktiviert. Reines Gleiten.");
+    addLogEntry("SYSTEM", "\uD83C\uDF0C Newton'scher DRIFT-Modus: Querkraftdämpfer deaktiviert. Reines Gleiten.");
   }
 }
 function processInput(dt) {
@@ -38483,6 +38824,8 @@ function processInput(dt) {
     }
     prevGpButtons = gp.buttons.map((b) => b ? b.pressed || b.value > 0.5 : false);
   }
+  STATE.isThrusting = isThrusting;
+  STATE.isRetroBraking = isRetroBraking;
   if (STATE.systemDepartureActive) {
     return;
   }
@@ -38531,7 +38874,7 @@ function processInput(dt) {
   }
   if (STATE.flightAssist) {
     if (!isThrusting && !isRetroBraking) {
-      STATE.currentDrag = 1.45;
+      STATE.currentDrag = 0.008;
     } else {
       STATE.currentDrag = STATE.drag;
     }
@@ -39000,6 +39343,25 @@ function updatePhysics(dt) {
     STATE.playerVelocity.addScaledVector(STATE.playerAcceleration, dt);
     STATE.playerVelocity.x += netGx * dt;
     STATE.playerVelocity.z += netGz * dt;
+    const isThrusting = Boolean(STATE.isThrusting || STATE.keys && STATE.keys.w);
+    const isRetroBraking = Boolean(STATE.isRetroBraking || STATE.keys && STATE.keys.s);
+    if (STATE.flightAssist && isThrusting) {
+      const forwardX = Math.cos(STATE.shipHeading);
+      const forwardZ = -Math.sin(STATE.shipHeading);
+      const vForward = STATE.playerVelocity.x * forwardX + STATE.playerVelocity.z * forwardZ;
+      let latX = STATE.playerVelocity.x - forwardX * vForward;
+      let latZ = STATE.playerVelocity.z - forwardZ * vForward;
+      const lateralDamping = 5.5;
+      const dampingFactor = Math.exp(-lateralDamping * dt);
+      latX *= dampingFactor;
+      latZ *= dampingFactor;
+      STATE.playerVelocity.x = forwardX * vForward + latX;
+      STATE.playerVelocity.z = forwardZ * vForward + latZ;
+    }
+    if (isRetroBraking) {
+      const brakeDamping = 3.2;
+      STATE.playerVelocity.multiplyScalar(Math.exp(-brakeDamping * dt));
+    }
     const effectiveDrag = STATE.currentDrag;
     STATE.playerVelocity.multiplyScalar(Math.exp(-effectiveDrag * dt));
     const pilotMult = STATE.crewBuffs ? STATE.crewBuffs.thrust || 1 : 1;

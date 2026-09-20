@@ -416,9 +416,9 @@ export function toggleFlightAssist() {
     if (dockBtn) dockBtn.classList.toggle('active', STATE.flightAssist);
 
     if (STATE.flightAssist) {
-        addLogEntry("SYSTEM", "🕹️ Flug-Assistent AKTIVIERT: Automatische Trägheitsbremsen online.");
+        addLogEntry("SYSTEM", "🕹️ Bio-Flug-Assistent AKTIVIERT: Organische Kurvenführung & Querkraftdämpfung online.");
     } else {
-        addLogEntry("SYSTEM", "🌌 Newton'scher DRIFT-Modus: Trägheitsdämpfer deaktiviert. Reines Gleiten.");
+        addLogEntry("SYSTEM", "🌌 Newton'scher DRIFT-Modus: Querkraftdämpfer deaktiviert. Reines Gleiten.");
     }
 }
 
@@ -504,6 +504,10 @@ export function processInput(dt: number) {
 
         prevGpButtons = gp.buttons.map(b => b ? (b.pressed || b.value > 0.5) : false);
     }
+
+    STATE.isThrusting = isThrusting;
+    STATE.isRetroBraking = isRetroBraking;
+
     if (STATE.systemDepartureActive) {
         return;
     }
@@ -565,9 +569,9 @@ export function processInput(dt: number) {
 
     // 6. Space Drag & Flight Assist Integration
     if (STATE.flightAssist) {
-        // Flight Assist ON: Snappy retro-dampening when no keys are pressed
+        // Flight Assist ON: True vacuum inertia coasting when cruising (allows natural orbital swing-bys)
         if (!isThrusting && !isRetroBraking) {
-            STATE.currentDrag = 1.45;
+            STATE.currentDrag = 0.008; // Long-range cosmic glide without phantom friction
         } else {
             STATE.currentDrag = STATE.drag;
         }
