@@ -102,6 +102,7 @@ import { advanceFtueStep, FTUE_DIRECTIVES } from '../src/ui/directives';
 import { openVoyagerDialog, closeVoyagerDialog, isVoyagerDialogOpen } from '../src/ui/voyager-dialog';
 import { handleVoyagerScan, setLockedTarget } from '../src/input/controls';
 import { calculateGravityAndCheckCollision, TRAJECTORY_SEGMENTS } from '../src/engine/trajectory';
+import { createRealisticStarfield } from '../src/engine/starfield';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -892,6 +893,59 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         // 3. Updating scanner UI for scanned body must not throw
         expect(() => updateScannerUI(rawBody, 5)).not.toThrow();
+    });
+
+    test("22. Infinite Celestial Skybox & Dynamic Space Dust: Skybox tracks camera position to infinity, zero translation parallax preserves constellations, and space dust streams dynamically with velocity", () => {
+        const starfield = createRealisticStarfield();
+
+        expect(starfield.group).toBeDefined();
+        expect(starfield.celestialGroup).toBeDefined();
+        expect(starfield.dustPoints).toBeDefined();
+
+        // 1. Initial position check
+        expect(starfield.group.position.x).toBe(0);
+        expect(starfield.group.position.z).toBe(0);
+
+        // 2. Camera translation to extreme coordinates (e.g. 50,000 units out)
+        const distantCamPos = new THREE.Vector3(50000, 65, -35000);
+        const playerVel = new THREE.Vector3(0, 0, 0); // Resting
+        starfield.update(0.016, distantCamPos, playerVel);
+
+        // Skybox group MUST follow camera translation to ensure infinite celestial background
+        expect(starfield.group.position.x).toBe(50000);
+        expect(starfield.group.position.z).toBe(-35000);
+
+        // Celestial group must maintain ZERO local translation offset (zero translation parallax)
+        expect(starfield.celestialGroup.position.x).toBe(0);
+        expect(starfield.celestialGroup.position.z).toBe(0);
+
+        // 3. Resting ship has subtle ambient dust opacity
+        const dustMat = starfield.dustPoints.material as THREE.PointsMaterial;
+        expect(dustMat.opacity).toBeLessThanOrEqual(0.20);
+
+        // 4. Dynamic Space Dust reaction during cruise & warp flight
+        const highSpeedVel = new THREE.Vector3(30, 0, 40); // 50 units/sec velocity
+        starfield.update(0.1, distantCamPos, highSpeedVel);
+
+        // Dust material ramps up opacity and particle size for kinetic velocity feedback
+        expect(dustMat.opacity).toBeGreaterThan(0.20);
+        expect(dustMat.size).toBeGreaterThan(1.1);
+
+        // 5. Space dust particles must remain strictly bounded within local bounding box
+        const dustPositions = starfield.dustPoints.geometry.attributes.position.array as Float32Array;
+        let allBounded = true;
+        for (let i = 0; i < dustPositions.length; i += 3) {
+            const px = dustPositions[i];
+            const pz = dustPositions[i + 2];
+            if (Math.abs(px) > 86 || Math.abs(pz) > 86) {
+                allBounded = false;
+                break;
+            }
+        }
+        expect(allBounded).toBe(true);
+
+        // 6. Clean disposal
+        expect(() => starfield.dispose()).not.toThrow();
     });
 });
 

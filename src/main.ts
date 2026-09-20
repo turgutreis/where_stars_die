@@ -35,9 +35,9 @@ function animate(time: number) {
     const dt = Math.min((time - lastTime) / 1000, 0.1);
     lastTime = time;
 
-    // Background starfield & cosmic nebula updates (rotation & parallax)
+    // Background starfield & cosmic nebula updates (infinite celestial dome & dynamic space dust)
     if (starfieldController) {
-        starfieldController.update(dt, STATE.playerPosition);
+        starfieldController.update(dt, camera ? camera.position : STATE.playerPosition, STATE.playerVelocity);
     }
 
     // Update active procedural shaders (solar corona, volumetric sun rays, and lens flares)

@@ -31945,15 +31945,19 @@ function renderPostProcessing() {
 // src/engine/starfield.ts
 function createRealisticStarfield() {
   const group = new Group;
-  const microCount = 4500;
+  group.name = "CosmicBackgroundSystem";
+  const celestialGroup = new Group;
+  celestialGroup.name = "CelestialDome";
+  group.add(celestialGroup);
+  const microCount = 6000;
   const microGeo = new BufferGeometry;
   const microPos = new Float32Array(microCount * 3);
   const microCol = new Float32Array(microCount * 3);
   for (let i = 0;i < microCount; i++) {
-    const r = Math.sqrt(Math.random()) * 650;
+    const r = Math.sqrt(Math.random()) * 1200;
     const theta = Math.random() * Math.PI * 2;
     microPos[i * 3] = Math.cos(theta) * r;
-    microPos[i * 3 + 1] = -180 - Math.random() * 120;
+    microPos[i * 3 + 1] = -240 - Math.pow(r / 1200, 2) * 160 - Math.random() * 40;
     microPos[i * 3 + 2] = Math.sin(theta) * r;
     const rand = Math.random();
     if (rand < 0.4) {
@@ -31977,23 +31981,23 @@ function createRealisticStarfield() {
   microGeo.setAttribute("position", new BufferAttribute(microPos, 3));
   microGeo.setAttribute("color", new BufferAttribute(microCol, 3));
   const microMat = new PointsMaterial({
-    size: 0.55,
+    size: 0.65,
     vertexColors: true,
     transparent: true,
-    opacity: 0.75,
+    opacity: 0.8,
     depthWrite: false
   });
   const microPoints = new Points(microGeo, microMat);
-  group.add(microPoints);
-  const midCount = 1200;
+  celestialGroup.add(microPoints);
+  const midCount = 1600;
   const midGeo = new BufferGeometry;
   const midPos = new Float32Array(midCount * 3);
   const midCol = new Float32Array(midCount * 3);
   for (let i = 0;i < midCount; i++) {
-    const r = Math.sqrt(Math.random()) * 600;
+    const r = Math.sqrt(Math.random()) * 1150;
     const theta = Math.random() * Math.PI * 2;
     midPos[i * 3] = Math.cos(theta) * r;
-    midPos[i * 3 + 1] = -140 - Math.random() * 60;
+    midPos[i * 3 + 1] = -210 - Math.pow(r / 1150, 2) * 140 - Math.random() * 30;
     midPos[i * 3 + 2] = Math.sin(theta) * r;
     const rand = Math.random();
     if (rand < 0.35) {
@@ -32001,13 +32005,13 @@ function createRealisticStarfield() {
       midCol[i * 3 + 1] = 1;
       midCol[i * 3 + 2] = 1;
     } else if (rand < 0.6) {
-      midCol[i * 3] = 0.35;
+      midCol[i * 3] = 0.38;
       midCol[i * 3 + 1] = 0.88;
       midCol[i * 3 + 2] = 1;
     } else if (rand < 0.85) {
       midCol[i * 3] = 1;
-      midCol[i * 3 + 1] = 0.82;
-      midCol[i * 3 + 2] = 0.35;
+      midCol[i * 3 + 1] = 0.85;
+      midCol[i * 3 + 2] = 0.4;
     } else {
       midCol[i * 3] = 0.95;
       midCol[i * 3 + 1] = 0.45;
@@ -32017,33 +32021,33 @@ function createRealisticStarfield() {
   midGeo.setAttribute("position", new BufferAttribute(midPos, 3));
   midGeo.setAttribute("color", new BufferAttribute(midCol, 3));
   const midMat = new PointsMaterial({
-    size: 1.1,
+    size: 1.25,
     vertexColors: true,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.95,
     depthWrite: false
   });
   const midPoints = new Points(midGeo, midMat);
-  group.add(midPoints);
-  const beaconCount = 120;
+  celestialGroup.add(midPoints);
+  const beaconCount = 160;
   const beaconGeo = new BufferGeometry;
   const beaconPos = new Float32Array(beaconCount * 3);
   const beaconCol = new Float32Array(beaconCount * 3);
   for (let i = 0;i < beaconCount; i++) {
-    const r = Math.sqrt(Math.random()) * 550;
+    const r = Math.sqrt(Math.random()) * 1100;
     const theta = Math.random() * Math.PI * 2;
     beaconPos[i * 3] = Math.cos(theta) * r;
-    beaconPos[i * 3 + 1] = -110 - Math.random() * 40;
+    beaconPos[i * 3 + 1] = -190 - Math.pow(r / 1100, 2) * 110 - Math.random() * 20;
     beaconPos[i * 3 + 2] = Math.sin(theta) * r;
     const rand = Math.random();
-    if (rand < 0.4) {
-      beaconCol[i * 3] = 0.5;
+    if (rand < 0.45) {
+      beaconCol[i * 3] = 0.55;
       beaconCol[i * 3 + 1] = 0.95;
       beaconCol[i * 3 + 2] = 1;
-    } else if (rand < 0.7) {
+    } else if (rand < 0.75) {
       beaconCol[i * 3] = 1;
-      beaconCol[i * 3 + 1] = 0.88;
-      beaconCol[i * 3 + 2] = 0.3;
+      beaconCol[i * 3 + 1] = 0.92;
+      beaconCol[i * 3 + 2] = 0.45;
     } else {
       beaconCol[i * 3] = 1;
       beaconCol[i * 3 + 1] = 1;
@@ -32053,62 +32057,145 @@ function createRealisticStarfield() {
   beaconGeo.setAttribute("position", new BufferAttribute(beaconPos, 3));
   beaconGeo.setAttribute("color", new BufferAttribute(beaconCol, 3));
   const beaconMat = new PointsMaterial({
-    size: 1.7,
+    size: 1.9,
     vertexColors: true,
     transparent: true,
     opacity: 1,
     depthWrite: false
   });
   const beaconPoints = new Points(beaconGeo, beaconMat);
-  group.add(beaconPoints);
-  const nebulaCanvas = document.createElement("canvas");
-  nebulaCanvas.width = 256;
-  nebulaCanvas.height = 256;
-  const nCtx = nebulaCanvas.getContext("2d");
-  const gradient = nCtx.createRadialGradient(128, 128, 10, 128, 128, 128);
-  gradient.addColorStop(0, "rgba(168, 85, 247, 0.45)");
-  gradient.addColorStop(0.35, "rgba(56, 189, 248, 0.25)");
-  gradient.addColorStop(0.7, "rgba(15, 23, 42, 0.12)");
-  gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
-  nCtx.fillStyle = gradient;
-  nCtx.fillRect(0, 0, 256, 256);
-  const nebulaTex = new CanvasTexture(nebulaCanvas);
-  const nebulaGeo = new PlaneGeometry(350, 350);
+  celestialGroup.add(beaconPoints);
+  let nebulaTex;
+  if (typeof document !== "undefined" && document.createElement) {
+    const nebulaCanvas = document.createElement("canvas");
+    nebulaCanvas.width = 256;
+    nebulaCanvas.height = 256;
+    const nCtx = nebulaCanvas.getContext ? nebulaCanvas.getContext("2d") : null;
+    if (nCtx) {
+      const gradient = nCtx.createRadialGradient(128, 128, 10, 128, 128, 128);
+      gradient.addColorStop(0, "rgba(168, 85, 247, 0.45)");
+      gradient.addColorStop(0.35, "rgba(56, 189, 248, 0.25)");
+      gradient.addColorStop(0.7, "rgba(15, 23, 42, 0.12)");
+      gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+      nCtx.fillStyle = gradient;
+      nCtx.fillRect(0, 0, 256, 256);
+      nebulaTex = new CanvasTexture(nebulaCanvas);
+    } else {
+      nebulaTex = new Texture;
+    }
+  } else {
+    nebulaTex = new Texture;
+  }
+  const nebulaGeo = new PlaneGeometry(450, 450);
   nebulaGeo.rotateX(-Math.PI / 2);
-  const nebulaColors = [6514417, 440020, 14239471, 3900150];
+  const nebulaColors = [6514417, 440020, 14239471, 3900150, 9133302, 165063];
   const nebulaMeshes = [];
-  for (let k = 0;k < 6; k++) {
+  for (let k = 0;k < 8; k++) {
     const nMat = new MeshBasicMaterial({
       map: nebulaTex,
       color: nebulaColors[k % nebulaColors.length],
       transparent: true,
-      opacity: 0.16,
+      opacity: 0.14,
       depthWrite: false,
       blending: AdditiveBlending,
       side: DoubleSide
     });
     const nMesh = new Mesh(nebulaGeo, nMat);
-    const ang = k / 6 * Math.PI * 2 + 0.4;
-    const dist = 120 + k % 3 * 110;
-    nMesh.position.set(Math.cos(ang) * dist, -240 - k * 15, Math.sin(ang) * dist);
-    nMesh.rotation.y = k * 1.1;
-    group.add(nMesh);
+    const ang = k / 8 * Math.PI * 2 + 0.35;
+    const dist = 180 + k % 4 * 140;
+    nMesh.position.set(Math.cos(ang) * dist, -280 - k * 10, Math.sin(ang) * dist);
+    nMesh.rotation.y = k * 0.9;
+    celestialGroup.add(nMesh);
     nebulaMeshes.push(nMesh);
   }
-  let totalTime = 0;
+  const dustCount = 550;
+  const dustGeo = new BufferGeometry;
+  const dustPos = new Float32Array(dustCount * 3);
+  const dustCol = new Float32Array(dustCount * 3);
+  const dustDrift = new Float32Array(dustCount * 2);
+  const HALF_X = 85;
+  const HALF_Z = 85;
+  const MIN_Y = -28;
+  const MAX_Y = 12;
+  for (let i = 0;i < dustCount; i++) {
+    dustPos[i * 3] = (Math.random() - 0.5) * (HALF_X * 2);
+    dustPos[i * 3 + 1] = MIN_Y + Math.random() * (MAX_Y - MIN_Y);
+    dustPos[i * 3 + 2] = (Math.random() - 0.5) * (HALF_Z * 2);
+    dustDrift[i * 2] = (Math.random() - 0.5) * 0.8;
+    dustDrift[i * 2 + 1] = (Math.random() - 0.5) * 0.8;
+    const rand = Math.random();
+    if (rand < 0.55) {
+      dustCol[i * 3] = 0.55;
+      dustCol[i * 3 + 1] = 0.9;
+      dustCol[i * 3 + 2] = 1;
+    } else if (rand < 0.85) {
+      dustCol[i * 3] = 0.85;
+      dustCol[i * 3 + 1] = 0.95;
+      dustCol[i * 3 + 2] = 1;
+    } else {
+      dustCol[i * 3] = 0.8;
+      dustCol[i * 3 + 1] = 0.65;
+      dustCol[i * 3 + 2] = 1;
+    }
+  }
+  dustGeo.setAttribute("position", new BufferAttribute(dustPos, 3));
+  dustGeo.setAttribute("color", new BufferAttribute(dustCol, 3));
+  const dustMat = new PointsMaterial({
+    size: 1.1,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.15,
+    depthWrite: false,
+    blending: AdditiveBlending
+  });
+  const dustPoints = new Points(dustGeo, dustMat);
+  dustPoints.name = "DynamicSpaceDust";
+  group.add(dustPoints);
   return {
     group,
-    update: (dt, playerPos) => {
-      totalTime += dt;
-      group.rotation.y = totalTime * 0.0015;
-      if (playerPos) {
-        microPoints.position.x = playerPos.x * 0.015;
-        microPoints.position.z = playerPos.z * 0.015;
-        midPoints.position.x = playerPos.x * 0.035;
-        midPoints.position.z = playerPos.z * 0.035;
-        beaconPoints.position.x = playerPos.x * 0.06;
-        beaconPoints.position.z = playerPos.z * 0.06;
+    celestialGroup,
+    dustPoints,
+    update: (dt, cameraOrPlayerPos, playerVelocity) => {
+      const camPos = cameraOrPlayerPos || STATE.playerPosition;
+      if (camPos) {
+        group.position.x = camPos.x;
+        group.position.z = camPos.z;
       }
+      const vel = playerVelocity || STATE.playerVelocity || new Vector3(0, 0, 0);
+      const speed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+      if (speed < 0.8) {
+        dustMat.opacity = MathUtils.lerp(dustMat.opacity, 0.1, Math.min(1, dt * 3));
+        dustMat.size = MathUtils.lerp(dustMat.size, 1, Math.min(1, dt * 3));
+      } else {
+        const targetOpacity = Math.min(0.85, 0.15 + speed / 32 * 0.5);
+        const targetSize = Math.min(2.1, 1.1 + speed / 40 * 0.8);
+        dustMat.opacity = MathUtils.lerp(dustMat.opacity, targetOpacity, Math.min(1, dt * 4));
+        dustMat.size = MathUtils.lerp(dustMat.size, targetSize, Math.min(1, dt * 4));
+      }
+      const positions = dustGeo.attributes.position.array;
+      const fullSpanX = HALF_X * 2;
+      const fullSpanZ = HALF_Z * 2;
+      for (let i = 0;i < dustCount; i++) {
+        const idx = i * 3;
+        if (speed > 0.05) {
+          positions[idx] -= vel.x * 1.12 * dt;
+          positions[idx + 2] -= vel.z * 1.12 * dt;
+        } else {
+          positions[idx] += dustDrift[i * 2] * dt;
+          positions[idx + 2] += dustDrift[i * 2 + 1] * dt;
+        }
+        if (positions[idx] > HALF_X) {
+          positions[idx] -= fullSpanX;
+        } else if (positions[idx] < -HALF_X) {
+          positions[idx] += fullSpanX;
+        }
+        if (positions[idx + 2] > HALF_Z) {
+          positions[idx + 2] -= fullSpanZ;
+        } else if (positions[idx + 2] < -HALF_Z) {
+          positions[idx + 2] += fullSpanZ;
+        }
+      }
+      dustGeo.attributes.position.needsUpdate = true;
     },
     dispose: () => {
       microGeo.dispose();
@@ -32117,6 +32204,8 @@ function createRealisticStarfield() {
       midMat.dispose();
       beaconGeo.dispose();
       beaconMat.dispose();
+      dustGeo.dispose();
+      dustMat.dispose();
       nebulaGeo.dispose();
       nebulaTex.dispose();
       nebulaMeshes.forEach((m) => m.material.dispose());
@@ -40450,7 +40539,7 @@ function animate(time) {
   const dt = Math.min((time - lastTime) / 1000, 0.1);
   lastTime = time;
   if (starfieldController) {
-    starfieldController.update(dt, STATE.playerPosition);
+    starfieldController.update(dt, camera ? camera.position : STATE.playerPosition, STATE.playerVelocity);
   }
   updateUniverseShaders(dt, camera);
   gravityCircles.forEach((c) => {
