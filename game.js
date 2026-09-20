@@ -30998,6 +30998,12 @@ function createAlienBioShip() {
   const rightEdge = new Mesh(wingEdgeGeo, biolumMat);
   rightEdge.position.set(0.6, 0.06, -2.2);
   rightWing.add(rightEdge);
+  const leftWingTip = new Object3D;
+  leftWingTip.position.set(0.4, 0, 3.8);
+  leftWing.add(leftWingTip);
+  const rightWingTip = new Object3D;
+  rightWingTip.position.set(0.4, 0, -3.8);
+  rightWing.add(rightWingTip);
   group.add(leftWing);
   group.add(rightWing);
   const ventFlaps = [];
@@ -31035,6 +31041,41 @@ function createAlienBioShip() {
   const activeSpacetimeWaves = [];
   let pulseEmitTimer = 0;
   let animTime = 0;
+  const SLIPSTREAM_POINTS = 22;
+  const leftSlipstreamGeo = new BufferGeometry;
+  const rightSlipstreamGeo = new BufferGeometry;
+  const leftPositions = new Float32Array(SLIPSTREAM_POINTS * 3);
+  const rightPositions = new Float32Array(SLIPSTREAM_POINTS * 3);
+  const leftColors = new Float32Array(SLIPSTREAM_POINTS * 3);
+  const rightColors = new Float32Array(SLIPSTREAM_POINTS * 3);
+  for (let i = 0;i < SLIPSTREAM_POINTS; i++) {
+    const ratio = i / (SLIPSTREAM_POINTS - 1);
+    const fade = Math.pow(1 - ratio, 2);
+    leftColors[i * 3] = 0.05 * fade;
+    leftColors[i * 3 + 1] = 0.95 * fade;
+    leftColors[i * 3 + 2] = 0.85 * fade;
+    rightColors[i * 3] = 0.05 * fade;
+    rightColors[i * 3 + 1] = 0.95 * fade;
+    rightColors[i * 3 + 2] = 0.85 * fade;
+  }
+  leftSlipstreamGeo.setAttribute("position", new BufferAttribute(leftPositions, 3));
+  leftSlipstreamGeo.setAttribute("color", new BufferAttribute(leftColors, 3));
+  rightSlipstreamGeo.setAttribute("position", new BufferAttribute(rightPositions, 3));
+  rightSlipstreamGeo.setAttribute("color", new BufferAttribute(rightColors, 3));
+  const slipstreamMat = new LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0,
+    blending: AdditiveBlending,
+    depthWrite: false
+  });
+  const leftSlipstream = new Line(leftSlipstreamGeo, slipstreamMat);
+  const rightSlipstream = new Line(rightSlipstreamGeo, slipstreamMat);
+  leftSlipstream.frustumCulled = false;
+  rightSlipstream.frustumCulled = false;
+  let slipstreamInitialized = false;
+  const tempLeftTip = new Vector3;
+  const tempRightTip = new Vector3;
   return {
     group,
     coreMesh,
@@ -31048,6 +31089,8 @@ function createAlienBioShip() {
     dorsalPlates,
     tendrils,
     pulseRingsGroup,
+    leftSlipstream,
+    rightSlipstream,
     getRipples: () => {
       return activeSpacetimeWaves.map((r) => ({
         position: r.position,
@@ -31162,6 +31205,62 @@ function createAlienBioShip() {
           wave.position.addScaledVector(wave.velocity, dt);
         }
       }
+      if (scene) {
+        if (leftSlipstream.parent !== scene)
+          scene.add(leftSlipstream);
+        if (rightSlipstream.parent !== scene)
+          scene.add(rightSlipstream);
+      }
+      leftWingTip.getWorldPosition(tempLeftTip);
+      rightWingTip.getWorldPosition(tempRightTip);
+      if (!slipstreamInitialized) {
+        slipstreamInitialized = true;
+        for (let i = 0;i < SLIPSTREAM_POINTS; i++) {
+          const idx = i * 3;
+          leftPositions[idx] = tempLeftTip.x;
+          leftPositions[idx + 1] = tempLeftTip.y;
+          leftPositions[idx + 2] = tempLeftTip.z;
+          rightPositions[idx] = tempRightTip.x;
+          rightPositions[idx + 1] = tempRightTip.y;
+          rightPositions[idx + 2] = tempRightTip.z;
+        }
+      } else {
+        for (let i = SLIPSTREAM_POINTS - 1;i > 0; i--) {
+          const prev = (i - 1) * 3;
+          const cur = i * 3;
+          leftPositions[cur] += (leftPositions[prev] - leftPositions[cur]) * Math.min(1, dt * 26);
+          leftPositions[cur + 1] += (leftPositions[prev + 1] - leftPositions[cur + 1]) * Math.min(1, dt * 26);
+          leftPositions[cur + 2] += (leftPositions[prev + 2] - leftPositions[cur + 2]) * Math.min(1, dt * 26);
+          rightPositions[cur] += (rightPositions[prev] - rightPositions[cur]) * Math.min(1, dt * 26);
+          rightPositions[cur + 1] += (rightPositions[prev + 1] - rightPositions[cur + 1]) * Math.min(1, dt * 26);
+          rightPositions[cur + 2] += (rightPositions[prev + 2] - rightPositions[cur + 2]) * Math.min(1, dt * 26);
+        }
+        leftPositions[0] = tempLeftTip.x;
+        leftPositions[1] = tempLeftTip.y;
+        leftPositions[2] = tempLeftTip.z;
+        rightPositions[0] = tempRightTip.x;
+        rightPositions[1] = tempRightTip.y;
+        rightPositions[2] = tempRightTip.z;
+      }
+      leftSlipstreamGeo.attributes.position.needsUpdate = true;
+      rightSlipstreamGeo.attributes.position.needsUpdate = true;
+      const targetSlipstreamOpacity = isThrusting ? Math.min(0.65, 0.2 + speedMagnitude / 32 * 0.45) : speedMagnitude > 1 ? Math.min(0.35, speedMagnitude / 35 * 0.3) : 0;
+      slipstreamMat.opacity = MathUtils.lerp(slipstreamMat.opacity, targetSlipstreamOpacity, Math.min(1, dt * 6));
+      const slipCol = new Color(activeColor);
+      const lCols = leftSlipstreamGeo.attributes.color.array;
+      const rCols = rightSlipstreamGeo.attributes.color.array;
+      for (let i = 0;i < SLIPSTREAM_POINTS; i++) {
+        const ratio = i / (SLIPSTREAM_POINTS - 1);
+        const fade = Math.pow(1 - ratio, 2);
+        lCols[i * 3] = slipCol.r * fade;
+        lCols[i * 3 + 1] = slipCol.g * fade;
+        lCols[i * 3 + 2] = slipCol.b * fade;
+        rCols[i * 3] = slipCol.r * fade;
+        rCols[i * 3 + 1] = slipCol.g * fade;
+        rCols[i * 3 + 2] = slipCol.b * fade;
+      }
+      leftSlipstreamGeo.attributes.color.needsUpdate = true;
+      rightSlipstreamGeo.attributes.color.needsUpdate = true;
     }
   };
 }
@@ -32108,48 +32207,48 @@ function createRealisticStarfield() {
     celestialGroup.add(nMesh);
     nebulaMeshes.push(nMesh);
   }
-  const dustCount = 550;
+  const dustCount = 28;
   const dustGeo = new BufferGeometry;
   const dustPos = new Float32Array(dustCount * 3);
   const dustCol = new Float32Array(dustCount * 3);
   const dustDrift = new Float32Array(dustCount * 2);
-  const HALF_X = 85;
-  const HALF_Z = 85;
-  const MIN_Y = -28;
-  const MAX_Y = 12;
+  const HALF_X = 75;
+  const HALF_Z = 75;
+  const MIN_Y = -18;
+  const MAX_Y = 8;
   for (let i = 0;i < dustCount; i++) {
     dustPos[i * 3] = (Math.random() - 0.5) * (HALF_X * 2);
     dustPos[i * 3 + 1] = MIN_Y + Math.random() * (MAX_Y - MIN_Y);
     dustPos[i * 3 + 2] = (Math.random() - 0.5) * (HALF_Z * 2);
-    dustDrift[i * 2] = (Math.random() - 0.5) * 0.8;
-    dustDrift[i * 2 + 1] = (Math.random() - 0.5) * 0.8;
+    dustDrift[i * 2] = (Math.random() - 0.5) * 0.4;
+    dustDrift[i * 2 + 1] = (Math.random() - 0.5) * 0.4;
     const rand = Math.random();
-    if (rand < 0.55) {
-      dustCol[i * 3] = 0.55;
-      dustCol[i * 3 + 1] = 0.9;
+    if (rand < 0.6) {
+      dustCol[i * 3] = 0.35;
+      dustCol[i * 3 + 1] = 0.85;
       dustCol[i * 3 + 2] = 1;
     } else if (rand < 0.85) {
-      dustCol[i * 3] = 0.85;
-      dustCol[i * 3 + 1] = 0.95;
+      dustCol[i * 3] = 0.7;
+      dustCol[i * 3 + 1] = 0.9;
       dustCol[i * 3 + 2] = 1;
     } else {
-      dustCol[i * 3] = 0.8;
-      dustCol[i * 3 + 1] = 0.65;
-      dustCol[i * 3 + 2] = 1;
+      dustCol[i * 3] = 0.75;
+      dustCol[i * 3 + 1] = 0.6;
+      dustCol[i * 3 + 2] = 0.95;
     }
   }
   dustGeo.setAttribute("position", new BufferAttribute(dustPos, 3));
   dustGeo.setAttribute("color", new BufferAttribute(dustCol, 3));
   const dustMat = new PointsMaterial({
-    size: 1.1,
+    size: 0.65,
     vertexColors: true,
     transparent: true,
-    opacity: 0.15,
+    opacity: 0.05,
     depthWrite: false,
     blending: AdditiveBlending
   });
   const dustPoints = new Points(dustGeo, dustMat);
-  dustPoints.name = "DynamicSpaceDust";
+  dustPoints.name = "TiefseeQuantenglimmer";
   group.add(dustPoints);
   return {
     group,
@@ -32164,13 +32263,13 @@ function createRealisticStarfield() {
       const vel = playerVelocity || STATE.playerVelocity || new Vector3(0, 0, 0);
       const speed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
       if (speed < 0.8) {
-        dustMat.opacity = MathUtils.lerp(dustMat.opacity, 0.1, Math.min(1, dt * 3));
-        dustMat.size = MathUtils.lerp(dustMat.size, 1, Math.min(1, dt * 3));
+        dustMat.opacity = MathUtils.lerp(dustMat.opacity, 0.04, Math.min(1, dt * 2.5));
+        dustMat.size = MathUtils.lerp(dustMat.size, 0.6, Math.min(1, dt * 2.5));
       } else {
-        const targetOpacity = Math.min(0.85, 0.15 + speed / 32 * 0.5);
-        const targetSize = Math.min(2.1, 1.1 + speed / 40 * 0.8);
-        dustMat.opacity = MathUtils.lerp(dustMat.opacity, targetOpacity, Math.min(1, dt * 4));
-        dustMat.size = MathUtils.lerp(dustMat.size, targetSize, Math.min(1, dt * 4));
+        const targetOpacity = Math.min(0.18, 0.06 + speed / 45 * 0.12);
+        const targetSize = Math.min(0.85, 0.65 + speed / 50 * 0.2);
+        dustMat.opacity = MathUtils.lerp(dustMat.opacity, targetOpacity, Math.min(1, dt * 3));
+        dustMat.size = MathUtils.lerp(dustMat.size, targetSize, Math.min(1, dt * 3));
       }
       const positions = dustGeo.attributes.position.array;
       const fullSpanX = HALF_X * 2;
@@ -32178,8 +32277,8 @@ function createRealisticStarfield() {
       for (let i = 0;i < dustCount; i++) {
         const idx = i * 3;
         if (speed > 0.05) {
-          positions[idx] -= vel.x * 1.12 * dt;
-          positions[idx + 2] -= vel.z * 1.12 * dt;
+          positions[idx] -= vel.x * 0.45 * dt;
+          positions[idx + 2] -= vel.z * 0.45 * dt;
         } else {
           positions[idx] += dustDrift[i * 2] * dt;
           positions[idx + 2] += dustDrift[i * 2 + 1] * dt;

@@ -23,7 +23,23 @@ if (typeof globalThis.document === 'undefined') {
         children: [],
         scrollTop: 0,
         scrollHeight: 0,
-        addEventListener: () => {}
+        addEventListener: () => {},
+        getContext: () => ({
+            createRadialGradient: () => ({ addColorStop: () => {} }),
+            createLinearGradient: () => ({ addColorStop: () => {} }),
+            fillRect: () => {},
+            clearRect: () => {},
+            arc: () => {},
+            beginPath: () => {},
+            fill: () => {},
+            stroke: () => {},
+            moveTo: () => {},
+            lineTo: () => {},
+            closePath: () => {},
+            createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+            getImageData: () => ({ data: new Uint8ClampedArray(1024) }),
+            putImageData: () => {}
+        })
     };
     (globalThis as any).document = {
         getElementById: () => dummyEl,
@@ -103,6 +119,7 @@ import { openVoyagerDialog, closeVoyagerDialog, isVoyagerDialogOpen } from '../s
 import { handleVoyagerScan, setLockedTarget } from '../src/input/controls';
 import { calculateGravityAndCheckCollision, TRAJECTORY_SEGMENTS } from '../src/engine/trajectory';
 import { createRealisticStarfield } from '../src/engine/starfield';
+import { createAlienBioShip } from '../src/procedural/alien-ship';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -919,17 +936,18 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(starfield.celestialGroup.position.x).toBe(0);
         expect(starfield.celestialGroup.position.z).toBe(0);
 
-        // 3. Resting ship has subtle ambient dust opacity
+        // 3. Resting ship has subtle ambient deep-sea motes (Tiefsee-Quantenglimmer)
         const dustMat = starfield.dustPoints.material as THREE.PointsMaterial;
-        expect(dustMat.opacity).toBeLessThanOrEqual(0.20);
+        const restingOpacity = dustMat.opacity;
+        expect(restingOpacity).toBeLessThanOrEqual(0.10);
 
-        // 4. Dynamic Space Dust reaction during cruise & warp flight
+        // 4. Subtle abyssal quantum motes reaction during flight (refined, never a snowstorm)
         const highSpeedVel = new THREE.Vector3(30, 0, 40); // 50 units/sec velocity
         starfield.update(0.1, distantCamPos, highSpeedVel);
 
-        // Dust material ramps up opacity and particle size for kinetic velocity feedback
-        expect(dustMat.opacity).toBeGreaterThan(0.20);
-        expect(dustMat.size).toBeGreaterThan(1.1);
+        // Dust material gently increases opacity relative to resting state, maintaining elegance
+        expect(dustMat.opacity).toBeGreaterThan(restingOpacity);
+        expect(dustMat.opacity).toBeLessThanOrEqual(0.25);
 
         // 5. Space dust particles must remain strictly bounded within local bounding box
         const dustPositions = starfield.dustPoints.geometry.attributes.position.array as Float32Array;
@@ -944,7 +962,25 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         }
         expect(allBounded).toBe(true);
 
-        // 6. Clean disposal
+        // 6. Bio-Kielwasser: Wingtip slipstream ribbons on Najmafar
+        const ship = createAlienBioShip();
+        expect(ship.leftSlipstream).toBeDefined();
+        expect(ship.rightSlipstream).toBeDefined();
+
+        // Resting ship: slipstream opacity collapses to 0
+        STATE.isThrusting = false;
+        STATE.playerVelocity.set(0, 0, 0);
+        ship.update(0.016);
+        const slipstreamMat = ship.leftSlipstream!.material as THREE.LineBasicMaterial;
+        expect(slipstreamMat.opacity).toBeLessThanOrEqual(0.15);
+
+        // Active thrust: slipstream flares up at wingtips creating organic bio-wake
+        STATE.isThrusting = true;
+        STATE.playerVelocity.set(30, 0, 15);
+        ship.update(0.1);
+        expect(slipstreamMat.opacity).toBeGreaterThan(0.20);
+
+        // 7. Clean disposal
         expect(() => starfield.dispose()).not.toThrow();
     });
 });

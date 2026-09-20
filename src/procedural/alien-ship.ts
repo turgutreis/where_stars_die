@@ -22,6 +22,8 @@ export interface AlienShipController {
     dorsalPlates: THREE.Mesh[];
     tendrils: THREE.Group[];
     pulseRingsGroup: THREE.Group;
+    leftSlipstream?: THREE.Line;
+    rightSlipstream?: THREE.Line;
     getRipples: () => SpacetimeRipple[];
     update: (dt: number) => void;
 }
@@ -193,6 +195,15 @@ export function createAlienBioShip(): AlienShipController {
     rightEdge.position.set(0.6, 0.06, -2.2);
     rightWing.add(rightEdge);
 
+    // Wingtip slipstream anchors (Bio-Kielwasser emission points)
+    const leftWingTip = new THREE.Object3D();
+    leftWingTip.position.set(0.4, 0.0, 3.8);
+    leftWing.add(leftWingTip);
+
+    const rightWingTip = new THREE.Object3D();
+    rightWingTip.position.set(0.4, 0.0, -3.8);
+    rightWing.add(rightWingTip);
+
     group.add(leftWing);
     group.add(rightWing);
 
@@ -251,6 +262,50 @@ export function createAlienBioShip(): AlienShipController {
     let pulseEmitTimer = 0;
     let animTime = 0;
 
+    // 11. Bioluminescent Wingtip Slipstream Ribbon (Bio-Kielwasser)
+    const SLIPSTREAM_POINTS = 22;
+    const leftSlipstreamGeo = new THREE.BufferGeometry();
+    const rightSlipstreamGeo = new THREE.BufferGeometry();
+
+    const leftPositions = new Float32Array(SLIPSTREAM_POINTS * 3);
+    const rightPositions = new Float32Array(SLIPSTREAM_POINTS * 3);
+    const leftColors = new Float32Array(SLIPSTREAM_POINTS * 3);
+    const rightColors = new Float32Array(SLIPSTREAM_POINTS * 3);
+
+    for (let i = 0; i < SLIPSTREAM_POINTS; i++) {
+        const ratio = i / (SLIPSTREAM_POINTS - 1);
+        const fade = Math.pow(1.0 - ratio, 2.0);
+        leftColors[i * 3] = 0.05 * fade;
+        leftColors[i * 3 + 1] = 0.95 * fade;
+        leftColors[i * 3 + 2] = 0.85 * fade;
+
+        rightColors[i * 3] = 0.05 * fade;
+        rightColors[i * 3 + 1] = 0.95 * fade;
+        rightColors[i * 3 + 2] = 0.85 * fade;
+    }
+
+    leftSlipstreamGeo.setAttribute('position', new THREE.BufferAttribute(leftPositions, 3));
+    leftSlipstreamGeo.setAttribute('color', new THREE.BufferAttribute(leftColors, 3));
+    rightSlipstreamGeo.setAttribute('position', new THREE.BufferAttribute(rightPositions, 3));
+    rightSlipstreamGeo.setAttribute('color', new THREE.BufferAttribute(rightColors, 3));
+
+    const slipstreamMat = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+
+    const leftSlipstream = new THREE.Line(leftSlipstreamGeo, slipstreamMat);
+    const rightSlipstream = new THREE.Line(rightSlipstreamGeo, slipstreamMat);
+    leftSlipstream.frustumCulled = false;
+    rightSlipstream.frustumCulled = false;
+
+    let slipstreamInitialized = false;
+    const tempLeftTip = new THREE.Vector3();
+    const tempRightTip = new THREE.Vector3();
+
     return {
         group,
         coreMesh,
@@ -264,6 +319,8 @@ export function createAlienBioShip(): AlienShipController {
         dorsalPlates,
         tendrils,
         pulseRingsGroup,
+        leftSlipstream,
+        rightSlipstream,
         getRipples: () => {
             return activeSpacetimeWaves.map(r => ({
                 position: r.position,
@@ -421,6 +478,75 @@ export function createAlienBioShip(): AlienShipController {
                     wave.position.addScaledVector(wave.velocity, dt);
                 }
             }
+
+            // H. Update Bioluminescent Wingtip Slipstream Ribbons (Bio-Kielwasser)
+            if (scene) {
+                if (leftSlipstream.parent !== scene) scene.add(leftSlipstream);
+                if (rightSlipstream.parent !== scene) scene.add(rightSlipstream);
+            }
+
+            leftWingTip.getWorldPosition(tempLeftTip);
+            rightWingTip.getWorldPosition(tempRightTip);
+
+            if (!slipstreamInitialized) {
+                slipstreamInitialized = true;
+                for (let i = 0; i < SLIPSTREAM_POINTS; i++) {
+                    const idx = i * 3;
+                    leftPositions[idx] = tempLeftTip.x;
+                    leftPositions[idx + 1] = tempLeftTip.y;
+                    leftPositions[idx + 2] = tempLeftTip.z;
+
+                    rightPositions[idx] = tempRightTip.x;
+                    rightPositions[idx + 1] = tempRightTip.y;
+                    rightPositions[idx + 2] = tempRightTip.z;
+                }
+            } else {
+                for (let i = SLIPSTREAM_POINTS - 1; i > 0; i--) {
+                    const prev = (i - 1) * 3;
+                    const cur = i * 3;
+                    leftPositions[cur] += (leftPositions[prev] - leftPositions[cur]) * Math.min(1.0, dt * 26.0);
+                    leftPositions[cur + 1] += (leftPositions[prev + 1] - leftPositions[cur + 1]) * Math.min(1.0, dt * 26.0);
+                    leftPositions[cur + 2] += (leftPositions[prev + 2] - leftPositions[cur + 2]) * Math.min(1.0, dt * 26.0);
+
+                    rightPositions[cur] += (rightPositions[prev] - rightPositions[cur]) * Math.min(1.0, dt * 26.0);
+                    rightPositions[cur + 1] += (rightPositions[prev + 1] - rightPositions[cur + 1]) * Math.min(1.0, dt * 26.0);
+                    rightPositions[cur + 2] += (rightPositions[prev + 2] - rightPositions[cur + 2]) * Math.min(1.0, dt * 26.0);
+                }
+
+                leftPositions[0] = tempLeftTip.x;
+                leftPositions[1] = tempLeftTip.y;
+                leftPositions[2] = tempLeftTip.z;
+
+                rightPositions[0] = tempRightTip.x;
+                rightPositions[1] = tempRightTip.y;
+                rightPositions[2] = tempRightTip.z;
+            }
+
+            leftSlipstreamGeo.attributes.position.needsUpdate = true;
+            rightSlipstreamGeo.attributes.position.needsUpdate = true;
+
+            // Target slipstream visibility: flares brightly on active thrust, sleek thin filament during cruise, collapses on halt
+            const targetSlipstreamOpacity = isThrusting
+                ? Math.min(0.65, 0.20 + (speedMagnitude / 32.0) * 0.45)
+                : (speedMagnitude > 1.0 ? Math.min(0.35, (speedMagnitude / 35.0) * 0.30) : 0.0);
+            slipstreamMat.opacity = THREE.MathUtils.lerp(slipstreamMat.opacity, targetSlipstreamOpacity, Math.min(1.0, dt * 6.0));
+
+            // Harmonize slipstream emission colors with active bio-hue
+            const slipCol = new THREE.Color(activeColor);
+            const lCols = leftSlipstreamGeo.attributes.color.array as Float32Array;
+            const rCols = rightSlipstreamGeo.attributes.color.array as Float32Array;
+            for (let i = 0; i < SLIPSTREAM_POINTS; i++) {
+                const ratio = i / (SLIPSTREAM_POINTS - 1);
+                const fade = Math.pow(1.0 - ratio, 2.0);
+                lCols[i * 3] = slipCol.r * fade;
+                lCols[i * 3 + 1] = slipCol.g * fade;
+                lCols[i * 3 + 2] = slipCol.b * fade;
+                rCols[i * 3] = slipCol.r * fade;
+                rCols[i * 3 + 1] = slipCol.g * fade;
+                rCols[i * 3 + 2] = slipCol.b * fade;
+            }
+            leftSlipstreamGeo.attributes.color.needsUpdate = true;
+            rightSlipstreamGeo.attributes.color.needsUpdate = true;
         }
     };
 }

@@ -207,36 +207,36 @@ export function createRealisticStarfield(): CosmicBackgroundController {
     }
 
     // =========================================================================
-    // 2. DYNAMIC SPACE DUST SYSTEM (Kinetic Velocity Feedback)
+    // 2. TIEFSEE-QUANTENGLIMMER (Subtle Minimalist Ambient Motes - 28 particles)
     // =========================================================================
-    const dustCount = 550;
+    const dustCount = 28;
     const dustGeo = new THREE.BufferGeometry();
     const dustPos = new Float32Array(dustCount * 3);
     const dustCol = new Float32Array(dustCount * 3);
     const dustDrift = new Float32Array(dustCount * 2); // Micro ambient drift (dx, dz)
 
-    const HALF_X = 85.0;
-    const HALF_Z = 85.0;
-    const MIN_Y = -28.0;
-    const MAX_Y = 12.0;
+    const HALF_X = 75.0;
+    const HALF_Z = 75.0;
+    const MIN_Y = -18.0;
+    const MAX_Y = 8.0;
 
     for (let i = 0; i < dustCount; i++) {
         dustPos[i * 3] = (Math.random() - 0.5) * (HALF_X * 2);
         dustPos[i * 3 + 1] = MIN_Y + Math.random() * (MAX_Y - MIN_Y);
         dustPos[i * 3 + 2] = (Math.random() - 0.5) * (HALF_Z * 2);
 
-        // Ambient Brownian drift for alive vacuum
-        dustDrift[i * 2] = (Math.random() - 0.5) * 0.8;
-        dustDrift[i * 2 + 1] = (Math.random() - 0.5) * 0.8;
+        // Ultra-gentle Brownian drift
+        dustDrift[i * 2] = (Math.random() - 0.5) * 0.4;
+        dustDrift[i * 2 + 1] = (Math.random() - 0.5) * 0.4;
 
-        // Subtle luminescent hues (cyan, celestial blue, soft lavender)
+        // Ethereal abyssal bioluminescence (deep cyan, silver, faint lavender)
         const rand = Math.random();
-        if (rand < 0.55) {
-            dustCol[i * 3] = 0.55; dustCol[i * 3 + 1] = 0.90; dustCol[i * 3 + 2] = 1.0;
+        if (rand < 0.60) {
+            dustCol[i * 3] = 0.35; dustCol[i * 3 + 1] = 0.85; dustCol[i * 3 + 2] = 1.0;
         } else if (rand < 0.85) {
-            dustCol[i * 3] = 0.85; dustCol[i * 3 + 1] = 0.95; dustCol[i * 3 + 2] = 1.0;
+            dustCol[i * 3] = 0.70; dustCol[i * 3 + 1] = 0.90; dustCol[i * 3 + 2] = 1.0;
         } else {
-            dustCol[i * 3] = 0.80; dustCol[i * 3 + 1] = 0.65; dustCol[i * 3 + 2] = 1.0;
+            dustCol[i * 3] = 0.75; dustCol[i * 3 + 1] = 0.60; dustCol[i * 3 + 2] = 0.95;
         }
     }
 
@@ -244,16 +244,16 @@ export function createRealisticStarfield(): CosmicBackgroundController {
     dustGeo.setAttribute('color', new THREE.BufferAttribute(dustCol, 3));
 
     const dustMat = new THREE.PointsMaterial({
-        size: 1.1,
+        size: 0.65,
         vertexColors: true,
         transparent: true,
-        opacity: 0.15,
+        opacity: 0.05,
         depthWrite: false,
         blending: THREE.AdditiveBlending
     });
 
     const dustPoints = new THREE.Points(dustGeo, dustMat);
-    dustPoints.name = "DynamicSpaceDust";
+    dustPoints.name = "TiefseeQuantenglimmer";
     group.add(dustPoints);
 
     return {
@@ -273,21 +273,19 @@ export function createRealisticStarfield(): CosmicBackgroundController {
             // Celestial group has 0 local translation offset relative to the camera.
             // Constellations stay rock-solid in screen space.
 
-            // Dynamic Space Dust stream:
+            // Deep-sea quantum motes stream very gently:
             const vel = playerVelocity || STATE.playerVelocity || new THREE.Vector3(0, 0, 0);
             const speed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
 
-            // Dynamically modulate dust presence and size with velocity
+            // Subtly modulate motes: barely perceptible at rest, gentle abyssal glint during cruise
             if (speed < 0.8) {
-                // Ship is resting or drifting slowly: very faint ambient cosmic motes
-                dustMat.opacity = THREE.MathUtils.lerp(dustMat.opacity, 0.10, Math.min(1.0, dt * 3.0));
-                dustMat.size = THREE.MathUtils.lerp(dustMat.size, 1.0, Math.min(1.0, dt * 3.0));
+                dustMat.opacity = THREE.MathUtils.lerp(dustMat.opacity, 0.04, Math.min(1.0, dt * 2.5));
+                dustMat.size = THREE.MathUtils.lerp(dustMat.size, 0.60, Math.min(1.0, dt * 2.5));
             } else {
-                // Ship is actively thrusting, cruising or warping
-                const targetOpacity = Math.min(0.85, 0.15 + (speed / 32.0) * 0.50);
-                const targetSize = Math.min(2.1, 1.1 + (speed / 40.0) * 0.80);
-                dustMat.opacity = THREE.MathUtils.lerp(dustMat.opacity, targetOpacity, Math.min(1.0, dt * 4.0));
-                dustMat.size = THREE.MathUtils.lerp(dustMat.size, targetSize, Math.min(1.0, dt * 4.0));
+                const targetOpacity = Math.min(0.18, 0.06 + (speed / 45.0) * 0.12);
+                const targetSize = Math.min(0.85, 0.65 + (speed / 50.0) * 0.20);
+                dustMat.opacity = THREE.MathUtils.lerp(dustMat.opacity, targetOpacity, Math.min(1.0, dt * 3.0));
+                dustMat.size = THREE.MathUtils.lerp(dustMat.size, targetSize, Math.min(1.0, dt * 3.0));
             }
 
             // Update particle positions in local camera space
@@ -299,11 +297,11 @@ export function createRealisticStarfield(): CosmicBackgroundController {
                 const idx = i * 3;
 
                 if (speed > 0.05) {
-                    // Stream opposite to velocity vector
-                    positions[idx] -= vel.x * 1.12 * dt;
-                    positions[idx + 2] -= vel.z * 1.12 * dt;
+                    // Smooth, gentle drift opposite to ship velocity
+                    positions[idx] -= vel.x * 0.45 * dt;
+                    positions[idx + 2] -= vel.z * 0.45 * dt;
                 } else {
-                    // Gentle ambient Brownian drift
+                    // Subtle ambient Brownian drift
                     positions[idx] += dustDrift[i * 2] * dt;
                     positions[idx + 2] += dustDrift[i * 2 + 1] * dt;
                 }
