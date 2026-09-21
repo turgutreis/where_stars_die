@@ -38,6 +38,15 @@ export function createPlayerMesh(): THREE.Group {
 
     ship.group.position.copy(STATE.playerPosition);
     ship.group.scale.set(0.42, 0.42, 0.42);
+
+    // Directional Shadow Casting for Alien Bio-Ship
+    ship.group.traverse((obj) => {
+        if ((obj as THREE.Mesh).isMesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+        }
+    });
+
     scene.add(ship.group);
     STATE.playerGroup = ship.group;
 
@@ -611,6 +620,13 @@ export function createJumpGateMesh(size: number = 9.0, factionColor: number = 0x
             beaconLight.intensity = 2.0 + Math.sin(Date.now() * 0.009) * 1.2;
         }
     };
+
+    group.traverse((obj) => {
+        if ((obj as THREE.Mesh).isMesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+        }
+    });
 
     activeJumpGates.push(controller);
     scene.add(group);

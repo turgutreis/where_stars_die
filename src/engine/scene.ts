@@ -5,6 +5,7 @@ import { createRealisticStarfield, CosmicBackgroundController } from './starfiel
 export let scene: THREE.Scene = new THREE.Scene();
 export let camera: THREE.PerspectiveCamera;
 export let renderer: THREE.WebGLRenderer;
+export let ambientLight: THREE.AmbientLight | null = null;
 export let starfieldController: CosmicBackgroundController | null = null;
 
 export function initScene(container?: HTMLElement) {
@@ -18,18 +19,20 @@ export function initScene(container?: HTMLElement) {
     camera.position.set(0, 65, 0);
     camera.lookAt(0, 0, 0);
 
-    // Renderer with ACES Filmic Tone Mapping for crisp contrast
+    // Renderer with ACES Filmic Tone Mapping for crisp contrast & PCF Soft Shadows
     renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setClearColor(0x010308, 1.0);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     target.appendChild(renderer.domElement);
 
     // Celestial Ambient Light (Starlight from billions of stars, galactic disc & diffuse nebulae)
-    // Ensures the dark side of planets and moons retains a moody, aesthetic presence
-    const ambientLight = new THREE.AmbientLight(0x243246, 0.72);
+    // Dynamically graded according to current star system class
+    ambientLight = new THREE.AmbientLight(0x243246, 0.72);
     scene.add(ambientLight);
 
     // Create Realistic Multi-Layered Astronomical Starfield (No donut holes!)

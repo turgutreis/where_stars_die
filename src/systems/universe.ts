@@ -15,6 +15,7 @@ import { createPlanetaryRings } from '../procedural/planet-rings';
 import { createSunRays, SunRaysController } from '../procedural/sun-rays';
 import { ensureLoreSystems } from '../procedural/lore-systems';
 import { loadPlanetTexture, getTemplateForBody, resolveArchetypeTemplate, PLANET_ARCHETYPE_TEMPLATES } from '../procedural/planet-textures';
+import { applySystemLighting } from '../engine/postprocessing';
 
 export const activeCoronaMeshes: THREE.Object3D[] = [];
 export const activeCoronaUpdaters: ((dt: number) => void)[] = [];
@@ -209,8 +210,11 @@ export function spawnPlanetsAndAsteroids() {
     const activeSystem = STATE.universe.systems[STATE.currentSystemId];
     if (!activeSystem) return;
 
-    // 1. Central Star or Supermassive Black Hole
+    // Apply system-specific cinematic color grading and lighting profile
     const starData = activeSystem.star;
+    applySystemLighting(starData?.type, activeSystem.anomalyType);
+
+    // 1. Central Star or Supermassive Black Hole
     if (starData.type === "Black Hole") {
         const blackHole = createBlackHoleMesh(starData.size);
         scene.add(blackHole.group);
@@ -226,6 +230,16 @@ export function spawnPlanetsAndAsteroids() {
 
         const bhDirLight = new THREE.DirectionalLight(bhLightColor, 0.65);
         bhDirLight.position.set(0, 75, 0);
+        bhDirLight.castShadow = true;
+        bhDirLight.shadow.mapSize.width = 1024;
+        bhDirLight.shadow.mapSize.height = 1024;
+        bhDirLight.shadow.camera.near = 10;
+        bhDirLight.shadow.camera.far = 250;
+        bhDirLight.shadow.camera.left = -60;
+        bhDirLight.shadow.camera.right = 60;
+        bhDirLight.shadow.camera.top = 60;
+        bhDirLight.shadow.camera.bottom = -60;
+        bhDirLight.shadow.bias = -0.0005;
         scene.add(bhDirLight);
         activeStarLights.push(bhDirLight);
 
@@ -291,9 +305,19 @@ export function spawnPlanetsAndAsteroids() {
         scene.add(starLight);
         activeStarLights.push(starLight);
 
-        // Stellar Directional Fill for consistent planetary illumination across large distances
+        // Stellar Directional Fill for consistent planetary illumination & dynamic shadow casting
         const starDirLight = new THREE.DirectionalLight(naturalLightColor, 0.95);
         starDirLight.position.set(0, 80, 0);
+        starDirLight.castShadow = true;
+        starDirLight.shadow.mapSize.width = 1024;
+        starDirLight.shadow.mapSize.height = 1024;
+        starDirLight.shadow.camera.near = 10;
+        starDirLight.shadow.camera.far = 250;
+        starDirLight.shadow.camera.left = -60;
+        starDirLight.shadow.camera.right = 60;
+        starDirLight.shadow.camera.top = 60;
+        starDirLight.shadow.camera.bottom = -60;
+        starDirLight.shadow.bias = -0.0005;
         scene.add(starDirLight);
         activeStarLights.push(starDirLight);
 
@@ -329,6 +353,7 @@ export function spawnPlanetsAndAsteroids() {
         let atmoMesh: THREE.Mesh | null = null;
         let psioAuraMesh: THREE.Mesh | null = null;
         let auroraMesh: THREE.Mesh | null = null;
+        let ringMesh: THREE.Mesh | null = null;
         let generated: any = null;
         let finalSpecies: any = null;
 
@@ -490,6 +515,8 @@ export function spawnPlanetsAndAsteroids() {
             }
 
             const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
             const axialTilt = (((seed % 17) + 12) * Math.PI) / 180;
             mesh.rotation.z = axialTilt;
             mesh.rotation.x = (((seed % 7) - 3) * Math.PI) / 180;
@@ -525,8 +552,8 @@ export function spawnPlanetsAndAsteroids() {
             const hasRings = p.archetype?.hasRings !== undefined ? p.archetype.hasRings : (isGas || !!p.ringTexture || (seed % 6 === 0));
             if (hasRings) {
                 const ringColor = isGas ? parseInt(p.color) : 0xc0c6d0;
-                const pRings = createPlanetaryRings(p.size, ringColor, seed, ringMapPath);
-                planetGroup.add(pRings);
+                ringMesh = createPlanetaryRings(p.size, ringColor, seed, ringMapPath);
+                planetGroup.add(ringMesh);
             }
 
             // Auroral Glow on Hyper-Magnetic worlds
@@ -588,7 +615,7 @@ export function spawnPlanetsAndAsteroids() {
             psioAuraMesh: psioAuraMesh,
             auroraMesh: auroraMesh,
             source: sourceObj,
-            ringMesh: null,
+            ringMesh: ringMesh,
             angle: angle,
             speed: orbitSpeed,
             distance: scaledDist,
@@ -675,6 +702,8 @@ export function spawnPlanetsAndAsteroids() {
                 emissiveIntensity: mEmissiveIntensity
             });
             const mMesh = new THREE.Mesh(mGeo, mMat);
+            mMesh.castShadow = true;
+            mMesh.receiveShadow = true;
 
             const moonGroup = new THREE.Group();
             moonGroup.position.set(mx, 0, mz);
@@ -963,8 +992,11 @@ export function updateActivePlanets(dt: number) {
             if (p.cloudMesh) {
                 p.cloudMesh.rotation.y += 0.12 * dt;
             }
-            if (p.ringMesh) {
-                p.ringMesh.position.set(px, 0, pz);
+            if (p.ringMesh && (p.ringMesh.material as any)?.userData?.shader) {
+                const rs = (p.ringMesh.material as any).userData.shader;
+                rs.uniforms.uPlanetWorldPos.value.set(px, 0, pz);
+                rs.uniforms.uStarWorldPos.value.set(0, 38, 0);
+                rs.uniforms.uPlanetRadius.value = p.size * curScale;
             }
         } else if (p.isMoon && p.parentPlanet) {
             // Dynamic Sub-System Expansion: Expand moon distance & size for the orbital level
@@ -992,6 +1024,32 @@ export function updateActivePlanets(dt: number) {
                 } else {
                     p.bodyMesh.rotation.y += 0.15 * dt;
                 }
+
+                // Real Astronomical Lunar Eclipse: Parent planet sphere blocks starlight
+                const starPos = new THREE.Vector3(0, 38, 0);
+                const moonPos = p.mesh.position;
+                const toStar = starPos.clone().sub(moonPos).normalize();
+                const toPlanet = parentPos.clone().sub(moonPos);
+                const t = toPlanet.dot(toStar);
+                if (t > 0.0) {
+                    const closest = toPlanet.clone().sub(toStar.clone().multiplyScalar(t));
+                    const dist = closest.length();
+                    const parentR = p.parentPlanet.size * (p.parentPlanet.mesh.scale.x || 1.0);
+                    if (dist < parentR) {
+                        const eclipseRatio = Math.min(1.0, Math.max(0.12, dist / Math.max(0.1, parentR)));
+                        if (p.bodyMesh.material && (p.bodyMesh.material as THREE.MeshStandardMaterial).color) {
+                            (p.bodyMesh.material as THREE.MeshStandardMaterial).color.set(p.color).multiplyScalar(eclipseRatio);
+                        }
+                    } else {
+                        if (p.bodyMesh.material && (p.bodyMesh.material as THREE.MeshStandardMaterial).color) {
+                            (p.bodyMesh.material as THREE.MeshStandardMaterial).color.set(p.color);
+                        }
+                    }
+                } else {
+                    if (p.bodyMesh.material && (p.bodyMesh.material as THREE.MeshStandardMaterial).color) {
+                        (p.bodyMesh.material as THREE.MeshStandardMaterial).color.set(p.color);
+                    }
+                }
             }
             if (p.ringMesh) {
                 p.ringMesh.position.set(parentPos.x, 0, parentPos.z);
@@ -1000,6 +1058,14 @@ export function updateActivePlanets(dt: number) {
             }
         }
     });
+
+    // Directional shadow-camera tracking focused around player ship and active orbits
+    const dirLight = activeStarLights.find(l => l instanceof THREE.DirectionalLight) as THREE.DirectionalLight | undefined;
+    if (dirLight && STATE.playerPosition) {
+        dirLight.position.set(STATE.playerPosition.x + 35, 85, STATE.playerPosition.z + 35);
+        dirLight.target.position.copy(STATE.playerPosition);
+        dirLight.target.updateMatrixWorld();
+    }
 
     STATE.asteroids.forEach(a => {
         a.mesh.rotation.x += 0.005;

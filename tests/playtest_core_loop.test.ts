@@ -124,6 +124,10 @@ import { createAlienBioShip } from '../src/procedural/alien-ship';
 import { createHabitableTextures, createGasGiantTextures, createRockyTextures, createIceMoonTextures, createVolcanicMoonTextures } from '../src/procedural/textures';
 import { createAtmosphereMesh } from '../src/procedural/atmosphere-shader';
 import { getTemplateForBody, resolveArchetypeTemplate, getTemplateById, PLANET_ARCHETYPE_TEMPLATES } from '../src/procedural/planet-textures';
+import { LIGHTING_PROFILES, getLightingProfileForSystem } from '../src/graphics/lighting-profiles';
+import { applySystemLighting, updateColorGrading } from '../src/engine/postprocessing';
+import { createPlanetaryRings } from '../src/procedural/planet-rings';
+import { createPlayerMesh } from '../src/procedural/meshes';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -1222,6 +1226,129 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         const europaMesh = europaMoon!.bodyMesh as THREE.Mesh;
         const europaMat = europaMesh.material as THREE.MeshStandardMaterial;
         expect(europaMat.roughness).toBe(0.22);
+    });
+
+    test("25. System-Specific Color Grading, Lighting Profiles & Astronomical Shadow Mapping", () => {
+        // 1. Verify Lighting Profiles for all 5 Star Classes and Cosmic Anomalies
+        expect(LIGHTING_PROFILES['Yellow Sun']).toBeDefined();
+        expect(LIGHTING_PROFILES['Blue Giant']).toBeDefined();
+        expect(LIGHTING_PROFILES['Red Dwarf']).toBeDefined();
+        expect(LIGHTING_PROFILES['White Dwarf']).toBeDefined();
+        expect(LIGHTING_PROFILES['Black Hole']).toBeDefined();
+        expect(LIGHTING_PROFILES['Pulsar']).toBeDefined();
+
+        // Blue Giant: Extreme cold contrast (1.22) & ice blue color filter
+        const blueProfile = getLightingProfileForSystem('Blue Giant');
+        expect(blueProfile.contrast).toBeGreaterThan(1.15);
+        expect(blueProfile.colorFilter.b).toBeGreaterThan(blueProfile.colorFilter.r);
+
+        // Red Dwarf: Warm copper amber filter with muted saturation
+        const redProfile = getLightingProfileForSystem('Red Dwarf');
+        expect(redProfile.colorFilter.r).toBeGreaterThan(redProfile.colorFilter.b);
+        expect(redProfile.saturation).toBeLessThan(1.0);
+
+        // Black Hole: Maximum vignette & intense contrast
+        const bhProfile = getLightingProfileForSystem('Black Hole');
+        expect(bhProfile.vignette).toBeGreaterThanOrEqual(0.40);
+        expect(bhProfile.contrast).toBeGreaterThanOrEqual(1.30);
+
+        // Anomaly overrides: Pulsar returns Pulsar profile
+        const pulsarProfile = getLightingProfileForSystem('Yellow Sun', 'pulsar');
+        expect(pulsarProfile.name).toContain('Pulsar');
+
+        // 2. Test Color Grading Transition Engine
+        applySystemLighting('Blue Giant');
+        updateColorGrading(0.1); // Smooth transition tick
+
+        // 3. Astronomical Ring Eclipse Shadow:
+        // Planet's spherical body casts an elliptical shadow onto its rings
+        const planetR = 8.0;
+        const rings = createPlanetaryRings(planetR, 0xc0c6d0, 101);
+        expect(rings).toBeDefined();
+        expect(rings.receiveShadow).toBe(true);
+
+        const ringMat = rings.material as THREE.MeshStandardMaterial;
+        expect(ringMat.customProgramCacheKey!()).toBe('ringPlanetEclipseShadow');
+
+        // Test the analytical shadow equation used in the shader:
+        // Ray from ring fragment towards star (0, 38, 0):
+        const starPos = new THREE.Vector3(0, 38, 0);
+        const planetPos = new THREE.Vector3(100, 0, 0); // Planet on X-axis
+
+        // Point A on night side of ring (directly behind planet, away from star):
+        const nightRingPoint = new THREE.Vector3(115, 0, 0);
+        const toStarA = starPos.clone().sub(nightRingPoint).normalize();
+        const toPlanetA = planetPos.clone().sub(nightRingPoint);
+        const tA = toPlanetA.dot(toStarA);
+        expect(tA).toBeGreaterThan(0); // Planet is between ring point and star
+        const closestA = toPlanetA.clone().sub(toStarA.clone().multiplyScalar(tA));
+        expect(closestA.length()).toBeLessThan(planetR); // In umbra!
+
+        // Point B on day side of ring (facing star):
+        const dayRingPoint = new THREE.Vector3(85, 0, 0);
+        const toStarB = starPos.clone().sub(dayRingPoint).normalize();
+        const toPlanetB = planetPos.clone().sub(dayRingPoint);
+        const tB = toPlanetB.dot(toStarB);
+        expect(tB).toBeLessThan(0); // Planet is NOT between ring point and star -> fully lit!
+
+        // 4. Directional Shadow Mapping on Player Ship & Celestial Meshes
+        const playerShip = createPlayerMesh();
+        let shipCastsShadow = false;
+        let shipReceivesShadow = false;
+        playerShip.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+                if (child.castShadow) shipCastsShadow = true;
+                if (child.receiveShadow) shipReceivesShadow = true;
+            }
+        });
+        expect(shipCastsShadow).toBe(true);
+        expect(shipReceivesShadow).toBe(true);
+
+        // 5. Spawn system and verify shadow-casting on DirectionalLight and planet/moon meshes
+        const testSystem: any = {
+            id: 99,
+            name: 'Shadow Test Prime',
+            star: {
+                name: 'Shadow Sun',
+                type: 'Yellow Sun',
+                color: '0xffffff',
+                size: 5.0,
+                mass: 200
+            },
+            planets: [
+                {
+                    name: 'Shadow Planet',
+                    type: 'Gas Giant',
+                    size: 7.0,
+                    distance: 50.0,
+                    color: '0x38bdf8',
+                    moons: [
+                        {
+                            name: 'Shadow Moon',
+                            type: 'Eismond',
+                            size: 1.8,
+                            distance: 14.0,
+                            color: '0xcccccc'
+                        }
+                    ]
+                }
+            ]
+        };
+
+        STATE.universe = { systems: [testSystem] };
+        STATE.currentSystemId = 0;
+        activePlanets.length = 0;
+        spawnPlanetsAndAsteroids();
+
+        const testPlanet = activePlanets.find(p => p.name === 'Shadow Planet');
+        expect(testPlanet).toBeDefined();
+        expect(testPlanet!.bodyMesh!.castShadow).toBe(true);
+        expect(testPlanet!.bodyMesh!.receiveShadow).toBe(true);
+
+        const testMoon = activePlanets.find(p => p.name === 'Shadow Moon');
+        expect(testMoon).toBeDefined();
+        expect(testMoon!.bodyMesh!.castShadow).toBe(true);
+        expect(testMoon!.bodyMesh!.receiveShadow).toBe(true);
     });
 });
 

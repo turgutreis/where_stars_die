@@ -4,13 +4,15 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { scene, camera, renderer } from './scene';
+import { scene, camera, renderer, ambientLight } from './scene';
 import { STATE } from '../core/state';
 import { alienShipController } from '../procedural/meshes';
+import { ColorGradingProfile, LIGHTING_PROFILES, getLightingProfileForSystem } from '../graphics/lighting-profiles';
 
 export let composer: EffectComposer | null = null;
 export let bloomPass: UnrealBloomPass | null = null;
 export let distortionPass: ShaderPass | null = null;
+export let colorGradingPass: ShaderPass | null = null;
 
 export const SpacetimeDistortionShader = {
     uniforms: {
@@ -105,6 +107,126 @@ export const SpacetimeDistortionShader = {
     `
 };
 
+export const ColorGradingShader = {
+    uniforms: {
+        tDiffuse: { value: null as THREE.Texture | null },
+        uColorFilter: { value: new THREE.Vector3(1.0, 1.0, 1.0) },
+        uShadowTint: { value: new THREE.Vector3(0.04, 0.06, 0.12) },
+        uExposure: { value: 1.0 },
+        uContrast: { value: 1.0 },
+        uSaturation: { value: 1.0 },
+        uVignette: { value: 0.22 }
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform vec3 uColorFilter;
+        uniform vec3 uShadowTint;
+        uniform float uExposure;
+        uniform float uContrast;
+        uniform float uSaturation;
+        uniform float uVignette;
+        varying vec2 vUv;
+
+        void main() {
+            vec4 col = texture2D(tDiffuse, vUv);
+            
+            // 1. Exposure scaling
+            vec3 c = col.rgb * uExposure;
+
+            // 2. Color filter (Stellar temperature highlight & midtone tint)
+            c *= uColorFilter;
+
+            // 3. Shadow Tint (Subtle chromatic lift for cosmic darks)
+            float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            float shadowFactor = clamp(1.0 - lum * 2.2, 0.0, 1.0);
+            c += uShadowTint * shadowFactor * 0.16;
+
+            // 4. Contrast curve around perceptual midtone (0.18)
+            c = (c - 0.18) * uContrast + 0.18;
+            c = max(vec3(0.0), c);
+
+            // 5. Saturation
+            lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            c = mix(vec3(lum), c, uSaturation);
+
+            // 6. Cinematic Vignette (radial falloff toward screen corners)
+            vec2 coord = (vUv - 0.5) * 2.0;
+            float vig = 1.0 - dot(coord, coord) * (uVignette * 0.5);
+            c *= clamp(vig, 0.0, 1.0);
+
+            gl_FragColor = vec4(c, col.a);
+        }
+    `
+};
+
+// Lighting Dramaturgy State & Interpolation
+let activeProfile: ColorGradingProfile = LIGHTING_PROFILES['Yellow Sun'];
+let currentExposure = 1.05;
+let currentContrast = 1.08;
+let currentSaturation = 1.06;
+let currentVignette = 0.22;
+const currentColorFilter = new THREE.Color(0xfff8e8);
+const currentShadowTint = new THREE.Color(0x090f1e);
+const currentAmbientColor = new THREE.Color(0x243246);
+let currentAmbientIntensity = 0.72;
+let currentBloomThreshold = 0.88;
+let currentBloomStrength = 0.55;
+
+export function setColorGradingProfile(profile: ColorGradingProfile) {
+    activeProfile = profile;
+}
+
+export function applySystemLighting(starType?: string, anomalyType?: string) {
+    const profile = getLightingProfileForSystem(starType, anomalyType);
+    setColorGradingProfile(profile);
+}
+
+export function getActiveLightingProfile(): ColorGradingProfile {
+    return activeProfile;
+}
+
+export function updateColorGrading(dt: number) {
+    if (!colorGradingPass) return;
+    const lerpSpeed = Math.min(1.0, dt * 2.2);
+
+    currentExposure = THREE.MathUtils.lerp(currentExposure, activeProfile.exposure, lerpSpeed);
+    currentContrast = THREE.MathUtils.lerp(currentContrast, activeProfile.contrast, lerpSpeed);
+    currentSaturation = THREE.MathUtils.lerp(currentSaturation, activeProfile.saturation, lerpSpeed);
+    currentVignette = THREE.MathUtils.lerp(currentVignette, activeProfile.vignette, lerpSpeed);
+
+    currentColorFilter.lerp(activeProfile.colorFilter, lerpSpeed);
+    currentShadowTint.lerp(activeProfile.shadowTint, lerpSpeed);
+    currentAmbientColor.lerp(new THREE.Color(activeProfile.ambientColor), lerpSpeed);
+    currentAmbientIntensity = THREE.MathUtils.lerp(currentAmbientIntensity, activeProfile.ambientIntensity, lerpSpeed);
+
+    if (ambientLight) {
+        ambientLight.color.copy(currentAmbientColor);
+        ambientLight.intensity = currentAmbientIntensity;
+    }
+
+    if (bloomPass) {
+        currentBloomThreshold = THREE.MathUtils.lerp(currentBloomThreshold, activeProfile.bloomThreshold, lerpSpeed);
+        currentBloomStrength = THREE.MathUtils.lerp(currentBloomStrength, activeProfile.bloomStrength, lerpSpeed);
+        bloomPass.threshold = currentBloomThreshold;
+        bloomPass.strength = currentBloomStrength;
+    }
+
+    const u = colorGradingPass.uniforms;
+    u.uExposure.value = currentExposure;
+    u.uContrast.value = currentContrast;
+    u.uSaturation.value = currentSaturation;
+    u.uVignette.value = currentVignette;
+    u.uColorFilter.value.set(currentColorFilter.r, currentColorFilter.g, currentColorFilter.b);
+    u.uShadowTint.value.set(currentShadowTint.r, currentShadowTint.g, currentShadowTint.b);
+}
+
 export function initPostProcessing() {
     if (!renderer || !scene || !camera) return;
 
@@ -131,7 +253,11 @@ export function initPostProcessing() {
     );
     composer.addPass(bloomPass);
 
-    // 5. Output Pass for tone mapping & color correction
+    // 5. System-Specific Color Grading & Cinematic Contrast Pass
+    colorGradingPass = new ShaderPass(ColorGradingShader);
+    composer.addPass(colorGradingPass);
+
+    // 6. Output Pass for tone mapping & color correction
     const outputPass = new OutputPass();
     composer.addPass(outputPass);
 }
@@ -150,12 +276,8 @@ export function resizePostProcessing(width: number, height: number) {
 
 let lastDistortionTime = performance.now();
 
-export function updateSpacetimeDistortion() {
+export function updateSpacetimeDistortion(dt: number) {
     if (!distortionPass || !camera) return;
-
-    const now = performance.now();
-    const dt = Math.min(0.1, (now - lastDistortionTime) * 0.001);
-    lastDistortionTime = now;
 
     const uniforms = distortionPass.uniforms;
     uniforms.uTime.value += dt;
@@ -209,8 +331,13 @@ export function updateSpacetimeDistortion() {
 }
 
 export function renderPostProcessing() {
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - lastDistortionTime) * 0.001);
+    lastDistortionTime = now;
+
     if (composer) {
-        updateSpacetimeDistortion();
+        updateSpacetimeDistortion(dt);
+        updateColorGrading(dt);
         composer.render();
     } else if (renderer && scene && camera) {
         renderer.render(scene, camera);

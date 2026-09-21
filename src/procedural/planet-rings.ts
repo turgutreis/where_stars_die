@@ -65,7 +65,59 @@ export function createPlanetaryRings(planetRadius: number, hexColor: number, see
         depthWrite: false
     });
 
+    // Astronomical Ring Eclipse: The planet's spherical body casts an elliptical shadow cone onto its rings
+    ringMaterial.customProgramCacheKey = () => 'ringPlanetEclipseShadow';
+    ringMaterial.onBeforeCompile = (shader) => {
+        shader.uniforms.uStarWorldPos = { value: new THREE.Vector3(0, 38, 0) };
+        shader.uniforms.uPlanetWorldPos = { value: new THREE.Vector3(0, 0, 0) };
+        shader.uniforms.uPlanetRadius = { value: planetRadius };
+        ringMaterial.userData.shader = shader;
+
+        shader.vertexShader = shader.vertexShader.replace(
+            '#include <common>',
+            `#include <common>
+            varying vec3 vRingWorldPos;`
+        );
+        shader.vertexShader = shader.vertexShader.replace(
+            '#include <worldpos_vertex>',
+            `#include <worldpos_vertex>
+            vRingWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`
+        );
+
+        shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <common>',
+            `#include <common>
+            uniform vec3 uStarWorldPos;
+            uniform vec3 uPlanetWorldPos;
+            uniform float uPlanetRadius;
+            varying vec3 vRingWorldPos;`
+        );
+
+        shader.fragmentShader = shader.fragmentShader.replace(
+            '#include <dithering_fragment>',
+            `#include <dithering_fragment>
+            // Ray from ring fragment towards star: vRingWorldPos + t * toStar
+            vec3 toStar = normalize(uStarWorldPos - vRingWorldPos);
+            vec3 toPlanet = uPlanetWorldPos - vRingWorldPos;
+            
+            // Check if planet sphere lies between ring fragment and star
+            float t = dot(toPlanet, toStar);
+            if (t > 0.0) {
+                vec3 closestPoint = toPlanet - t * toStar;
+                float distSq = dot(closestPoint, closestPoint);
+                float rSq = uPlanetRadius * uPlanetRadius;
+                if (distSq < rSq) {
+                    // Deep umbra eclipse with feathered penumbra edge
+                    float edge = sqrt(distSq) / max(0.001, uPlanetRadius);
+                    float penumbra = smoothstep(0.92, 1.0, edge);
+                    gl_FragColor.rgb *= mix(0.10, 1.0, penumbra);
+                }
+            }`
+        );
+    };
+
     const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+    ringMesh.receiveShadow = true;
     // Subtle natural axial tilt
     ringMesh.rotation.z = (((seed % 15) + 12) * Math.PI) / 180;
     ringMesh.rotation.x = (((seed % 9) - 4) * Math.PI) / 180;

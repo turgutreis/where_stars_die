@@ -31032,6 +31032,12 @@ function createPlayerMesh() {
   ship.group.add(empLight);
   ship.group.position.copy(STATE.playerPosition);
   ship.group.scale.set(0.42, 0.42, 0.42);
+  ship.group.traverse((obj) => {
+    if (obj.isMesh) {
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+    }
+  });
   scene.add(ship.group);
   STATE.playerGroup = ship.group;
   return ship.group;
@@ -31503,6 +31509,12 @@ function createJumpGateMesh(size = 9, factionColor = 3718648) {
       beaconLight.intensity = 2 + Math.sin(Date.now() * 0.009) * 1.2;
     }
   };
+  group.traverse((obj) => {
+    if (obj.isMesh) {
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+    }
+  });
   activeJumpGates.push(controller);
   scene.add(group);
   return controller;
@@ -31613,10 +31625,141 @@ function createVoyagerProbeMesh(size = 2.2) {
   };
 }
 
+// src/graphics/lighting-profiles.ts
+var LIGHTING_PROFILES = {
+  "Yellow Sun": {
+    name: "Sol-Klasse (G-Typ)",
+    exposure: 1.05,
+    contrast: 1.08,
+    saturation: 1.06,
+    colorFilter: new Color(16775400),
+    shadowTint: new Color(593694),
+    vignette: 0.22,
+    ambientColor: 2372166,
+    ambientIntensity: 0.72,
+    starLightMultiplier: 1,
+    bloomThreshold: 0.88,
+    bloomStrength: 0.55
+  },
+  "Blue Giant": {
+    name: "Blauer Riese (O/B-Typ)",
+    exposure: 1.12,
+    contrast: 1.22,
+    saturation: 1.15,
+    colorFilter: new Color(13691135),
+    shadowTint: new Color(264732),
+    vignette: 0.28,
+    ambientColor: 1583180,
+    ambientIntensity: 0.82,
+    starLightMultiplier: 1.25,
+    bloomThreshold: 0.82,
+    bloomStrength: 0.72
+  },
+  "Red Dwarf": {
+    name: "Roter Zwerg / Riese (M-Typ)",
+    exposure: 0.98,
+    contrast: 1.15,
+    saturation: 0.92,
+    colorFilter: new Color(16758920),
+    shadowTint: new Color(1706508),
+    vignette: 0.32,
+    ambientColor: 3021854,
+    ambientIntensity: 0.58,
+    starLightMultiplier: 0.85,
+    bloomThreshold: 0.85,
+    bloomStrength: 0.62
+  },
+  "White Dwarf": {
+    name: "Weißer Zwerg (D-Typ)",
+    exposure: 1.08,
+    contrast: 1.25,
+    saturation: 0.98,
+    colorFilter: new Color(16054783),
+    shadowTint: new Color(396308),
+    vignette: 0.24,
+    ambientColor: 1845308,
+    ambientIntensity: 0.65,
+    starLightMultiplier: 1.1,
+    bloomThreshold: 0.9,
+    bloomStrength: 0.48
+  },
+  "Black Hole": {
+    name: "Schwarzes Loch (Singularität)",
+    exposure: 0.92,
+    contrast: 1.35,
+    saturation: 0.8,
+    colorFilter: new Color(14202110),
+    shadowTint: new Color(1049632),
+    vignette: 0.48,
+    ambientColor: 1576232,
+    ambientIntensity: 0.45,
+    starLightMultiplier: 0.75,
+    bloomThreshold: 0.78,
+    bloomStrength: 0.85
+  },
+  Pulsar: {
+    name: "Neutronenstern / Pulsar",
+    exposure: 1.15,
+    contrast: 1.28,
+    saturation: 1.18,
+    colorFilter: new Color(10875900),
+    shadowTint: new Color(918820),
+    vignette: 0.35,
+    ambientColor: 2102336,
+    ambientIntensity: 0.75,
+    starLightMultiplier: 1.3,
+    bloomThreshold: 0.75,
+    bloomStrength: 0.95
+  },
+  "Dark Energy Rift": {
+    name: "Dunkle-Energie-Riss",
+    exposure: 0.9,
+    contrast: 1.3,
+    saturation: 0.75,
+    colorFilter: new Color(12616956),
+    shadowTint: new Color(721428),
+    vignette: 0.42,
+    ambientColor: 1772334,
+    ambientIntensity: 0.52,
+    starLightMultiplier: 0.8,
+    bloomThreshold: 0.8,
+    bloomStrength: 0.78
+  },
+  "Flare Star": {
+    name: "Flare-Stern (Eruptiv)",
+    exposure: 1.08,
+    contrast: 1.18,
+    saturation: 1.08,
+    colorFilter: new Color(16628340),
+    shadowTint: new Color(1575942),
+    vignette: 0.28,
+    ambientColor: 3022358,
+    ambientIntensity: 0.68,
+    starLightMultiplier: 1.15,
+    bloomThreshold: 0.82,
+    bloomStrength: 0.75
+  }
+};
+function getLightingProfileForSystem(starType, anomalyType) {
+  if (anomalyType === "pulsar")
+    return LIGHTING_PROFILES["Pulsar"];
+  if (anomalyType === "dark_energy_rift")
+    return LIGHTING_PROFILES["Dark Energy Rift"];
+  if (anomalyType === "flare_star")
+    return LIGHTING_PROFILES["Flare Star"];
+  if (anomalyType === "supermassive_black_hole")
+    return LIGHTING_PROFILES["Black Hole"];
+  if (starType && LIGHTING_PROFILES[starType]) {
+    return LIGHTING_PROFILES[starType];
+  }
+  return LIGHTING_PROFILES["Yellow Sun"];
+}
+
 // src/engine/postprocessing.ts
 var composer = null;
 var bloomPass = null;
 var distortionPass = null;
+var colorGradingPass = null;
 var SpacetimeDistortionShader = {
   uniforms: {
     tDiffuse: { value: null },
@@ -31709,6 +31852,112 @@ var SpacetimeDistortionShader = {
         }
     `
 };
+var ColorGradingShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uColorFilter: { value: new Vector3(1, 1, 1) },
+    uShadowTint: { value: new Vector3(0.04, 0.06, 0.12) },
+    uExposure: { value: 1 },
+    uContrast: { value: 1 },
+    uSaturation: { value: 1 },
+    uVignette: { value: 0.22 }
+  },
+  vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+  fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform vec3 uColorFilter;
+        uniform vec3 uShadowTint;
+        uniform float uExposure;
+        uniform float uContrast;
+        uniform float uSaturation;
+        uniform float uVignette;
+        varying vec2 vUv;
+
+        void main() {
+            vec4 col = texture2D(tDiffuse, vUv);
+            
+            // 1. Exposure scaling
+            vec3 c = col.rgb * uExposure;
+
+            // 2. Color filter (Stellar temperature highlight & midtone tint)
+            c *= uColorFilter;
+
+            // 3. Shadow Tint (Subtle chromatic lift for cosmic darks)
+            float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            float shadowFactor = clamp(1.0 - lum * 2.2, 0.0, 1.0);
+            c += uShadowTint * shadowFactor * 0.16;
+
+            // 4. Contrast curve around perceptual midtone (0.18)
+            c = (c - 0.18) * uContrast + 0.18;
+            c = max(vec3(0.0), c);
+
+            // 5. Saturation
+            lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            c = mix(vec3(lum), c, uSaturation);
+
+            // 6. Cinematic Vignette (radial falloff toward screen corners)
+            vec2 coord = (vUv - 0.5) * 2.0;
+            float vig = 1.0 - dot(coord, coord) * (uVignette * 0.5);
+            c *= clamp(vig, 0.0, 1.0);
+
+            gl_FragColor = vec4(c, col.a);
+        }
+    `
+};
+var activeProfile = LIGHTING_PROFILES["Yellow Sun"];
+var currentExposure = 1.05;
+var currentContrast = 1.08;
+var currentSaturation = 1.06;
+var currentVignette = 0.22;
+var currentColorFilter = new Color(16775400);
+var currentShadowTint = new Color(593694);
+var currentAmbientColor = new Color(2372166);
+var currentAmbientIntensity = 0.72;
+var currentBloomThreshold = 0.88;
+var currentBloomStrength = 0.55;
+function setColorGradingProfile(profile) {
+  activeProfile = profile;
+}
+function applySystemLighting(starType, anomalyType) {
+  const profile = getLightingProfileForSystem(starType, anomalyType);
+  setColorGradingProfile(profile);
+}
+function updateColorGrading(dt) {
+  if (!colorGradingPass)
+    return;
+  const lerpSpeed = Math.min(1, dt * 2.2);
+  currentExposure = MathUtils.lerp(currentExposure, activeProfile.exposure, lerpSpeed);
+  currentContrast = MathUtils.lerp(currentContrast, activeProfile.contrast, lerpSpeed);
+  currentSaturation = MathUtils.lerp(currentSaturation, activeProfile.saturation, lerpSpeed);
+  currentVignette = MathUtils.lerp(currentVignette, activeProfile.vignette, lerpSpeed);
+  currentColorFilter.lerp(activeProfile.colorFilter, lerpSpeed);
+  currentShadowTint.lerp(activeProfile.shadowTint, lerpSpeed);
+  currentAmbientColor.lerp(new Color(activeProfile.ambientColor), lerpSpeed);
+  currentAmbientIntensity = MathUtils.lerp(currentAmbientIntensity, activeProfile.ambientIntensity, lerpSpeed);
+  if (ambientLight) {
+    ambientLight.color.copy(currentAmbientColor);
+    ambientLight.intensity = currentAmbientIntensity;
+  }
+  if (bloomPass) {
+    currentBloomThreshold = MathUtils.lerp(currentBloomThreshold, activeProfile.bloomThreshold, lerpSpeed);
+    currentBloomStrength = MathUtils.lerp(currentBloomStrength, activeProfile.bloomStrength, lerpSpeed);
+    bloomPass.threshold = currentBloomThreshold;
+    bloomPass.strength = currentBloomStrength;
+  }
+  const u = colorGradingPass.uniforms;
+  u.uExposure.value = currentExposure;
+  u.uContrast.value = currentContrast;
+  u.uSaturation.value = currentSaturation;
+  u.uVignette.value = currentVignette;
+  u.uColorFilter.value.set(currentColorFilter.r, currentColorFilter.g, currentColorFilter.b);
+  u.uShadowTint.value.set(currentShadowTint.r, currentShadowTint.g, currentShadowTint.b);
+}
 function initPostProcessing() {
   if (!renderer || !scene || !camera)
     return;
@@ -31722,6 +31971,8 @@ function initPostProcessing() {
   const bloomResolution = new Vector2(Math.floor(window.innerWidth * 0.5), Math.floor(window.innerHeight * 0.5));
   bloomPass = new UnrealBloomPass(bloomResolution, 0.55, 0.28, 0.88);
   composer.addPass(bloomPass);
+  colorGradingPass = new ShaderPass(ColorGradingShader);
+  composer.addPass(colorGradingPass);
   const outputPass = new OutputPass;
   composer.addPass(outputPass);
 }
@@ -31737,12 +31988,9 @@ function resizePostProcessing(width, height) {
   }
 }
 var lastDistortionTime = performance.now();
-function updateSpacetimeDistortion() {
+function updateSpacetimeDistortion(dt) {
   if (!distortionPass || !camera)
     return;
-  const now = performance.now();
-  const dt = Math.min(0.1, (now - lastDistortionTime) * 0.001);
-  lastDistortionTime = now;
   const uniforms = distortionPass.uniforms;
   uniforms.uTime.value += dt;
   if (typeof window !== "undefined" && window.innerWidth) {
@@ -31777,8 +32025,12 @@ function updateSpacetimeDistortion() {
   distortionPass.enabled = isDistortionActive;
 }
 function renderPostProcessing() {
+  const now = performance.now();
+  const dt = Math.min(0.1, (now - lastDistortionTime) * 0.001);
+  lastDistortionTime = now;
   if (composer) {
-    updateSpacetimeDistortion();
+    updateSpacetimeDistortion(dt);
+    updateColorGrading(dt);
     composer.render();
   } else if (renderer && scene && camera) {
     renderer.render(scene, camera);
@@ -32060,6 +32312,7 @@ function createRealisticStarfield() {
 var scene = new Scene;
 var camera;
 var renderer;
+var ambientLight = null;
 var starfieldController = null;
 function initScene(container) {
   const target = container || document.getElementById("canvas-container") || document.body;
@@ -32073,8 +32326,10 @@ function initScene(container) {
   renderer.setClearColor(66312, 1);
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = PCFSoftShadowMap;
   target.appendChild(renderer.domElement);
-  const ambientLight = new AmbientLight(2372166, 0.72);
+  ambientLight = new AmbientLight(2372166, 0.72);
   scene.add(ambientLight);
   starfieldController = createRealisticStarfield();
   scene.add(starfieldController.group);
@@ -36428,7 +36683,42 @@ function createPlanetaryRings(planetRadius, hexColor, seed = 42, ringTextureUrl)
     metalness: 0.2,
     depthWrite: false
   });
+  ringMaterial.customProgramCacheKey = () => "ringPlanetEclipseShadow";
+  ringMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.uStarWorldPos = { value: new Vector3(0, 38, 0) };
+    shader.uniforms.uPlanetWorldPos = { value: new Vector3(0, 0, 0) };
+    shader.uniforms.uPlanetRadius = { value: planetRadius };
+    ringMaterial.userData.shader = shader;
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", `#include <common>
+            varying vec3 vRingWorldPos;`);
+    shader.vertexShader = shader.vertexShader.replace("#include <worldpos_vertex>", `#include <worldpos_vertex>
+            vRingWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", `#include <common>
+            uniform vec3 uStarWorldPos;
+            uniform vec3 uPlanetWorldPos;
+            uniform float uPlanetRadius;
+            varying vec3 vRingWorldPos;`);
+    shader.fragmentShader = shader.fragmentShader.replace("#include <dithering_fragment>", `#include <dithering_fragment>
+            // Ray from ring fragment towards star: vRingWorldPos + t * toStar
+            vec3 toStar = normalize(uStarWorldPos - vRingWorldPos);
+            vec3 toPlanet = uPlanetWorldPos - vRingWorldPos;
+            
+            // Check if planet sphere lies between ring fragment and star
+            float t = dot(toPlanet, toStar);
+            if (t > 0.0) {
+                vec3 closestPoint = toPlanet - t * toStar;
+                float distSq = dot(closestPoint, closestPoint);
+                float rSq = uPlanetRadius * uPlanetRadius;
+                if (distSq < rSq) {
+                    // Deep umbra eclipse with feathered penumbra edge
+                    float edge = sqrt(distSq) / max(0.001, uPlanetRadius);
+                    float penumbra = smoothstep(0.92, 1.0, edge);
+                    gl_FragColor.rgb *= mix(0.10, 1.0, penumbra);
+                }
+            }`);
+  };
   const ringMesh = new Mesh(ringGeometry, ringMaterial);
+  ringMesh.receiveShadow = true;
   ringMesh.rotation.z = (seed % 15 + 12) * Math.PI / 180;
   ringMesh.rotation.x = (seed % 9 - 4) * Math.PI / 180;
   return ringMesh;
@@ -37383,6 +37673,7 @@ function spawnPlanetsAndAsteroids() {
   if (!activeSystem)
     return;
   const starData = activeSystem.star;
+  applySystemLighting(starData?.type, activeSystem.anomalyType);
   if (starData.type === "Black Hole") {
     const blackHole = createBlackHoleMesh(starData.size);
     scene.add(blackHole.group);
@@ -37396,6 +37687,16 @@ function spawnPlanetsAndAsteroids() {
     activeStarLights.push(starLight);
     const bhDirLight = new DirectionalLight(bhLightColor, 0.65);
     bhDirLight.position.set(0, 75, 0);
+    bhDirLight.castShadow = true;
+    bhDirLight.shadow.mapSize.width = 1024;
+    bhDirLight.shadow.mapSize.height = 1024;
+    bhDirLight.shadow.camera.near = 10;
+    bhDirLight.shadow.camera.far = 250;
+    bhDirLight.shadow.camera.left = -60;
+    bhDirLight.shadow.camera.right = 60;
+    bhDirLight.shadow.camera.top = 60;
+    bhDirLight.shadow.camera.bottom = -60;
+    bhDirLight.shadow.bias = -0.0005;
     scene.add(bhDirLight);
     activeStarLights.push(bhDirLight);
     starData.colorCss = "#7c3aed";
@@ -37451,6 +37752,16 @@ function spawnPlanetsAndAsteroids() {
     activeStarLights.push(starLight);
     const starDirLight = new DirectionalLight(naturalLightColor, 0.95);
     starDirLight.position.set(0, 80, 0);
+    starDirLight.castShadow = true;
+    starDirLight.shadow.mapSize.width = 1024;
+    starDirLight.shadow.mapSize.height = 1024;
+    starDirLight.shadow.camera.near = 10;
+    starDirLight.shadow.camera.far = 250;
+    starDirLight.shadow.camera.left = -60;
+    starDirLight.shadow.camera.right = 60;
+    starDirLight.shadow.camera.top = 60;
+    starDirLight.shadow.camera.bottom = -60;
+    starDirLight.shadow.bias = -0.0005;
     scene.add(starDirLight);
     activeStarLights.push(starDirLight);
     starData.colorCss = starData.color.replace("0x", "#");
@@ -37480,6 +37791,7 @@ function spawnPlanetsAndAsteroids() {
     let atmoMesh = null;
     let psioAuraMesh = null;
     let auroraMesh = null;
+    let ringMesh = null;
     let generated = null;
     let finalSpecies = null;
     const isConstruct = p.type === "Vorläufer-Konstrukt";
@@ -37607,6 +37919,8 @@ function spawnPlanetsAndAsteroids() {
         };
       }
       const mesh = new Mesh(geo, mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       const axialTilt = (seed % 17 + 12) * Math.PI / 180;
       mesh.rotation.z = axialTilt;
       mesh.rotation.x = (seed % 7 - 3) * Math.PI / 180;
@@ -37638,8 +37952,8 @@ function spawnPlanetsAndAsteroids() {
       const hasRings = p.archetype?.hasRings !== undefined ? p.archetype.hasRings : isGas || !!p.ringTexture || seed % 6 === 0;
       if (hasRings) {
         const ringColor = isGas ? parseInt(p.color) : 12633808;
-        const pRings = createPlanetaryRings(p.size, ringColor, seed, ringMapPath);
-        planetGroup.add(pRings);
+        ringMesh = createPlanetaryRings(p.size, ringColor, seed, ringMapPath);
+        planetGroup.add(ringMesh);
       }
       const isHyperMag = p.magnetosphere === "Hyper-Magnetic" || generated && generated.magnetosphere === "Hyper-Magnetic";
       if (isHyperMag) {
@@ -37692,7 +38006,7 @@ function spawnPlanetsAndAsteroids() {
       psioAuraMesh,
       auroraMesh,
       source: sourceObj,
-      ringMesh: null,
+      ringMesh,
       angle,
       speed: orbitSpeed,
       distance: scaledDist,
@@ -37771,6 +38085,8 @@ function spawnPlanetsAndAsteroids() {
         emissiveIntensity: mEmissiveIntensity
       });
       const mMesh = new Mesh(mGeo, mMat);
+      mMesh.castShadow = true;
+      mMesh.receiveShadow = true;
       const moonGroup = new Group;
       moonGroup.position.set(mx, 0, mz);
       moonGroup.add(mMesh);
