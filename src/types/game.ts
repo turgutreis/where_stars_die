@@ -40,11 +40,13 @@ export interface QuantumCivState {
 }
 
 export interface StarData {
+    name?: string;
     type: string;
     color: string;
     size: number;
     mass: number;
     colorCss?: string;
+    texture?: string;
 }
 
 export type SpeciesLifespanCategory = 'ephemeral' | 'mortal' | 'longlived' | 'ancient';
@@ -117,6 +119,7 @@ export interface MoonData {
     distance: number;
     speed: number;
     color: string;
+    texture?: string;
     temp: string;
     atmos: string;
     bio: string;
@@ -132,6 +135,13 @@ export interface PlanetData {
     distance: number;
     size: number;
     color: string;
+    texture?: string;
+    cloudTexture?: string;
+    nightTexture?: string;
+    normalTexture?: string;
+    specularTexture?: string;
+    atmoTexture?: string;
+    ringTexture?: string;
     atmos?: string;
     temp?: string;
     bio?: string;

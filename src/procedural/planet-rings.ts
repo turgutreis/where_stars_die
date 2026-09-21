@@ -1,35 +1,44 @@
 import * as THREE from 'three';
+import { loadPlanetTexture } from './planet-textures';
 
-export function createPlanetaryRings(planetRadius: number, hexColor: number, seed = 42): THREE.Mesh {
+export function createPlanetaryRings(planetRadius: number, hexColor: number, seed = 42, ringTextureUrl?: string): THREE.Mesh {
     const innerRadius = planetRadius * 1.45;
     const outerRadius = planetRadius * 2.85;
 
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 1;
-    const ctx = canvas.getContext('2d')!;
+    let ringTexture: THREE.Texture;
 
-    const baseColor = new THREE.Color(hexColor);
-    const grad = ctx.createLinearGradient(0, 0, 256, 0);
+    if (ringTextureUrl) {
+        ringTexture = loadPlanetTexture(ringTextureUrl);
+        ringTexture.wrapS = THREE.ClampToEdgeWrapping;
+        ringTexture.wrapT = THREE.ClampToEdgeWrapping;
+    } else {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 1;
+        const ctx = canvas.getContext('2d')!;
 
-    // Inner transparent boundary
-    grad.addColorStop(0.0, 'rgba(0,0,0,0)');
-    grad.addColorStop(0.08, `rgba(${Math.round(baseColor.r * 200)}, ${Math.round(baseColor.g * 220)}, ${Math.round(baseColor.b * 240)}, 0.45)`);
-    grad.addColorStop(0.35, `rgba(${Math.round(baseColor.r * 255)}, ${Math.round(baseColor.g * 255)}, ${Math.round(baseColor.b * 255)}, 0.85)`);
-    // Cassini Division gap
-    grad.addColorStop(0.52, 'rgba(0,0,0,0.05)');
-    grad.addColorStop(0.58, 'rgba(0,0,0,0.1)');
-    // Outer B-Ring
-    grad.addColorStop(0.68, `rgba(${Math.round(baseColor.r * 220)}, ${Math.round(baseColor.g * 240)}, ${Math.round(baseColor.b * 255)}, 0.7)`);
-    grad.addColorStop(0.92, `rgba(${Math.round(baseColor.r * 180)}, ${Math.round(baseColor.g * 200)}, ${Math.round(baseColor.b * 220)}, 0.3)`);
-    grad.addColorStop(1.0, 'rgba(0,0,0,0)');
+        const baseColor = new THREE.Color(hexColor);
+        const grad = ctx.createLinearGradient(0, 0, 256, 0);
 
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 256, 1);
+        // Inner transparent boundary
+        grad.addColorStop(0.0, 'rgba(0,0,0,0)');
+        grad.addColorStop(0.08, `rgba(${Math.round(baseColor.r * 200)}, ${Math.round(baseColor.g * 220)}, ${Math.round(baseColor.b * 240)}, 0.45)`);
+        grad.addColorStop(0.35, `rgba(${Math.round(baseColor.r * 255)}, ${Math.round(baseColor.g * 255)}, ${Math.round(baseColor.b * 255)}, 0.85)`);
+        // Cassini Division gap
+        grad.addColorStop(0.52, 'rgba(0,0,0,0.05)');
+        grad.addColorStop(0.58, 'rgba(0,0,0,0.1)');
+        // Outer B-Ring
+        grad.addColorStop(0.68, `rgba(${Math.round(baseColor.r * 220)}, ${Math.round(baseColor.g * 240)}, ${Math.round(baseColor.b * 255)}, 0.7)`);
+        grad.addColorStop(0.92, `rgba(${Math.round(baseColor.r * 180)}, ${Math.round(baseColor.g * 200)}, ${Math.round(baseColor.b * 220)}, 0.3)`);
+        grad.addColorStop(1.0, 'rgba(0,0,0,0)');
 
-    const ringTexture = new THREE.CanvasTexture(canvas);
-    ringTexture.wrapS = THREE.ClampToEdgeWrapping;
-    ringTexture.wrapT = THREE.ClampToEdgeWrapping;
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 256, 1);
+
+        ringTexture = new THREE.CanvasTexture(canvas);
+        ringTexture.wrapS = THREE.ClampToEdgeWrapping;
+        ringTexture.wrapT = THREE.ClampToEdgeWrapping;
+    }
 
     const ringGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 64);
     ringGeometry.rotateX(Math.PI / 2);
@@ -50,7 +59,7 @@ export function createPlanetaryRings(planetRadius: number, hexColor: number, see
         map: ringTexture,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.88,
+        opacity: ringTextureUrl ? 0.98 : 0.88,
         roughness: 0.8,
         metalness: 0.2,
         depthWrite: false

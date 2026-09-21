@@ -12564,6 +12564,100 @@ class FileLoader extends Loader {
   }
 }
 var _loading = new WeakMap;
+
+class ImageLoader extends Loader {
+  constructor(manager) {
+    super(manager);
+  }
+  load(url, onLoad, onProgress, onError) {
+    if (this.path !== undefined)
+      url = this.path + url;
+    url = this.manager.resolveURL(url);
+    const scope = this;
+    const cached = Cache.get(`image:${url}`);
+    if (cached !== undefined) {
+      if (cached.complete === true) {
+        scope.manager.itemStart(url);
+        setTimeout(function() {
+          if (onLoad)
+            onLoad(cached);
+          scope.manager.itemEnd(url);
+        }, 0);
+      } else {
+        let arr = _loading.get(cached);
+        if (arr === undefined) {
+          arr = [];
+          _loading.set(cached, arr);
+        }
+        arr.push({ onLoad, onError });
+      }
+      return cached;
+    }
+    const image = createElementNS("img");
+    function onImageLoad() {
+      removeEventListeners();
+      if (onLoad)
+        onLoad(this);
+      const callbacks = _loading.get(this) || [];
+      for (let i = 0;i < callbacks.length; i++) {
+        const callback = callbacks[i];
+        if (callback.onLoad)
+          callback.onLoad(this);
+      }
+      _loading.delete(this);
+      scope.manager.itemEnd(url);
+    }
+    function onImageError(event) {
+      removeEventListeners();
+      if (onError)
+        onError(event);
+      Cache.remove(`image:${url}`);
+      const callbacks = _loading.get(this) || [];
+      for (let i = 0;i < callbacks.length; i++) {
+        const callback = callbacks[i];
+        if (callback.onError)
+          callback.onError(event);
+      }
+      _loading.delete(this);
+      scope.manager.itemError(url);
+      scope.manager.itemEnd(url);
+    }
+    function removeEventListeners() {
+      image.removeEventListener("load", onImageLoad, false);
+      image.removeEventListener("error", onImageError, false);
+    }
+    image.addEventListener("load", onImageLoad, false);
+    image.addEventListener("error", onImageError, false);
+    if (url.slice(0, 5) !== "data:") {
+      if (this.crossOrigin !== undefined)
+        image.crossOrigin = this.crossOrigin;
+    }
+    Cache.add(`image:${url}`, image);
+    scope.manager.itemStart(url);
+    image.src = url;
+    return image;
+  }
+}
+class TextureLoader extends Loader {
+  constructor(manager) {
+    super(manager);
+  }
+  load(url, onLoad, onProgress, onError) {
+    const texture = new Texture;
+    const loader = new ImageLoader(this.manager);
+    loader.setCrossOrigin(this.crossOrigin);
+    loader.setPath(this.path);
+    loader.load(url, function(image) {
+      texture.image = image;
+      texture.needsUpdate = true;
+      if (onLoad !== undefined) {
+        onLoad(texture);
+      }
+    }, onProgress, onError);
+    return texture;
+  }
+}
+
 class Light extends Object3D {
   constructor(color, intensity = 1) {
     super();
@@ -30354,448 +30448,6 @@ function hexToRgb(hex) {
     b: num & 255
   };
 }
-function createHabitableTextures(colorHex, seed = 42) {
-  const w = 1024, h = 512;
-  const colCanvas = document.createElement("canvas");
-  colCanvas.width = w;
-  colCanvas.height = h;
-  const colCtx = colCanvas.getContext("2d");
-  const colImg = colCtx.createImageData(w, h);
-  const colData = colImg.data;
-  const bumpCanvas = document.createElement("canvas");
-  bumpCanvas.width = w;
-  bumpCanvas.height = h;
-  const bumpCtx = bumpCanvas.getContext("2d");
-  const bumpImg = bumpCtx.createImageData(w, h);
-  const bumpData = bumpImg.data;
-  const roughnessCanvas = document.createElement("canvas");
-  roughnessCanvas.width = w;
-  roughnessCanvas.height = h;
-  const roughnessCtx = roughnessCanvas.getContext("2d");
-  const roughnessImg = roughnessCtx.createImageData(w, h);
-  const roughnessData = roughnessImg.data;
-  const rgb = hexToRgb(colorHex);
-  for (let y = 0;y < h; y++) {
-    const lat = Math.abs(y - h / 2) / (h / 2);
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const nx = x / w * 6;
-      const ny = y / h * 3.5;
-      const n = fbm(nx, ny, 5, seed);
-      const detailNoise = smoothNoise(nx * 18, ny * 18, seed + 101);
-      let r, g, b, bumpVal, roughnessVal;
-      if (lat > 0.82 + n * 0.1) {
-        r = 230 + Math.floor(n * 25);
-        g = 245 + Math.floor(n * 10);
-        b = 255;
-        bumpVal = 40 + Math.floor(detailNoise * 20);
-        roughnessVal = 64 + Math.floor(detailNoise * 18);
-      } else if (n < 0.47) {
-        const oceanDepth = n / 0.47;
-        if (oceanDepth < 0.8) {
-          r = 6;
-          g = 45 + Math.floor(oceanDepth * 45);
-          b = 135 + Math.floor(oceanDepth * 85);
-          roughnessVal = 12;
-        } else {
-          const shallowT = (oceanDepth - 0.8) / 0.2;
-          r = 8 + Math.floor(shallowT * 20);
-          g = 150 + Math.floor(shallowT * 70);
-          b = 200 + Math.floor(shallowT * 35);
-          roughnessVal = 18;
-        }
-        bumpVal = 0;
-      } else if (n < 0.51) {
-        r = 215 + Math.floor(detailNoise * 20);
-        g = 185 + Math.floor(detailNoise * 20);
-        b = 115;
-        bumpVal = 18;
-        roughnessVal = 140 + Math.floor(detailNoise * 20);
-      } else if (n < 0.72) {
-        const vegT = (n - 0.51) / 0.21;
-        r = Math.floor(rgb.r * 0.32 + (1 - vegT) * 25 + detailNoise * 15);
-        g = Math.floor(rgb.g * 0.92 + vegT * 45 + detailNoise * 20);
-        b = Math.floor(rgb.b * 0.42 + vegT * 25);
-        bumpVal = 55 + Math.floor(vegT * 65 + detailNoise * 25);
-        roughnessVal = 195 + Math.floor(detailNoise * 25);
-      } else {
-        const mountainT = (n - 0.72) / 0.28;
-        r = 145 + Math.floor(mountainT * 95 + detailNoise * 15);
-        g = 150 + Math.floor(mountainT * 90 + detailNoise * 15);
-        b = 165 + Math.floor(mountainT * 90);
-        bumpVal = 140 + Math.floor(mountainT * 115);
-        roughnessVal = mountainT > 0.75 ? 160 : 238;
-      }
-      colData[idx] = Math.min(255, r);
-      colData[idx + 1] = Math.min(255, g);
-      colData[idx + 2] = Math.min(255, b);
-      colData[idx + 3] = 255;
-      bumpData[idx] = bumpVal;
-      bumpData[idx + 1] = bumpVal;
-      bumpData[idx + 2] = bumpVal;
-      bumpData[idx + 3] = 255;
-      roughnessData[idx] = roughnessVal;
-      roughnessData[idx + 1] = roughnessVal;
-      roughnessData[idx + 2] = roughnessVal;
-      roughnessData[idx + 3] = 255;
-    }
-  }
-  colCtx.putImageData(colImg, 0, 0);
-  bumpCtx.putImageData(bumpImg, 0, 0);
-  roughnessCtx.putImageData(roughnessImg, 0, 0);
-  const map = new CanvasTexture(colCanvas);
-  const bumpMap = new CanvasTexture(bumpCanvas);
-  const roughnessMap = new CanvasTexture(roughnessCanvas);
-  return { map, bumpMap, roughnessMap };
-}
-function createCityLightsTexture(seed = 42, techLevel = "Spacefaring") {
-  const w = 1024, h = 512;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  const img = ctx.createImageData(w, h);
-  const data = img.data;
-  const isPrimitive = techLevel === "Primitive";
-  const isIndustrial = techLevel === "Industrial";
-  const isHyper = techLevel === "Hyper-Advanced";
-  for (let y = 0;y < h; y++) {
-    const lat = Math.abs(y - h / 2) / (h / 2);
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const nx = x / w * 6;
-      const ny = y / h * 3.5;
-      const n = fbm(nx, ny, 5, seed);
-      const isLand = lat <= 0.8 && n >= 0.52 && n <= 0.74;
-      if (isLand) {
-        const cityNoise = smoothNoise(nx * 16, ny * 16, seed + 777);
-        const roadNoise = smoothNoise(nx * 32, ny * 32, seed + 999);
-        if (cityNoise > 0.66) {
-          const intensity = (cityNoise - 0.66) / 0.34;
-          if (isPrimitive) {
-            data[idx] = Math.floor(180 * intensity);
-            data[idx + 1] = Math.floor(90 * intensity);
-            data[idx + 2] = 20;
-          } else if (isIndustrial) {
-            data[idx] = Math.floor(255 * intensity);
-            data[idx + 1] = Math.floor(190 * intensity);
-            data[idx + 2] = Math.floor(70 * intensity);
-          } else if (isHyper) {
-            data[idx] = Math.floor(160 * intensity);
-            data[idx + 1] = Math.floor(220 * intensity);
-            data[idx + 2] = 255;
-          } else {
-            data[idx] = Math.floor(255 * intensity);
-            data[idx + 1] = Math.floor(210 * intensity);
-            data[idx + 2] = Math.floor(140 * intensity);
-          }
-          data[idx + 3] = 255;
-        } else if (!isPrimitive && roadNoise > 0.84) {
-          data[idx] = 240;
-          data[idx + 1] = 160;
-          data[idx + 2] = 80;
-          data[idx + 3] = 200;
-        }
-      }
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  return new CanvasTexture(canvas);
-}
-function createGasGiantTextures(colorHex, seed = 77) {
-  const w = 1024, h = 512;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  const img = ctx.createImageData(w, h);
-  const data = img.data;
-  const roughnessCanvas = document.createElement("canvas");
-  roughnessCanvas.width = w;
-  roughnessCanvas.height = h;
-  const roughnessCtx = roughnessCanvas.getContext("2d");
-  const roughnessImg = roughnessCtx.createImageData(w, h);
-  const roughnessData = roughnessImg.data;
-  const base = hexToRgb(colorHex);
-  const stormX = Math.abs(seed) % 100 / 100 * w * 0.6 + w * 0.2;
-  const stormY = h * 0.58;
-  for (let y = 0;y < h; y++) {
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const nx = x / w * 8;
-      const ny = y / h * 10;
-      const turb = fbm(nx, ny * 0.5, 4, seed);
-      const microTurb = smoothNoise(nx * 14, ny * 14, seed + 42) * 0.15;
-      const band = Math.sin(y * 0.18 + (turb + microTurb) * 5);
-      const sDist = Math.hypot((x - stormX) / 2, y - stormY);
-      let r, g, b, roughnessVal;
-      if (sDist < 35) {
-        const swirl = Math.sin(sDist * 0.25 + Math.atan2(y - stormY, x - stormX) * 3);
-        r = Math.min(255, base.r * 1.6 + swirl * 45);
-        g = Math.min(255, base.g * 0.8 + swirl * 25);
-        b = Math.min(255, base.b * 1.5 + swirl * 35);
-        roughnessVal = 105 + Math.floor(swirl * 20);
-      } else {
-        const bandWeight = (band + 1) * 0.5;
-        r = Math.floor(base.r * (0.38 + bandWeight * 0.72) + turb * 40);
-        g = Math.floor(base.g * (0.38 + bandWeight * 0.72) + turb * 40);
-        b = Math.floor(base.b * (0.38 + bandWeight * 0.72) + turb * 40);
-        roughnessVal = Math.floor(80 + bandWeight * 70 + turb * 25);
-      }
-      data[idx] = Math.min(255, Math.max(0, r));
-      data[idx + 1] = Math.min(255, Math.max(0, g));
-      data[idx + 2] = Math.min(255, Math.max(0, b));
-      data[idx + 3] = 255;
-      roughnessData[idx] = roughnessVal;
-      roughnessData[idx + 1] = roughnessVal;
-      roughnessData[idx + 2] = roughnessVal;
-      roughnessData[idx + 3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  roughnessCtx.putImageData(roughnessImg, 0, 0);
-  const map = new CanvasTexture(canvas);
-  const roughnessMap = new CanvasTexture(roughnessCanvas);
-  return { map, bumpMap: null, roughnessMap };
-}
-function createRockyTextures(colorHex, seed = 99) {
-  const w = 1024, h = 512;
-  const colCanvas = document.createElement("canvas");
-  colCanvas.width = w;
-  colCanvas.height = h;
-  const colCtx = colCanvas.getContext("2d");
-  const colImg = colCtx.createImageData(w, h);
-  const colData = colImg.data;
-  const bumpCanvas = document.createElement("canvas");
-  bumpCanvas.width = w;
-  bumpCanvas.height = h;
-  const bumpCtx = bumpCanvas.getContext("2d");
-  const bumpImg = bumpCtx.createImageData(w, h);
-  const bumpData = bumpImg.data;
-  const roughnessCanvas = document.createElement("canvas");
-  roughnessCanvas.width = w;
-  roughnessCanvas.height = h;
-  const roughnessCtx = roughnessCanvas.getContext("2d");
-  const roughnessImg = roughnessCtx.createImageData(w, h);
-  const roughnessData = roughnessImg.data;
-  const base = hexToRgb(colorHex);
-  const craters = [];
-  for (let c = 0;c < 24; c++) {
-    craters.push({
-      x: Math.abs(seed) * (c + 1) * 73 % w,
-      y: Math.abs(seed) * (c + 1) * 107 % h,
-      radius: 10 + c % 7 * 8
-    });
-  }
-  for (let y = 0;y < h; y++) {
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const nx = x / w * 8;
-      const ny = y / h * 5;
-      const n = fbm(nx, ny, 5, seed);
-      const microN = smoothNoise(nx * 22, ny * 22, seed + 33);
-      let bumpVal = Math.floor(n * 160 + microN * 30);
-      let roughnessVal = Math.floor(180 + microN * 30);
-      let r = Math.floor(base.r * (0.55 + n * 0.5 + microN * 0.15));
-      let g = Math.floor(base.g * (0.55 + n * 0.5 + microN * 0.15));
-      let b = Math.floor(base.b * (0.55 + n * 0.5 + microN * 0.15));
-      for (let c = 0;c < craters.length; c++) {
-        const cr = craters[c];
-        const d = Math.hypot(x - cr.x, y - cr.y);
-        if (d < cr.radius) {
-          const ratio = d / cr.radius;
-          if (ratio < 0.72) {
-            r = Math.floor(r * 0.55);
-            g = Math.floor(g * 0.55);
-            b = Math.floor(b * 0.55);
-            bumpVal = Math.max(0, bumpVal - 70);
-            roughnessVal = 140;
-          } else {
-            r = Math.min(255, r + 45);
-            g = Math.min(255, g + 45);
-            b = Math.min(255, b + 45);
-            bumpVal = Math.min(255, bumpVal + 80);
-            roughnessVal = 230;
-          }
-        }
-      }
-      colData[idx] = Math.min(255, r);
-      colData[idx + 1] = Math.min(255, g);
-      colData[idx + 2] = Math.min(255, b);
-      colData[idx + 3] = 255;
-      bumpData[idx] = bumpVal;
-      bumpData[idx + 1] = bumpVal;
-      bumpData[idx + 2] = bumpVal;
-      bumpData[idx + 3] = 255;
-      roughnessData[idx] = roughnessVal;
-      roughnessData[idx + 1] = roughnessVal;
-      roughnessData[idx + 2] = roughnessVal;
-      roughnessData[idx + 3] = 255;
-    }
-  }
-  colCtx.putImageData(colImg, 0, 0);
-  bumpCtx.putImageData(bumpImg, 0, 0);
-  roughnessCtx.putImageData(roughnessImg, 0, 0);
-  return {
-    map: new CanvasTexture(colCanvas),
-    bumpMap: new CanvasTexture(bumpCanvas),
-    roughnessMap: new CanvasTexture(roughnessCanvas)
-  };
-}
-function createIceMoonTextures(colorHex, seed = 123) {
-  const w = 512, h = 256;
-  const colCanvas = document.createElement("canvas");
-  colCanvas.width = w;
-  colCanvas.height = h;
-  const colCtx = colCanvas.getContext("2d");
-  const colImg = colCtx.createImageData(w, h);
-  const colData = colImg.data;
-  const bumpCanvas = document.createElement("canvas");
-  bumpCanvas.width = w;
-  bumpCanvas.height = h;
-  const bumpCtx = bumpCanvas.getContext("2d");
-  const bumpImg = bumpCtx.createImageData(w, h);
-  const bumpData = bumpImg.data;
-  const roughnessCanvas = document.createElement("canvas");
-  roughnessCanvas.width = w;
-  roughnessCanvas.height = h;
-  const roughnessCtx = roughnessCanvas.getContext("2d");
-  const roughnessImg = roughnessCtx.createImageData(w, h);
-  const roughnessData = roughnessImg.data;
-  for (let y = 0;y < h; y++) {
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const n = fbm(x / w * 8, y / h * 6, 4, seed);
-      const crack1 = Math.abs(Math.sin(x * 0.08 + n * 3.5 + y * 0.04));
-      const crack2 = Math.abs(Math.sin(y * 0.1 - x * 0.05 + n * 2.8));
-      const isCrack = crack1 < 0.09 || crack2 < 0.07;
-      let r, g, b, bumpVal, roughnessVal;
-      if (isCrack) {
-        r = 180 + Math.floor(n * 30);
-        g = 100 + Math.floor(n * 20);
-        b = 80;
-        bumpVal = 180;
-        roughnessVal = 195;
-      } else {
-        r = 210 + Math.floor(n * 40);
-        g = 235 + Math.floor(n * 20);
-        b = 255;
-        bumpVal = 60 + Math.floor(n * 50);
-        roughnessVal = 35 + Math.floor(n * 25);
-      }
-      colData[idx] = Math.min(255, r);
-      colData[idx + 1] = Math.min(255, g);
-      colData[idx + 2] = Math.min(255, b);
-      colData[idx + 3] = 255;
-      bumpData[idx] = bumpVal;
-      bumpData[idx + 1] = bumpVal;
-      bumpData[idx + 2] = bumpVal;
-      bumpData[idx + 3] = 255;
-      roughnessData[idx] = roughnessVal;
-      roughnessData[idx + 1] = roughnessVal;
-      roughnessData[idx + 2] = roughnessVal;
-      roughnessData[idx + 3] = 255;
-    }
-  }
-  colCtx.putImageData(colImg, 0, 0);
-  bumpCtx.putImageData(bumpImg, 0, 0);
-  roughnessCtx.putImageData(roughnessImg, 0, 0);
-  return {
-    map: new CanvasTexture(colCanvas),
-    bumpMap: new CanvasTexture(bumpCanvas),
-    roughnessMap: new CanvasTexture(roughnessCanvas)
-  };
-}
-function createVolcanicMoonTextures(colorHex, seed = 321) {
-  const w = 512, h = 256;
-  const colCanvas = document.createElement("canvas");
-  colCanvas.width = w;
-  colCanvas.height = h;
-  const colCtx = colCanvas.getContext("2d");
-  const colImg = colCtx.createImageData(w, h);
-  const colData = colImg.data;
-  const bumpCanvas = document.createElement("canvas");
-  bumpCanvas.width = w;
-  bumpCanvas.height = h;
-  const bumpCtx = bumpCanvas.getContext("2d");
-  const bumpImg = bumpCtx.createImageData(w, h);
-  const bumpData = bumpImg.data;
-  const emCanvas = document.createElement("canvas");
-  emCanvas.width = w;
-  emCanvas.height = h;
-  const emCtx = emCanvas.getContext("2d");
-  const emImg = emCtx.createImageData(w, h);
-  const emData = emImg.data;
-  const roughnessCanvas = document.createElement("canvas");
-  roughnessCanvas.width = w;
-  roughnessCanvas.height = h;
-  const roughnessCtx = roughnessCanvas.getContext("2d");
-  const roughnessImg = roughnessCtx.createImageData(w, h);
-  const roughnessData = roughnessImg.data;
-  for (let y = 0;y < h; y++) {
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const n = fbm(x / w * 7, y / h * 5, 4, seed);
-      const magma = Math.abs(Math.sin(x * 0.08 + y * 0.1 + n * 4));
-      const isMagma = magma < 0.1;
-      let r, g, b, emR, emG, emB, bumpVal, roughnessVal;
-      if (isMagma) {
-        r = 255;
-        g = 110;
-        b = 10;
-        emR = 255;
-        emG = 90;
-        emB = 0;
-        bumpVal = 20;
-        roughnessVal = 16;
-      } else if (n > 0.6) {
-        r = 230;
-        g = 190;
-        b = 25;
-        emR = 0;
-        emG = 0;
-        emB = 0;
-        bumpVal = 130;
-        roughnessVal = 230;
-      } else {
-        r = 60 + Math.floor(n * 40);
-        g = 40 + Math.floor(n * 30);
-        b = 30 + Math.floor(n * 20);
-        emR = 0;
-        emG = 0;
-        emB = 0;
-        bumpVal = 80;
-        roughnessVal = 85 + Math.floor(n * 40);
-      }
-      colData[idx] = r;
-      colData[idx + 1] = g;
-      colData[idx + 2] = b;
-      colData[idx + 3] = 255;
-      emData[idx] = emR;
-      emData[idx + 1] = emG;
-      emData[idx + 2] = emB;
-      emData[idx + 3] = 255;
-      bumpData[idx] = bumpVal;
-      bumpData[idx + 1] = bumpVal;
-      bumpData[idx + 2] = bumpVal;
-      bumpData[idx + 3] = 255;
-      roughnessData[idx] = roughnessVal;
-      roughnessData[idx + 1] = roughnessVal;
-      roughnessData[idx + 2] = roughnessVal;
-      roughnessData[idx + 3] = 255;
-    }
-  }
-  colCtx.putImageData(colImg, 0, 0);
-  bumpCtx.putImageData(bumpImg, 0, 0);
-  emCtx.putImageData(emImg, 0, 0);
-  roughnessCtx.putImageData(roughnessImg, 0, 0);
-  return {
-    map: new CanvasTexture(colCanvas),
-    bumpMap: new CanvasTexture(bumpCanvas),
-    emissiveMap: new CanvasTexture(emCanvas),
-    roughnessMap: new CanvasTexture(roughnessCanvas)
-  };
-}
 function createStarTexture(colorHex, seed = 555) {
   const w = 256, h = 128;
   const canvas = document.createElement("canvas");
@@ -30818,28 +30470,6 @@ function createStarTexture(colorHex, seed = 555) {
   }
   ctx.putImageData(img, 0, 0);
   return { map: new CanvasTexture(canvas) };
-}
-function createCloudTexture(seed = 888) {
-  const w = 256, h = 128;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  const img = ctx.createImageData(w, h);
-  const data = img.data;
-  for (let y = 0;y < h; y++) {
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const n = fbm(x / w * 8, y / h * 4, 3, seed);
-      const alpha = Math.max(0, (n - 0.52) * 2.2);
-      data[idx] = 255;
-      data[idx + 1] = 255;
-      data[idx + 2] = 255;
-      data[idx + 3] = Math.min(255, Math.floor(alpha * 255));
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  return new CanvasTexture(canvas);
 }
 function createAlienCarapaceTexture(seed = 1337) {
   const w = 512, h = 256;
@@ -36548,29 +36178,129 @@ function createAtmosphereMesh(planetRadius, hexColor, intensity = 1.25, starPos 
   return new Mesh(atmosphereGeo, atmosphereMat);
 }
 
+// src/procedural/planet-textures.ts
+var textureCache = new Map;
+var textureLoader = null;
+function getTextureLoader() {
+  if (!textureLoader) {
+    textureLoader = new TextureLoader;
+  }
+  return textureLoader;
+}
+function loadPlanetTexture(path, sRGB = true) {
+  if (textureCache.has(path)) {
+    return textureCache.get(path);
+  }
+  const loader = getTextureLoader();
+  const texture = loader.load(path);
+  if (sRGB && SRGBColorSpace) {
+    texture.colorSpace = SRGBColorSpace;
+  }
+  textureCache.set(path, texture);
+  return texture;
+}
+var PLANET_ARCHETYPE_TEMPLATES = {
+  SUN: "assets/textures/planets/8k_sun.jpg",
+  MERCURY: "assets/textures/planets/8k_mercury.jpg",
+  VENUS_SURFACE: "assets/textures/planets/8k_venus_surface.jpg",
+  VENUS_ATMOSPHERE: "assets/textures/planets/4k_venus_atmosphere.jpg",
+  EARTH_DAY: "assets/textures/planets/8k_earth_daymap.jpg",
+  EARTH_NIGHT: "assets/textures/planets/8k_earth_nightmap.jpg",
+  EARTH_CLOUDS: "assets/textures/planets/8k_earth_clouds.jpg",
+  EARTH_NORMAL: "assets/textures/planets/8k_earth_normal_map.png",
+  EARTH_SPECULAR: "assets/textures/planets/8k_earth_specular_map.png",
+  MOON: "assets/textures/planets/8k_moon.jpg",
+  MARS: "assets/textures/planets/8k_mars.jpg",
+  MARS_PHOBOS: "assets/textures/planets/mars_phobos.jpg",
+  MARS_DEIMOS: "assets/textures/planets/mars_deimos.jpg",
+  JUPITER: "assets/textures/planets/8k_jupiter.jpg",
+  JUPITER_IO: "assets/textures/planets/jupiter_io.jpg",
+  JUPITER_EUROPA: "assets/textures/planets/jupiter_europa.jpg",
+  JUPITER_GANYMEDE: "assets/textures/planets/jupiter_ganymede.jpg",
+  JUPITER_CALLISTO: "assets/textures/planets/jupiter_callisto.jpg",
+  SATURN: "assets/textures/planets/8k_saturn.jpg",
+  SATURN_RINGS: "assets/textures/planets/8k_saturn_ring_alpha.png",
+  SATURN_TITAN: "assets/textures/planets/saturn_titan.jpg",
+  URANUS: "assets/textures/planets/2k_uranus.jpg",
+  NEPTUNE: "assets/textures/planets/2k_neptune.jpg"
+};
+function getTemplateForBody(type, seed) {
+  const s = Math.abs(seed);
+  switch (type) {
+    case "Habitable":
+      return {
+        map: PLANET_ARCHETYPE_TEMPLATES.EARTH_DAY,
+        cloudMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_CLOUDS,
+        nightMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_NIGHT,
+        normalMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_NORMAL,
+        roughnessMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_SPECULAR
+      };
+    case "Gas Giant":
+      return {
+        map: s % 2 === 0 ? PLANET_ARCHETYPE_TEMPLATES.JUPITER : PLANET_ARCHETYPE_TEMPLATES.SATURN,
+        ringMap: s % 3 === 0 ? PLANET_ARCHETYPE_TEMPLATES.SATURN_RINGS : undefined
+      };
+    case "Ice":
+    case "Eismond":
+      return {
+        map: s % 3 === 0 ? PLANET_ARCHETYPE_TEMPLATES.URANUS : s % 3 === 1 ? PLANET_ARCHETYPE_TEMPLATES.NEPTUNE : PLANET_ARCHETYPE_TEMPLATES.JUPITER_EUROPA
+      };
+    case "Vulkanmond":
+      return {
+        map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_IO
+      };
+    case "Desert":
+      return {
+        map: PLANET_ARCHETYPE_TEMPLATES.MARS
+      };
+    case "Kratermond":
+      return {
+        map: s % 3 === 0 ? PLANET_ARCHETYPE_TEMPLATES.MOON : s % 3 === 1 ? PLANET_ARCHETYPE_TEMPLATES.MARS_PHOBOS : PLANET_ARCHETYPE_TEMPLATES.JUPITER_CALLISTO
+      };
+    case "Rocky":
+    default: {
+      const pick = s % 4;
+      if (pick === 0)
+        return { map: PLANET_ARCHETYPE_TEMPLATES.MARS };
+      if (pick === 1)
+        return { map: PLANET_ARCHETYPE_TEMPLATES.MERCURY };
+      if (pick === 2)
+        return { map: PLANET_ARCHETYPE_TEMPLATES.VENUS_SURFACE };
+      return { map: PLANET_ARCHETYPE_TEMPLATES.MOON };
+    }
+  }
+}
+
 // src/procedural/planet-rings.ts
-function createPlanetaryRings(planetRadius, hexColor, seed = 42) {
+function createPlanetaryRings(planetRadius, hexColor, seed = 42, ringTextureUrl) {
   const innerRadius = planetRadius * 1.45;
   const outerRadius = planetRadius * 2.85;
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 1;
-  const ctx = canvas.getContext("2d");
-  const baseColor = new Color(hexColor);
-  const grad = ctx.createLinearGradient(0, 0, 256, 0);
-  grad.addColorStop(0, "rgba(0,0,0,0)");
-  grad.addColorStop(0.08, `rgba(${Math.round(baseColor.r * 200)}, ${Math.round(baseColor.g * 220)}, ${Math.round(baseColor.b * 240)}, 0.45)`);
-  grad.addColorStop(0.35, `rgba(${Math.round(baseColor.r * 255)}, ${Math.round(baseColor.g * 255)}, ${Math.round(baseColor.b * 255)}, 0.85)`);
-  grad.addColorStop(0.52, "rgba(0,0,0,0.05)");
-  grad.addColorStop(0.58, "rgba(0,0,0,0.1)");
-  grad.addColorStop(0.68, `rgba(${Math.round(baseColor.r * 220)}, ${Math.round(baseColor.g * 240)}, ${Math.round(baseColor.b * 255)}, 0.7)`);
-  grad.addColorStop(0.92, `rgba(${Math.round(baseColor.r * 180)}, ${Math.round(baseColor.g * 200)}, ${Math.round(baseColor.b * 220)}, 0.3)`);
-  grad.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 256, 1);
-  const ringTexture = new CanvasTexture(canvas);
-  ringTexture.wrapS = ClampToEdgeWrapping;
-  ringTexture.wrapT = ClampToEdgeWrapping;
+  let ringTexture;
+  if (ringTextureUrl) {
+    ringTexture = loadPlanetTexture(ringTextureUrl);
+    ringTexture.wrapS = ClampToEdgeWrapping;
+    ringTexture.wrapT = ClampToEdgeWrapping;
+  } else {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 1;
+    const ctx = canvas.getContext("2d");
+    const baseColor = new Color(hexColor);
+    const grad = ctx.createLinearGradient(0, 0, 256, 0);
+    grad.addColorStop(0, "rgba(0,0,0,0)");
+    grad.addColorStop(0.08, `rgba(${Math.round(baseColor.r * 200)}, ${Math.round(baseColor.g * 220)}, ${Math.round(baseColor.b * 240)}, 0.45)`);
+    grad.addColorStop(0.35, `rgba(${Math.round(baseColor.r * 255)}, ${Math.round(baseColor.g * 255)}, ${Math.round(baseColor.b * 255)}, 0.85)`);
+    grad.addColorStop(0.52, "rgba(0,0,0,0.05)");
+    grad.addColorStop(0.58, "rgba(0,0,0,0.1)");
+    grad.addColorStop(0.68, `rgba(${Math.round(baseColor.r * 220)}, ${Math.round(baseColor.g * 240)}, ${Math.round(baseColor.b * 255)}, 0.7)`);
+    grad.addColorStop(0.92, `rgba(${Math.round(baseColor.r * 180)}, ${Math.round(baseColor.g * 200)}, ${Math.round(baseColor.b * 220)}, 0.3)`);
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 256, 1);
+    ringTexture = new CanvasTexture(canvas);
+    ringTexture.wrapS = ClampToEdgeWrapping;
+    ringTexture.wrapT = ClampToEdgeWrapping;
+  }
   const ringGeometry = new RingGeometry(innerRadius, outerRadius, 64);
   ringGeometry.rotateX(Math.PI / 2);
   const pos = ringGeometry.attributes.position;
@@ -36587,7 +36317,7 @@ function createPlanetaryRings(planetRadius, hexColor, seed = 42) {
     map: ringTexture,
     side: DoubleSide,
     transparent: true,
-    opacity: 0.88,
+    opacity: ringTextureUrl ? 0.98 : 0.88,
     roughness: 0.8,
     metalness: 0.2,
     depthWrite: false
@@ -36727,10 +36457,12 @@ function getLoreSolSystem() {
     anomalyType: "none",
     isCoreAnchor: false,
     star: {
+      name: "Sonne (Sol)",
       type: "Yellow Sun",
       color: "0xfacc15",
       size: 6.2,
-      mass: 280
+      mass: 280,
+      texture: "assets/textures/planets/8k_sun.jpg"
     },
     planets: [
       {
@@ -36739,6 +36471,7 @@ function getLoreSolSystem() {
         size: 1.6,
         distance: 18,
         color: "0x78716c",
+        texture: "assets/textures/planets/8k_mercury.jpg",
         temp: "+430°C / -180°C",
         atmos: "Extrem dünne Exosphäre (Vakuum)",
         bio: "Steril",
@@ -36758,6 +36491,8 @@ function getLoreSolSystem() {
         size: 2.8,
         distance: 28,
         color: "0xf59e0b",
+        texture: "assets/textures/planets/8k_venus_surface.jpg",
+        atmoTexture: "assets/textures/planets/4k_venus_atmosphere.jpg",
         temp: "+465°C",
         atmos: "Superdichtes CO2 & Schwefelsäure-Wolken",
         bio: "Steril (Extremer Treibhauseffekt)",
@@ -36777,6 +36512,11 @@ function getLoreSolSystem() {
         size: 3,
         distance: 42,
         color: "0x0ea5e9",
+        texture: "assets/textures/planets/8k_earth_daymap.jpg",
+        cloudTexture: "assets/textures/planets/8k_earth_clouds.jpg",
+        nightTexture: "assets/textures/planets/8k_earth_nightmap.jpg",
+        normalTexture: "assets/textures/planets/8k_earth_normal_map.png",
+        specularTexture: "assets/textures/planets/8k_earth_specular_map.png",
         temp: "15°C",
         atmos: "Stickstoff & Sauerstoff (N2/O2 - Atembar)",
         bio: "Reiche Biosphäre der Menschheit (Ursprungswelt)",
@@ -36825,6 +36565,7 @@ function getLoreSolSystem() {
             distance: 6.8,
             speed: 1.2,
             color: "0xcbcfd6",
+            texture: "assets/textures/planets/8k_moon.jpg",
             temp: "-130°C / +120°C",
             atmos: "Vakuum",
             bio: "Steril",
@@ -36847,6 +36588,7 @@ function getLoreSolSystem() {
         size: 2.2,
         distance: 58,
         color: "0xef4444",
+        texture: "assets/textures/planets/8k_mars.jpg",
         temp: "-60°C",
         atmos: "Dünnes Kohlendioxid (Roter Planet)",
         bio: "Fossile mikrobielle Biosignaturen",
@@ -36860,6 +36602,7 @@ function getLoreSolSystem() {
             distance: 4.2,
             speed: 1.8,
             color: "0x78716c",
+            texture: "assets/textures/planets/mars_phobos.jpg",
             temp: "-40°C",
             atmos: "Vakuum",
             bio: "Steril",
@@ -36875,6 +36618,7 @@ function getLoreSolSystem() {
             distance: 6.5,
             speed: 1.3,
             color: "0x78716c",
+            texture: "assets/textures/planets/mars_deimos.jpg",
             temp: "-40°C",
             atmos: "Vakuum",
             bio: "Steril",
@@ -36897,6 +36641,7 @@ function getLoreSolSystem() {
         size: 7.2,
         distance: 84,
         color: "0xf97316",
+        texture: "assets/textures/planets/8k_jupiter.jpg",
         temp: "-110°C",
         atmos: "Wasserstoff & Helium (Großer Roter Fleck)",
         bio: "Atmosphärische Bio-Spuren",
@@ -36910,6 +36655,7 @@ function getLoreSolSystem() {
             distance: 11.2,
             speed: 1.5,
             color: "0xf97316",
+            texture: "assets/textures/planets/jupiter_io.jpg",
             temp: "+150°C",
             atmos: "Schwefeldioxid-Ausgasungen",
             bio: "Schwefel-Mikroben",
@@ -36925,6 +36671,7 @@ function getLoreSolSystem() {
             distance: 13.8,
             speed: 1.3,
             color: "0x38bdf8",
+            texture: "assets/textures/planets/jupiter_europa.jpg",
             temp: "-160°C",
             atmos: "Wasserdampf-Geysire",
             bio: "Subozeanische Extremophile",
@@ -36940,6 +36687,7 @@ function getLoreSolSystem() {
             distance: 16.5,
             speed: 1.1,
             color: "0x94a3b8",
+            texture: "assets/textures/planets/jupiter_ganymede.jpg",
             temp: "-150°C",
             atmos: "Dünne Sauerstoff-Exosphäre",
             bio: "Kryophile Bakterien",
@@ -36955,6 +36703,7 @@ function getLoreSolSystem() {
             distance: 19.5,
             speed: 0.9,
             color: "0x64748b",
+            texture: "assets/textures/planets/jupiter_callisto.jpg",
             temp: "-140°C",
             atmos: "CO2-Spuren",
             bio: "Steril",
@@ -36977,6 +36726,8 @@ function getLoreSolSystem() {
         size: 6.2,
         distance: 110,
         color: "0xeab308",
+        texture: "assets/textures/planets/8k_saturn.jpg",
+        ringTexture: "assets/textures/planets/8k_saturn_ring_alpha.png",
         temp: "-140°C",
         atmos: "Wasserstoff & Ammoniak-Eiskristalle",
         bio: "Steril",
@@ -36990,6 +36741,7 @@ function getLoreSolSystem() {
             distance: 12.5,
             speed: 1.2,
             color: "0xf59e0b",
+            texture: "assets/textures/planets/saturn_titan.jpg",
             temp: "-179°C",
             atmos: "Dichter Stickstoff & flüssiges Methan",
             bio: "Methanogene Präbiotik",
@@ -37005,6 +36757,7 @@ function getLoreSolSystem() {
             distance: 15.2,
             speed: 1.4,
             color: "0xe0f2fe",
+            texture: "assets/textures/planets/jupiter_europa.jpg",
             temp: "-198°C",
             atmos: "Kryovulkanische Geysir-Fontänen",
             bio: "Hydrothermale Mikroorganismen",
@@ -37027,6 +36780,7 @@ function getLoreSolSystem() {
         size: 4.4,
         distance: 136,
         color: "0x38bdf8",
+        texture: "assets/textures/planets/2k_uranus.jpg",
         temp: "-215°C",
         atmos: "Methan, Wasserstoff & Helium",
         bio: "Steril",
@@ -37040,6 +36794,7 @@ function getLoreSolSystem() {
             distance: 8.5,
             speed: 1.4,
             color: "0xa5f3fc",
+            texture: "assets/textures/planets/8k_moon.jpg",
             temp: "-210°C",
             atmos: "Vakuum",
             bio: "Steril",
@@ -37062,6 +36817,7 @@ function getLoreSolSystem() {
         size: 4.3,
         distance: 162,
         color: "0x0284c7",
+        texture: "assets/textures/planets/2k_neptune.jpg",
         temp: "-220°C",
         atmos: "Dynamisches Methan-Plasma (Überschall-Stürme)",
         bio: "Steril",
@@ -37075,6 +36831,7 @@ function getLoreSolSystem() {
             distance: 9.2,
             speed: 1.3,
             color: "0x38bdf8",
+            texture: "assets/textures/planets/jupiter_europa.jpg",
             temp: "-235°C",
             atmos: "Stickstoff-Geysire",
             bio: "Kryophile Bakterien",
@@ -37097,6 +36854,7 @@ function getLoreSolSystem() {
         size: 1.5,
         distance: 188,
         color: "0x94a3b8",
+        texture: "assets/textures/planets/8k_mercury.jpg",
         temp: "-230°C",
         atmos: "Dünner Stickstoffdampf (Sublimation)",
         bio: "Steril",
@@ -37110,6 +36868,7 @@ function getLoreSolSystem() {
             distance: 5,
             speed: 1.1,
             color: "0xcbcfd6",
+            texture: "assets/textures/planets/8k_moon.jpg",
             temp: "-230°C",
             atmos: "Vakuum",
             bio: "Steril",
@@ -37541,13 +37300,25 @@ function spawnPlanetsAndAsteroids() {
     STATE.gravitySources.push(starSource);
     starSource.ringMesh = createGravityRing(0, 0, starRange, 8141549, 0.14);
   } else {
-    const starSeed = STATE.currentSystemId * 1337 + 42;
-    const starTex = createStarTexture(starData.color, starSeed);
-    const starGeo = new SphereGeometry(starData.size, 32, 32);
+    let starMap;
+    let starEmissiveMap = null;
+    if (starData.texture) {
+      starMap = loadPlanetTexture(starData.texture);
+      starEmissiveMap = starMap;
+    } else if (starData.name && starData.name.includes("Sol")) {
+      starMap = loadPlanetTexture("assets/textures/planets/8k_sun.jpg");
+      starEmissiveMap = starMap;
+    } else {
+      const starSeed = STATE.currentSystemId * 1337 + 42;
+      const starTex = createStarTexture(starData.color, starSeed);
+      starMap = starTex.map;
+    }
+    const starGeo = new SphereGeometry(starData.size, 48, 48);
     const starMat = new MeshStandardMaterial({
-      map: starTex.map,
+      map: starMap,
       emissive: parseInt(starData.color),
-      emissiveIntensity: 0.9,
+      emissiveMap: starEmissiveMap || null,
+      emissiveIntensity: starEmissiveMap ? 1.4 : 0.9,
       roughness: 0.2,
       metalness: 0.1
     });
@@ -37627,27 +37398,50 @@ function spawnPlanetsAndAsteroids() {
       if (isHab && (!finalSpecies || !finalSpecies.candidates || finalSpecies.candidates.length === 0)) {
         finalSpecies = generated.species;
       }
-      let texData;
+      let diffuseMap;
       let cloudTexture = null;
       let cityLightsTexture = null;
-      if (isHab) {
-        texData = createHabitableTextures(p.color, seed);
-        cloudTexture = createCloudTexture(seed + 999);
-        if (finalSpecies && finalSpecies.population > 0) {
-          cityLightsTexture = createCityLightsTexture(seed, finalSpecies.techLevel || "Spacefaring");
+      let normalMap = null;
+      let roughnessMap = null;
+      let diffuseColor;
+      if (p.texture) {
+        diffuseMap = loadPlanetTexture(p.texture);
+        diffuseColor = new Color(16777215);
+        if (p.cloudTexture) {
+          cloudTexture = loadPlanetTexture(p.cloudTexture);
         }
-      } else if (isGas) {
-        texData = createGasGiantTextures(p.color, seed);
+        if (p.nightTexture) {
+          cityLightsTexture = loadPlanetTexture(p.nightTexture);
+        }
+        if (p.normalTexture) {
+          normalMap = loadPlanetTexture(p.normalTexture, false);
+        }
+        if (p.specularTexture) {
+          roughnessMap = loadPlanetTexture(p.specularTexture, false);
+        }
       } else {
-        texData = createRockyTextures(p.color, seed);
+        const template = getTemplateForBody(p.type, seed);
+        diffuseMap = loadPlanetTexture(template.map);
+        diffuseColor = new Color(parseInt(p.color));
+        if (template.cloudMap && (isHab || seed % 3 === 0)) {
+          cloudTexture = loadPlanetTexture(template.cloudMap);
+        }
+        if (isHab && finalSpecies && finalSpecies.population > 0 && template.nightMap) {
+          cityLightsTexture = loadPlanetTexture(template.nightMap);
+        }
+        if (template.normalMap) {
+          normalMap = loadPlanetTexture(template.normalMap, false);
+        }
+        if (template.roughnessMap) {
+          roughnessMap = loadPlanetTexture(template.roughnessMap, false);
+        }
       }
       const geo = new SphereGeometry(p.size, 64, 64);
-      const mat = new MeshStandardMaterial({
-        map: texData.map,
-        bumpMap: texData.bumpMap || null,
-        bumpScale: isGas ? 0 : 0.08,
-        roughnessMap: texData.roughnessMap || null,
-        roughness: texData.roughnessMap ? 1 : isGas ? 0.35 : 0.68,
+      const matParams = {
+        map: diffuseMap,
+        color: diffuseColor,
+        roughnessMap: roughnessMap || null,
+        roughness: roughnessMap ? 1 : isGas ? 0.35 : 0.72,
         metalness: isGas ? 0.04 : 0.08,
         emissive: cityLightsTexture ? new Color(16777215) : new Color(0),
         emissiveMap: cityLightsTexture || null,
@@ -37655,7 +37449,12 @@ function spawnPlanetsAndAsteroids() {
         transparent: false,
         depthWrite: true,
         depthTest: true
-      });
+      };
+      if (normalMap) {
+        matParams.normalMap = normalMap;
+        matParams.normalScale = new Vector2(0.85, 0.85);
+      }
+      const mat = new MeshStandardMaterial(matParams);
       if (cityLightsTexture) {
         mat.customProgramCacheKey = () => "cityLightsTerminator";
         mat.onBeforeCompile = (shader) => {
@@ -37685,12 +37484,12 @@ function spawnPlanetsAndAsteroids() {
       mesh.rotation.x = (seed % 7 - 3) * Math.PI / 180;
       planetGroup.add(mesh);
       bodyMesh = mesh;
-      if (isHab || isGas) {
+      if (isHab || isGas || p.atmoTexture) {
         const atmoHex = isHab ? 3718648 : parseInt(p.color);
         atmoMesh = createAtmosphereMesh(p.size, atmoHex, isHab ? 1.25 : 1);
         planetGroup.add(atmoMesh);
       }
-      if (cloudTexture && isHab) {
+      if (cloudTexture) {
         const cloudGeo = new SphereGeometry(p.size * 1.018, 64, 64);
         const cloudMat = new MeshStandardMaterial({
           map: cloudTexture,
@@ -37705,10 +37504,10 @@ function spawnPlanetsAndAsteroids() {
         cloudMesh.rotation.z = axialTilt;
         planetGroup.add(cloudMesh);
       }
-      const hasRings = isGas || seed % 6 === 0;
+      const hasRings = isGas || !!p.ringTexture || seed % 6 === 0;
       if (hasRings) {
         const ringColor = isGas ? parseInt(p.color) : 12633808;
-        const pRings = createPlanetaryRings(p.size, ringColor, seed);
+        const pRings = createPlanetaryRings(p.size, ringColor, seed, p.ringTexture);
         planetGroup.add(pRings);
       }
       const isHyperMag = p.magnetosphere === "Hyper-Magnetic" || generated && generated.magnetosphere === "Hyper-Magnetic";
@@ -37797,25 +37596,41 @@ function spawnPlanetsAndAsteroids() {
       const mx = px2 + m.distance * Math.cos(moonAngle);
       const mz = pz2 + m.distance * Math.sin(moonAngle);
       const mSeed = m.name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) + m_idx * 133;
-      let mTex;
-      if (m.type === "Eismond") {
-        mTex = createIceMoonTextures(m.color, mSeed);
-      } else if (m.type === "Vulkanmond") {
-        mTex = createVolcanicMoonTextures(m.color, mSeed);
+      let mMap;
+      let mColor;
+      let mEmissiveMap = null;
+      let mEmissiveColor = new Color(0);
+      let mEmissiveIntensity = 0;
+      let mRoughnessMap = null;
+      if (m.texture) {
+        mMap = loadPlanetTexture(m.texture);
+        mColor = new Color(16777215);
+        if (m.type === "Vulkanmond") {
+          mEmissiveMap = mMap;
+          mEmissiveColor = new Color(16733440);
+          mEmissiveIntensity = 1;
+        }
       } else {
-        mTex = createRockyTextures(m.color, mSeed);
+        const mTemplate = getTemplateForBody(m.type, mSeed);
+        mMap = loadPlanetTexture(mTemplate.map);
+        mColor = new Color(parseInt(m.color));
+        if (m.type === "Vulkanmond") {
+          mEmissiveMap = mMap;
+          mEmissiveColor = new Color(parseInt(m.color));
+          mEmissiveIntensity = 1;
+        }
       }
+      mRoughnessMap = mMap;
       const mGeo = new SphereGeometry(m.size, 48, 48);
       const mMat = new MeshStandardMaterial({
-        map: mTex.map,
-        bumpMap: mTex.bumpMap || null,
-        bumpScale: 0.06,
-        roughnessMap: mTex.roughnessMap || null,
-        roughness: mTex.roughnessMap ? 1 : 0.75,
+        map: mMap,
+        color: mColor,
+        roughnessMap: mRoughnessMap,
+        roughness: m.type === "Eismond" ? 0.35 : 0.75,
         metalness: 0.08,
-        emissive: mTex.emissiveMap ? new Color(16777215) : new Color(0),
-        emissiveMap: mTex.emissiveMap || null,
-        emissiveIntensity: mTex.emissiveMap ? 1.2 : 0
+        emissive: mEmissiveColor,
+        emissiveMap: mEmissiveMap,
+        emissiveIntensity: mEmissiveIntensity
       });
       const mMesh = new Mesh(mGeo, mMat);
       const moonGroup = new Group;

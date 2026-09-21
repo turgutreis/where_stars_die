@@ -44,6 +44,7 @@ if (typeof globalThis.document === 'undefined') {
     (globalThis as any).document = {
         getElementById: () => dummyEl,
         createElement: () => ({ ...dummyEl }),
+        createElementNS: () => ({ ...dummyEl }),
         querySelector: () => dummyEl,
         querySelectorAll: () => []
     };
@@ -122,6 +123,7 @@ import { createRealisticStarfield } from '../src/engine/starfield';
 import { createAlienBioShip } from '../src/procedural/alien-ship';
 import { createHabitableTextures, createGasGiantTextures, createRockyTextures, createIceMoonTextures, createVolcanicMoonTextures } from '../src/procedural/textures';
 import { createAtmosphereMesh } from '../src/procedural/atmosphere-shader';
+import { getTemplateForBody, PLANET_ARCHETYPE_TEMPLATES } from '../src/procedural/planet-textures';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -813,17 +815,26 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(planetNames).toContain("Neptun");
         expect(planetNames).toContain("Pluto");
 
+        expect(solSys.star.texture).toBe("assets/textures/planets/8k_sun.jpg");
         const erde = solSys.planets.find((p: any) => p.name === "Erde (Terra)");
         expect(erde.moons.length).toBe(1);
         expect(erde.moons[0].name).toContain("Luna");
+        expect(erde.moons[0].texture).toBe("assets/textures/planets/8k_moon.jpg");
+        expect(erde.texture).toBe("assets/textures/planets/8k_earth_daymap.jpg");
+        expect(erde.cloudTexture).toBe("assets/textures/planets/8k_earth_clouds.jpg");
+        expect(erde.nightTexture).toBe("assets/textures/planets/8k_earth_nightmap.jpg");
         expect(erde.species.name).toContain("Menschheit");
         expect(erde.species.candidates.some((c: any) => c.name.includes("Carl Sagan"))).toBe(true);
 
         const jupiter = solSys.planets.find((p: any) => p.name === "Jupiter");
         expect(jupiter.moons.length).toBe(4); // Io, Europa, Ganymed, Kallisto
+        expect(jupiter.texture).toBe("assets/textures/planets/8k_jupiter.jpg");
+        expect(jupiter.moons.find((m: any) => m.name === "Europa").texture).toBe("assets/textures/planets/jupiter_europa.jpg");
         expect(jupiter.magnetosphere).toBe("Hyper-Magnetic");
 
         const saturn = solSys.planets.find((p: any) => p.name === "Saturn");
+        expect(saturn.texture).toBe("assets/textures/planets/8k_saturn.jpg");
+        expect(saturn.ringTexture).toBe("assets/textures/planets/8k_saturn_ring_alpha.png");
         expect(saturn.moons.some((m: any) => m.name.includes("Titan"))).toBe(true);
 
         // 2. Arrakis & Canopus System Verification
@@ -1097,6 +1108,15 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(vMoonMat.roughnessMap).toBeDefined();
         expect(vMoonMat.emissiveMap).toBeDefined();
         expect(vMoonMat.emissiveIntensity).toBeGreaterThan(0.0);
+
+        // 5. Planetary Template Archetypes (Schablonen-System)
+        const earthTemplate = getTemplateForBody('Habitable', 42);
+        expect(earthTemplate.map).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_DAY);
+        expect(earthTemplate.cloudMap).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_CLOUDS);
+        expect(earthTemplate.nightMap).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_NIGHT);
+
+        const jupiterTemplate = getTemplateForBody('Gas Giant', 42);
+        expect([PLANET_ARCHETYPE_TEMPLATES.JUPITER, PLANET_ARCHETYPE_TEMPLATES.SATURN]).toContain(jupiterTemplate.map);
     });
 });
 
