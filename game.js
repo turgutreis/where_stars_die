@@ -36270,6 +36270,72 @@ function getTemplateForBody(type, seed) {
     }
   }
 }
+function getTemplateById(templateId) {
+  switch (templateId.toLowerCase()) {
+    case "earth":
+      return {
+        map: PLANET_ARCHETYPE_TEMPLATES.EARTH_DAY,
+        cloudMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_CLOUDS,
+        nightMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_NIGHT,
+        normalMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_NORMAL,
+        roughnessMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_SPECULAR
+      };
+    case "jupiter":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER };
+    case "saturn":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.SATURN, ringMap: PLANET_ARCHETYPE_TEMPLATES.SATURN_RINGS };
+    case "mars":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.MARS };
+    case "mercury":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.MERCURY };
+    case "venus_surface":
+    case "venus":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.VENUS_SURFACE, cloudMap: PLANET_ARCHETYPE_TEMPLATES.VENUS_ATMOSPHERE };
+    case "uranus":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.URANUS };
+    case "neptune":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.NEPTUNE };
+    case "moon":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.MOON };
+    case "jupiter_io":
+    case "io":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_IO };
+    case "jupiter_europa":
+    case "europa":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_EUROPA };
+    case "jupiter_ganymede":
+    case "ganymede":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_GANYMEDE };
+    case "jupiter_callisto":
+    case "callisto":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_CALLISTO };
+    case "mars_phobos":
+    case "phobos":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.MARS_PHOBOS };
+    case "mars_deimos":
+    case "deimos":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.MARS_DEIMOS };
+    case "saturn_titan":
+    case "titan":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.SATURN_TITAN };
+    default:
+      return null;
+  }
+}
+function resolveArchetypeTemplate(archetype, fallbackType = "Rocky", seed = 0) {
+  if (archetype && archetype.templateId) {
+    const found = getTemplateById(archetype.templateId);
+    if (found) {
+      const copy = { ...found };
+      const pArch = archetype;
+      if (pArch.ringTexture) {
+        copy.ringMap = pArch.ringTexture.startsWith("assets/") ? pArch.ringTexture : `assets/textures/planets/${pArch.ringTexture}`;
+      }
+      return copy;
+    }
+  }
+  return getTemplateForBody(fallbackType, seed);
+}
 
 // src/procedural/planet-rings.ts
 function createPlanetaryRings(planetRadius, hexColor, seed = 42, ringTextureUrl) {
@@ -37420,13 +37486,15 @@ function spawnPlanetsAndAsteroids() {
           roughnessMap = loadPlanetTexture(p.specularTexture, false);
         }
       } else {
-        const template = getTemplateForBody(p.type, seed);
+        const template = resolveArchetypeTemplate(p.archetype, p.type, seed);
         diffuseMap = loadPlanetTexture(template.map);
         diffuseColor = new Color(parseInt(p.color));
-        if (template.cloudMap && (isHab || seed % 3 === 0)) {
+        const hasClouds = p.archetype && p.archetype.cloudCoverage !== undefined ? p.archetype.cloudCoverage > 0.05 && !!template.cloudMap : template.cloudMap && (isHab || seed % 3 === 0);
+        if (hasClouds && template.cloudMap) {
           cloudTexture = loadPlanetTexture(template.cloudMap);
         }
-        if (isHab && finalSpecies && finalSpecies.population > 0 && template.nightMap) {
+        const hasNight = p.archetype && p.archetype.hasNightLights !== undefined ? p.archetype.hasNightLights && !!template.nightMap : isHab && finalSpecies && finalSpecies.population > 0 && !!template.nightMap;
+        if (hasNight && template.nightMap) {
           cityLightsTexture = loadPlanetTexture(template.nightMap);
         }
         if (template.normalMap) {
@@ -37437,11 +37505,12 @@ function spawnPlanetsAndAsteroids() {
         }
       }
       const geo = new SphereGeometry(p.size, 64, 64);
+      const planetRoughness = p.archetype?.roughnessScale ?? (roughnessMap ? 1 : isGas ? 0.35 : 0.72);
       const matParams = {
         map: diffuseMap,
         color: diffuseColor,
         roughnessMap: roughnessMap || null,
-        roughness: roughnessMap ? 1 : isGas ? 0.35 : 0.72,
+        roughness: planetRoughness,
         metalness: isGas ? 0.04 : 0.08,
         emissive: cityLightsTexture ? new Color(16777215) : new Color(0),
         emissiveMap: cityLightsTexture || null,
@@ -37452,7 +37521,8 @@ function spawnPlanetsAndAsteroids() {
       };
       if (normalMap) {
         matParams.normalMap = normalMap;
-        matParams.normalScale = new Vector2(0.85, 0.85);
+        const nScale = p.archetype?.normalScale ?? 0.85;
+        matParams.normalScale = new Vector2(nScale, nScale);
       }
       const mat = new MeshStandardMaterial(matParams);
       if (cityLightsTexture) {
@@ -37484,17 +37554,19 @@ function spawnPlanetsAndAsteroids() {
       mesh.rotation.x = (seed % 7 - 3) * Math.PI / 180;
       planetGroup.add(mesh);
       bodyMesh = mesh;
-      if (isHab || isGas || p.atmoTexture) {
+      if (isHab || isGas || p.atmoTexture || p.archetype && (p.archetype.atmosphereDensity ?? 0) > 0.1) {
         const atmoHex = isHab ? 3718648 : parseInt(p.color);
-        atmoMesh = createAtmosphereMesh(p.size, atmoHex, isHab ? 1.25 : 1);
+        const atmoDensity = p.archetype?.atmosphereDensity ?? (isHab ? 1.25 : 1);
+        atmoMesh = createAtmosphereMesh(p.size, atmoHex, atmoDensity);
         planetGroup.add(atmoMesh);
       }
       if (cloudTexture) {
         const cloudGeo = new SphereGeometry(p.size * 1.018, 64, 64);
+        const cloudOpacity = p.archetype?.cloudCoverage !== undefined ? Math.min(0.9, p.archetype.cloudCoverage * 0.88) : 0.85;
         const cloudMat = new MeshStandardMaterial({
           map: cloudTexture,
           transparent: true,
-          opacity: 0.85,
+          opacity: cloudOpacity,
           blending: NormalBlending,
           depthWrite: false,
           roughness: 0.9,
@@ -37504,10 +37576,11 @@ function spawnPlanetsAndAsteroids() {
         cloudMesh.rotation.z = axialTilt;
         planetGroup.add(cloudMesh);
       }
-      const hasRings = isGas || !!p.ringTexture || seed % 6 === 0;
+      const ringMapPath = p.ringTexture || p.archetype?.ringTexture;
+      const hasRings = p.archetype?.hasRings !== undefined ? p.archetype.hasRings : isGas || !!p.ringTexture || seed % 6 === 0;
       if (hasRings) {
         const ringColor = isGas ? parseInt(p.color) : 12633808;
-        const pRings = createPlanetaryRings(p.size, ringColor, seed, p.ringTexture);
+        const pRings = createPlanetaryRings(p.size, ringColor, seed, ringMapPath);
         planetGroup.add(pRings);
       }
       const isHyperMag = p.magnetosphere === "Hyper-Magnetic" || generated && generated.magnetosphere === "Hyper-Magnetic";
@@ -37611,10 +37684,10 @@ function spawnPlanetsAndAsteroids() {
           mEmissiveIntensity = 1;
         }
       } else {
-        const mTemplate = getTemplateForBody(m.type, mSeed);
+        const mTemplate = resolveArchetypeTemplate(m.archetype, m.type, mSeed);
         mMap = loadPlanetTexture(mTemplate.map);
         mColor = new Color(parseInt(m.color));
-        if (m.type === "Vulkanmond") {
+        if (m.type === "Vulkanmond" || m.archetype && m.archetype.lavaCalderas) {
           mEmissiveMap = mMap;
           mEmissiveColor = new Color(parseInt(m.color));
           mEmissiveIntensity = 1;
@@ -37622,11 +37695,12 @@ function spawnPlanetsAndAsteroids() {
       }
       mRoughnessMap = mMap;
       const mGeo = new SphereGeometry(m.size, 48, 48);
+      const moonRoughness = m.archetype?.roughnessScale ?? (m.type === "Eismond" ? 0.35 : 0.75);
       const mMat = new MeshStandardMaterial({
         map: mMap,
         color: mColor,
         roughnessMap: mRoughnessMap,
-        roughness: m.type === "Eismond" ? 0.35 : 0.75,
+        roughness: moonRoughness,
         metalness: 0.08,
         emissive: mEmissiveColor,
         emissiveMap: mEmissiveMap,

@@ -112,6 +112,32 @@ export interface PlanetAttributes {
     quantumResonance?: number;
 }
 
+export interface MoonArchetypeData {
+    templateId: string;
+    normalScale?: number;
+    roughnessScale?: number;
+    craterDensity?: 'low' | 'medium' | 'high' | 'extreme';
+    cryoVolcanism?: boolean;
+    lavaCalderas?: boolean;
+}
+
+export interface PlanetArchetypeData {
+    templateId: string;
+    cloudCoverage?: number;
+    normalScale?: number;
+    roughnessScale?: number;
+    atmosphereDensity?: number;
+    oceanCoverage?: number;
+    atmosphericTurbulence?: number;
+    dustStormFrequency?: number;
+    hasRings?: boolean;
+    ringTexture?: string;
+    hasNightLights?: boolean;
+    subsurfaceOcean?: boolean;
+    craterDensity?: 'low' | 'medium' | 'high' | 'extreme';
+    cryoVolcanism?: boolean;
+}
+
 export interface MoonData {
     name: string;
     type: MoonType;
@@ -120,6 +146,7 @@ export interface MoonData {
     speed: number;
     color: string;
     texture?: string;
+    archetype?: MoonArchetypeData;
     temp: string;
     atmos: string;
     bio: string;
@@ -142,6 +169,7 @@ export interface PlanetData {
     specularTexture?: string;
     atmoTexture?: string;
     ringTexture?: string;
+    archetype?: PlanetArchetypeData;
     atmos?: string;
     temp?: string;
     bio?: string;

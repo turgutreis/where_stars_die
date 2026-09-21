@@ -123,7 +123,7 @@ import { createRealisticStarfield } from '../src/engine/starfield';
 import { createAlienBioShip } from '../src/procedural/alien-ship';
 import { createHabitableTextures, createGasGiantTextures, createRockyTextures, createIceMoonTextures, createVolcanicMoonTextures } from '../src/procedural/textures';
 import { createAtmosphereMesh } from '../src/procedural/atmosphere-shader';
-import { getTemplateForBody, PLANET_ARCHETYPE_TEMPLATES } from '../src/procedural/planet-textures';
+import { getTemplateForBody, resolveArchetypeTemplate, getTemplateById, PLANET_ARCHETYPE_TEMPLATES } from '../src/procedural/planet-textures';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -1117,6 +1117,111 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         const jupiterTemplate = getTemplateForBody('Gas Giant', 42);
         expect([PLANET_ARCHETYPE_TEMPLATES.JUPITER, PLANET_ARCHETYPE_TEMPLATES.SATURN]).toContain(jupiterTemplate.map);
+    });
+
+    test("24. QPU Quantum Archetype & Template System: Resolves quantum templates, custom normal/roughness scales, and rings", () => {
+        // 1. Check getTemplateById for known archetypes
+        const earthTpl = getTemplateById('earth');
+        expect(earthTpl).toBeDefined();
+        expect(earthTpl!.map).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_DAY);
+        expect(earthTpl!.cloudMap).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_CLOUDS);
+        expect(earthTpl!.normalMap).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_NORMAL);
+        expect(earthTpl!.roughnessMap).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_SPECULAR);
+
+        const jupTpl = getTemplateById('jupiter');
+        expect(jupTpl).toBeDefined();
+        expect(jupTpl!.map).toBe(PLANET_ARCHETYPE_TEMPLATES.JUPITER);
+
+        const ioTpl = getTemplateById('jupiter_io');
+        expect(ioTpl).toBeDefined();
+        expect(ioTpl!.map).toBe(PLANET_ARCHETYPE_TEMPLATES.JUPITER_IO);
+
+        // 2. Test resolveArchetypeTemplate with custom archetype object
+        const resolved = resolveArchetypeTemplate({
+            templateId: 'mars',
+            normalScale: 1.5,
+            roughnessScale: 0.9
+        }, 'Rocky', 123);
+        expect(resolved.map).toBe(PLANET_ARCHETYPE_TEMPLATES.MARS);
+
+        // 3. Spawning a system with QPU-enriched archetype parameters
+        const qpuSys: any = {
+            id: 888,
+            name: "QPU Quantum Sanctuary",
+            star: { type: "Yellow Sun", color: "0xf59e0b", size: 10, mass: 100 },
+            planets: [
+                {
+                    name: "Quantum Eden",
+                    type: "Habitable",
+                    size: 3.5,
+                    distance: 30,
+                    color: "0x22c55e",
+                    archetype: {
+                        templateId: "earth",
+                        cloudCoverage: 0.45,
+                        normalScale: 1.3,
+                        roughnessScale: 0.4,
+                        hasNightLights: true,
+                        hasRings: false
+                    },
+                    species: { population: 500000000, candidates: [] },
+                    moons: [
+                        {
+                            name: "Quantum Eden-I",
+                            type: "Eismond",
+                            size: 0.9,
+                            distance: 8,
+                            speed: 1.0,
+                            color: "0x38bdf8",
+                            archetype: {
+                                templateId: "jupiter_europa",
+                                roughnessScale: 0.22,
+                                normalScale: 0.6,
+                                cryoVolcanism: true
+                            }
+                        }
+                    ]
+                },
+                {
+                    name: "Quantum Ring Giant",
+                    type: "Gas Giant",
+                    size: 6.0,
+                    distance: 80,
+                    color: "0xf97316",
+                    archetype: {
+                        templateId: "saturn",
+                        roughnessScale: 0.25,
+                        hasRings: true,
+                        ringTexture: "8k_saturn_ring_alpha.png"
+                    },
+                    moons: []
+                }
+            ]
+        };
+
+        STATE.universe = { systems: [qpuSys] };
+        STATE.currentSystemId = 0;
+        activePlanets.length = 0;
+        spawnPlanetsAndAsteroids();
+
+        const eden = activePlanets.find(p => p.name === 'Quantum Eden');
+        expect(eden).toBeDefined();
+        const edenMesh = eden!.bodyMesh as THREE.Mesh;
+        const edenMat = edenMesh.material as THREE.MeshStandardMaterial;
+        expect(edenMat.roughness).toBe(0.4);
+        expect(edenMat.normalScale.x).toBe(1.3);
+
+        const ringGiant = activePlanets.find(p => p.name === 'Quantum Ring Giant');
+        expect(ringGiant).toBeDefined();
+        const ringGiantMesh = ringGiant!.bodyMesh as THREE.Mesh;
+        const ringGiantMat = ringGiantMesh.material as THREE.MeshStandardMaterial;
+        expect(ringGiantMat.roughness).toBe(0.25);
+
+        const europaMoon = activePlanets.find(p => p.name === 'Quantum Eden-I');
+        expect(europaMoon).toBeDefined();
+        const europaMesh = europaMoon!.bodyMesh as THREE.Mesh;
+        const europaMat = europaMesh.material as THREE.MeshStandardMaterial;
+        expect(europaMat.roughness).toBe(0.22);
     });
 });
 

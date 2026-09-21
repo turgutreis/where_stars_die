@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PlanetArchetypeData, MoonArchetypeData } from '../types/game';
 
 // Texture Cache to prevent duplicate GPU memory allocations
 const textureCache = new Map<string, THREE.Texture>();
@@ -106,4 +107,83 @@ export function getTemplateForBody(type: string, seed: number): BodyTemplateData
             return { map: PLANET_ARCHETYPE_TEMPLATES.MOON };
         }
     }
+}
+
+/**
+ * Resolves an explicit templateId directly to authentic asset textures.
+ */
+export function getTemplateById(templateId: string): BodyTemplateData | null {
+    switch (templateId.toLowerCase()) {
+        case 'earth':
+            return {
+                map: PLANET_ARCHETYPE_TEMPLATES.EARTH_DAY,
+                cloudMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_CLOUDS,
+                nightMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_NIGHT,
+                normalMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_NORMAL,
+                roughnessMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_SPECULAR
+            };
+        case 'jupiter':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER };
+        case 'saturn':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.SATURN, ringMap: PLANET_ARCHETYPE_TEMPLATES.SATURN_RINGS };
+        case 'mars':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.MARS };
+        case 'mercury':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.MERCURY };
+        case 'venus_surface':
+        case 'venus':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.VENUS_SURFACE, cloudMap: PLANET_ARCHETYPE_TEMPLATES.VENUS_ATMOSPHERE };
+        case 'uranus':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.URANUS };
+        case 'neptune':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.NEPTUNE };
+        case 'moon':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.MOON };
+        case 'jupiter_io':
+        case 'io':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_IO };
+        case 'jupiter_europa':
+        case 'europa':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_EUROPA };
+        case 'jupiter_ganymede':
+        case 'ganymede':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_GANYMEDE };
+        case 'jupiter_callisto':
+        case 'callisto':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_CALLISTO };
+        case 'mars_phobos':
+        case 'phobos':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.MARS_PHOBOS };
+        case 'mars_deimos':
+        case 'deimos':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.MARS_DEIMOS };
+        case 'saturn_titan':
+        case 'titan':
+            return { map: PLANET_ARCHETYPE_TEMPLATES.SATURN_TITAN };
+        default:
+            return null;
+    }
+}
+
+/**
+ * Resolves the archetype blueprint template for a celestial body.
+ * Prioritizes QPU-assigned templateId, falling back smoothly to procedural type & seed.
+ */
+export function resolveArchetypeTemplate(
+    archetype?: PlanetArchetypeData | MoonArchetypeData,
+    fallbackType: string = 'Rocky',
+    seed: number = 0
+): BodyTemplateData {
+    if (archetype && archetype.templateId) {
+        const found = getTemplateById(archetype.templateId);
+        if (found) {
+            const copy = { ...found };
+            const pArch = archetype as PlanetArchetypeData;
+            if (pArch.ringTexture) {
+                copy.ringMap = pArch.ringTexture.startsWith('assets/') ? pArch.ringTexture : `assets/textures/planets/${pArch.ringTexture}`;
+            }
+            return copy;
+        }
+    }
+    return getTemplateForBody(fallbackType, seed);
 }
