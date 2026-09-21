@@ -44,15 +44,15 @@ void main() {
     float nightAirglow = 0.035 * intensityMultiplier;
 
     // 3. Rayleigh Twilight Sunset scattering at day/night terminator (sunDot around 0.0)
-    // Long-wavelength Rayleigh scattering leaves fiery golden-amber-red sunset colors on the limb
-    float twilightFactor = smoothstep(0.32, 0.0, abs(sunDot - 0.02));
-    vec3 sunsetColor = vec3(1.0, 0.42, 0.12);
+    // Deepen the atmosphere's glow color along the terminator; only illuminate where sun shines
+    float twilightFactor = smoothstep(0.24, 0.0, abs(sunDot - 0.02)) * smoothstep(-0.05, 0.15, sunDot);
+    vec3 sunsetColor = mix(glowColor * vec3(1.15, 0.72, 0.35), vec3(1.0, 0.45, 0.12), 0.35);
 
-    // Smoothly blend day atmospheric color, fiery twilight terminator, and starlight
-    vec3 finalColor = mix(glowColor, sunsetColor, twilightFactor * 0.88);
+    // Smoothly blend day atmospheric color and warm twilight terminator
+    vec3 finalColor = mix(glowColor, sunsetColor, twilightFactor * 0.65);
 
-    // Atmosphere alpha combines day illumination, twilight peak, and subtle night airglow
-    float alpha = glow * (dayFactor + twilightFactor * 0.45 + nightAirglow);
+    // Atmosphere alpha: Day hemisphere is bright, night fades cleanly to minimal ionospheric airglow
+    float alpha = glow * (dayFactor * 0.92 + twilightFactor * 0.28 + nightAirglow);
 
     gl_FragColor = vec4(finalColor, clamp(alpha, 0.0, 1.0));
 }

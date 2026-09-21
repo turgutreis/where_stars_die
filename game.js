@@ -13084,42 +13084,6 @@ class OrthographicCamera extends Camera {
     return data;
   }
 }
-
-class DirectionalLightShadow extends LightShadow {
-  constructor() {
-    super(new OrthographicCamera(-5, 5, 5, -5, 0.5, 500));
-    this.isDirectionalLightShadow = true;
-  }
-}
-
-class DirectionalLight extends Light {
-  constructor(color, intensity) {
-    super(color, intensity);
-    this.isDirectionalLight = true;
-    this.type = "DirectionalLight";
-    this.position.copy(Object3D.DEFAULT_UP);
-    this.updateMatrix();
-    this.target = new Object3D;
-    this.shadow = new DirectionalLightShadow;
-  }
-  dispose() {
-    super.dispose();
-    this.shadow.dispose();
-  }
-  copy(source) {
-    super.copy(source);
-    this.target = source.target.clone();
-    this.shadow = source.shadow.clone();
-    return this;
-  }
-  toJSON(meta) {
-    const data = super.toJSON(meta);
-    data.object.shadow = this.shadow.toJSON();
-    data.object.target = this.target.uuid;
-    return data;
-  }
-}
-
 class AmbientLight extends Light {
   constructor(color, intensity) {
     super(color, intensity);
@@ -36441,15 +36405,15 @@ void main() {
     float nightAirglow = 0.035 * intensityMultiplier;
 
     // 3. Rayleigh Twilight Sunset scattering at day/night terminator (sunDot around 0.0)
-    // Long-wavelength Rayleigh scattering leaves fiery golden-amber-red sunset colors on the limb
-    float twilightFactor = smoothstep(0.32, 0.0, abs(sunDot - 0.02));
-    vec3 sunsetColor = vec3(1.0, 0.42, 0.12);
+    // Deepen the atmosphere's glow color along the terminator; only illuminate where sun shines
+    float twilightFactor = smoothstep(0.24, 0.0, abs(sunDot - 0.02)) * smoothstep(-0.05, 0.15, sunDot);
+    vec3 sunsetColor = mix(glowColor * vec3(1.15, 0.72, 0.35), vec3(1.0, 0.45, 0.12), 0.35);
 
-    // Smoothly blend day atmospheric color, fiery twilight terminator, and starlight
-    vec3 finalColor = mix(glowColor, sunsetColor, twilightFactor * 0.88);
+    // Smoothly blend day atmospheric color and warm twilight terminator
+    vec3 finalColor = mix(glowColor, sunsetColor, twilightFactor * 0.65);
 
-    // Atmosphere alpha combines day illumination, twilight peak, and subtle night airglow
-    float alpha = glow * (dayFactor + twilightFactor * 0.45 + nightAirglow);
+    // Atmosphere alpha: Day hemisphere is bright, night fades cleanly to minimal ionospheric airglow
+    float alpha = glow * (dayFactor * 0.92 + twilightFactor * 0.28 + nightAirglow);
 
     gl_FragColor = vec4(finalColor, clamp(alpha, 0.0, 1.0));
 }
@@ -37681,24 +37645,10 @@ function spawnPlanetsAndAsteroids() {
     activeCoronaUpdaters.push(blackHole.update);
     const bhBaseColor = new Color(11032055);
     const bhLightColor = bhBaseColor.clone().lerp(new Color(14202110), 0.35);
-    const starLight = new PointLight(bhLightColor, 3.2, 0, 0);
+    const starLight = new PointLight(bhLightColor, 3.8, 0, 0);
     starLight.position.set(0, 2, 0);
     scene.add(starLight);
     activeStarLights.push(starLight);
-    const bhDirLight = new DirectionalLight(bhLightColor, 0.65);
-    bhDirLight.position.set(40, 6, 40);
-    bhDirLight.castShadow = true;
-    bhDirLight.shadow.mapSize.width = 1024;
-    bhDirLight.shadow.mapSize.height = 1024;
-    bhDirLight.shadow.camera.near = 10;
-    bhDirLight.shadow.camera.far = 250;
-    bhDirLight.shadow.camera.left = -60;
-    bhDirLight.shadow.camera.right = 60;
-    bhDirLight.shadow.camera.top = 60;
-    bhDirLight.shadow.camera.bottom = -60;
-    bhDirLight.shadow.bias = -0.0005;
-    scene.add(bhDirLight);
-    activeStarLights.push(bhDirLight);
     starData.colorCss = "#7c3aed";
     const starRange = 42;
     const starSource = {
@@ -37746,24 +37696,10 @@ function spawnPlanetsAndAsteroids() {
     scene.add(activeSunRays.group);
     const baseStarColor = new Color(parseInt(starData.color));
     const naturalLightColor = baseStarColor.clone().lerp(new Color(16775146), 0.38);
-    const starLight = new PointLight(naturalLightColor, 3.6, 0, 0);
+    const starLight = new PointLight(naturalLightColor, 4.2, 0, 0);
     starLight.position.set(0, 2, 0);
     scene.add(starLight);
     activeStarLights.push(starLight);
-    const starDirLight = new DirectionalLight(naturalLightColor, 0.95);
-    starDirLight.position.set(40, 6, 40);
-    starDirLight.castShadow = true;
-    starDirLight.shadow.mapSize.width = 1024;
-    starDirLight.shadow.mapSize.height = 1024;
-    starDirLight.shadow.camera.near = 10;
-    starDirLight.shadow.camera.far = 250;
-    starDirLight.shadow.camera.left = -60;
-    starDirLight.shadow.camera.right = 60;
-    starDirLight.shadow.camera.top = 60;
-    starDirLight.shadow.camera.bottom = -60;
-    starDirLight.shadow.bias = -0.0005;
-    scene.add(starDirLight);
-    activeStarLights.push(starDirLight);
     starData.colorCss = starData.color.replace("0x", "#");
     const starRange = 24;
     const starSource = {
@@ -37920,7 +37856,7 @@ function spawnPlanetsAndAsteroids() {
       }
       const mesh = new Mesh(geo, mat);
       mesh.castShadow = true;
-      mesh.receiveShadow = true;
+      mesh.receiveShadow = false;
       const axialTilt = (seed % 17 + 12) * Math.PI / 180;
       mesh.rotation.z = axialTilt;
       mesh.rotation.x = (seed % 7 - 3) * Math.PI / 180;
@@ -38086,7 +38022,7 @@ function spawnPlanetsAndAsteroids() {
       });
       const mMesh = new Mesh(mGeo, mMat);
       mMesh.castShadow = true;
-      mMesh.receiveShadow = true;
+      mMesh.receiveShadow = false;
       const moonGroup = new Group;
       moonGroup.position.set(mx, 0, mz);
       moonGroup.add(mMesh);

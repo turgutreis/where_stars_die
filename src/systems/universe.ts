@@ -223,25 +223,10 @@ export function spawnPlanetsAndAsteroids() {
 
         const bhBaseColor = new THREE.Color(0xa855f7);
         const bhLightColor = bhBaseColor.clone().lerp(new THREE.Color(0xd8b4fe), 0.35);
-        const starLight = new THREE.PointLight(bhLightColor, 3.2, 0, 0.0);
+        const starLight = new THREE.PointLight(bhLightColor, 3.8, 0, 0.0);
         starLight.position.set(0, 2, 0);
         scene.add(starLight);
         activeStarLights.push(starLight);
-
-        const bhDirLight = new THREE.DirectionalLight(bhLightColor, 0.65);
-        bhDirLight.position.set(40, 6, 40);
-        bhDirLight.castShadow = true;
-        bhDirLight.shadow.mapSize.width = 1024;
-        bhDirLight.shadow.mapSize.height = 1024;
-        bhDirLight.shadow.camera.near = 10;
-        bhDirLight.shadow.camera.far = 250;
-        bhDirLight.shadow.camera.left = -60;
-        bhDirLight.shadow.camera.right = 60;
-        bhDirLight.shadow.camera.top = 60;
-        bhDirLight.shadow.camera.bottom = -60;
-        bhDirLight.shadow.bias = -0.0005;
-        scene.add(bhDirLight);
-        activeStarLights.push(bhDirLight);
 
         starData.colorCss = "#7c3aed";
 
@@ -299,27 +284,11 @@ export function spawnPlanetsAndAsteroids() {
         const baseStarColor = new THREE.Color(parseInt(starData.color));
         const naturalLightColor = baseStarColor.clone().lerp(new THREE.Color(0xfff7ea), 0.38);
 
-        // PointLight centered in the star illuminating planets along the ecliptic plane
-        const starLight = new THREE.PointLight(naturalLightColor, 3.6, 0, 0.0);
+        // PointLight centered in the star: Single unified radial sunlight source
+        const starLight = new THREE.PointLight(naturalLightColor, 4.2, 0, 0.0);
         starLight.position.set(0, 2, 0);
         scene.add(starLight);
         activeStarLights.push(starLight);
-
-        // Stellar Directional Fill for consistent planetary illumination & dynamic shadow casting
-        const starDirLight = new THREE.DirectionalLight(naturalLightColor, 0.95);
-        starDirLight.position.set(40, 6, 40);
-        starDirLight.castShadow = true;
-        starDirLight.shadow.mapSize.width = 1024;
-        starDirLight.shadow.mapSize.height = 1024;
-        starDirLight.shadow.camera.near = 10;
-        starDirLight.shadow.camera.far = 250;
-        starDirLight.shadow.camera.left = -60;
-        starDirLight.shadow.camera.right = 60;
-        starDirLight.shadow.camera.top = 60;
-        starDirLight.shadow.camera.bottom = -60;
-        starDirLight.shadow.bias = -0.0005;
-        scene.add(starDirLight);
-        activeStarLights.push(starDirLight);
 
         starData.colorCss = starData.color.replace("0x", "#");
 
@@ -516,7 +485,7 @@ export function spawnPlanetsAndAsteroids() {
 
             const mesh = new THREE.Mesh(geo, mat);
             mesh.castShadow = true;
-            mesh.receiveShadow = true;
+            mesh.receiveShadow = false;
             const axialTilt = (((seed % 17) + 12) * Math.PI) / 180;
             mesh.rotation.z = axialTilt;
             mesh.rotation.x = (((seed % 7) - 3) * Math.PI) / 180;
@@ -703,7 +672,7 @@ export function spawnPlanetsAndAsteroids() {
             });
             const mMesh = new THREE.Mesh(mGeo, mMat);
             mMesh.castShadow = true;
-            mMesh.receiveShadow = true;
+            mMesh.receiveShadow = false;
 
             const moonGroup = new THREE.Group();
             moonGroup.position.set(mx, 0, mz);
@@ -1058,22 +1027,6 @@ export function updateActivePlanets(dt: number) {
             }
         }
     });
-
-    // Directional shadow-camera tracking aligned with central star light vector
-    const dirLight = activeStarLights.find(l => l instanceof THREE.DirectionalLight) as THREE.DirectionalLight | undefined;
-    if (dirLight && STATE.playerPosition) {
-        const pX = STATE.playerPosition.x;
-        const pZ = STATE.playerPosition.z;
-        const dist = Math.hypot(pX, pZ);
-        const radX = dist > 0.1 ? pX / dist : 1.0;
-        const radZ = dist > 0.1 ? pZ / dist : 0.0;
-
-        // Position directional light sunward (between star and player/orbit), shining outward into space
-        // A low Y offset (6.0) ensures it shines horizontally across the ecliptic plane without washing out the night side!
-        dirLight.position.set(pX - radX * 50, 6, pZ - radZ * 50);
-        dirLight.target.position.set(pX, 0, pZ);
-        dirLight.target.updateMatrixWorld();
-    }
 
     STATE.asteroids.forEach(a => {
         a.mesh.rotation.x += 0.005;

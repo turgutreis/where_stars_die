@@ -1343,12 +1343,12 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         const testPlanet = activePlanets.find(p => p.name === 'Shadow Planet');
         expect(testPlanet).toBeDefined();
         expect(testPlanet!.bodyMesh!.castShadow).toBe(true);
-        expect(testPlanet!.bodyMesh!.receiveShadow).toBe(true);
+        expect(testPlanet!.bodyMesh!.receiveShadow).toBe(false);
 
         const testMoon = activePlanets.find(p => p.name === 'Shadow Moon');
         expect(testMoon).toBeDefined();
         expect(testMoon!.bodyMesh!.castShadow).toBe(true);
-        expect(testMoon!.bodyMesh!.receiveShadow).toBe(true);
+        expect(testMoon!.bodyMesh!.receiveShadow).toBe(false);
     });
 });
 
