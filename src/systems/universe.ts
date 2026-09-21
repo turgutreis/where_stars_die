@@ -14,10 +14,12 @@ import { createAtmosphereMesh } from '../procedural/atmosphere-shader';
 import { createPlanetaryRings } from '../procedural/planet-rings';
 import { createSunRays, SunRaysController } from '../procedural/sun-rays';
 import { ensureLoreSystems } from '../procedural/lore-systems';
+import { loadPlanetTexture, getTemplateForBody, resolveArchetypeTemplate, PLANET_ARCHETYPE_TEMPLATES } from '../procedural/planet-textures';
+import { applySystemLighting } from '../engine/postprocessing';
 
 export const activeCoronaMeshes: THREE.Object3D[] = [];
 export const activeCoronaUpdaters: ((dt: number) => void)[] = [];
-export const activeStarLights: THREE.PointLight[] = [];
+export const activeStarLights: THREE.Light[] = [];
 export let activeSunRays: SunRaysController | null = null;
 
 export function updateUniverseShaders(dt: number, cam?: THREE.Camera) {
@@ -208,16 +210,21 @@ export function spawnPlanetsAndAsteroids() {
     const activeSystem = STATE.universe.systems[STATE.currentSystemId];
     if (!activeSystem) return;
 
-    // 1. Central Star or Supermassive Black Hole
+    // Apply system-specific cinematic color grading and lighting profile
     const starData = activeSystem.star;
+    applySystemLighting(starData?.type, activeSystem.anomalyType);
+
+    // 1. Central Star or Supermassive Black Hole
     if (starData.type === "Black Hole") {
         const blackHole = createBlackHoleMesh(starData.size);
         scene.add(blackHole.group);
         activeCoronaMeshes.push(blackHole.group);
         activeCoronaUpdaters.push(blackHole.update);
 
-        const starLight = new THREE.PointLight(0xa855f7, 2.5, 0, 0.0);
-        starLight.position.set(0, 0, 0);
+        const bhBaseColor = new THREE.Color(0xa855f7);
+        const bhLightColor = bhBaseColor.clone().lerp(new THREE.Color(0xd8b4fe), 0.35);
+        const starLight = new THREE.PointLight(bhLightColor, 3.8, 0, 0.0);
+        starLight.position.set(0, 2, 0);
         scene.add(starLight);
         activeStarLights.push(starLight);
 
@@ -236,14 +243,26 @@ export function spawnPlanetsAndAsteroids() {
         STATE.gravitySources.push(starSource);
         starSource.ringMesh = createGravityRing(0, 0, starRange, 0x7c3aed, 0.14);
     } else {
-        const starSeed = STATE.currentSystemId * 1337 + 42;
-        const starTex = createStarTexture(starData.color, starSeed);
+        let starMap: THREE.Texture;
+        let starEmissiveMap: THREE.Texture | null = null;
+        if (starData.texture) {
+            starMap = loadPlanetTexture(starData.texture);
+            starEmissiveMap = starMap;
+        } else if (starData.name && starData.name.includes("Sol")) {
+            starMap = loadPlanetTexture('assets/textures/planets/8k_sun.jpg');
+            starEmissiveMap = starMap;
+        } else {
+            const starSeed = STATE.currentSystemId * 1337 + 42;
+            const starTex = createStarTexture(starData.color, starSeed);
+            starMap = starTex.map;
+        }
 
-        const starGeo = new THREE.SphereGeometry(starData.size, 32, 32);
+        const starGeo = new THREE.SphereGeometry(starData.size, 48, 48);
         const starMat = new THREE.MeshStandardMaterial({
-            map: starTex.map,
+            map: starMap,
             emissive: parseInt(starData.color),
-            emissiveIntensity: 0.9,
+            emissiveMap: starEmissiveMap || null,
+            emissiveIntensity: starEmissiveMap ? 1.4 : 0.9,
             roughness: 0.2,
             metalness: 0.1
         });
@@ -261,9 +280,13 @@ export function spawnPlanetsAndAsteroids() {
         activeSunRays = createSunRays(starData.size, parseInt(starData.color));
         scene.add(activeSunRays.group);
 
-        // Radiant Stellar Light Source
-        const starLight = new THREE.PointLight(parseInt(starData.color), 3.2, 0, 0.0);
-        starLight.position.set(0, 0, 0);
+        // Radiant Stellar Light Source (Natural blackbody continuous spectrum blend)
+        const baseStarColor = new THREE.Color(parseInt(starData.color));
+        const naturalLightColor = baseStarColor.clone().lerp(new THREE.Color(0xfff7ea), 0.38);
+
+        // PointLight centered in the star: Single unified radial sunlight source
+        const starLight = new THREE.PointLight(naturalLightColor, 4.2, 0, 0.0);
+        starLight.position.set(0, 2, 0);
         scene.add(starLight);
         activeStarLights.push(starLight);
 
@@ -296,8 +319,10 @@ export function spawnPlanetsAndAsteroids() {
 
         let bodyMesh: THREE.Object3D | null = null;
         let cloudMesh: THREE.Mesh | null = null;
+        let atmoMesh: THREE.Mesh | null = null;
         let psioAuraMesh: THREE.Mesh | null = null;
         let auroraMesh: THREE.Mesh | null = null;
+        let ringMesh: THREE.Mesh | null = null;
         let generated: any = null;
         let finalSpecies: any = null;
 
@@ -338,56 +363,149 @@ export function spawnPlanetsAndAsteroids() {
                 finalSpecies = generated.species;
             }
 
-            let texData: any;
-            let cloudTexture: THREE.CanvasTexture | null = null;
-            let cityLightsTexture: THREE.CanvasTexture | null = null;
+            let diffuseMap: THREE.Texture;
+            let cloudTexture: THREE.Texture | null = null;
+            let cityLightsTexture: THREE.Texture | null = null;
+            let normalMap: THREE.Texture | null = null;
+            let roughnessMap: THREE.Texture | null = null;
+            let diffuseColor: THREE.Color;
 
-            if (isHab) {
-                texData = createHabitableTextures(p.color, seed);
-                cloudTexture = createCloudTexture(seed + 999);
-                if (finalSpecies && finalSpecies.population > 0) {
-                    cityLightsTexture = createCityLightsTexture(seed, finalSpecies.techLevel || 'Spacefaring');
+            if (p.texture) {
+                // Exact authentic photographic map (e.g. Sol System)
+                diffuseMap = loadPlanetTexture(p.texture);
+                diffuseColor = new THREE.Color(0xffffff); // True authentic colors
+                if (p.cloudTexture) {
+                    cloudTexture = loadPlanetTexture(p.cloudTexture);
                 }
-            } else if (isGas) {
-                texData = createGasGiantTextures(p.color, seed);
+                if (p.nightTexture) {
+                    cityLightsTexture = loadPlanetTexture(p.nightTexture);
+                }
+                if (p.normalTexture) {
+                    normalMap = loadPlanetTexture(p.normalTexture, false);
+                }
+                if (p.specularTexture) {
+                    roughnessMap = loadPlanetTexture(p.specularTexture, false);
+                }
             } else {
-                texData = createRockyTextures(p.color, seed);
+                // Procedural Alien World: uses real photography as structural template/Schablone!
+                const template = resolveArchetypeTemplate(p.archetype, p.type, seed);
+                diffuseMap = loadPlanetTexture(template.map);
+                // Tint base template with unique procedural hue while protecting albedo luminance
+                const rawColor = new THREE.Color(parseInt(p.color));
+                const hsl = { h: 0, s: 0, l: 0 };
+                rawColor.getHSL(hsl);
+                if (hsl.l < 0.52) {
+                    rawColor.setHSL(hsl.h, Math.min(1.0, hsl.s * 1.08), Math.max(0.56, hsl.l * 1.32));
+                }
+                diffuseColor = rawColor;
+
+                const hasClouds = (p.archetype && p.archetype.cloudCoverage !== undefined)
+                    ? (p.archetype.cloudCoverage > 0.05 && !!template.cloudMap)
+                    : (template.cloudMap && (isHab || (seed % 3 === 0)));
+
+                if (hasClouds && template.cloudMap) {
+                    cloudTexture = loadPlanetTexture(template.cloudMap);
+                }
+
+                const hasNight = (p.archetype && p.archetype.hasNightLights !== undefined)
+                    ? (p.archetype.hasNightLights && !!template.nightMap)
+                    : (isHab && finalSpecies && finalSpecies.population > 0 && !!template.nightMap);
+
+                if (hasNight && template.nightMap) {
+                    cityLightsTexture = loadPlanetTexture(template.nightMap);
+                }
+
+                if (template.normalMap) {
+                    normalMap = loadPlanetTexture(template.normalMap, false);
+                }
+                if (template.roughnessMap) {
+                    roughnessMap = loadPlanetTexture(template.roughnessMap, false);
+                }
             }
 
-            const geo = new THREE.SphereGeometry(p.size, 64, 64);
-            const mat = new THREE.MeshStandardMaterial({
-                map: texData.map,
-                bumpMap: texData.bumpMap || null,
-                bumpScale: isGas ? 0 : 0.08,
-                roughness: isGas ? 0.35 : 0.68,
-                metalness: isGas ? 0.1 : 0.12,
+            const geo = new THREE.SphereGeometry(p.size, 48, 48);
+            const planetRoughness = p.archetype?.roughnessScale ?? (roughnessMap ? 1.0 : (isGas ? 0.35 : 0.72));
+            const matParams: THREE.MeshStandardMaterialParameters = {
+                map: diffuseMap,
+                color: diffuseColor,
+                roughnessMap: roughnessMap || null,
+                roughness: planetRoughness,
+                metalness: isGas ? 0.04 : 0.08,
                 emissive: cityLightsTexture ? new THREE.Color(0xffffff) : new THREE.Color(0x000000),
                 emissiveMap: cityLightsTexture || null,
-                emissiveIntensity: cityLightsTexture ? 0.85 : 0.0,
+                emissiveIntensity: cityLightsTexture ? 1.0 : 0.0,
                 transparent: false,
                 depthWrite: true,
                 depthTest: true
-            });
+            };
+            if (normalMap) {
+                matParams.normalMap = normalMap;
+                const nScale = p.archetype?.normalScale ?? 0.85;
+                matParams.normalScale = new THREE.Vector2(nScale, nScale);
+            }
+            const mat = new THREE.MeshStandardMaterial(matParams);
+
+            if (cityLightsTexture) {
+                mat.customProgramCacheKey = () => 'cityLightsTerminator';
+                mat.onBeforeCompile = (shader) => {
+                    shader.uniforms.uStarWorldPos = { value: new THREE.Vector3(0, 0, 0) };
+                    mat.userData.shader = shader;
+
+                    shader.vertexShader = shader.vertexShader.replace(
+                        '#include <common>',
+                        `#include <common>
+                        varying vec3 vCustomWorldPos;
+                        varying vec3 vCustomWorldNorm;`
+                    );
+                    shader.vertexShader = shader.vertexShader.replace(
+                        '#include <worldpos_vertex>',
+                        `#include <worldpos_vertex>
+                        vCustomWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                        vCustomWorldNorm = normalize((modelMatrix * vec4(objectNormal, 0.0)).xyz);`
+                    );
+
+                    shader.fragmentShader = shader.fragmentShader.replace(
+                        '#include <common>',
+                        `#include <common>
+                        uniform vec3 uStarWorldPos;
+                        varying vec3 vCustomWorldPos;
+                        varying vec3 vCustomWorldNorm;`
+                    );
+                    shader.fragmentShader = shader.fragmentShader.replace(
+                        '#include <emissivemap_fragment>',
+                        `#include <emissivemap_fragment>
+                        vec3 starDir = normalize(uStarWorldPos - vCustomWorldPos);
+                        float sunDot = dot(vCustomWorldNorm, starDir);
+                        // Daylight suppresses city lights; dark night hemisphere fully illuminates them
+                        float nightMask = smoothstep(0.08, -0.15, sunDot);
+                        totalEmissiveRadiance *= nightMask;`
+                    );
+                };
+            }
 
             const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow = true;
+            mesh.receiveShadow = false;
             const axialTilt = (((seed % 17) + 12) * Math.PI) / 180;
             mesh.rotation.z = axialTilt;
             mesh.rotation.x = (((seed % 7) - 3) * Math.PI) / 180;
             planetGroup.add(mesh);
             bodyMesh = mesh;
 
-            if (isHab || isGas) {
+            if (isHab || isGas || p.atmoTexture || (p.archetype && (p.archetype.atmosphereDensity ?? 0) > 0.1)) {
                 const atmoHex = isHab ? 0x38bdf8 : parseInt(p.color);
-                const atmoMesh = createAtmosphereMesh(p.size, atmoHex, isHab ? 1.2 : 1.0);
+                const atmoDensity = p.archetype?.atmosphereDensity ?? (isHab ? 1.25 : 1.0);
+                atmoMesh = createAtmosphereMesh(p.size, atmoHex, atmoDensity);
                 planetGroup.add(atmoMesh);
             }
 
-            if (cloudTexture && isHab) {
-                const cloudGeo = new THREE.SphereGeometry(p.size * 1.018, 64, 64);
+            if (cloudTexture) {
+                const cloudGeo = new THREE.SphereGeometry(p.size * 1.018, 48, 48);
+                const cloudOpacity = p.archetype?.cloudCoverage !== undefined ? Math.min(0.9, p.archetype.cloudCoverage * 0.88) : 0.85;
                 const cloudMat = new THREE.MeshStandardMaterial({
                     map: cloudTexture,
                     transparent: true,
-                    opacity: 0.85,
+                    opacity: cloudOpacity,
                     blending: THREE.NormalBlending,
                     depthWrite: false,
                     roughness: 0.9,
@@ -399,11 +517,12 @@ export function spawnPlanetsAndAsteroids() {
             }
 
             // Procedural Planetary Rings (Saturn-like dust and ice particle rings)
-            const hasRings = isGas || (seed % 6 === 0);
+            const ringMapPath = p.ringTexture || p.archetype?.ringTexture;
+            const hasRings = p.archetype?.hasRings !== undefined ? p.archetype.hasRings : (isGas || !!p.ringTexture || (seed % 6 === 0));
             if (hasRings) {
                 const ringColor = isGas ? parseInt(p.color) : 0xc0c6d0;
-                const pRings = createPlanetaryRings(p.size, ringColor, seed);
-                planetGroup.add(pRings);
+                ringMesh = createPlanetaryRings(p.size, ringColor, seed, ringMapPath);
+                planetGroup.add(ringMesh);
             }
 
             // Auroral Glow on Hyper-Magnetic worlds
@@ -461,10 +580,11 @@ export function spawnPlanetsAndAsteroids() {
             mesh: planetGroup,
             bodyMesh: bodyMesh,
             cloudMesh: cloudMesh,
+            atmoMesh: atmoMesh || null,
             psioAuraMesh: psioAuraMesh,
             auroraMesh: auroraMesh,
             source: sourceObj,
-            ringMesh: null,
+            ringMesh: ringMesh,
             angle: angle,
             speed: orbitSpeed,
             distance: scaledDist,
@@ -503,24 +623,56 @@ export function spawnPlanetsAndAsteroids() {
             const mz = pz + m.distance * Math.sin(moonAngle);
 
             const mSeed = m.name.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) + m_idx * 133;
-            let mTex: any;
-            if (m.type === 'Eismond') {
-                mTex = createIceMoonTextures(m.color, mSeed);
-            } else if (m.type === 'Vulkanmond') {
-                mTex = createVolcanicMoonTextures(m.color, mSeed);
-            } else {
-                mTex = createRockyTextures(m.color, mSeed);
-            }
+            let mMap: THREE.Texture;
+            let mColor: THREE.Color;
+            let mEmissiveMap: THREE.Texture | null = null;
+            let mEmissiveColor: THREE.Color = new THREE.Color(0x000000);
+            let mEmissiveIntensity = 0.0;
+            let mRoughnessMap: THREE.Texture | null = null;
 
-            const mGeo = new THREE.SphereGeometry(m.size, 48, 48);
+            if (m.texture) {
+                // Authentic photographic moon texture (e.g. Luna, Phobos, Deimos, Io, Europa, etc.)
+                mMap = loadPlanetTexture(m.texture);
+                mColor = new THREE.Color(0xffffff);
+                if (m.type === 'Vulkanmond') {
+                    mEmissiveMap = mMap;
+                    mEmissiveColor = new THREE.Color(0xff5500);
+                    mEmissiveIntensity = 1.0;
+                }
+            } else {
+                // Procedural alien moon using real moon archetypes as structural template
+                const mTemplate = resolveArchetypeTemplate(m.archetype, m.type, mSeed);
+                mMap = loadPlanetTexture(mTemplate.map);
+                const rawMColor = new THREE.Color(parseInt(m.color));
+                const mHsl = { h: 0, s: 0, l: 0 };
+                rawMColor.getHSL(mHsl);
+                if (mHsl.l < 0.55) {
+                    rawMColor.setHSL(mHsl.h, mHsl.s, Math.max(0.60, mHsl.l * 1.35));
+                }
+                mColor = rawMColor;
+                if (m.type === 'Vulkanmond' || (m.archetype && m.archetype.lavaCalderas)) {
+                    mEmissiveMap = mMap;
+                    mEmissiveColor = new THREE.Color(parseInt(m.color));
+                    mEmissiveIntensity = 1.0;
+                }
+            }
+            mRoughnessMap = mMap;
+
+            const mGeo = new THREE.SphereGeometry(m.size, 32, 32);
+            const moonRoughness = m.archetype?.roughnessScale ?? (m.type === 'Eismond' ? 0.35 : 0.75);
             const mMat = new THREE.MeshStandardMaterial({
-                map: mTex.map,
-                bumpMap: mTex.bumpMap || null,
-                bumpScale: 0.06,
-                roughness: 0.75,
-                metalness: 0.1
+                map: mMap,
+                color: mColor,
+                roughnessMap: mRoughnessMap,
+                roughness: moonRoughness,
+                metalness: 0.08,
+                emissive: mEmissiveColor,
+                emissiveMap: mEmissiveMap,
+                emissiveIntensity: mEmissiveIntensity
             });
             const mMesh = new THREE.Mesh(mGeo, mMat);
+            mMesh.castShadow = true;
+            mMesh.receiveShadow = false;
 
             const moonGroup = new THREE.Group();
             moonGroup.position.set(mx, 0, mz);
@@ -809,8 +961,11 @@ export function updateActivePlanets(dt: number) {
             if (p.cloudMesh) {
                 p.cloudMesh.rotation.y += 0.12 * dt;
             }
-            if (p.ringMesh) {
-                p.ringMesh.position.set(px, 0, pz);
+            if (p.ringMesh && (p.ringMesh.material as any)?.userData?.shader) {
+                const rs = (p.ringMesh.material as any).userData.shader;
+                rs.uniforms.uPlanetWorldPos.value.set(px, 0, pz);
+                rs.uniforms.uStarWorldPos.value.set(0, 38, 0);
+                rs.uniforms.uPlanetRadius.value = p.size * curScale;
             }
         } else if (p.isMoon && p.parentPlanet) {
             // Dynamic Sub-System Expansion: Expand moon distance & size for the orbital level
@@ -837,6 +992,32 @@ export function updateActivePlanets(dt: number) {
                     p.bodyMesh.rotation.y = p.angle + Math.PI;
                 } else {
                     p.bodyMesh.rotation.y += 0.15 * dt;
+                }
+
+                // Real Astronomical Lunar Eclipse: Parent planet sphere blocks starlight
+                const starPos = new THREE.Vector3(0, 38, 0);
+                const moonPos = p.mesh.position;
+                const toStar = starPos.clone().sub(moonPos).normalize();
+                const toPlanet = parentPos.clone().sub(moonPos);
+                const t = toPlanet.dot(toStar);
+                if (t > 0.0) {
+                    const closest = toPlanet.clone().sub(toStar.clone().multiplyScalar(t));
+                    const dist = closest.length();
+                    const parentR = p.parentPlanet.size * (p.parentPlanet.mesh.scale.x || 1.0);
+                    if (dist < parentR) {
+                        const eclipseRatio = Math.min(1.0, Math.max(0.12, dist / Math.max(0.1, parentR)));
+                        if (p.bodyMesh.material && (p.bodyMesh.material as THREE.MeshStandardMaterial).color) {
+                            (p.bodyMesh.material as THREE.MeshStandardMaterial).color.set(p.color).multiplyScalar(eclipseRatio);
+                        }
+                    } else {
+                        if (p.bodyMesh.material && (p.bodyMesh.material as THREE.MeshStandardMaterial).color) {
+                            (p.bodyMesh.material as THREE.MeshStandardMaterial).color.set(p.color);
+                        }
+                    }
+                } else {
+                    if (p.bodyMesh.material && (p.bodyMesh.material as THREE.MeshStandardMaterial).color) {
+                        (p.bodyMesh.material as THREE.MeshStandardMaterial).color.set(p.color);
+                    }
                 }
             }
             if (p.ringMesh) {

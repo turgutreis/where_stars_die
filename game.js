@@ -12564,6 +12564,100 @@ class FileLoader extends Loader {
   }
 }
 var _loading = new WeakMap;
+
+class ImageLoader extends Loader {
+  constructor(manager) {
+    super(manager);
+  }
+  load(url, onLoad, onProgress, onError) {
+    if (this.path !== undefined)
+      url = this.path + url;
+    url = this.manager.resolveURL(url);
+    const scope = this;
+    const cached = Cache.get(`image:${url}`);
+    if (cached !== undefined) {
+      if (cached.complete === true) {
+        scope.manager.itemStart(url);
+        setTimeout(function() {
+          if (onLoad)
+            onLoad(cached);
+          scope.manager.itemEnd(url);
+        }, 0);
+      } else {
+        let arr = _loading.get(cached);
+        if (arr === undefined) {
+          arr = [];
+          _loading.set(cached, arr);
+        }
+        arr.push({ onLoad, onError });
+      }
+      return cached;
+    }
+    const image = createElementNS("img");
+    function onImageLoad() {
+      removeEventListeners();
+      if (onLoad)
+        onLoad(this);
+      const callbacks = _loading.get(this) || [];
+      for (let i = 0;i < callbacks.length; i++) {
+        const callback = callbacks[i];
+        if (callback.onLoad)
+          callback.onLoad(this);
+      }
+      _loading.delete(this);
+      scope.manager.itemEnd(url);
+    }
+    function onImageError(event) {
+      removeEventListeners();
+      if (onError)
+        onError(event);
+      Cache.remove(`image:${url}`);
+      const callbacks = _loading.get(this) || [];
+      for (let i = 0;i < callbacks.length; i++) {
+        const callback = callbacks[i];
+        if (callback.onError)
+          callback.onError(event);
+      }
+      _loading.delete(this);
+      scope.manager.itemError(url);
+      scope.manager.itemEnd(url);
+    }
+    function removeEventListeners() {
+      image.removeEventListener("load", onImageLoad, false);
+      image.removeEventListener("error", onImageError, false);
+    }
+    image.addEventListener("load", onImageLoad, false);
+    image.addEventListener("error", onImageError, false);
+    if (url.slice(0, 5) !== "data:") {
+      if (this.crossOrigin !== undefined)
+        image.crossOrigin = this.crossOrigin;
+    }
+    Cache.add(`image:${url}`, image);
+    scope.manager.itemStart(url);
+    image.src = url;
+    return image;
+  }
+}
+class TextureLoader extends Loader {
+  constructor(manager) {
+    super(manager);
+  }
+  load(url, onLoad, onProgress, onError) {
+    const texture = new Texture;
+    const loader = new ImageLoader(this.manager);
+    loader.setCrossOrigin(this.crossOrigin);
+    loader.setPath(this.path);
+    loader.load(url, function(image) {
+      texture.image = image;
+      texture.needsUpdate = true;
+      if (onLoad !== undefined) {
+        onLoad(texture);
+      }
+    }, onProgress, onError);
+    return texture;
+  }
+}
+
 class Light extends Object3D {
   constructor(color, intensity = 1) {
     super();
@@ -30354,372 +30448,6 @@ function hexToRgb(hex) {
     b: num & 255
   };
 }
-function createHabitableTextures(colorHex, seed = 42) {
-  const w = 1024, h = 512;
-  const colCanvas = document.createElement("canvas");
-  colCanvas.width = w;
-  colCanvas.height = h;
-  const colCtx = colCanvas.getContext("2d");
-  const colImg = colCtx.createImageData(w, h);
-  const colData = colImg.data;
-  const bumpCanvas = document.createElement("canvas");
-  bumpCanvas.width = w;
-  bumpCanvas.height = h;
-  const bumpCtx = bumpCanvas.getContext("2d");
-  const bumpImg = bumpCtx.createImageData(w, h);
-  const bumpData = bumpImg.data;
-  const rgb = hexToRgb(colorHex);
-  for (let y = 0;y < h; y++) {
-    const lat = Math.abs(y - h / 2) / (h / 2);
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const nx = x / w * 6;
-      const ny = y / h * 3.5;
-      const n = fbm(nx, ny, 5, seed);
-      const detailNoise = smoothNoise(nx * 18, ny * 18, seed + 101);
-      let r, g, b, bumpVal;
-      if (lat > 0.82 + n * 0.1) {
-        r = 230 + Math.floor(n * 25);
-        g = 245 + Math.floor(n * 10);
-        b = 255;
-        bumpVal = 40 + Math.floor(detailNoise * 20);
-      } else if (n < 0.47) {
-        const oceanDepth = n / 0.47;
-        if (oceanDepth < 0.8) {
-          r = 6;
-          g = 45 + Math.floor(oceanDepth * 45);
-          b = 135 + Math.floor(oceanDepth * 85);
-        } else {
-          const shallowT = (oceanDepth - 0.8) / 0.2;
-          r = 8 + Math.floor(shallowT * 20);
-          g = 150 + Math.floor(shallowT * 70);
-          b = 200 + Math.floor(shallowT * 35);
-        }
-        bumpVal = 0;
-      } else if (n < 0.51) {
-        r = 215 + Math.floor(detailNoise * 20);
-        g = 185 + Math.floor(detailNoise * 20);
-        b = 115;
-        bumpVal = 18;
-      } else if (n < 0.72) {
-        const vegT = (n - 0.51) / 0.21;
-        r = Math.floor(rgb.r * 0.32 + (1 - vegT) * 25 + detailNoise * 15);
-        g = Math.floor(rgb.g * 0.92 + vegT * 45 + detailNoise * 20);
-        b = Math.floor(rgb.b * 0.42 + vegT * 25);
-        bumpVal = 55 + Math.floor(vegT * 65 + detailNoise * 25);
-      } else {
-        const mountainT = (n - 0.72) / 0.28;
-        r = 145 + Math.floor(mountainT * 95 + detailNoise * 15);
-        g = 150 + Math.floor(mountainT * 90 + detailNoise * 15);
-        b = 165 + Math.floor(mountainT * 90);
-        bumpVal = 140 + Math.floor(mountainT * 115);
-      }
-      colData[idx] = Math.min(255, r);
-      colData[idx + 1] = Math.min(255, g);
-      colData[idx + 2] = Math.min(255, b);
-      colData[idx + 3] = 255;
-      bumpData[idx] = bumpVal;
-      bumpData[idx + 1] = bumpVal;
-      bumpData[idx + 2] = bumpVal;
-      bumpData[idx + 3] = 255;
-    }
-  }
-  colCtx.putImageData(colImg, 0, 0);
-  bumpCtx.putImageData(bumpImg, 0, 0);
-  const map = new CanvasTexture(colCanvas);
-  const bumpMap = new CanvasTexture(bumpCanvas);
-  return { map, bumpMap };
-}
-function createCityLightsTexture(seed = 42, techLevel = "Spacefaring") {
-  const w = 1024, h = 512;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  const img = ctx.createImageData(w, h);
-  const data = img.data;
-  const isPrimitive = techLevel === "Primitive";
-  const isIndustrial = techLevel === "Industrial";
-  const isHyper = techLevel === "Hyper-Advanced";
-  for (let y = 0;y < h; y++) {
-    const lat = Math.abs(y - h / 2) / (h / 2);
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const nx = x / w * 6;
-      const ny = y / h * 3.5;
-      const n = fbm(nx, ny, 5, seed);
-      const isLand = lat <= 0.8 && n >= 0.52 && n <= 0.74;
-      if (isLand) {
-        const cityNoise = smoothNoise(nx * 16, ny * 16, seed + 777);
-        const roadNoise = smoothNoise(nx * 32, ny * 32, seed + 999);
-        if (cityNoise > 0.66) {
-          const intensity = (cityNoise - 0.66) / 0.34;
-          if (isPrimitive) {
-            data[idx] = Math.floor(180 * intensity);
-            data[idx + 1] = Math.floor(90 * intensity);
-            data[idx + 2] = 20;
-          } else if (isIndustrial) {
-            data[idx] = Math.floor(255 * intensity);
-            data[idx + 1] = Math.floor(190 * intensity);
-            data[idx + 2] = Math.floor(70 * intensity);
-          } else if (isHyper) {
-            data[idx] = Math.floor(160 * intensity);
-            data[idx + 1] = Math.floor(220 * intensity);
-            data[idx + 2] = 255;
-          } else {
-            data[idx] = Math.floor(255 * intensity);
-            data[idx + 1] = Math.floor(210 * intensity);
-            data[idx + 2] = Math.floor(140 * intensity);
-          }
-          data[idx + 3] = 255;
-        } else if (!isPrimitive && roadNoise > 0.84) {
-          data[idx] = 240;
-          data[idx + 1] = 160;
-          data[idx + 2] = 80;
-          data[idx + 3] = 200;
-        }
-      }
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  return new CanvasTexture(canvas);
-}
-function createGasGiantTextures(colorHex, seed = 77) {
-  const w = 1024, h = 512;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  const img = ctx.createImageData(w, h);
-  const data = img.data;
-  const base = hexToRgb(colorHex);
-  const stormX = Math.abs(seed) % 100 / 100 * w * 0.6 + w * 0.2;
-  const stormY = h * 0.58;
-  for (let y = 0;y < h; y++) {
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const nx = x / w * 8;
-      const ny = y / h * 10;
-      const turb = fbm(nx, ny * 0.5, 4, seed);
-      const microTurb = smoothNoise(nx * 14, ny * 14, seed + 42) * 0.15;
-      const band = Math.sin(y * 0.18 + (turb + microTurb) * 5);
-      const sDist = Math.hypot((x - stormX) / 2, y - stormY);
-      let r, g, b;
-      if (sDist < 35) {
-        const swirl = Math.sin(sDist * 0.25 + Math.atan2(y - stormY, x - stormX) * 3);
-        r = Math.min(255, base.r * 1.6 + swirl * 45);
-        g = Math.min(255, base.g * 0.8 + swirl * 25);
-        b = Math.min(255, base.b * 1.5 + swirl * 35);
-      } else {
-        const bandWeight = (band + 1) * 0.5;
-        r = Math.floor(base.r * (0.38 + bandWeight * 0.72) + turb * 40);
-        g = Math.floor(base.g * (0.38 + bandWeight * 0.72) + turb * 40);
-        b = Math.floor(base.b * (0.38 + bandWeight * 0.72) + turb * 40);
-      }
-      data[idx] = Math.min(255, Math.max(0, r));
-      data[idx + 1] = Math.min(255, Math.max(0, g));
-      data[idx + 2] = Math.min(255, Math.max(0, b));
-      data[idx + 3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  const map = new CanvasTexture(canvas);
-  return { map, bumpMap: null };
-}
-function createRockyTextures(colorHex, seed = 99) {
-  const w = 1024, h = 512;
-  const colCanvas = document.createElement("canvas");
-  colCanvas.width = w;
-  colCanvas.height = h;
-  const colCtx = colCanvas.getContext("2d");
-  const colImg = colCtx.createImageData(w, h);
-  const colData = colImg.data;
-  const bumpCanvas = document.createElement("canvas");
-  bumpCanvas.width = w;
-  bumpCanvas.height = h;
-  const bumpCtx = bumpCanvas.getContext("2d");
-  const bumpImg = bumpCtx.createImageData(w, h);
-  const bumpData = bumpImg.data;
-  const base = hexToRgb(colorHex);
-  const craters = [];
-  for (let c = 0;c < 24; c++) {
-    craters.push({
-      x: Math.abs(seed) * (c + 1) * 73 % w,
-      y: Math.abs(seed) * (c + 1) * 107 % h,
-      radius: 10 + c % 7 * 8
-    });
-  }
-  for (let y = 0;y < h; y++) {
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const nx = x / w * 8;
-      const ny = y / h * 5;
-      const n = fbm(nx, ny, 5, seed);
-      const microN = smoothNoise(nx * 22, ny * 22, seed + 33);
-      let bumpVal = Math.floor(n * 160 + microN * 30);
-      let r = Math.floor(base.r * (0.55 + n * 0.5 + microN * 0.15));
-      let g = Math.floor(base.g * (0.55 + n * 0.5 + microN * 0.15));
-      let b = Math.floor(base.b * (0.55 + n * 0.5 + microN * 0.15));
-      for (let c = 0;c < craters.length; c++) {
-        const cr = craters[c];
-        const d = Math.hypot(x - cr.x, y - cr.y);
-        if (d < cr.radius) {
-          const ratio = d / cr.radius;
-          if (ratio < 0.72) {
-            r = Math.floor(r * 0.55);
-            g = Math.floor(g * 0.55);
-            b = Math.floor(b * 0.55);
-            bumpVal = Math.max(0, bumpVal - 70);
-          } else {
-            r = Math.min(255, r + 45);
-            g = Math.min(255, g + 45);
-            b = Math.min(255, b + 45);
-            bumpVal = Math.min(255, bumpVal + 80);
-          }
-        }
-      }
-      colData[idx] = Math.min(255, r);
-      colData[idx + 1] = Math.min(255, g);
-      colData[idx + 2] = Math.min(255, b);
-      colData[idx + 3] = 255;
-      bumpData[idx] = bumpVal;
-      bumpData[idx + 1] = bumpVal;
-      bumpData[idx + 2] = bumpVal;
-      bumpData[idx + 3] = 255;
-    }
-  }
-  colCtx.putImageData(colImg, 0, 0);
-  bumpCtx.putImageData(bumpImg, 0, 0);
-  return {
-    map: new CanvasTexture(colCanvas),
-    bumpMap: new CanvasTexture(bumpCanvas)
-  };
-}
-function createIceMoonTextures(colorHex, seed = 123) {
-  const w = 512, h = 256;
-  const colCanvas = document.createElement("canvas");
-  colCanvas.width = w;
-  colCanvas.height = h;
-  const colCtx = colCanvas.getContext("2d");
-  const colImg = colCtx.createImageData(w, h);
-  const colData = colImg.data;
-  const bumpCanvas = document.createElement("canvas");
-  bumpCanvas.width = w;
-  bumpCanvas.height = h;
-  const bumpCtx = bumpCanvas.getContext("2d");
-  const bumpImg = bumpCtx.createImageData(w, h);
-  const bumpData = bumpImg.data;
-  for (let y = 0;y < h; y++) {
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const n = fbm(x / w * 8, y / h * 6, 4, seed);
-      const crack1 = Math.abs(Math.sin(x * 0.08 + n * 3.5 + y * 0.04));
-      const crack2 = Math.abs(Math.sin(y * 0.1 - x * 0.05 + n * 2.8));
-      const isCrack = crack1 < 0.09 || crack2 < 0.07;
-      let r, g, b, bumpVal;
-      if (isCrack) {
-        r = 180 + Math.floor(n * 30);
-        g = 100 + Math.floor(n * 20);
-        b = 80;
-        bumpVal = 180;
-      } else {
-        r = 210 + Math.floor(n * 40);
-        g = 235 + Math.floor(n * 20);
-        b = 255;
-        bumpVal = 60 + Math.floor(n * 50);
-      }
-      colData[idx] = Math.min(255, r);
-      colData[idx + 1] = Math.min(255, g);
-      colData[idx + 2] = Math.min(255, b);
-      colData[idx + 3] = 255;
-      bumpData[idx] = bumpVal;
-      bumpData[idx + 1] = bumpVal;
-      bumpData[idx + 2] = bumpVal;
-      bumpData[idx + 3] = 255;
-    }
-  }
-  colCtx.putImageData(colImg, 0, 0);
-  bumpCtx.putImageData(bumpImg, 0, 0);
-  return {
-    map: new CanvasTexture(colCanvas),
-    bumpMap: new CanvasTexture(bumpCanvas)
-  };
-}
-function createVolcanicMoonTextures(colorHex, seed = 321) {
-  const w = 512, h = 256;
-  const colCanvas = document.createElement("canvas");
-  colCanvas.width = w;
-  colCanvas.height = h;
-  const colCtx = colCanvas.getContext("2d");
-  const colImg = colCtx.createImageData(w, h);
-  const colData = colImg.data;
-  const bumpCanvas = document.createElement("canvas");
-  bumpCanvas.width = w;
-  bumpCanvas.height = h;
-  const bumpCtx = bumpCanvas.getContext("2d");
-  const bumpImg = bumpCtx.createImageData(w, h);
-  const bumpData = bumpImg.data;
-  const emCanvas = document.createElement("canvas");
-  emCanvas.width = w;
-  emCanvas.height = h;
-  const emCtx = emCanvas.getContext("2d");
-  const emImg = emCtx.createImageData(w, h);
-  const emData = emImg.data;
-  for (let y = 0;y < h; y++) {
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const n = fbm(x / w * 7, y / h * 5, 4, seed);
-      const magma = Math.abs(Math.sin(x * 0.08 + y * 0.1 + n * 4));
-      const isMagma = magma < 0.1;
-      let r, g, b, emR, emG, emB, bumpVal;
-      if (isMagma) {
-        r = 255;
-        g = 110;
-        b = 10;
-        emR = 255;
-        emG = 90;
-        emB = 0;
-        bumpVal = 20;
-      } else if (n > 0.6) {
-        r = 230;
-        g = 190;
-        b = 25;
-        emR = 0;
-        emG = 0;
-        emB = 0;
-        bumpVal = 130;
-      } else {
-        r = 60 + Math.floor(n * 40);
-        g = 40 + Math.floor(n * 30);
-        b = 30 + Math.floor(n * 20);
-        emR = 0;
-        emG = 0;
-        emB = 0;
-        bumpVal = 80;
-      }
-      colData[idx] = r;
-      colData[idx + 1] = g;
-      colData[idx + 2] = b;
-      colData[idx + 3] = 255;
-      emData[idx] = emR;
-      emData[idx + 1] = emG;
-      emData[idx + 2] = emB;
-      emData[idx + 3] = 255;
-      bumpData[idx] = bumpVal;
-      bumpData[idx + 1] = bumpVal;
-      bumpData[idx + 2] = bumpVal;
-      bumpData[idx + 3] = 255;
-    }
-  }
-  colCtx.putImageData(colImg, 0, 0);
-  bumpCtx.putImageData(bumpImg, 0, 0);
-  emCtx.putImageData(emImg, 0, 0);
-  return {
-    map: new CanvasTexture(colCanvas),
-    bumpMap: new CanvasTexture(bumpCanvas),
-    emissiveMap: new CanvasTexture(emCanvas)
-  };
-}
 function createStarTexture(colorHex, seed = 555) {
   const w = 256, h = 128;
   const canvas = document.createElement("canvas");
@@ -30742,28 +30470,6 @@ function createStarTexture(colorHex, seed = 555) {
   }
   ctx.putImageData(img, 0, 0);
   return { map: new CanvasTexture(canvas) };
-}
-function createCloudTexture(seed = 888) {
-  const w = 256, h = 128;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  const img = ctx.createImageData(w, h);
-  const data = img.data;
-  for (let y = 0;y < h; y++) {
-    for (let x = 0;x < w; x++) {
-      const idx = (y * w + x) * 4;
-      const n = fbm(x / w * 8, y / h * 4, 3, seed);
-      const alpha = Math.max(0, (n - 0.52) * 2.2);
-      data[idx] = 255;
-      data[idx + 1] = 255;
-      data[idx + 2] = 255;
-      data[idx + 3] = Math.min(255, Math.floor(alpha * 255));
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  return new CanvasTexture(canvas);
 }
 function createAlienCarapaceTexture(seed = 1337) {
   const w = 512, h = 256;
@@ -31290,6 +30996,12 @@ function createPlayerMesh() {
   ship.group.add(empLight);
   ship.group.position.copy(STATE.playerPosition);
   ship.group.scale.set(0.42, 0.42, 0.42);
+  ship.group.traverse((obj) => {
+    if (obj.isMesh) {
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+    }
+  });
   scene.add(ship.group);
   STATE.playerGroup = ship.group;
   return ship.group;
@@ -31761,6 +31473,12 @@ function createJumpGateMesh(size = 9, factionColor = 3718648) {
       beaconLight.intensity = 2 + Math.sin(Date.now() * 0.009) * 1.2;
     }
   };
+  group.traverse((obj) => {
+    if (obj.isMesh) {
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+    }
+  });
   activeJumpGates.push(controller);
   scene.add(group);
   return controller;
@@ -31871,10 +31589,141 @@ function createVoyagerProbeMesh(size = 2.2) {
   };
 }
 
+// src/graphics/lighting-profiles.ts
+var LIGHTING_PROFILES = {
+  "Yellow Sun": {
+    name: "Sol-Klasse (G-Typ)",
+    exposure: 1.05,
+    contrast: 1.08,
+    saturation: 1.06,
+    colorFilter: new Color(16775400),
+    shadowTint: new Color(593694),
+    vignette: 0.22,
+    ambientColor: 1582134,
+    ambientIntensity: 0.12,
+    starLightMultiplier: 1,
+    bloomThreshold: 0.88,
+    bloomStrength: 0.55
+  },
+  "Blue Giant": {
+    name: "Blauer Riese (O/B-Typ)",
+    exposure: 1.12,
+    contrast: 1.22,
+    saturation: 1.15,
+    colorFilter: new Color(13691135),
+    shadowTint: new Color(264732),
+    vignette: 0.28,
+    ambientColor: 1187382,
+    ambientIntensity: 0.14,
+    starLightMultiplier: 1.25,
+    bloomThreshold: 0.82,
+    bloomStrength: 0.72
+  },
+  "Red Dwarf": {
+    name: "Roter Zwerg / Riese (M-Typ)",
+    exposure: 0.98,
+    contrast: 1.15,
+    saturation: 0.92,
+    colorFilter: new Color(16758920),
+    shadowTint: new Color(1706508),
+    vignette: 0.32,
+    ambientColor: 2233366,
+    ambientIntensity: 0.1,
+    starLightMultiplier: 0.85,
+    bloomThreshold: 0.85,
+    bloomStrength: 0.62
+  },
+  "White Dwarf": {
+    name: "Weißer Zwerg (D-Typ)",
+    exposure: 1.08,
+    contrast: 1.25,
+    saturation: 0.98,
+    colorFilter: new Color(16054783),
+    shadowTint: new Color(396308),
+    vignette: 0.24,
+    ambientColor: 1317928,
+    ambientIntensity: 0.11,
+    starLightMultiplier: 1.1,
+    bloomThreshold: 0.9,
+    bloomStrength: 0.48
+  },
+  "Black Hole": {
+    name: "Schwarzes Loch (Singularität)",
+    exposure: 0.92,
+    contrast: 1.35,
+    saturation: 0.8,
+    colorFilter: new Color(14202110),
+    shadowTint: new Color(1049632),
+    vignette: 0.48,
+    ambientColor: 1050652,
+    ambientIntensity: 0.08,
+    starLightMultiplier: 0.75,
+    bloomThreshold: 0.78,
+    bloomStrength: 0.85
+  },
+  Pulsar: {
+    name: "Neutronenstern / Pulsar",
+    exposure: 1.15,
+    contrast: 1.28,
+    saturation: 1.18,
+    colorFilter: new Color(10875900),
+    shadowTint: new Color(918820),
+    vignette: 0.35,
+    ambientColor: 1444908,
+    ambientIntensity: 0.12,
+    starLightMultiplier: 1.3,
+    bloomThreshold: 0.75,
+    bloomStrength: 0.95
+  },
+  "Dark Energy Rift": {
+    name: "Dunkle-Energie-Riss",
+    exposure: 0.9,
+    contrast: 1.3,
+    saturation: 0.75,
+    colorFilter: new Color(12616956),
+    shadowTint: new Color(721428),
+    vignette: 0.42,
+    ambientColor: 1181216,
+    ambientIntensity: 0.08,
+    starLightMultiplier: 0.8,
+    bloomThreshold: 0.8,
+    bloomStrength: 0.78
+  },
+  "Flare Star": {
+    name: "Flare-Stern (Eruptiv)",
+    exposure: 1.08,
+    contrast: 1.18,
+    saturation: 1.08,
+    colorFilter: new Color(16628340),
+    shadowTint: new Color(1575942),
+    vignette: 0.28,
+    ambientColor: 2102284,
+    ambientIntensity: 0.11,
+    starLightMultiplier: 1.15,
+    bloomThreshold: 0.82,
+    bloomStrength: 0.75
+  }
+};
+function getLightingProfileForSystem(starType, anomalyType) {
+  if (anomalyType === "pulsar")
+    return LIGHTING_PROFILES["Pulsar"];
+  if (anomalyType === "dark_energy_rift")
+    return LIGHTING_PROFILES["Dark Energy Rift"];
+  if (anomalyType === "flare_star")
+    return LIGHTING_PROFILES["Flare Star"];
+  if (anomalyType === "supermassive_black_hole")
+    return LIGHTING_PROFILES["Black Hole"];
+  if (starType && LIGHTING_PROFILES[starType]) {
+    return LIGHTING_PROFILES[starType];
+  }
+  return LIGHTING_PROFILES["Yellow Sun"];
+}
+
 // src/engine/postprocessing.ts
 var composer = null;
 var bloomPass = null;
 var distortionPass = null;
+var colorGradingPass = null;
 var SpacetimeDistortionShader = {
   uniforms: {
     tDiffuse: { value: null },
@@ -31967,6 +31816,112 @@ var SpacetimeDistortionShader = {
         }
     `
 };
+var ColorGradingShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uColorFilter: { value: new Vector3(1, 1, 1) },
+    uShadowTint: { value: new Vector3(0.04, 0.06, 0.12) },
+    uExposure: { value: 1 },
+    uContrast: { value: 1 },
+    uSaturation: { value: 1 },
+    uVignette: { value: 0.22 }
+  },
+  vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+  fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform vec3 uColorFilter;
+        uniform vec3 uShadowTint;
+        uniform float uExposure;
+        uniform float uContrast;
+        uniform float uSaturation;
+        uniform float uVignette;
+        varying vec2 vUv;
+
+        void main() {
+            vec4 col = texture2D(tDiffuse, vUv);
+            
+            // 1. Exposure scaling
+            vec3 c = col.rgb * uExposure;
+
+            // 2. Color filter (Stellar temperature highlight & midtone tint)
+            c *= uColorFilter;
+
+            // 3. Shadow Tint (Subtle chromatic lift for cosmic darks)
+            float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            float shadowFactor = clamp(1.0 - lum * 2.2, 0.0, 1.0);
+            c += uShadowTint * shadowFactor * 0.16;
+
+            // 4. Contrast curve around perceptual midtone (0.18)
+            c = (c - 0.18) * uContrast + 0.18;
+            c = max(vec3(0.0), c);
+
+            // 5. Saturation
+            lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+            c = mix(vec3(lum), c, uSaturation);
+
+            // 6. Cinematic Vignette (radial falloff toward screen corners)
+            vec2 coord = (vUv - 0.5) * 2.0;
+            float vig = 1.0 - dot(coord, coord) * (uVignette * 0.5);
+            c *= clamp(vig, 0.0, 1.0);
+
+            gl_FragColor = vec4(c, col.a);
+        }
+    `
+};
+var activeProfile = LIGHTING_PROFILES["Yellow Sun"];
+var currentExposure = 1.05;
+var currentContrast = 1.08;
+var currentSaturation = 1.06;
+var currentVignette = 0.22;
+var currentColorFilter = new Color(16775400);
+var currentShadowTint = new Color(593694);
+var currentAmbientColor = new Color(1582134);
+var currentAmbientIntensity = 0.12;
+var currentBloomThreshold = 0.88;
+var currentBloomStrength = 0.55;
+function setColorGradingProfile(profile) {
+  activeProfile = profile;
+}
+function applySystemLighting(starType, anomalyType) {
+  const profile = getLightingProfileForSystem(starType, anomalyType);
+  setColorGradingProfile(profile);
+}
+function updateColorGrading(dt) {
+  if (!colorGradingPass)
+    return;
+  const lerpSpeed = Math.min(1, dt * 2.2);
+  currentExposure = MathUtils.lerp(currentExposure, activeProfile.exposure, lerpSpeed);
+  currentContrast = MathUtils.lerp(currentContrast, activeProfile.contrast, lerpSpeed);
+  currentSaturation = MathUtils.lerp(currentSaturation, activeProfile.saturation, lerpSpeed);
+  currentVignette = MathUtils.lerp(currentVignette, activeProfile.vignette, lerpSpeed);
+  currentColorFilter.lerp(activeProfile.colorFilter, lerpSpeed);
+  currentShadowTint.lerp(activeProfile.shadowTint, lerpSpeed);
+  currentAmbientColor.lerp(new Color(activeProfile.ambientColor), lerpSpeed);
+  currentAmbientIntensity = MathUtils.lerp(currentAmbientIntensity, activeProfile.ambientIntensity, lerpSpeed);
+  if (ambientLight) {
+    ambientLight.color.copy(currentAmbientColor);
+    ambientLight.intensity = currentAmbientIntensity;
+  }
+  if (bloomPass) {
+    currentBloomThreshold = MathUtils.lerp(currentBloomThreshold, activeProfile.bloomThreshold, lerpSpeed);
+    currentBloomStrength = MathUtils.lerp(currentBloomStrength, activeProfile.bloomStrength, lerpSpeed);
+    bloomPass.threshold = currentBloomThreshold;
+    bloomPass.strength = currentBloomStrength;
+  }
+  const u = colorGradingPass.uniforms;
+  u.uExposure.value = currentExposure;
+  u.uContrast.value = currentContrast;
+  u.uSaturation.value = currentSaturation;
+  u.uVignette.value = currentVignette;
+  u.uColorFilter.value.set(currentColorFilter.r, currentColorFilter.g, currentColorFilter.b);
+  u.uShadowTint.value.set(currentShadowTint.r, currentShadowTint.g, currentShadowTint.b);
+}
 function initPostProcessing() {
   if (!renderer || !scene || !camera)
     return;
@@ -31977,9 +31932,11 @@ function initPostProcessing() {
   SpacetimeDistortionShader.uniforms.uResolution.value.copy(distortionResolution);
   distortionPass = new ShaderPass(SpacetimeDistortionShader);
   composer.addPass(distortionPass);
-  const bloomResolution = new Vector2(window.innerWidth, window.innerHeight);
+  const bloomResolution = new Vector2(Math.floor(window.innerWidth * 0.5), Math.floor(window.innerHeight * 0.5));
   bloomPass = new UnrealBloomPass(bloomResolution, 0.55, 0.28, 0.88);
   composer.addPass(bloomPass);
+  colorGradingPass = new ShaderPass(ColorGradingShader);
+  composer.addPass(colorGradingPass);
   const outputPass = new OutputPass;
   composer.addPass(outputPass);
 }
@@ -31988,19 +31945,16 @@ function resizePostProcessing(width, height) {
     composer.setSize(width, height);
   }
   if (bloomPass) {
-    bloomPass.resolution.set(width, height);
+    bloomPass.resolution.set(Math.floor(width * 0.5), Math.floor(height * 0.5));
   }
   if (distortionPass && distortionPass.uniforms.uResolution) {
     distortionPass.uniforms.uResolution.value.set(width, height);
   }
 }
 var lastDistortionTime = performance.now();
-function updateSpacetimeDistortion() {
+function updateSpacetimeDistortion(dt) {
   if (!distortionPass || !camera)
     return;
-  const now = performance.now();
-  const dt = Math.min(0.1, (now - lastDistortionTime) * 0.001);
-  lastDistortionTime = now;
   const uniforms = distortionPass.uniforms;
   uniforms.uTime.value += dt;
   if (typeof window !== "undefined" && window.innerWidth) {
@@ -32031,10 +31985,16 @@ function updateSpacetimeDistortion() {
   } else {
     uniforms.uRippleCount.value = 0;
   }
+  const isDistortionActive = uniforms.uWarpIntensity.value > 0.005 || uniforms.uRippleCount.value > 0;
+  distortionPass.enabled = isDistortionActive;
 }
 function renderPostProcessing() {
+  const now = performance.now();
+  const dt = Math.min(0.1, (now - lastDistortionTime) * 0.001);
+  lastDistortionTime = now;
   if (composer) {
-    updateSpacetimeDistortion();
+    updateSpacetimeDistortion(dt);
+    updateColorGrading(dt);
     composer.render();
   } else if (renderer && scene && camera) {
     renderer.render(scene, camera);
@@ -32316,6 +32276,7 @@ function createRealisticStarfield() {
 var scene = new Scene;
 var camera;
 var renderer;
+var ambientLight = null;
 var starfieldController = null;
 function initScene(container) {
   const target = container || document.getElementById("canvas-container") || document.body;
@@ -32323,13 +32284,16 @@ function initScene(container) {
   camera = new PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.set(0, 65, 0);
   camera.lookAt(0, 0, 0);
-  renderer = new WebGLRenderer({ antialias: true });
+  renderer = new WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(66312, 1);
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = PCFSoftShadowMap;
   target.appendChild(renderer.domElement);
-  const ambientLight = new AmbientLight(396312, 0.18);
+  ambientLight = new AmbientLight(1582134, 0.12);
   scene.add(ambientLight);
   starfieldController = createRealisticStarfield();
   scene.add(starfieldController.group);
@@ -32340,6 +32304,7 @@ function onWindowResize() {
     return;
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight);
   resizePostProcessing(window.innerWidth, window.innerHeight);
 }
@@ -36401,9 +36366,11 @@ var atmosphereVertexShader = `
 varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPosition;
+varying vec3 vWorldNormal;
 
 void main() {
     vNormal = normalize(normalMatrix * normal);
+    vWorldNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
     vec4 worldPos = modelMatrix * vec4(position, 1.0);
     vWorldPosition = worldPos.xyz;
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
@@ -36414,9 +36381,12 @@ void main() {
 var atmosphereFragmentShader = `
 uniform vec3 glowColor;
 uniform float intensityMultiplier;
+uniform vec3 uStarPosition;
+
 varying vec3 vNormal;
 varying vec3 vViewDir;
 varying vec3 vWorldPosition;
+varying vec3 vWorldNormal;
 
 void main() {
     // 1. Soft Fresnel limb darkening / atmospheric rim
@@ -36424,19 +36394,31 @@ void main() {
     float fresnel = 1.0 - max(dotNV, 0.0);
     float glow = pow(fresnel, 3.2) * intensityMultiplier;
 
-    // 2. Solar illumination direction (Sun at origin 0,0,0)
-    vec3 lightDir = normalize(-vWorldPosition);
-    vec3 worldNormal = normalize(vWorldPosition);
-    float sunDot = dot(worldNormal, lightDir);
-    float dayFactor = clamp(sunDot * 0.75 + 0.35, 0.18, 1.0);
+    // 2. Solar illumination direction towards star
+    vec3 lightDir = normalize(uStarPosition - vWorldPosition);
+    float sunDot = dot(vWorldNormal, lightDir);
 
-    // 3. Twilight Rayleigh tint at day/night terminator line
-    vec3 twilightColor = mix(vec3(0.95, 0.58, 0.32), glowColor, clamp(sunDot * 3.2 + 0.5, 0.0, 1.0));
+    // Day/Night factor: sunlit hemisphere is bright, night drops off cleanly
+    float dayFactor = smoothstep(-0.18, 0.28, sunDot);
 
-    gl_FragColor = vec4(twilightColor, glow * dayFactor * 0.95);
+    // Subtle ionospheric night airglow (avoids unphysical black void while preserving night)
+    float nightAirglow = 0.035 * intensityMultiplier;
+
+    // 3. Rayleigh Twilight Sunset scattering at day/night terminator (sunDot around 0.0)
+    // Deepen the atmosphere's glow color along the terminator; only illuminate where sun shines
+    float twilightFactor = smoothstep(0.24, 0.0, abs(sunDot - 0.02)) * smoothstep(-0.05, 0.15, sunDot);
+    vec3 sunsetColor = mix(glowColor * vec3(1.15, 0.72, 0.35), vec3(1.0, 0.45, 0.12), 0.35);
+
+    // Smoothly blend day atmospheric color and warm twilight terminator
+    vec3 finalColor = mix(glowColor, sunsetColor, twilightFactor * 0.65);
+
+    // Atmosphere alpha: Day hemisphere is bright, night fades cleanly to minimal ionospheric airglow
+    float alpha = glow * (dayFactor * 0.92 + twilightFactor * 0.28 + nightAirglow);
+
+    gl_FragColor = vec4(finalColor, clamp(alpha, 0.0, 1.0));
 }
 `;
-function createAtmosphereMesh(planetRadius, hexColor, intensity = 1.25) {
+function createAtmosphereMesh(planetRadius, hexColor, intensity = 1.25, starPos = new Vector3(0, 0, 0)) {
   const color = new Color(hexColor);
   const atmosphereGeo = new SphereGeometry(planetRadius * 1.045, 36, 36);
   const atmosphereMat = new ShaderMaterial({
@@ -36444,7 +36426,8 @@ function createAtmosphereMesh(planetRadius, hexColor, intensity = 1.25) {
     fragmentShader: atmosphereFragmentShader,
     uniforms: {
       glowColor: { value: color },
-      intensityMultiplier: { value: intensity }
+      intensityMultiplier: { value: intensity },
+      uStarPosition: { value: starPos }
     },
     blending: AdditiveBlending,
     side: FrontSide,
@@ -36454,29 +36437,195 @@ function createAtmosphereMesh(planetRadius, hexColor, intensity = 1.25) {
   return new Mesh(atmosphereGeo, atmosphereMat);
 }
 
+// src/procedural/planet-textures.ts
+var textureCache = new Map;
+var textureLoader = null;
+function getTextureLoader() {
+  if (!textureLoader) {
+    textureLoader = new TextureLoader;
+  }
+  return textureLoader;
+}
+function loadPlanetTexture(path, sRGB = true) {
+  if (textureCache.has(path)) {
+    return textureCache.get(path);
+  }
+  const loader = getTextureLoader();
+  const texture = loader.load(path);
+  if (sRGB && SRGBColorSpace) {
+    texture.colorSpace = SRGBColorSpace;
+  }
+  textureCache.set(path, texture);
+  return texture;
+}
+var PLANET_ARCHETYPE_TEMPLATES = {
+  SUN: "assets/textures/planets/8k_sun.jpg",
+  MERCURY: "assets/textures/planets/8k_mercury.jpg",
+  VENUS_SURFACE: "assets/textures/planets/8k_venus_surface.jpg",
+  VENUS_ATMOSPHERE: "assets/textures/planets/4k_venus_atmosphere.jpg",
+  EARTH_DAY: "assets/textures/planets/8k_earth_daymap.jpg",
+  EARTH_NIGHT: "assets/textures/planets/8k_earth_nightmap.jpg",
+  EARTH_CLOUDS: "assets/textures/planets/8k_earth_clouds.jpg",
+  EARTH_NORMAL: "assets/textures/planets/8k_earth_normal_map.png",
+  EARTH_SPECULAR: "assets/textures/planets/8k_earth_specular_map.png",
+  MOON: "assets/textures/planets/8k_moon.jpg",
+  MARS: "assets/textures/planets/8k_mars.jpg",
+  MARS_PHOBOS: "assets/textures/planets/mars_phobos.jpg",
+  MARS_DEIMOS: "assets/textures/planets/mars_deimos.jpg",
+  JUPITER: "assets/textures/planets/8k_jupiter.jpg",
+  JUPITER_IO: "assets/textures/planets/jupiter_io.jpg",
+  JUPITER_EUROPA: "assets/textures/planets/jupiter_europa.jpg",
+  JUPITER_GANYMEDE: "assets/textures/planets/jupiter_ganymede.jpg",
+  JUPITER_CALLISTO: "assets/textures/planets/jupiter_callisto.jpg",
+  SATURN: "assets/textures/planets/8k_saturn.jpg",
+  SATURN_RINGS: "assets/textures/planets/8k_saturn_ring_alpha.png",
+  SATURN_TITAN: "assets/textures/planets/saturn_titan.jpg",
+  URANUS: "assets/textures/planets/2k_uranus.jpg",
+  NEPTUNE: "assets/textures/planets/2k_neptune.jpg"
+};
+function getTemplateForBody(type, seed) {
+  const s = Math.abs(seed);
+  switch (type) {
+    case "Habitable":
+      return {
+        map: PLANET_ARCHETYPE_TEMPLATES.EARTH_DAY,
+        cloudMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_CLOUDS,
+        nightMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_NIGHT,
+        normalMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_NORMAL,
+        roughnessMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_SPECULAR
+      };
+    case "Gas Giant":
+      return {
+        map: s % 2 === 0 ? PLANET_ARCHETYPE_TEMPLATES.JUPITER : PLANET_ARCHETYPE_TEMPLATES.SATURN,
+        ringMap: s % 3 === 0 ? PLANET_ARCHETYPE_TEMPLATES.SATURN_RINGS : undefined
+      };
+    case "Ice":
+    case "Eismond":
+      return {
+        map: s % 3 === 0 ? PLANET_ARCHETYPE_TEMPLATES.URANUS : s % 3 === 1 ? PLANET_ARCHETYPE_TEMPLATES.NEPTUNE : PLANET_ARCHETYPE_TEMPLATES.JUPITER_EUROPA
+      };
+    case "Vulkanmond":
+      return {
+        map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_IO
+      };
+    case "Desert":
+      return {
+        map: PLANET_ARCHETYPE_TEMPLATES.MARS
+      };
+    case "Kratermond":
+      return {
+        map: s % 3 === 0 ? PLANET_ARCHETYPE_TEMPLATES.MOON : s % 3 === 1 ? PLANET_ARCHETYPE_TEMPLATES.MARS_PHOBOS : PLANET_ARCHETYPE_TEMPLATES.JUPITER_CALLISTO
+      };
+    case "Rocky":
+    default: {
+      const pick = s % 4;
+      if (pick === 0)
+        return { map: PLANET_ARCHETYPE_TEMPLATES.MARS };
+      if (pick === 1)
+        return { map: PLANET_ARCHETYPE_TEMPLATES.MERCURY };
+      if (pick === 2)
+        return { map: PLANET_ARCHETYPE_TEMPLATES.VENUS_SURFACE };
+      return { map: PLANET_ARCHETYPE_TEMPLATES.MOON };
+    }
+  }
+}
+function getTemplateById(templateId) {
+  switch (templateId.toLowerCase()) {
+    case "earth":
+      return {
+        map: PLANET_ARCHETYPE_TEMPLATES.EARTH_DAY,
+        cloudMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_CLOUDS,
+        nightMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_NIGHT,
+        normalMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_NORMAL,
+        roughnessMap: PLANET_ARCHETYPE_TEMPLATES.EARTH_SPECULAR
+      };
+    case "jupiter":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER };
+    case "saturn":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.SATURN, ringMap: PLANET_ARCHETYPE_TEMPLATES.SATURN_RINGS };
+    case "mars":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.MARS };
+    case "mercury":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.MERCURY };
+    case "venus_surface":
+    case "venus":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.VENUS_SURFACE, cloudMap: PLANET_ARCHETYPE_TEMPLATES.VENUS_ATMOSPHERE };
+    case "uranus":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.URANUS };
+    case "neptune":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.NEPTUNE };
+    case "moon":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.MOON };
+    case "jupiter_io":
+    case "io":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_IO };
+    case "jupiter_europa":
+    case "europa":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_EUROPA };
+    case "jupiter_ganymede":
+    case "ganymede":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_GANYMEDE };
+    case "jupiter_callisto":
+    case "callisto":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.JUPITER_CALLISTO };
+    case "mars_phobos":
+    case "phobos":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.MARS_PHOBOS };
+    case "mars_deimos":
+    case "deimos":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.MARS_DEIMOS };
+    case "saturn_titan":
+    case "titan":
+      return { map: PLANET_ARCHETYPE_TEMPLATES.SATURN_TITAN };
+    default:
+      return null;
+  }
+}
+function resolveArchetypeTemplate(archetype, fallbackType = "Rocky", seed = 0) {
+  if (archetype && archetype.templateId) {
+    const found = getTemplateById(archetype.templateId);
+    if (found) {
+      const copy = { ...found };
+      const pArch = archetype;
+      if (pArch.ringTexture) {
+        copy.ringMap = pArch.ringTexture.startsWith("assets/") ? pArch.ringTexture : `assets/textures/planets/${pArch.ringTexture}`;
+      }
+      return copy;
+    }
+  }
+  return getTemplateForBody(fallbackType, seed);
+}
+
 // src/procedural/planet-rings.ts
-function createPlanetaryRings(planetRadius, hexColor, seed = 42) {
+function createPlanetaryRings(planetRadius, hexColor, seed = 42, ringTextureUrl) {
   const innerRadius = planetRadius * 1.45;
   const outerRadius = planetRadius * 2.85;
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 1;
-  const ctx = canvas.getContext("2d");
-  const baseColor = new Color(hexColor);
-  const grad = ctx.createLinearGradient(0, 0, 256, 0);
-  grad.addColorStop(0, "rgba(0,0,0,0)");
-  grad.addColorStop(0.08, `rgba(${Math.round(baseColor.r * 200)}, ${Math.round(baseColor.g * 220)}, ${Math.round(baseColor.b * 240)}, 0.45)`);
-  grad.addColorStop(0.35, `rgba(${Math.round(baseColor.r * 255)}, ${Math.round(baseColor.g * 255)}, ${Math.round(baseColor.b * 255)}, 0.85)`);
-  grad.addColorStop(0.52, "rgba(0,0,0,0.05)");
-  grad.addColorStop(0.58, "rgba(0,0,0,0.1)");
-  grad.addColorStop(0.68, `rgba(${Math.round(baseColor.r * 220)}, ${Math.round(baseColor.g * 240)}, ${Math.round(baseColor.b * 255)}, 0.7)`);
-  grad.addColorStop(0.92, `rgba(${Math.round(baseColor.r * 180)}, ${Math.round(baseColor.g * 200)}, ${Math.round(baseColor.b * 220)}, 0.3)`);
-  grad.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 256, 1);
-  const ringTexture = new CanvasTexture(canvas);
-  ringTexture.wrapS = ClampToEdgeWrapping;
-  ringTexture.wrapT = ClampToEdgeWrapping;
+  let ringTexture;
+  if (ringTextureUrl) {
+    ringTexture = loadPlanetTexture(ringTextureUrl);
+    ringTexture.wrapS = ClampToEdgeWrapping;
+    ringTexture.wrapT = ClampToEdgeWrapping;
+  } else {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 1;
+    const ctx = canvas.getContext("2d");
+    const baseColor = new Color(hexColor);
+    const grad = ctx.createLinearGradient(0, 0, 256, 0);
+    grad.addColorStop(0, "rgba(0,0,0,0)");
+    grad.addColorStop(0.08, `rgba(${Math.round(baseColor.r * 200)}, ${Math.round(baseColor.g * 220)}, ${Math.round(baseColor.b * 240)}, 0.45)`);
+    grad.addColorStop(0.35, `rgba(${Math.round(baseColor.r * 255)}, ${Math.round(baseColor.g * 255)}, ${Math.round(baseColor.b * 255)}, 0.85)`);
+    grad.addColorStop(0.52, "rgba(0,0,0,0.05)");
+    grad.addColorStop(0.58, "rgba(0,0,0,0.1)");
+    grad.addColorStop(0.68, `rgba(${Math.round(baseColor.r * 220)}, ${Math.round(baseColor.g * 240)}, ${Math.round(baseColor.b * 255)}, 0.7)`);
+    grad.addColorStop(0.92, `rgba(${Math.round(baseColor.r * 180)}, ${Math.round(baseColor.g * 200)}, ${Math.round(baseColor.b * 220)}, 0.3)`);
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 256, 1);
+    ringTexture = new CanvasTexture(canvas);
+    ringTexture.wrapS = ClampToEdgeWrapping;
+    ringTexture.wrapT = ClampToEdgeWrapping;
+  }
   const ringGeometry = new RingGeometry(innerRadius, outerRadius, 64);
   ringGeometry.rotateX(Math.PI / 2);
   const pos = ringGeometry.attributes.position;
@@ -36493,12 +36642,47 @@ function createPlanetaryRings(planetRadius, hexColor, seed = 42) {
     map: ringTexture,
     side: DoubleSide,
     transparent: true,
-    opacity: 0.88,
+    opacity: ringTextureUrl ? 0.98 : 0.88,
     roughness: 0.8,
     metalness: 0.2,
     depthWrite: false
   });
+  ringMaterial.customProgramCacheKey = () => "ringPlanetEclipseShadow";
+  ringMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.uStarWorldPos = { value: new Vector3(0, 38, 0) };
+    shader.uniforms.uPlanetWorldPos = { value: new Vector3(0, 0, 0) };
+    shader.uniforms.uPlanetRadius = { value: planetRadius };
+    ringMaterial.userData.shader = shader;
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", `#include <common>
+            varying vec3 vRingWorldPos;`);
+    shader.vertexShader = shader.vertexShader.replace("#include <worldpos_vertex>", `#include <worldpos_vertex>
+            vRingWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", `#include <common>
+            uniform vec3 uStarWorldPos;
+            uniform vec3 uPlanetWorldPos;
+            uniform float uPlanetRadius;
+            varying vec3 vRingWorldPos;`);
+    shader.fragmentShader = shader.fragmentShader.replace("#include <dithering_fragment>", `#include <dithering_fragment>
+            // Ray from ring fragment towards star: vRingWorldPos + t * toStar
+            vec3 toStar = normalize(uStarWorldPos - vRingWorldPos);
+            vec3 toPlanet = uPlanetWorldPos - vRingWorldPos;
+            
+            // Check if planet sphere lies between ring fragment and star
+            float t = dot(toPlanet, toStar);
+            if (t > 0.0) {
+                vec3 closestPoint = toPlanet - t * toStar;
+                float distSq = dot(closestPoint, closestPoint);
+                float rSq = uPlanetRadius * uPlanetRadius;
+                if (distSq < rSq) {
+                    // Deep umbra eclipse with feathered penumbra edge
+                    float edge = sqrt(distSq) / max(0.001, uPlanetRadius);
+                    float penumbra = smoothstep(0.92, 1.0, edge);
+                    gl_FragColor.rgb *= mix(0.10, 1.0, penumbra);
+                }
+            }`);
+  };
   const ringMesh = new Mesh(ringGeometry, ringMaterial);
+  ringMesh.receiveShadow = true;
   ringMesh.rotation.z = (seed % 15 + 12) * Math.PI / 180;
   ringMesh.rotation.x = (seed % 9 - 4) * Math.PI / 180;
   return ringMesh;
@@ -36633,10 +36817,12 @@ function getLoreSolSystem() {
     anomalyType: "none",
     isCoreAnchor: false,
     star: {
+      name: "Sonne (Sol)",
       type: "Yellow Sun",
       color: "0xfacc15",
       size: 6.2,
-      mass: 280
+      mass: 280,
+      texture: "assets/textures/planets/8k_sun.jpg"
     },
     planets: [
       {
@@ -36645,6 +36831,7 @@ function getLoreSolSystem() {
         size: 1.6,
         distance: 18,
         color: "0x78716c",
+        texture: "assets/textures/planets/8k_mercury.jpg",
         temp: "+430°C / -180°C",
         atmos: "Extrem dünne Exosphäre (Vakuum)",
         bio: "Steril",
@@ -36664,6 +36851,8 @@ function getLoreSolSystem() {
         size: 2.8,
         distance: 28,
         color: "0xf59e0b",
+        texture: "assets/textures/planets/8k_venus_surface.jpg",
+        atmoTexture: "assets/textures/planets/4k_venus_atmosphere.jpg",
         temp: "+465°C",
         atmos: "Superdichtes CO2 & Schwefelsäure-Wolken",
         bio: "Steril (Extremer Treibhauseffekt)",
@@ -36683,6 +36872,11 @@ function getLoreSolSystem() {
         size: 3,
         distance: 42,
         color: "0x0ea5e9",
+        texture: "assets/textures/planets/8k_earth_daymap.jpg",
+        cloudTexture: "assets/textures/planets/8k_earth_clouds.jpg",
+        nightTexture: "assets/textures/planets/8k_earth_nightmap.jpg",
+        normalTexture: "assets/textures/planets/8k_earth_normal_map.png",
+        specularTexture: "assets/textures/planets/8k_earth_specular_map.png",
         temp: "15°C",
         atmos: "Stickstoff & Sauerstoff (N2/O2 - Atembar)",
         bio: "Reiche Biosphäre der Menschheit (Ursprungswelt)",
@@ -36731,6 +36925,7 @@ function getLoreSolSystem() {
             distance: 6.8,
             speed: 1.2,
             color: "0xcbcfd6",
+            texture: "assets/textures/planets/8k_moon.jpg",
             temp: "-130°C / +120°C",
             atmos: "Vakuum",
             bio: "Steril",
@@ -36753,6 +36948,7 @@ function getLoreSolSystem() {
         size: 2.2,
         distance: 58,
         color: "0xef4444",
+        texture: "assets/textures/planets/8k_mars.jpg",
         temp: "-60°C",
         atmos: "Dünnes Kohlendioxid (Roter Planet)",
         bio: "Fossile mikrobielle Biosignaturen",
@@ -36766,6 +36962,7 @@ function getLoreSolSystem() {
             distance: 4.2,
             speed: 1.8,
             color: "0x78716c",
+            texture: "assets/textures/planets/mars_phobos.jpg",
             temp: "-40°C",
             atmos: "Vakuum",
             bio: "Steril",
@@ -36781,6 +36978,7 @@ function getLoreSolSystem() {
             distance: 6.5,
             speed: 1.3,
             color: "0x78716c",
+            texture: "assets/textures/planets/mars_deimos.jpg",
             temp: "-40°C",
             atmos: "Vakuum",
             bio: "Steril",
@@ -36803,6 +37001,7 @@ function getLoreSolSystem() {
         size: 7.2,
         distance: 84,
         color: "0xf97316",
+        texture: "assets/textures/planets/8k_jupiter.jpg",
         temp: "-110°C",
         atmos: "Wasserstoff & Helium (Großer Roter Fleck)",
         bio: "Atmosphärische Bio-Spuren",
@@ -36816,6 +37015,7 @@ function getLoreSolSystem() {
             distance: 11.2,
             speed: 1.5,
             color: "0xf97316",
+            texture: "assets/textures/planets/jupiter_io.jpg",
             temp: "+150°C",
             atmos: "Schwefeldioxid-Ausgasungen",
             bio: "Schwefel-Mikroben",
@@ -36831,6 +37031,7 @@ function getLoreSolSystem() {
             distance: 13.8,
             speed: 1.3,
             color: "0x38bdf8",
+            texture: "assets/textures/planets/jupiter_europa.jpg",
             temp: "-160°C",
             atmos: "Wasserdampf-Geysire",
             bio: "Subozeanische Extremophile",
@@ -36846,6 +37047,7 @@ function getLoreSolSystem() {
             distance: 16.5,
             speed: 1.1,
             color: "0x94a3b8",
+            texture: "assets/textures/planets/jupiter_ganymede.jpg",
             temp: "-150°C",
             atmos: "Dünne Sauerstoff-Exosphäre",
             bio: "Kryophile Bakterien",
@@ -36861,6 +37063,7 @@ function getLoreSolSystem() {
             distance: 19.5,
             speed: 0.9,
             color: "0x64748b",
+            texture: "assets/textures/planets/jupiter_callisto.jpg",
             temp: "-140°C",
             atmos: "CO2-Spuren",
             bio: "Steril",
@@ -36883,6 +37086,8 @@ function getLoreSolSystem() {
         size: 6.2,
         distance: 110,
         color: "0xeab308",
+        texture: "assets/textures/planets/8k_saturn.jpg",
+        ringTexture: "assets/textures/planets/8k_saturn_ring_alpha.png",
         temp: "-140°C",
         atmos: "Wasserstoff & Ammoniak-Eiskristalle",
         bio: "Steril",
@@ -36896,6 +37101,7 @@ function getLoreSolSystem() {
             distance: 12.5,
             speed: 1.2,
             color: "0xf59e0b",
+            texture: "assets/textures/planets/saturn_titan.jpg",
             temp: "-179°C",
             atmos: "Dichter Stickstoff & flüssiges Methan",
             bio: "Methanogene Präbiotik",
@@ -36911,6 +37117,7 @@ function getLoreSolSystem() {
             distance: 15.2,
             speed: 1.4,
             color: "0xe0f2fe",
+            texture: "assets/textures/planets/jupiter_europa.jpg",
             temp: "-198°C",
             atmos: "Kryovulkanische Geysir-Fontänen",
             bio: "Hydrothermale Mikroorganismen",
@@ -36933,6 +37140,7 @@ function getLoreSolSystem() {
         size: 4.4,
         distance: 136,
         color: "0x38bdf8",
+        texture: "assets/textures/planets/2k_uranus.jpg",
         temp: "-215°C",
         atmos: "Methan, Wasserstoff & Helium",
         bio: "Steril",
@@ -36946,6 +37154,7 @@ function getLoreSolSystem() {
             distance: 8.5,
             speed: 1.4,
             color: "0xa5f3fc",
+            texture: "assets/textures/planets/8k_moon.jpg",
             temp: "-210°C",
             atmos: "Vakuum",
             bio: "Steril",
@@ -36968,6 +37177,7 @@ function getLoreSolSystem() {
         size: 4.3,
         distance: 162,
         color: "0x0284c7",
+        texture: "assets/textures/planets/2k_neptune.jpg",
         temp: "-220°C",
         atmos: "Dynamisches Methan-Plasma (Überschall-Stürme)",
         bio: "Steril",
@@ -36981,6 +37191,7 @@ function getLoreSolSystem() {
             distance: 9.2,
             speed: 1.3,
             color: "0x38bdf8",
+            texture: "assets/textures/planets/jupiter_europa.jpg",
             temp: "-235°C",
             atmos: "Stickstoff-Geysire",
             bio: "Kryophile Bakterien",
@@ -37003,6 +37214,7 @@ function getLoreSolSystem() {
         size: 1.5,
         distance: 188,
         color: "0x94a3b8",
+        texture: "assets/textures/planets/8k_mercury.jpg",
         temp: "-230°C",
         atmos: "Dünner Stickstoffdampf (Sublimation)",
         bio: "Steril",
@@ -37016,6 +37228,7 @@ function getLoreSolSystem() {
             distance: 5,
             speed: 1.1,
             color: "0xcbcfd6",
+            texture: "assets/textures/planets/8k_moon.jpg",
             temp: "-230°C",
             atmos: "Vakuum",
             bio: "Steril",
@@ -37424,13 +37637,16 @@ function spawnPlanetsAndAsteroids() {
   if (!activeSystem)
     return;
   const starData = activeSystem.star;
+  applySystemLighting(starData?.type, activeSystem.anomalyType);
   if (starData.type === "Black Hole") {
     const blackHole = createBlackHoleMesh(starData.size);
     scene.add(blackHole.group);
     activeCoronaMeshes.push(blackHole.group);
     activeCoronaUpdaters.push(blackHole.update);
-    const starLight = new PointLight(11032055, 2.5, 0, 0);
-    starLight.position.set(0, 0, 0);
+    const bhBaseColor = new Color(11032055);
+    const bhLightColor = bhBaseColor.clone().lerp(new Color(14202110), 0.35);
+    const starLight = new PointLight(bhLightColor, 3.8, 0, 0);
+    starLight.position.set(0, 2, 0);
     scene.add(starLight);
     activeStarLights.push(starLight);
     starData.colorCss = "#7c3aed";
@@ -37447,13 +37663,25 @@ function spawnPlanetsAndAsteroids() {
     STATE.gravitySources.push(starSource);
     starSource.ringMesh = createGravityRing(0, 0, starRange, 8141549, 0.14);
   } else {
-    const starSeed = STATE.currentSystemId * 1337 + 42;
-    const starTex = createStarTexture(starData.color, starSeed);
-    const starGeo = new SphereGeometry(starData.size, 32, 32);
+    let starMap;
+    let starEmissiveMap = null;
+    if (starData.texture) {
+      starMap = loadPlanetTexture(starData.texture);
+      starEmissiveMap = starMap;
+    } else if (starData.name && starData.name.includes("Sol")) {
+      starMap = loadPlanetTexture("assets/textures/planets/8k_sun.jpg");
+      starEmissiveMap = starMap;
+    } else {
+      const starSeed = STATE.currentSystemId * 1337 + 42;
+      const starTex = createStarTexture(starData.color, starSeed);
+      starMap = starTex.map;
+    }
+    const starGeo = new SphereGeometry(starData.size, 48, 48);
     const starMat = new MeshStandardMaterial({
-      map: starTex.map,
+      map: starMap,
       emissive: parseInt(starData.color),
-      emissiveIntensity: 0.9,
+      emissiveMap: starEmissiveMap || null,
+      emissiveIntensity: starEmissiveMap ? 1.4 : 0.9,
       roughness: 0.2,
       metalness: 0.1
     });
@@ -37466,8 +37694,10 @@ function spawnPlanetsAndAsteroids() {
     activeCoronaUpdaters.push(corona.update);
     activeSunRays = createSunRays(starData.size, parseInt(starData.color));
     scene.add(activeSunRays.group);
-    const starLight = new PointLight(parseInt(starData.color), 3.2, 0, 0);
-    starLight.position.set(0, 0, 0);
+    const baseStarColor = new Color(parseInt(starData.color));
+    const naturalLightColor = baseStarColor.clone().lerp(new Color(16775146), 0.38);
+    const starLight = new PointLight(naturalLightColor, 4.2, 0, 0);
+    starLight.position.set(0, 2, 0);
     scene.add(starLight);
     activeStarLights.push(starLight);
     starData.colorCss = starData.color.replace("0x", "#");
@@ -37494,8 +37724,10 @@ function spawnPlanetsAndAsteroids() {
     planetGroup.position.set(px2, 0, pz2);
     let bodyMesh = null;
     let cloudMesh = null;
+    let atmoMesh = null;
     let psioAuraMesh = null;
     let auroraMesh = null;
+    let ringMesh = null;
     let generated = null;
     let finalSpecies = null;
     const isConstruct = p.type === "Vorläufer-Konstrukt";
@@ -37532,51 +37764,117 @@ function spawnPlanetsAndAsteroids() {
       if (isHab && (!finalSpecies || !finalSpecies.candidates || finalSpecies.candidates.length === 0)) {
         finalSpecies = generated.species;
       }
-      let texData;
+      let diffuseMap;
       let cloudTexture = null;
       let cityLightsTexture = null;
-      if (isHab) {
-        texData = createHabitableTextures(p.color, seed);
-        cloudTexture = createCloudTexture(seed + 999);
-        if (finalSpecies && finalSpecies.population > 0) {
-          cityLightsTexture = createCityLightsTexture(seed, finalSpecies.techLevel || "Spacefaring");
+      let normalMap = null;
+      let roughnessMap = null;
+      let diffuseColor;
+      if (p.texture) {
+        diffuseMap = loadPlanetTexture(p.texture);
+        diffuseColor = new Color(16777215);
+        if (p.cloudTexture) {
+          cloudTexture = loadPlanetTexture(p.cloudTexture);
         }
-      } else if (isGas) {
-        texData = createGasGiantTextures(p.color, seed);
+        if (p.nightTexture) {
+          cityLightsTexture = loadPlanetTexture(p.nightTexture);
+        }
+        if (p.normalTexture) {
+          normalMap = loadPlanetTexture(p.normalTexture, false);
+        }
+        if (p.specularTexture) {
+          roughnessMap = loadPlanetTexture(p.specularTexture, false);
+        }
       } else {
-        texData = createRockyTextures(p.color, seed);
+        const template = resolveArchetypeTemplate(p.archetype, p.type, seed);
+        diffuseMap = loadPlanetTexture(template.map);
+        const rawColor = new Color(parseInt(p.color));
+        const hsl = { h: 0, s: 0, l: 0 };
+        rawColor.getHSL(hsl);
+        if (hsl.l < 0.52) {
+          rawColor.setHSL(hsl.h, Math.min(1, hsl.s * 1.08), Math.max(0.56, hsl.l * 1.32));
+        }
+        diffuseColor = rawColor;
+        const hasClouds = p.archetype && p.archetype.cloudCoverage !== undefined ? p.archetype.cloudCoverage > 0.05 && !!template.cloudMap : template.cloudMap && (isHab || seed % 3 === 0);
+        if (hasClouds && template.cloudMap) {
+          cloudTexture = loadPlanetTexture(template.cloudMap);
+        }
+        const hasNight = p.archetype && p.archetype.hasNightLights !== undefined ? p.archetype.hasNightLights && !!template.nightMap : isHab && finalSpecies && finalSpecies.population > 0 && !!template.nightMap;
+        if (hasNight && template.nightMap) {
+          cityLightsTexture = loadPlanetTexture(template.nightMap);
+        }
+        if (template.normalMap) {
+          normalMap = loadPlanetTexture(template.normalMap, false);
+        }
+        if (template.roughnessMap) {
+          roughnessMap = loadPlanetTexture(template.roughnessMap, false);
+        }
       }
-      const geo = new SphereGeometry(p.size, 64, 64);
-      const mat = new MeshStandardMaterial({
-        map: texData.map,
-        bumpMap: texData.bumpMap || null,
-        bumpScale: isGas ? 0 : 0.08,
-        roughness: isGas ? 0.35 : 0.68,
-        metalness: isGas ? 0.1 : 0.12,
+      const geo = new SphereGeometry(p.size, 48, 48);
+      const planetRoughness = p.archetype?.roughnessScale ?? (roughnessMap ? 1 : isGas ? 0.35 : 0.72);
+      const matParams = {
+        map: diffuseMap,
+        color: diffuseColor,
+        roughnessMap: roughnessMap || null,
+        roughness: planetRoughness,
+        metalness: isGas ? 0.04 : 0.08,
         emissive: cityLightsTexture ? new Color(16777215) : new Color(0),
         emissiveMap: cityLightsTexture || null,
-        emissiveIntensity: cityLightsTexture ? 0.85 : 0,
+        emissiveIntensity: cityLightsTexture ? 1 : 0,
         transparent: false,
         depthWrite: true,
         depthTest: true
-      });
+      };
+      if (normalMap) {
+        matParams.normalMap = normalMap;
+        const nScale = p.archetype?.normalScale ?? 0.85;
+        matParams.normalScale = new Vector2(nScale, nScale);
+      }
+      const mat = new MeshStandardMaterial(matParams);
+      if (cityLightsTexture) {
+        mat.customProgramCacheKey = () => "cityLightsTerminator";
+        mat.onBeforeCompile = (shader) => {
+          shader.uniforms.uStarWorldPos = { value: new Vector3(0, 0, 0) };
+          mat.userData.shader = shader;
+          shader.vertexShader = shader.vertexShader.replace("#include <common>", `#include <common>
+                        varying vec3 vCustomWorldPos;
+                        varying vec3 vCustomWorldNorm;`);
+          shader.vertexShader = shader.vertexShader.replace("#include <worldpos_vertex>", `#include <worldpos_vertex>
+                        vCustomWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                        vCustomWorldNorm = normalize((modelMatrix * vec4(objectNormal, 0.0)).xyz);`);
+          shader.fragmentShader = shader.fragmentShader.replace("#include <common>", `#include <common>
+                        uniform vec3 uStarWorldPos;
+                        varying vec3 vCustomWorldPos;
+                        varying vec3 vCustomWorldNorm;`);
+          shader.fragmentShader = shader.fragmentShader.replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+                        vec3 starDir = normalize(uStarWorldPos - vCustomWorldPos);
+                        float sunDot = dot(vCustomWorldNorm, starDir);
+                        // Daylight suppresses city lights; dark night hemisphere fully illuminates them
+                        float nightMask = smoothstep(0.08, -0.15, sunDot);
+                        totalEmissiveRadiance *= nightMask;`);
+        };
+      }
       const mesh = new Mesh(geo, mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = false;
       const axialTilt = (seed % 17 + 12) * Math.PI / 180;
       mesh.rotation.z = axialTilt;
       mesh.rotation.x = (seed % 7 - 3) * Math.PI / 180;
       planetGroup.add(mesh);
       bodyMesh = mesh;
-      if (isHab || isGas) {
+      if (isHab || isGas || p.atmoTexture || p.archetype && (p.archetype.atmosphereDensity ?? 0) > 0.1) {
         const atmoHex = isHab ? 3718648 : parseInt(p.color);
-        const atmoMesh = createAtmosphereMesh(p.size, atmoHex, isHab ? 1.2 : 1);
+        const atmoDensity = p.archetype?.atmosphereDensity ?? (isHab ? 1.25 : 1);
+        atmoMesh = createAtmosphereMesh(p.size, atmoHex, atmoDensity);
         planetGroup.add(atmoMesh);
       }
-      if (cloudTexture && isHab) {
-        const cloudGeo = new SphereGeometry(p.size * 1.018, 64, 64);
+      if (cloudTexture) {
+        const cloudGeo = new SphereGeometry(p.size * 1.018, 48, 48);
+        const cloudOpacity = p.archetype?.cloudCoverage !== undefined ? Math.min(0.9, p.archetype.cloudCoverage * 0.88) : 0.85;
         const cloudMat = new MeshStandardMaterial({
           map: cloudTexture,
           transparent: true,
-          opacity: 0.85,
+          opacity: cloudOpacity,
           blending: NormalBlending,
           depthWrite: false,
           roughness: 0.9,
@@ -37586,11 +37884,12 @@ function spawnPlanetsAndAsteroids() {
         cloudMesh.rotation.z = axialTilt;
         planetGroup.add(cloudMesh);
       }
-      const hasRings = isGas || seed % 6 === 0;
+      const ringMapPath = p.ringTexture || p.archetype?.ringTexture;
+      const hasRings = p.archetype?.hasRings !== undefined ? p.archetype.hasRings : isGas || !!p.ringTexture || seed % 6 === 0;
       if (hasRings) {
         const ringColor = isGas ? parseInt(p.color) : 12633808;
-        const pRings = createPlanetaryRings(p.size, ringColor, seed);
-        planetGroup.add(pRings);
+        ringMesh = createPlanetaryRings(p.size, ringColor, seed, ringMapPath);
+        planetGroup.add(ringMesh);
       }
       const isHyperMag = p.magnetosphere === "Hyper-Magnetic" || generated && generated.magnetosphere === "Hyper-Magnetic";
       if (isHyperMag) {
@@ -37639,10 +37938,11 @@ function spawnPlanetsAndAsteroids() {
       mesh: planetGroup,
       bodyMesh,
       cloudMesh,
+      atmoMesh: atmoMesh || null,
       psioAuraMesh,
       auroraMesh,
       source: sourceObj,
-      ringMesh: null,
+      ringMesh,
       angle,
       speed: orbitSpeed,
       distance: scaledDist,
@@ -37677,23 +37977,52 @@ function spawnPlanetsAndAsteroids() {
       const mx = px2 + m.distance * Math.cos(moonAngle);
       const mz = pz2 + m.distance * Math.sin(moonAngle);
       const mSeed = m.name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) + m_idx * 133;
-      let mTex;
-      if (m.type === "Eismond") {
-        mTex = createIceMoonTextures(m.color, mSeed);
-      } else if (m.type === "Vulkanmond") {
-        mTex = createVolcanicMoonTextures(m.color, mSeed);
+      let mMap;
+      let mColor;
+      let mEmissiveMap = null;
+      let mEmissiveColor = new Color(0);
+      let mEmissiveIntensity = 0;
+      let mRoughnessMap = null;
+      if (m.texture) {
+        mMap = loadPlanetTexture(m.texture);
+        mColor = new Color(16777215);
+        if (m.type === "Vulkanmond") {
+          mEmissiveMap = mMap;
+          mEmissiveColor = new Color(16733440);
+          mEmissiveIntensity = 1;
+        }
       } else {
-        mTex = createRockyTextures(m.color, mSeed);
+        const mTemplate = resolveArchetypeTemplate(m.archetype, m.type, mSeed);
+        mMap = loadPlanetTexture(mTemplate.map);
+        const rawMColor = new Color(parseInt(m.color));
+        const mHsl = { h: 0, s: 0, l: 0 };
+        rawMColor.getHSL(mHsl);
+        if (mHsl.l < 0.55) {
+          rawMColor.setHSL(mHsl.h, mHsl.s, Math.max(0.6, mHsl.l * 1.35));
+        }
+        mColor = rawMColor;
+        if (m.type === "Vulkanmond" || m.archetype && m.archetype.lavaCalderas) {
+          mEmissiveMap = mMap;
+          mEmissiveColor = new Color(parseInt(m.color));
+          mEmissiveIntensity = 1;
+        }
       }
-      const mGeo = new SphereGeometry(m.size, 48, 48);
+      mRoughnessMap = mMap;
+      const mGeo = new SphereGeometry(m.size, 32, 32);
+      const moonRoughness = m.archetype?.roughnessScale ?? (m.type === "Eismond" ? 0.35 : 0.75);
       const mMat = new MeshStandardMaterial({
-        map: mTex.map,
-        bumpMap: mTex.bumpMap || null,
-        bumpScale: 0.06,
-        roughness: 0.75,
-        metalness: 0.1
+        map: mMap,
+        color: mColor,
+        roughnessMap: mRoughnessMap,
+        roughness: moonRoughness,
+        metalness: 0.08,
+        emissive: mEmissiveColor,
+        emissiveMap: mEmissiveMap,
+        emissiveIntensity: mEmissiveIntensity
       });
       const mMesh = new Mesh(mGeo, mMat);
+      mMesh.castShadow = true;
+      mMesh.receiveShadow = false;
       const moonGroup = new Group;
       moonGroup.position.set(mx, 0, mz);
       moonGroup.add(mMesh);

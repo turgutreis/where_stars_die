@@ -93,6 +93,164 @@ class QuantumRandomStream:
         return lst[idx]
 
 
+def generate_planet_archetype(qrng, p_type, species=None):
+    """Generates quantum-entangled PBR archetype and texture blueprint parameters."""
+    if p_type == "Habitable":
+        cloud_cov = round(qrng.get_range(0.25, 0.85), 2)
+        norm_scale = round(qrng.get_range(0.8, 1.4), 2)
+        rough_scale = round(qrng.get_range(0.3, 0.8), 2)
+        atmo_dense = round(qrng.get_range(0.8, 1.3), 2)
+        ocean_cov = round(qrng.get_range(0.4, 0.85), 2)
+        has_night = species is not None and species.get("population", 0) > 0
+        return {
+            "templateId": "earth",
+            "cloudCoverage": cloud_cov,
+            "normalScale": norm_scale,
+            "roughnessScale": rough_scale,
+            "atmosphereDensity": atmo_dense,
+            "oceanCoverage": ocean_cov,
+            "hasNightLights": has_night,
+            "hasRings": False
+        }
+    elif p_type == "Gas Giant":
+        tpl = qrng.choose(["jupiter", "saturn", "uranus", "neptune"])
+        has_rings = (tpl == "saturn") or (qrng.get_bits(2) == 0)
+        ring_tex = "8k_saturn_ring_alpha.png" if has_rings else None
+        turb = round(qrng.get_range(0.4, 1.2), 2)
+        return {
+            "templateId": tpl,
+            "cloudCoverage": 1.0,
+            "roughnessScale": round(qrng.get_range(0.2, 0.45), 2),
+            "normalScale": 0.0,
+            "atmosphereDensity": round(qrng.get_range(1.1, 1.6), 2),
+            "atmosphericTurbulence": turb,
+            "hasRings": has_rings,
+            "ringTexture": ring_tex,
+            "hasNightLights": False
+        }
+    elif p_type == "Rocky":
+        tpl = qrng.choose(["mars", "mercury", "venus_surface", "moon"])
+        has_atmo_veil = (tpl == "venus_surface") or (qrng.get_bits(3) == 0)
+        return {
+            "templateId": tpl,
+            "normalScale": round(qrng.get_range(0.9, 1.8), 2),
+            "roughnessScale": round(qrng.get_range(0.65, 0.95), 2),
+            "atmosphereDensity": round(qrng.get_range(0.1, 0.9), 2) if has_atmo_veil else 0.0,
+            "cloudCoverage": round(qrng.get_range(0.5, 0.95), 2) if has_atmo_veil else 0.0,
+            "hasRings": False,
+            "hasNightLights": False
+        }
+    elif p_type == "Ice":
+        tpl = qrng.choose(["neptune", "uranus", "jupiter_europa"])
+        return {
+            "templateId": tpl,
+            "normalScale": round(qrng.get_range(0.5, 1.2), 2),
+            "roughnessScale": round(qrng.get_range(0.15, 0.45), 2),
+            "atmosphereDensity": round(qrng.get_range(0.3, 0.8), 2),
+            "subsurfaceOcean": qrng.get_bits(1) == 1,
+            "hasRings": qrng.get_bits(3) == 0,
+            "ringTexture": "8k_saturn_ring_alpha.png" if qrng.get_bits(3) == 0 else None,
+            "hasNightLights": False
+        }
+    elif p_type == "Desert":
+        return {
+            "templateId": "mars",
+            "normalScale": round(qrng.get_range(1.0, 1.6), 2),
+            "roughnessScale": round(qrng.get_range(0.7, 0.95), 2),
+            "atmosphereDensity": round(qrng.get_range(0.2, 0.5), 2),
+            "dustStormFrequency": round(qrng.get_range(0.3, 0.9), 2),
+            "hasRings": False,
+            "hasNightLights": False
+        }
+    elif p_type == "Vorläufer-Konstrukt":
+        return {
+            "templateId": "moon",
+            "normalScale": 0.0,
+            "roughnessScale": 0.1,
+            "atmosphereDensity": 0.0,
+            "hasRings": False,
+            "hasNightLights": False
+        }
+    elif p_type in ["Plasma-Wirbel", "Gezeiten-Trümmerfeld", "Gefangener Stern"]:
+        return {
+            "templateId": "sun" if p_type == "Gefangener Stern" else "moon",
+            "normalScale": 0.0,
+            "roughnessScale": 0.3,
+            "atmosphereDensity": 1.5 if p_type == "Plasma-Wirbel" else 0.0,
+            "hasRings": p_type == "Gezeiten-Trümmerfeld",
+            "ringTexture": "8k_saturn_ring_alpha.png" if p_type == "Gezeiten-Trümmerfeld" else None,
+            "hasNightLights": False
+        }
+    else:
+        return {
+            "templateId": "moon",
+            "normalScale": 1.0,
+            "roughnessScale": 0.8,
+            "atmosphereDensity": 0.0,
+            "hasRings": False,
+            "hasNightLights": False
+        }
+
+
+def generate_moon_archetype(qrng, m_type):
+    """Generates quantum-entangled moon archetype parameters."""
+    if m_type == "Eismond":
+        tpl = qrng.choose(["jupiter_europa", "uranus", "neptune"])
+        has_geysers = qrng.get_bits(1) == 1
+        return {
+            "templateId": tpl,
+            "normalScale": round(qrng.get_range(0.4, 0.9), 2),
+            "roughnessScale": round(qrng.get_range(0.12, 0.35), 2),
+            "cryoVolcanism": has_geysers,
+            "craterDensity": qrng.choose(["low", "medium"])
+        }
+    elif m_type == "Vulkanmond":
+        return {
+            "templateId": "jupiter_io",
+            "normalScale": round(qrng.get_range(0.8, 1.5), 2),
+            "roughnessScale": round(qrng.get_range(0.2, 0.5), 2),
+            "lavaCalderas": True,
+            "craterDensity": "low"
+        }
+    elif m_type == "Kratermond":
+        tpl = qrng.choose(["moon", "mars_phobos", "mars_deimos", "jupiter_callisto", "jupiter_ganymede"])
+        c_density = qrng.choose(["medium", "high", "extreme"])
+        return {
+            "templateId": tpl,
+            "normalScale": round(qrng.get_range(1.1, 1.9), 2),
+            "roughnessScale": round(qrng.get_range(0.75, 0.95), 2),
+            "craterDensity": c_density
+        }
+    else:
+        return {
+            "templateId": "moon",
+            "normalScale": 1.0,
+            "roughnessScale": 0.8,
+            "craterDensity": "medium"
+        }
+
+
+def enrich_existing_galaxy(qrng, galaxy_data):
+    """Deterministically enriches an existing universe JSON with quantum archetype templates."""
+    enriched_planets = 0
+    enriched_moons = 0
+    
+    for s_entry in galaxy_data.get("systems", []):
+        for p in s_entry.get("planets", []):
+            if "archetype" not in p:
+                p["archetype"] = generate_planet_archetype(qrng, p.get("type", "Rocky"), p.get("species"))
+                enriched_planets += 1
+            for m in p.get("moons", []):
+                if "archetype" not in m:
+                    m["archetype"] = generate_moon_archetype(qrng, m.get("type", "Kratermond"))
+                    enriched_moons += 1
+                    
+    meta = galaxy_data.setdefault("meta", {})
+    meta["archetypeSystem"] = "QPU_NASA_ESA_v1"
+    meta["lastEnrichedAt"] = datetime.now(timezone.utc).isoformat()
+    return galaxy_data, enriched_planets, enriched_moons
+
+
 def generate_quantum_bits(api_key=None, use_qpu=False):
     print("Najmafar Quantum Generator: Initialisiere Quantenschaltkreis...", flush=True)
     
@@ -1180,6 +1338,7 @@ def build_galaxy(qrng, meta_info, count=1000):
                     "magnetosphere": "Hyper-Magnetic" if p_idx == 0 else "Strong",
                     "geothermal": "Hyper-Volcanic" if p_idx == 0 else "Dead",
                     "radiationLevel": "Extreme",
+                    "archetype": generate_planet_archetype(qrng, p_type, None),
                     "entangledTwinId": None,
                     "quantumResonance": 0.0
                 })
@@ -1295,6 +1454,7 @@ def build_galaxy(qrng, meta_info, count=1000):
                         "res": m_res,
                         "tidalLock": True,
                         "geothermal": m_geo,
+                        "archetype": generate_moon_archetype(qrng, m_type),
                         "parentPlanetName": p_name
                     })
                 
@@ -1335,6 +1495,7 @@ def build_galaxy(qrng, meta_info, count=1000):
                     "magnetosphere": p_mag,
                     "geothermal": p_geo,
                     "radiationLevel": p_rad,
+                    "archetype": generate_planet_archetype(qrng, p_type, species),
                     "entangledTwinId": None,
                     "quantumResonance": 0.0
                 })
@@ -1406,10 +1567,29 @@ def main():
     parser.add_argument("--api-key", "--token", dest="api_key", type=str, default="", help="IBM Quantum API Key / Token")
     parser.add_argument("--qpu", "--use-qpu", dest="qpu", action="store_true", help="Use real IBM QPU instead of simulator")
     parser.add_argument("--force", dest="force", action="store_true", help="Force overwrite even if universe_data.json contains real IBM QPU data")
+    parser.add_argument("--enrich", dest="enrich", action="store_true", help="Enrich existing universe_data.json with quantum archetype parameters without altering stars")
     args = parser.parse_args()
 
     api_key = args.api_key or os.environ.get("IBM_QUANTUM_API_KEY", "") or os.environ.get("QISKIT_IBM_TOKEN", "")
     use_qpu = args.qpu
+    
+    # Enrich existing universe with quantum archetype parameters if requested
+    if args.enrich:
+        target_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "universe_data.json")
+        if not os.path.exists(target_file):
+            print(f"Fehler: '{target_file}' existiert nicht zum Anreichern!", flush=True)
+            sys.exit(1)
+        with open(target_file, "r", encoding="utf-8") as f:
+            existing_universe = json.load(f)
+            
+        qrng, meta_info = generate_quantum_bits(api_key, use_qpu)
+        enriched_data, n_planets, n_moons = enrich_existing_galaxy(qrng, existing_universe)
+        
+        with open(target_file, "w", encoding="utf-8") as f:
+            json.dump(enriched_data, f, indent=2, ensure_ascii=False)
+            
+        print(f"✅ Quanten-Schablonen-Anreicherung erfolgreich! {n_planets} Planeten und {n_moons} Monde in '{target_file}' mit PBR-Archetypen aktualisiert.", flush=True)
+        return
     
     # 1. Check existing universe file to protect real IBM QPU data
     output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "universe_data.json")

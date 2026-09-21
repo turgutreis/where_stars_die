@@ -40,11 +40,13 @@ export interface QuantumCivState {
 }
 
 export interface StarData {
+    name?: string;
     type: string;
     color: string;
     size: number;
     mass: number;
     colorCss?: string;
+    texture?: string;
 }
 
 export type SpeciesLifespanCategory = 'ephemeral' | 'mortal' | 'longlived' | 'ancient';
@@ -110,6 +112,32 @@ export interface PlanetAttributes {
     quantumResonance?: number;
 }
 
+export interface MoonArchetypeData {
+    templateId: string;
+    normalScale?: number;
+    roughnessScale?: number;
+    craterDensity?: 'low' | 'medium' | 'high' | 'extreme';
+    cryoVolcanism?: boolean;
+    lavaCalderas?: boolean;
+}
+
+export interface PlanetArchetypeData {
+    templateId: string;
+    cloudCoverage?: number;
+    normalScale?: number;
+    roughnessScale?: number;
+    atmosphereDensity?: number;
+    oceanCoverage?: number;
+    atmosphericTurbulence?: number;
+    dustStormFrequency?: number;
+    hasRings?: boolean;
+    ringTexture?: string;
+    hasNightLights?: boolean;
+    subsurfaceOcean?: boolean;
+    craterDensity?: 'low' | 'medium' | 'high' | 'extreme';
+    cryoVolcanism?: boolean;
+}
+
 export interface MoonData {
     name: string;
     type: MoonType;
@@ -117,6 +145,8 @@ export interface MoonData {
     distance: number;
     speed: number;
     color: string;
+    texture?: string;
+    archetype?: MoonArchetypeData;
     temp: string;
     atmos: string;
     bio: string;
@@ -132,6 +162,14 @@ export interface PlanetData {
     distance: number;
     size: number;
     color: string;
+    texture?: string;
+    cloudTexture?: string;
+    nightTexture?: string;
+    normalTexture?: string;
+    specularTexture?: string;
+    atmoTexture?: string;
+    ringTexture?: string;
+    archetype?: PlanetArchetypeData;
     atmos?: string;
     temp?: string;
     bio?: string;

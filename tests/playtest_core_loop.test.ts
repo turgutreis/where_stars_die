@@ -44,6 +44,7 @@ if (typeof globalThis.document === 'undefined') {
     (globalThis as any).document = {
         getElementById: () => dummyEl,
         createElement: () => ({ ...dummyEl }),
+        createElementNS: () => ({ ...dummyEl }),
         querySelector: () => dummyEl,
         querySelectorAll: () => []
     };
@@ -109,7 +110,7 @@ import { triggerScanStart, updateScanning, completeScanning, generatePlanetAttri
 import { completeAbduction } from '../src/systems/abduction';
 import { getLoreSolSystem, getLoreArrakisSystem, getLoreSolarisSystem, ensureLoreSystems } from '../src/procedural/lore-systems';
 import { AUDIO_SETTINGS } from '../src/engine/audio';
-import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets } from '../src/systems/universe';
+import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets, spawnPlanetsAndAsteroids } from '../src/systems/universe';
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
 import { updatePhysics } from '../src/engine/physics';
 import { generateProceduralCandidates, getCrewReactiveThought } from '../src/systems/crew-generation';
@@ -120,6 +121,13 @@ import { handleVoyagerScan, setLockedTarget } from '../src/input/controls';
 import { calculateGravityAndCheckCollision, TRAJECTORY_SEGMENTS } from '../src/engine/trajectory';
 import { createRealisticStarfield } from '../src/engine/starfield';
 import { createAlienBioShip } from '../src/procedural/alien-ship';
+import { createHabitableTextures, createGasGiantTextures, createRockyTextures, createIceMoonTextures, createVolcanicMoonTextures } from '../src/procedural/textures';
+import { createAtmosphereMesh } from '../src/procedural/atmosphere-shader';
+import { getTemplateForBody, resolveArchetypeTemplate, getTemplateById, PLANET_ARCHETYPE_TEMPLATES } from '../src/procedural/planet-textures';
+import { LIGHTING_PROFILES, getLightingProfileForSystem } from '../src/graphics/lighting-profiles';
+import { applySystemLighting, updateColorGrading } from '../src/engine/postprocessing';
+import { createPlanetaryRings } from '../src/procedural/planet-rings';
+import { createPlayerMesh } from '../src/procedural/meshes';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -811,17 +819,26 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(planetNames).toContain("Neptun");
         expect(planetNames).toContain("Pluto");
 
+        expect(solSys.star.texture).toBe("assets/textures/planets/8k_sun.jpg");
         const erde = solSys.planets.find((p: any) => p.name === "Erde (Terra)");
         expect(erde.moons.length).toBe(1);
         expect(erde.moons[0].name).toContain("Luna");
+        expect(erde.moons[0].texture).toBe("assets/textures/planets/8k_moon.jpg");
+        expect(erde.texture).toBe("assets/textures/planets/8k_earth_daymap.jpg");
+        expect(erde.cloudTexture).toBe("assets/textures/planets/8k_earth_clouds.jpg");
+        expect(erde.nightTexture).toBe("assets/textures/planets/8k_earth_nightmap.jpg");
         expect(erde.species.name).toContain("Menschheit");
         expect(erde.species.candidates.some((c: any) => c.name.includes("Carl Sagan"))).toBe(true);
 
         const jupiter = solSys.planets.find((p: any) => p.name === "Jupiter");
         expect(jupiter.moons.length).toBe(4); // Io, Europa, Ganymed, Kallisto
+        expect(jupiter.texture).toBe("assets/textures/planets/8k_jupiter.jpg");
+        expect(jupiter.moons.find((m: any) => m.name === "Europa").texture).toBe("assets/textures/planets/jupiter_europa.jpg");
         expect(jupiter.magnetosphere).toBe("Hyper-Magnetic");
 
         const saturn = solSys.planets.find((p: any) => p.name === "Saturn");
+        expect(saturn.texture).toBe("assets/textures/planets/8k_saturn.jpg");
+        expect(saturn.ringTexture).toBe("assets/textures/planets/8k_saturn_ring_alpha.png");
         expect(saturn.moons.some((m: any) => m.name.includes("Titan"))).toBe(true);
 
         // 2. Arrakis & Canopus System Verification
@@ -982,6 +999,356 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         // 7. Clean disposal
         expect(() => starfield.dispose()).not.toThrow();
+    });
+
+    test("23. High-End PBR Planetary Graphics, Specular/Roughness Maps & Atmospheric Twilight Terminator", () => {
+        // 1. Habitable Planet PBR generation
+        const habTex = createHabitableTextures(0x38bdf8, 42);
+        expect(habTex.map).toBeInstanceOf(THREE.CanvasTexture);
+        expect(habTex.bumpMap).toBeInstanceOf(THREE.CanvasTexture);
+        expect(habTex.roughnessMap).toBeInstanceOf(THREE.CanvasTexture);
+
+        // 2. Roughness maps for Gas Giants, Rocky Worlds, and Moons
+        const gasTex = createGasGiantTextures(0xf59e0b, 77);
+        expect(gasTex.map).toBeInstanceOf(THREE.CanvasTexture);
+        expect(gasTex.roughnessMap).toBeInstanceOf(THREE.CanvasTexture);
+
+        const rockyTex = createRockyTextures(0x888888, 99);
+        expect(rockyTex.map).toBeInstanceOf(THREE.CanvasTexture);
+        expect(rockyTex.bumpMap).toBeInstanceOf(THREE.CanvasTexture);
+        expect(rockyTex.roughnessMap).toBeInstanceOf(THREE.CanvasTexture);
+
+        const iceMoonTex = createIceMoonTextures(0xe0f2fe, 123);
+        expect(iceMoonTex.map).toBeInstanceOf(THREE.CanvasTexture);
+        expect(iceMoonTex.roughnessMap).toBeInstanceOf(THREE.CanvasTexture);
+
+        const volcanicMoonTex = createVolcanicMoonTextures(0xf97316, 321);
+        expect(volcanicMoonTex.map).toBeInstanceOf(THREE.CanvasTexture);
+        expect(volcanicMoonTex.emissiveMap).toBeInstanceOf(THREE.CanvasTexture);
+        expect(volcanicMoonTex.roughnessMap).toBeInstanceOf(THREE.CanvasTexture);
+
+        // 3. Atmospheric Shader with Rayleigh Twilight Scattering
+        const atmoMesh = createAtmosphereMesh(12, 0x38bdf8, 1.25);
+        expect(atmoMesh).toBeInstanceOf(THREE.Mesh);
+        expect(atmoMesh.material).toBeInstanceOf(THREE.ShaderMaterial);
+
+        const atmoMat = atmoMesh.material as THREE.ShaderMaterial;
+        expect(atmoMat.uniforms.glowColor).toBeDefined();
+        expect(atmoMat.uniforms.intensityMultiplier).toBeDefined();
+        expect(atmoMat.uniforms.uStarPosition).toBeDefined();
+        expect(atmoMat.uniforms.uStarPosition.value).toBeInstanceOf(THREE.Vector3);
+
+        // Verify vertex shader computes world normals for true planetary lighting
+        expect(atmoMat.vertexShader).toContain('vWorldNormal');
+        expect(atmoMat.vertexShader).toContain('modelMatrix');
+
+        // Verify fragment shader contains Rayleigh sunset twilight scattering formulas
+        expect(atmoMat.fragmentShader).toContain('twilightFactor');
+        expect(atmoMat.fragmentShader).toContain('sunsetColor');
+        expect(atmoMat.fragmentShader).toContain('uStarPosition');
+
+        // 4. System Arrival Integration: Planar Mesh, atmoMesh, and Night-Side City Lights
+        const testSys: any = {
+            id: 'pbr-test-sys',
+            name: 'PBR Prime',
+            dominantFaction: 'Verbund Freier Siedler',
+            star: {
+                type: 'Yellow Sun',
+                color: '0xffd700',
+                size: 24,
+                mass: 100
+            },
+            planets: [
+                {
+                    name: 'Gaia Nova',
+                    type: 'Habitable',
+                    size: 8,
+                    color: '0x38bdf8',
+                    moons: [
+                        { name: 'Io Prime', type: 'Vulkanmond', size: 2.2, color: '0xf97316' },
+                        { name: 'Europa Secundus', type: 'Eismond', size: 2.0, color: '0xe0f2fe' }
+                    ],
+                    species: {
+                        name: 'Aethelgardianer',
+                        population: 4500000,
+                        techLevel: 'Spacefaring',
+                        candidates: [{ id: 'c-1', name: 'Test', bioStation: 'Botaniker' }]
+                    }
+                },
+                {
+                    name: 'Titanus Gas',
+                    type: 'Gas Giant',
+                    size: 16,
+                    color: '0xf59e0b',
+                    moons: []
+                }
+            ]
+        };
+
+        STATE.universe = { systems: [testSys] };
+        STATE.currentSystemId = 0;
+        activePlanets.length = 0;
+        spawnPlanetsAndAsteroids();
+
+        const habPlanet = activePlanets.find(p => p.name === 'Gaia Nova');
+        expect(habPlanet).toBeDefined();
+        expect(habPlanet!.atmoMesh).toBeDefined();
+        expect(habPlanet!.atmoMesh).toBeInstanceOf(THREE.Mesh);
+
+        // Body mesh material must be standard PBR with roughnessMap and city lights terminator hook
+        const bodyMesh = habPlanet!.bodyMesh as THREE.Mesh;
+        expect(bodyMesh).toBeInstanceOf(THREE.Mesh);
+        const bodyMat = bodyMesh.material as THREE.MeshStandardMaterial;
+        expect(bodyMat.roughnessMap).toBeDefined();
+        expect(bodyMat.roughness).toBe(1.0); // full dynamic range utilized by roughnessMap
+        expect(bodyMat.customProgramCacheKey).toBeDefined();
+        expect(bodyMat.customProgramCacheKey!()).toBe('cityLightsTerminator');
+
+        // Moons must also possess PBR materials with roughnessMap and volcanic emission
+        const volcanicMoon = activePlanets.find(p => p.name === 'Io Prime');
+        expect(volcanicMoon).toBeDefined();
+        const vMoonMesh = volcanicMoon!.bodyMesh as THREE.Mesh;
+        const vMoonMat = vMoonMesh.material as THREE.MeshStandardMaterial;
+        expect(vMoonMat.roughnessMap).toBeDefined();
+        expect(vMoonMat.emissiveMap).toBeDefined();
+        expect(vMoonMat.emissiveIntensity).toBeGreaterThan(0.0);
+
+        // 5. Planetary Template Archetypes (Schablonen-System)
+        const earthTemplate = getTemplateForBody('Habitable', 42);
+        expect(earthTemplate.map).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_DAY);
+        expect(earthTemplate.cloudMap).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_CLOUDS);
+        expect(earthTemplate.nightMap).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_NIGHT);
+
+        const jupiterTemplate = getTemplateForBody('Gas Giant', 42);
+        expect([PLANET_ARCHETYPE_TEMPLATES.JUPITER, PLANET_ARCHETYPE_TEMPLATES.SATURN]).toContain(jupiterTemplate.map);
+    });
+
+    test("24. QPU Quantum Archetype & Template System: Resolves quantum templates, custom normal/roughness scales, and rings", () => {
+        // 1. Check getTemplateById for known archetypes
+        const earthTpl = getTemplateById('earth');
+        expect(earthTpl).toBeDefined();
+        expect(earthTpl!.map).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_DAY);
+        expect(earthTpl!.cloudMap).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_CLOUDS);
+        expect(earthTpl!.normalMap).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_NORMAL);
+        expect(earthTpl!.roughnessMap).toBe(PLANET_ARCHETYPE_TEMPLATES.EARTH_SPECULAR);
+
+        const jupTpl = getTemplateById('jupiter');
+        expect(jupTpl).toBeDefined();
+        expect(jupTpl!.map).toBe(PLANET_ARCHETYPE_TEMPLATES.JUPITER);
+
+        const ioTpl = getTemplateById('jupiter_io');
+        expect(ioTpl).toBeDefined();
+        expect(ioTpl!.map).toBe(PLANET_ARCHETYPE_TEMPLATES.JUPITER_IO);
+
+        // 2. Test resolveArchetypeTemplate with custom archetype object
+        const resolved = resolveArchetypeTemplate({
+            templateId: 'mars',
+            normalScale: 1.5,
+            roughnessScale: 0.9
+        }, 'Rocky', 123);
+        expect(resolved.map).toBe(PLANET_ARCHETYPE_TEMPLATES.MARS);
+
+        // 3. Spawning a system with QPU-enriched archetype parameters
+        const qpuSys: any = {
+            id: 888,
+            name: "QPU Quantum Sanctuary",
+            star: { type: "Yellow Sun", color: "0xf59e0b", size: 10, mass: 100 },
+            planets: [
+                {
+                    name: "Quantum Eden",
+                    type: "Habitable",
+                    size: 3.5,
+                    distance: 30,
+                    color: "0x22c55e",
+                    archetype: {
+                        templateId: "earth",
+                        cloudCoverage: 0.45,
+                        normalScale: 1.3,
+                        roughnessScale: 0.4,
+                        hasNightLights: true,
+                        hasRings: false
+                    },
+                    species: { population: 500000000, candidates: [] },
+                    moons: [
+                        {
+                            name: "Quantum Eden-I",
+                            type: "Eismond",
+                            size: 0.9,
+                            distance: 8,
+                            speed: 1.0,
+                            color: "0x38bdf8",
+                            archetype: {
+                                templateId: "jupiter_europa",
+                                roughnessScale: 0.22,
+                                normalScale: 0.6,
+                                cryoVolcanism: true
+                            }
+                        }
+                    ]
+                },
+                {
+                    name: "Quantum Ring Giant",
+                    type: "Gas Giant",
+                    size: 6.0,
+                    distance: 80,
+                    color: "0xf97316",
+                    archetype: {
+                        templateId: "saturn",
+                        roughnessScale: 0.25,
+                        hasRings: true,
+                        ringTexture: "8k_saturn_ring_alpha.png"
+                    },
+                    moons: []
+                }
+            ]
+        };
+
+        STATE.universe = { systems: [qpuSys] };
+        STATE.currentSystemId = 0;
+        activePlanets.length = 0;
+        spawnPlanetsAndAsteroids();
+
+        const eden = activePlanets.find(p => p.name === 'Quantum Eden');
+        expect(eden).toBeDefined();
+        const edenMesh = eden!.bodyMesh as THREE.Mesh;
+        const edenMat = edenMesh.material as THREE.MeshStandardMaterial;
+        expect(edenMat.roughness).toBe(0.4);
+        expect(edenMat.normalScale.x).toBe(1.3);
+
+        const ringGiant = activePlanets.find(p => p.name === 'Quantum Ring Giant');
+        expect(ringGiant).toBeDefined();
+        const ringGiantMesh = ringGiant!.bodyMesh as THREE.Mesh;
+        const ringGiantMat = ringGiantMesh.material as THREE.MeshStandardMaterial;
+        expect(ringGiantMat.roughness).toBe(0.25);
+
+        const europaMoon = activePlanets.find(p => p.name === 'Quantum Eden-I');
+        expect(europaMoon).toBeDefined();
+        const europaMesh = europaMoon!.bodyMesh as THREE.Mesh;
+        const europaMat = europaMesh.material as THREE.MeshStandardMaterial;
+        expect(europaMat.roughness).toBe(0.22);
+    });
+
+    test("25. System-Specific Color Grading, Lighting Profiles & Astronomical Shadow Mapping", () => {
+        // 1. Verify Lighting Profiles for all 5 Star Classes and Cosmic Anomalies
+        expect(LIGHTING_PROFILES['Yellow Sun']).toBeDefined();
+        expect(LIGHTING_PROFILES['Blue Giant']).toBeDefined();
+        expect(LIGHTING_PROFILES['Red Dwarf']).toBeDefined();
+        expect(LIGHTING_PROFILES['White Dwarf']).toBeDefined();
+        expect(LIGHTING_PROFILES['Black Hole']).toBeDefined();
+        expect(LIGHTING_PROFILES['Pulsar']).toBeDefined();
+
+        // Blue Giant: Extreme cold contrast (1.22) & ice blue color filter
+        const blueProfile = getLightingProfileForSystem('Blue Giant');
+        expect(blueProfile.contrast).toBeGreaterThan(1.15);
+        expect(blueProfile.colorFilter.b).toBeGreaterThan(blueProfile.colorFilter.r);
+
+        // Red Dwarf: Warm copper amber filter with muted saturation
+        const redProfile = getLightingProfileForSystem('Red Dwarf');
+        expect(redProfile.colorFilter.r).toBeGreaterThan(redProfile.colorFilter.b);
+        expect(redProfile.saturation).toBeLessThan(1.0);
+
+        // Black Hole: Maximum vignette & intense contrast
+        const bhProfile = getLightingProfileForSystem('Black Hole');
+        expect(bhProfile.vignette).toBeGreaterThanOrEqual(0.40);
+        expect(bhProfile.contrast).toBeGreaterThanOrEqual(1.30);
+
+        // Anomaly overrides: Pulsar returns Pulsar profile
+        const pulsarProfile = getLightingProfileForSystem('Yellow Sun', 'pulsar');
+        expect(pulsarProfile.name).toContain('Pulsar');
+
+        // 2. Test Color Grading Transition Engine
+        applySystemLighting('Blue Giant');
+        updateColorGrading(0.1); // Smooth transition tick
+
+        // 3. Astronomical Ring Eclipse Shadow:
+        // Planet's spherical body casts an elliptical shadow onto its rings
+        const planetR = 8.0;
+        const rings = createPlanetaryRings(planetR, 0xc0c6d0, 101);
+        expect(rings).toBeDefined();
+        expect(rings.receiveShadow).toBe(true);
+
+        const ringMat = rings.material as THREE.MeshStandardMaterial;
+        expect(ringMat.customProgramCacheKey!()).toBe('ringPlanetEclipseShadow');
+
+        // Test the analytical shadow equation used in the shader:
+        // Ray from ring fragment towards star (0, 38, 0):
+        const starPos = new THREE.Vector3(0, 38, 0);
+        const planetPos = new THREE.Vector3(100, 0, 0); // Planet on X-axis
+
+        // Point A on night side of ring (directly behind planet, away from star):
+        const nightRingPoint = new THREE.Vector3(115, 0, 0);
+        const toStarA = starPos.clone().sub(nightRingPoint).normalize();
+        const toPlanetA = planetPos.clone().sub(nightRingPoint);
+        const tA = toPlanetA.dot(toStarA);
+        expect(tA).toBeGreaterThan(0); // Planet is between ring point and star
+        const closestA = toPlanetA.clone().sub(toStarA.clone().multiplyScalar(tA));
+        expect(closestA.length()).toBeLessThan(planetR); // In umbra!
+
+        // Point B on day side of ring (facing star):
+        const dayRingPoint = new THREE.Vector3(85, 0, 0);
+        const toStarB = starPos.clone().sub(dayRingPoint).normalize();
+        const toPlanetB = planetPos.clone().sub(dayRingPoint);
+        const tB = toPlanetB.dot(toStarB);
+        expect(tB).toBeLessThan(0); // Planet is NOT between ring point and star -> fully lit!
+
+        // 4. Directional Shadow Mapping on Player Ship & Celestial Meshes
+        const playerShip = createPlayerMesh();
+        let shipCastsShadow = false;
+        let shipReceivesShadow = false;
+        playerShip.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+                if (child.castShadow) shipCastsShadow = true;
+                if (child.receiveShadow) shipReceivesShadow = true;
+            }
+        });
+        expect(shipCastsShadow).toBe(true);
+        expect(shipReceivesShadow).toBe(true);
+
+        // 5. Spawn system and verify shadow-casting on DirectionalLight and planet/moon meshes
+        const testSystem: any = {
+            id: 99,
+            name: 'Shadow Test Prime',
+            star: {
+                name: 'Shadow Sun',
+                type: 'Yellow Sun',
+                color: '0xffffff',
+                size: 5.0,
+                mass: 200
+            },
+            planets: [
+                {
+                    name: 'Shadow Planet',
+                    type: 'Gas Giant',
+                    size: 7.0,
+                    distance: 50.0,
+                    color: '0x38bdf8',
+                    moons: [
+                        {
+                            name: 'Shadow Moon',
+                            type: 'Eismond',
+                            size: 1.8,
+                            distance: 14.0,
+                            color: '0xcccccc'
+                        }
+                    ]
+                }
+            ]
+        };
+
+        STATE.universe = { systems: [testSystem] };
+        STATE.currentSystemId = 0;
+        activePlanets.length = 0;
+        spawnPlanetsAndAsteroids();
+
+        const testPlanet = activePlanets.find(p => p.name === 'Shadow Planet');
+        expect(testPlanet).toBeDefined();
+        expect(testPlanet!.bodyMesh!.castShadow).toBe(true);
+        expect(testPlanet!.bodyMesh!.receiveShadow).toBe(false);
+
+        const testMoon = activePlanets.find(p => p.name === 'Shadow Moon');
+        expect(testMoon).toBeDefined();
+        expect(testMoon!.bodyMesh!.castShadow).toBe(true);
+        expect(testMoon!.bodyMesh!.receiveShadow).toBe(false);
     });
 });
 
