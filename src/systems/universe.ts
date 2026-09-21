@@ -224,12 +224,12 @@ export function spawnPlanetsAndAsteroids() {
         const bhBaseColor = new THREE.Color(0xa855f7);
         const bhLightColor = bhBaseColor.clone().lerp(new THREE.Color(0xd8b4fe), 0.35);
         const starLight = new THREE.PointLight(bhLightColor, 3.2, 0, 0.0);
-        starLight.position.set(0, 36, 0);
+        starLight.position.set(0, 2, 0);
         scene.add(starLight);
         activeStarLights.push(starLight);
 
         const bhDirLight = new THREE.DirectionalLight(bhLightColor, 0.65);
-        bhDirLight.position.set(0, 75, 0);
+        bhDirLight.position.set(40, 6, 40);
         bhDirLight.castShadow = true;
         bhDirLight.shadow.mapSize.width = 1024;
         bhDirLight.shadow.mapSize.height = 1024;
@@ -299,15 +299,15 @@ export function spawnPlanetsAndAsteroids() {
         const baseStarColor = new THREE.Color(parseInt(starData.color));
         const naturalLightColor = baseStarColor.clone().lerp(new THREE.Color(0xfff7ea), 0.38);
 
-        // Elevated PointLight so the top hemisphere viewed from above receives direct sunlight
+        // PointLight centered in the star illuminating planets along the ecliptic plane
         const starLight = new THREE.PointLight(naturalLightColor, 3.6, 0, 0.0);
-        starLight.position.set(0, 38, 0);
+        starLight.position.set(0, 2, 0);
         scene.add(starLight);
         activeStarLights.push(starLight);
 
         // Stellar Directional Fill for consistent planetary illumination & dynamic shadow casting
         const starDirLight = new THREE.DirectionalLight(naturalLightColor, 0.95);
-        starDirLight.position.set(0, 80, 0);
+        starDirLight.position.set(40, 6, 40);
         starDirLight.castShadow = true;
         starDirLight.shadow.mapSize.width = 1024;
         starDirLight.shadow.mapSize.height = 1024;
@@ -1059,11 +1059,19 @@ export function updateActivePlanets(dt: number) {
         }
     });
 
-    // Directional shadow-camera tracking focused around player ship and active orbits
+    // Directional shadow-camera tracking aligned with central star light vector
     const dirLight = activeStarLights.find(l => l instanceof THREE.DirectionalLight) as THREE.DirectionalLight | undefined;
     if (dirLight && STATE.playerPosition) {
-        dirLight.position.set(STATE.playerPosition.x + 35, 85, STATE.playerPosition.z + 35);
-        dirLight.target.position.copy(STATE.playerPosition);
+        const pX = STATE.playerPosition.x;
+        const pZ = STATE.playerPosition.z;
+        const dist = Math.hypot(pX, pZ);
+        const radX = dist > 0.1 ? pX / dist : 1.0;
+        const radZ = dist > 0.1 ? pZ / dist : 0.0;
+
+        // Position directional light sunward (between star and player/orbit), shining outward into space
+        // A low Y offset (6.0) ensures it shines horizontally across the ecliptic plane without washing out the night side!
+        dirLight.position.set(pX - radX * 50, 6, pZ - radZ * 50);
+        dirLight.target.position.set(pX, 0, pZ);
         dirLight.target.updateMatrixWorld();
     }
 

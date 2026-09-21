@@ -32,7 +32,7 @@ export function initScene(container?: HTMLElement) {
 
     // Celestial Ambient Light (Starlight from billions of stars, galactic disc & diffuse nebulae)
     // Dynamically graded according to current star system class
-    ambientLight = new THREE.AmbientLight(0x243246, 0.72);
+    ambientLight = new THREE.AmbientLight(0x182436, 0.12);
     scene.add(ambientLight);
 
     // Create Realistic Multi-Layered Astronomical Starfield (No donut holes!)

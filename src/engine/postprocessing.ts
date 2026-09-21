@@ -174,8 +174,8 @@ let currentSaturation = 1.06;
 let currentVignette = 0.22;
 const currentColorFilter = new THREE.Color(0xfff8e8);
 const currentShadowTint = new THREE.Color(0x090f1e);
-const currentAmbientColor = new THREE.Color(0x243246);
-let currentAmbientIntensity = 0.72;
+const currentAmbientColor = new THREE.Color(0x182436);
+let currentAmbientIntensity = 0.12;
 let currentBloomThreshold = 0.88;
 let currentBloomStrength = 0.55;
 

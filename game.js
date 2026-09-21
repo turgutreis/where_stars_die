@@ -31635,8 +31635,8 @@ var LIGHTING_PROFILES = {
     colorFilter: new Color(16775400),
     shadowTint: new Color(593694),
     vignette: 0.22,
-    ambientColor: 2372166,
-    ambientIntensity: 0.72,
+    ambientColor: 1582134,
+    ambientIntensity: 0.12,
     starLightMultiplier: 1,
     bloomThreshold: 0.88,
     bloomStrength: 0.55
@@ -31649,8 +31649,8 @@ var LIGHTING_PROFILES = {
     colorFilter: new Color(13691135),
     shadowTint: new Color(264732),
     vignette: 0.28,
-    ambientColor: 1583180,
-    ambientIntensity: 0.82,
+    ambientColor: 1187382,
+    ambientIntensity: 0.14,
     starLightMultiplier: 1.25,
     bloomThreshold: 0.82,
     bloomStrength: 0.72
@@ -31663,8 +31663,8 @@ var LIGHTING_PROFILES = {
     colorFilter: new Color(16758920),
     shadowTint: new Color(1706508),
     vignette: 0.32,
-    ambientColor: 3021854,
-    ambientIntensity: 0.58,
+    ambientColor: 2233366,
+    ambientIntensity: 0.1,
     starLightMultiplier: 0.85,
     bloomThreshold: 0.85,
     bloomStrength: 0.62
@@ -31677,8 +31677,8 @@ var LIGHTING_PROFILES = {
     colorFilter: new Color(16054783),
     shadowTint: new Color(396308),
     vignette: 0.24,
-    ambientColor: 1845308,
-    ambientIntensity: 0.65,
+    ambientColor: 1317928,
+    ambientIntensity: 0.11,
     starLightMultiplier: 1.1,
     bloomThreshold: 0.9,
     bloomStrength: 0.48
@@ -31691,8 +31691,8 @@ var LIGHTING_PROFILES = {
     colorFilter: new Color(14202110),
     shadowTint: new Color(1049632),
     vignette: 0.48,
-    ambientColor: 1576232,
-    ambientIntensity: 0.45,
+    ambientColor: 1050652,
+    ambientIntensity: 0.08,
     starLightMultiplier: 0.75,
     bloomThreshold: 0.78,
     bloomStrength: 0.85
@@ -31705,8 +31705,8 @@ var LIGHTING_PROFILES = {
     colorFilter: new Color(10875900),
     shadowTint: new Color(918820),
     vignette: 0.35,
-    ambientColor: 2102336,
-    ambientIntensity: 0.75,
+    ambientColor: 1444908,
+    ambientIntensity: 0.12,
     starLightMultiplier: 1.3,
     bloomThreshold: 0.75,
     bloomStrength: 0.95
@@ -31719,8 +31719,8 @@ var LIGHTING_PROFILES = {
     colorFilter: new Color(12616956),
     shadowTint: new Color(721428),
     vignette: 0.42,
-    ambientColor: 1772334,
-    ambientIntensity: 0.52,
+    ambientColor: 1181216,
+    ambientIntensity: 0.08,
     starLightMultiplier: 0.8,
     bloomThreshold: 0.8,
     bloomStrength: 0.78
@@ -31733,8 +31733,8 @@ var LIGHTING_PROFILES = {
     colorFilter: new Color(16628340),
     shadowTint: new Color(1575942),
     vignette: 0.28,
-    ambientColor: 3022358,
-    ambientIntensity: 0.68,
+    ambientColor: 2102284,
+    ambientIntensity: 0.11,
     starLightMultiplier: 1.15,
     bloomThreshold: 0.82,
     bloomStrength: 0.75
@@ -31917,8 +31917,8 @@ var currentSaturation = 1.06;
 var currentVignette = 0.22;
 var currentColorFilter = new Color(16775400);
 var currentShadowTint = new Color(593694);
-var currentAmbientColor = new Color(2372166);
-var currentAmbientIntensity = 0.72;
+var currentAmbientColor = new Color(1582134);
+var currentAmbientIntensity = 0.12;
 var currentBloomThreshold = 0.88;
 var currentBloomStrength = 0.55;
 function setColorGradingProfile(profile) {
@@ -32329,7 +32329,7 @@ function initScene(container) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFSoftShadowMap;
   target.appendChild(renderer.domElement);
-  ambientLight = new AmbientLight(2372166, 0.72);
+  ambientLight = new AmbientLight(1582134, 0.12);
   scene.add(ambientLight);
   starfieldController = createRealisticStarfield();
   scene.add(starfieldController.group);
@@ -37682,11 +37682,11 @@ function spawnPlanetsAndAsteroids() {
     const bhBaseColor = new Color(11032055);
     const bhLightColor = bhBaseColor.clone().lerp(new Color(14202110), 0.35);
     const starLight = new PointLight(bhLightColor, 3.2, 0, 0);
-    starLight.position.set(0, 36, 0);
+    starLight.position.set(0, 2, 0);
     scene.add(starLight);
     activeStarLights.push(starLight);
     const bhDirLight = new DirectionalLight(bhLightColor, 0.65);
-    bhDirLight.position.set(0, 75, 0);
+    bhDirLight.position.set(40, 6, 40);
     bhDirLight.castShadow = true;
     bhDirLight.shadow.mapSize.width = 1024;
     bhDirLight.shadow.mapSize.height = 1024;
@@ -37747,11 +37747,11 @@ function spawnPlanetsAndAsteroids() {
     const baseStarColor = new Color(parseInt(starData.color));
     const naturalLightColor = baseStarColor.clone().lerp(new Color(16775146), 0.38);
     const starLight = new PointLight(naturalLightColor, 3.6, 0, 0);
-    starLight.position.set(0, 38, 0);
+    starLight.position.set(0, 2, 0);
     scene.add(starLight);
     activeStarLights.push(starLight);
     const starDirLight = new DirectionalLight(naturalLightColor, 0.95);
-    starDirLight.position.set(0, 80, 0);
+    starDirLight.position.set(40, 6, 40);
     starDirLight.castShadow = true;
     starDirLight.shadow.mapSize.width = 1024;
     starDirLight.shadow.mapSize.height = 1024;
