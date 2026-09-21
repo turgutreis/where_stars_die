@@ -18,7 +18,7 @@ import { loadPlanetTexture, getTemplateForBody, resolveArchetypeTemplate, PLANET
 
 export const activeCoronaMeshes: THREE.Object3D[] = [];
 export const activeCoronaUpdaters: ((dt: number) => void)[] = [];
-export const activeStarLights: THREE.PointLight[] = [];
+export const activeStarLights: THREE.Light[] = [];
 export let activeSunRays: SunRaysController | null = null;
 
 export function updateUniverseShaders(dt: number, cam?: THREE.Camera) {
@@ -217,10 +217,17 @@ export function spawnPlanetsAndAsteroids() {
         activeCoronaMeshes.push(blackHole.group);
         activeCoronaUpdaters.push(blackHole.update);
 
-        const starLight = new THREE.PointLight(0xa855f7, 2.5, 0, 0.0);
-        starLight.position.set(0, 0, 0);
+        const bhBaseColor = new THREE.Color(0xa855f7);
+        const bhLightColor = bhBaseColor.clone().lerp(new THREE.Color(0xd8b4fe), 0.35);
+        const starLight = new THREE.PointLight(bhLightColor, 3.2, 0, 0.0);
+        starLight.position.set(0, 36, 0);
         scene.add(starLight);
         activeStarLights.push(starLight);
+
+        const bhDirLight = new THREE.DirectionalLight(bhLightColor, 0.65);
+        bhDirLight.position.set(0, 75, 0);
+        scene.add(bhDirLight);
+        activeStarLights.push(bhDirLight);
 
         starData.colorCss = "#7c3aed";
 
@@ -274,11 +281,21 @@ export function spawnPlanetsAndAsteroids() {
         activeSunRays = createSunRays(starData.size, parseInt(starData.color));
         scene.add(activeSunRays.group);
 
-        // Radiant Stellar Light Source
-        const starLight = new THREE.PointLight(parseInt(starData.color), 3.2, 0, 0.0);
-        starLight.position.set(0, 0, 0);
+        // Radiant Stellar Light Source (Natural blackbody continuous spectrum blend)
+        const baseStarColor = new THREE.Color(parseInt(starData.color));
+        const naturalLightColor = baseStarColor.clone().lerp(new THREE.Color(0xfff7ea), 0.38);
+
+        // Elevated PointLight so the top hemisphere viewed from above receives direct sunlight
+        const starLight = new THREE.PointLight(naturalLightColor, 3.6, 0, 0.0);
+        starLight.position.set(0, 38, 0);
         scene.add(starLight);
         activeStarLights.push(starLight);
+
+        // Stellar Directional Fill for consistent planetary illumination across large distances
+        const starDirLight = new THREE.DirectionalLight(naturalLightColor, 0.95);
+        starDirLight.position.set(0, 80, 0);
+        scene.add(starDirLight);
+        activeStarLights.push(starDirLight);
 
         starData.colorCss = starData.color.replace("0x", "#");
 
@@ -379,8 +396,14 @@ export function spawnPlanetsAndAsteroids() {
                 // Procedural Alien World: uses real photography as structural template/Schablone!
                 const template = resolveArchetypeTemplate(p.archetype, p.type, seed);
                 diffuseMap = loadPlanetTexture(template.map);
-                // Tint base template with unique procedural hue
-                diffuseColor = new THREE.Color(parseInt(p.color));
+                // Tint base template with unique procedural hue while protecting albedo luminance
+                const rawColor = new THREE.Color(parseInt(p.color));
+                const hsl = { h: 0, s: 0, l: 0 };
+                rawColor.getHSL(hsl);
+                if (hsl.l < 0.52) {
+                    rawColor.setHSL(hsl.h, Math.min(1.0, hsl.s * 1.08), Math.max(0.56, hsl.l * 1.32));
+                }
+                diffuseColor = rawColor;
 
                 const hasClouds = (p.archetype && p.archetype.cloudCoverage !== undefined)
                     ? (p.archetype.cloudCoverage > 0.05 && !!template.cloudMap)
@@ -624,7 +647,13 @@ export function spawnPlanetsAndAsteroids() {
                 // Procedural alien moon using real moon archetypes as structural template
                 const mTemplate = resolveArchetypeTemplate(m.archetype, m.type, mSeed);
                 mMap = loadPlanetTexture(mTemplate.map);
-                mColor = new THREE.Color(parseInt(m.color));
+                const rawMColor = new THREE.Color(parseInt(m.color));
+                const mHsl = { h: 0, s: 0, l: 0 };
+                rawMColor.getHSL(mHsl);
+                if (mHsl.l < 0.55) {
+                    rawMColor.setHSL(mHsl.h, mHsl.s, Math.max(0.60, mHsl.l * 1.35));
+                }
+                mColor = rawMColor;
                 if (m.type === 'Vulkanmond' || (m.archetype && m.archetype.lavaCalderas)) {
                     mEmissiveMap = mMap;
                     mEmissiveColor = new THREE.Color(parseInt(m.color));

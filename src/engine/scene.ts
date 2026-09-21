@@ -26,8 +26,9 @@ export function initScene(container?: HTMLElement) {
     renderer.toneMappingExposure = 1.05;
     target.appendChild(renderer.domElement);
 
-    // Ambient Light (Subtle, atmospheric deep-space base illumination)
-    const ambientLight = new THREE.AmbientLight(0x060c18, 0.18);
+    // Celestial Ambient Light (Starlight from billions of stars, galactic disc & diffuse nebulae)
+    // Ensures the dark side of planets and moons retains a moody, aesthetic presence
+    const ambientLight = new THREE.AmbientLight(0x243246, 0.72);
     scene.add(ambientLight);
 
     // Create Realistic Multi-Layered Astronomical Starfield (No donut holes!)

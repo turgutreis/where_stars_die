@@ -13084,6 +13084,42 @@ class OrthographicCamera extends Camera {
     return data;
   }
 }
+
+class DirectionalLightShadow extends LightShadow {
+  constructor() {
+    super(new OrthographicCamera(-5, 5, 5, -5, 0.5, 500));
+    this.isDirectionalLightShadow = true;
+  }
+}
+
+class DirectionalLight extends Light {
+  constructor(color, intensity) {
+    super(color, intensity);
+    this.isDirectionalLight = true;
+    this.type = "DirectionalLight";
+    this.position.copy(Object3D.DEFAULT_UP);
+    this.updateMatrix();
+    this.target = new Object3D;
+    this.shadow = new DirectionalLightShadow;
+  }
+  dispose() {
+    super.dispose();
+    this.shadow.dispose();
+  }
+  copy(source) {
+    super.copy(source);
+    this.target = source.target.clone();
+    this.shadow = source.shadow.clone();
+    return this;
+  }
+  toJSON(meta) {
+    const data = super.toJSON(meta);
+    data.object.shadow = this.shadow.toJSON();
+    data.object.target = this.target.uuid;
+    return data;
+  }
+}
+
 class AmbientLight extends Light {
   constructor(color, intensity) {
     super(color, intensity);
@@ -32035,7 +32071,7 @@ function initScene(container) {
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   target.appendChild(renderer.domElement);
-  const ambientLight = new AmbientLight(396312, 0.18);
+  const ambientLight = new AmbientLight(2372166, 0.72);
   scene.add(ambientLight);
   starfieldController = createRealisticStarfield();
   scene.add(starfieldController.group);
@@ -37348,10 +37384,16 @@ function spawnPlanetsAndAsteroids() {
     scene.add(blackHole.group);
     activeCoronaMeshes.push(blackHole.group);
     activeCoronaUpdaters.push(blackHole.update);
-    const starLight = new PointLight(11032055, 2.5, 0, 0);
-    starLight.position.set(0, 0, 0);
+    const bhBaseColor = new Color(11032055);
+    const bhLightColor = bhBaseColor.clone().lerp(new Color(14202110), 0.35);
+    const starLight = new PointLight(bhLightColor, 3.2, 0, 0);
+    starLight.position.set(0, 36, 0);
     scene.add(starLight);
     activeStarLights.push(starLight);
+    const bhDirLight = new DirectionalLight(bhLightColor, 0.65);
+    bhDirLight.position.set(0, 75, 0);
+    scene.add(bhDirLight);
+    activeStarLights.push(bhDirLight);
     starData.colorCss = "#7c3aed";
     const starRange = 42;
     const starSource = {
@@ -37397,10 +37439,16 @@ function spawnPlanetsAndAsteroids() {
     activeCoronaUpdaters.push(corona.update);
     activeSunRays = createSunRays(starData.size, parseInt(starData.color));
     scene.add(activeSunRays.group);
-    const starLight = new PointLight(parseInt(starData.color), 3.2, 0, 0);
-    starLight.position.set(0, 0, 0);
+    const baseStarColor = new Color(parseInt(starData.color));
+    const naturalLightColor = baseStarColor.clone().lerp(new Color(16775146), 0.38);
+    const starLight = new PointLight(naturalLightColor, 3.6, 0, 0);
+    starLight.position.set(0, 38, 0);
     scene.add(starLight);
     activeStarLights.push(starLight);
+    const starDirLight = new DirectionalLight(naturalLightColor, 0.95);
+    starDirLight.position.set(0, 80, 0);
+    scene.add(starDirLight);
+    activeStarLights.push(starDirLight);
     starData.colorCss = starData.color.replace("0x", "#");
     const starRange = 24;
     const starSource = {
@@ -37488,7 +37536,13 @@ function spawnPlanetsAndAsteroids() {
       } else {
         const template = resolveArchetypeTemplate(p.archetype, p.type, seed);
         diffuseMap = loadPlanetTexture(template.map);
-        diffuseColor = new Color(parseInt(p.color));
+        const rawColor = new Color(parseInt(p.color));
+        const hsl = { h: 0, s: 0, l: 0 };
+        rawColor.getHSL(hsl);
+        if (hsl.l < 0.52) {
+          rawColor.setHSL(hsl.h, Math.min(1, hsl.s * 1.08), Math.max(0.56, hsl.l * 1.32));
+        }
+        diffuseColor = rawColor;
         const hasClouds = p.archetype && p.archetype.cloudCoverage !== undefined ? p.archetype.cloudCoverage > 0.05 && !!template.cloudMap : template.cloudMap && (isHab || seed % 3 === 0);
         if (hasClouds && template.cloudMap) {
           cloudTexture = loadPlanetTexture(template.cloudMap);
@@ -37686,7 +37740,13 @@ function spawnPlanetsAndAsteroids() {
       } else {
         const mTemplate = resolveArchetypeTemplate(m.archetype, m.type, mSeed);
         mMap = loadPlanetTexture(mTemplate.map);
-        mColor = new Color(parseInt(m.color));
+        const rawMColor = new Color(parseInt(m.color));
+        const mHsl = { h: 0, s: 0, l: 0 };
+        rawMColor.getHSL(mHsl);
+        if (mHsl.l < 0.55) {
+          rawMColor.setHSL(mHsl.h, mHsl.s, Math.max(0.6, mHsl.l * 1.35));
+        }
+        mColor = rawMColor;
         if (m.type === "Vulkanmond" || m.archetype && m.archetype.lavaCalderas) {
           mEmissiveMap = mMap;
           mEmissiveColor = new Color(parseInt(m.color));
