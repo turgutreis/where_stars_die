@@ -121,8 +121,8 @@ export function initPostProcessing() {
     distortionPass = new ShaderPass(SpacetimeDistortionShader);
     composer.addPass(distortionPass);
 
-    // 4. Cinematic Selective Unreal Bloom Pass
-    const bloomResolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
+    // 4. Cinematic Selective Unreal Bloom Pass (Half resolution for high-efficiency M4 tile rendering)
+    const bloomResolution = new THREE.Vector2(Math.floor(window.innerWidth * 0.5), Math.floor(window.innerHeight * 0.5));
     bloomPass = new UnrealBloomPass(
         bloomResolution,
         0.55,  // Bloom strength
@@ -141,7 +141,7 @@ export function resizePostProcessing(width: number, height: number) {
         composer.setSize(width, height);
     }
     if (bloomPass) {
-        bloomPass.resolution.set(width, height);
+        bloomPass.resolution.set(Math.floor(width * 0.5), Math.floor(height * 0.5));
     }
     if (distortionPass && distortionPass.uniforms.uResolution) {
         distortionPass.uniforms.uResolution.value.set(width, height);
@@ -202,6 +202,10 @@ export function updateSpacetimeDistortion() {
     } else {
         uniforms.uRippleCount.value = 0;
     }
+
+    // Performance: Bypass full-screen postprocessing pass entirely when no spacetime distortion is occurring
+    const isDistortionActive = uniforms.uWarpIntensity.value > 0.005 || uniforms.uRippleCount.value > 0;
+    distortionPass.enabled = isDistortionActive;
 }
 
 export function renderPostProcessing() {

@@ -31719,7 +31719,7 @@ function initPostProcessing() {
   SpacetimeDistortionShader.uniforms.uResolution.value.copy(distortionResolution);
   distortionPass = new ShaderPass(SpacetimeDistortionShader);
   composer.addPass(distortionPass);
-  const bloomResolution = new Vector2(window.innerWidth, window.innerHeight);
+  const bloomResolution = new Vector2(Math.floor(window.innerWidth * 0.5), Math.floor(window.innerHeight * 0.5));
   bloomPass = new UnrealBloomPass(bloomResolution, 0.55, 0.28, 0.88);
   composer.addPass(bloomPass);
   const outputPass = new OutputPass;
@@ -31730,7 +31730,7 @@ function resizePostProcessing(width, height) {
     composer.setSize(width, height);
   }
   if (bloomPass) {
-    bloomPass.resolution.set(width, height);
+    bloomPass.resolution.set(Math.floor(width * 0.5), Math.floor(height * 0.5));
   }
   if (distortionPass && distortionPass.uniforms.uResolution) {
     distortionPass.uniforms.uResolution.value.set(width, height);
@@ -31773,6 +31773,8 @@ function updateSpacetimeDistortion() {
   } else {
     uniforms.uRippleCount.value = 0;
   }
+  const isDistortionActive = uniforms.uWarpIntensity.value > 0.005 || uniforms.uRippleCount.value > 0;
+  distortionPass.enabled = isDistortionActive;
 }
 function renderPostProcessing() {
   if (composer) {
@@ -32065,7 +32067,8 @@ function initScene(container) {
   camera = new PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
   camera.position.set(0, 65, 0);
   camera.lookAt(0, 0, 0);
-  renderer = new WebGLRenderer({ antialias: true });
+  renderer = new WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(66312, 1);
   renderer.toneMapping = ACESFilmicToneMapping;
@@ -32082,6 +32085,7 @@ function onWindowResize() {
     return;
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight);
   resizePostProcessing(window.innerWidth, window.innerHeight);
 }
@@ -37558,7 +37562,7 @@ function spawnPlanetsAndAsteroids() {
           roughnessMap = loadPlanetTexture(template.roughnessMap, false);
         }
       }
-      const geo = new SphereGeometry(p.size, 64, 64);
+      const geo = new SphereGeometry(p.size, 48, 48);
       const planetRoughness = p.archetype?.roughnessScale ?? (roughnessMap ? 1 : isGas ? 0.35 : 0.72);
       const matParams = {
         map: diffuseMap,
@@ -37615,7 +37619,7 @@ function spawnPlanetsAndAsteroids() {
         planetGroup.add(atmoMesh);
       }
       if (cloudTexture) {
-        const cloudGeo = new SphereGeometry(p.size * 1.018, 64, 64);
+        const cloudGeo = new SphereGeometry(p.size * 1.018, 48, 48);
         const cloudOpacity = p.archetype?.cloudCoverage !== undefined ? Math.min(0.9, p.archetype.cloudCoverage * 0.88) : 0.85;
         const cloudMat = new MeshStandardMaterial({
           map: cloudTexture,
@@ -37754,7 +37758,7 @@ function spawnPlanetsAndAsteroids() {
         }
       }
       mRoughnessMap = mMap;
-      const mGeo = new SphereGeometry(m.size, 48, 48);
+      const mGeo = new SphereGeometry(m.size, 32, 32);
       const moonRoughness = m.archetype?.roughnessScale ?? (m.type === "Eismond" ? 0.35 : 0.75);
       const mMat = new MeshStandardMaterial({
         map: mMap,

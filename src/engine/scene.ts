@@ -19,7 +19,8 @@ export function initScene(container?: HTMLElement) {
     camera.lookAt(0, 0, 0);
 
     // Renderer with ACES Filmic Tone Mapping for crisp contrast
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setClearColor(0x010308, 1.0);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -43,6 +44,7 @@ export function onWindowResize() {
     if (!camera || !renderer) return;
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
     resizePostProcessing(window.innerWidth, window.innerHeight);
 }

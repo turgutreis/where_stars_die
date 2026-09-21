@@ -429,7 +429,7 @@ export function spawnPlanetsAndAsteroids() {
                 }
             }
 
-            const geo = new THREE.SphereGeometry(p.size, 64, 64);
+            const geo = new THREE.SphereGeometry(p.size, 48, 48);
             const planetRoughness = p.archetype?.roughnessScale ?? (roughnessMap ? 1.0 : (isGas ? 0.35 : 0.72));
             const matParams: THREE.MeshStandardMaterialParameters = {
                 map: diffuseMap,
@@ -504,7 +504,7 @@ export function spawnPlanetsAndAsteroids() {
             }
 
             if (cloudTexture) {
-                const cloudGeo = new THREE.SphereGeometry(p.size * 1.018, 64, 64);
+                const cloudGeo = new THREE.SphereGeometry(p.size * 1.018, 48, 48);
                 const cloudOpacity = p.archetype?.cloudCoverage !== undefined ? Math.min(0.9, p.archetype.cloudCoverage * 0.88) : 0.85;
                 const cloudMat = new THREE.MeshStandardMaterial({
                     map: cloudTexture,
@@ -662,7 +662,7 @@ export function spawnPlanetsAndAsteroids() {
             }
             mRoughnessMap = mMap;
 
-            const mGeo = new THREE.SphereGeometry(m.size, 48, 48);
+            const mGeo = new THREE.SphereGeometry(m.size, 32, 32);
             const moonRoughness = m.archetype?.roughnessScale ?? (m.type === 'Eismond' ? 0.35 : 0.75);
             const mMat = new THREE.MeshStandardMaterial({
                 map: mMap,
