@@ -1,5 +1,5 @@
 import { STATE } from '../core/state';
-import { CrewMember, SpeciesLifespanCategory } from '../types/game';
+import { CrewMember, SpeciesLifespanCategory, SpeciesDisposition } from '../types/game';
 
 // ----------------------------------------------------------------------------
 // PROCEDURAL CREW & ABDUCTION SPECIES GENERATOR
@@ -9,6 +9,7 @@ import { CrewMember, SpeciesLifespanCategory } from '../types/game';
 export interface SpeciesArchetype {
     speciesName: string;
     speciesType: SpeciesLifespanCategory;
+    disposition: SpeciesDisposition;
     avatarIcon: string;
     speciesColor: string;
     firstNames: string[];
@@ -23,6 +24,7 @@ export const SPECIES_ARCHETYPES: SpeciesArchetype[] = [
     {
         speciesName: "Myzel-Symbiont",
         speciesType: "ephemeral",
+        disposition: "empathic",
         avatarIcon: "🍄",
         speciesColor: "#10b981", // Emerald
         firstNames: ["Thal", "Zhirr", "Oona", "Vael", "Kael", "Myco-9", "Sula", "Spore-7", "Phael", "Nyra", "Hypha-4", "Xylos", "Chitin-V", "Mycorrh", "Biolux-3", "Sporan-Rho", "Calyx", "Rhizo-2"],
@@ -38,6 +40,7 @@ export const SPECIES_ARCHETYPES: SpeciesArchetype[] = [
     {
         speciesName: "Cyborg-Synthet",
         speciesType: "longlived",
+        disposition: "synthetic",
         avatarIcon: "🤖",
         speciesColor: "#38bdf8", // Sky Cyan
         firstNames: ["Dax-04", "Rex-Sigma", "Cipher-9", "Unit-77", "Nexus-V", "Kinet-8", "Proxy-Zero", "Vectis-9", "Null-1", "Synapse-X", "Core-42", "Aegis-7", "Proton-11", "Chronos-3", "Optic-88", "Echo-101"],
@@ -53,6 +56,7 @@ export const SPECIES_ARCHETYPES: SpeciesArchetype[] = [
     {
         speciesName: "Olyndar-Empath",
         speciesType: "ancient",
+        disposition: "empathic",
         avatarIcon: "🧝",
         speciesColor: "#a855f7", // Purple
         firstNames: ["Astraea", "Maya-Sol", "Solas", "Elyon", "Kaelen", "Lyra", "Seraph", "Zephyra", "Olynn", "Val-Marek", "Isolde", "Thalor-Sol", "Caelum", "Elysia", "Auriel", "Vesper", "Lumin"],
@@ -68,6 +72,7 @@ export const SPECIES_ARCHETYPES: SpeciesArchetype[] = [
     {
         speciesName: "Tiefsee-Oktanoide",
         speciesType: "mortal",
+        disposition: "martial",
         avatarIcon: "🐙",
         speciesColor: "#06b6d4", // Cyan
         firstNames: ["Nautis", "Triton", "Pelagos", "Hydros", "Moros", "Cala", "Mael", "Vell", "Thalass", "Gorgon", "Nerios", "Glaukos", "Benthos", "Proteus", "Abysso", "Thalor", "Karkin", "Ozean-8", "Kraal-Zeth", "Scylla-Mor", "Dagon-7", "Pontos"],
@@ -83,6 +88,7 @@ export const SPECIES_ARCHETYPES: SpeciesArchetype[] = [
     {
         speciesName: "Kristalliner Lithoid",
         speciesType: "longlived",
+        disposition: "lithoid",
         avatarIcon: "💠",
         speciesColor: "#f59e0b", // Amber
         firstNames: ["Pyrit-7", "Obsid-Prime", "Beryll-Rho", "Quarz-Matrix", "Granat-V", "Zirkon-9", "Silikat-Omega", "Basalt-K", "Andalus-3", "Topas-Delta", "Geod-12", "Monolith-4"],
@@ -98,6 +104,7 @@ export const SPECIES_ARCHETYPES: SpeciesArchetype[] = [
     {
         speciesName: "Terranischer Pionier",
         speciesType: "mortal",
+        disposition: "scholarly",
         avatarIcon: "🧑‍🚀",
         speciesColor: "#3b82f6", // Blue
         firstNames: ["Aiden", "Cassian", "Elena", "Tarek", "Marcus", "Kira", "Nora", "Lin", "Youssef", "Darius", "Sora", "Mateo", "Leona", "Silas", "Amara", "Viktor", "Zoe", "Felix", "Selene", "Ronan", "Chloe", "Kenji", "Talia", "Ezekiel", "Mira", "Anton", "Maya", "Julian", "Liam", "Iris", "Jonas", "Freja"],
@@ -109,6 +116,22 @@ export const SPECIES_ARCHETYPES: SpeciesArchetype[] = [
             { name: "Unbeugsamer Wille", desc: "+25% Triebwerkschub bei kritischer Schiffs-Energie", type: "speed" },
             { name: "Wissenschaftlicher Eifer", desc: "+30% Forschungs- & Telemetriegewinn beim Scannen", type: "psionic" },
             { name: "Kollaborations-Drang", desc: "Verstärkt die Synergieeffekte anderer Crew-Mitglieder", type: "quirk" }
+        ]
+    },
+    {
+        speciesName: "Ash-Krieger (Xenomilitär)",
+        speciesType: "mortal",
+        disposition: "martial",
+        avatarIcon: "⚔️",
+        speciesColor: "#ef4444", // Crimson Red
+        firstNames: ["Kragh", "Vorg", "Thok", "Xerath", "Brak", "Gorgash", "Malik-V", "Torgh", "Riktor", "Grom"],
+        titles: ["Kriegs-Kommandant", "Legionär", "Nahkampf-Adept", "Front-Offizier", "Taktiker"],
+        origins: ["den Obsidian-Kasernen", "den Schlacke-Gießereien", "den Orbital-Festungen", "den Asche-Wüsten"],
+        preferredRoles: ["pilot", "engineer"],
+        traits: [
+            { name: "Krieger-Ehrenkodex", desc: "Respektiert Stärke; rebelliert wild gegen schlaffe Unterwerfung", type: "quirk" },
+            { name: "Blut-Adrenalin", desc: "+35% Triebwerksschub bei Feindkontakt", type: "speed" },
+            { name: "Chitin-Knochen", desc: "+30% Resistenz gegen Schiffserschütterungen", type: "repair" }
         ]
     }
 ];
@@ -236,7 +259,9 @@ export function generateProceduralCandidates(seedHash: number, count: number = 2
             id: Date.now() + Math.floor(Math.random() * 1000000) + (i * 1000) + (itemHash % 999),
             name: chosenName,
             species: `${chosenArch.speciesName} (${origin})`,
+            speciesArchetypeName: chosenArch.speciesName,
             speciesType: chosenArch.speciesType,
+            disposition: chosenArch.disposition,
             role: role,
             roleName: roleDef.roleName,
             roleIcon: roleDef.roleIcon,

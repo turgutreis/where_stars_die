@@ -104,6 +104,21 @@ export function buyMutation(type: string) {
             calculateCrewBuffs();
             addLogEntry("EVOLUTION", "Symbiotische Synapsen-Kammer erwacht! Kapazität auf 6 erhöht & alle Spezialisten-Buffs um +20% verstärkt!");
             renderCrewUI();
+        } else if (type === 'neural_cluster') {
+            STATE.maxCrewCapacity = 10;
+            calculateCrewBuffs();
+            addLogEntry("EVOLUTION", "Neuronale Waben-Kammer expandiert! Max 10 Crew-Mitglieder & Dissonanz-Dämpfung aktiv.");
+            renderCrewUI();
+        } else if (type === 'cryo_matrix') {
+            STATE.maxCrewCapacity = 20;
+            calculateCrewBuffs();
+            addLogEntry("EVOLUTION", "Bio-Kryo-Kaverne herangewachsen! Max 20 Crew-Mitglieder & Zelltod um 25% verlangsamt.");
+            renderCrewUI();
+        } else if (type === 'hive_cerebrum') {
+            STATE.maxCrewCapacity = 30;
+            calculateCrewBuffs();
+            addLogEntry("EVOLUTION", "Schwarm-Zerebrum erwacht! Max 30 Crew-Mitglieder • Volle telepathische Schwarm-Resonanz aktiv!");
+            renderCrewUI();
         } else if (type === 'folddrive') {
             STATE.warpRange = 160;
             addLogEntry("EVOLUTION", "Raumfaltungs-Membran mutiert! Warp-Reichweite auf 160 LJ erweitert, Faltungskosten um 30% gesenkt.");

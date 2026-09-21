@@ -24,6 +24,8 @@ if (typeof globalThis.document === 'undefined') {
         scrollTop: 0,
         scrollHeight: 0,
         addEventListener: () => {},
+        querySelector: () => dummyEl,
+        querySelectorAll: () => [],
         getContext: () => ({
             createRadialGradient: () => ({ addColorStop: () => {} }),
             createLinearGradient: () => ({ addColorStop: () => {} }),
@@ -114,7 +116,9 @@ import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, upda
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
 import { updatePhysics } from '../src/engine/physics';
 import { generateProceduralCandidates, getCrewReactiveThought } from '../src/systems/crew-generation';
-import { calculateCrewBuffs, updateCrewSimulation, rejuvenateCrewMember } from '../src/systems/crew';
+import { calculateCrewBuffs, updateCrewSimulation, rejuvenateCrewMember, setPrimaryParadigm, setActiveSubCodex, updateParadigmModifiers, getSpeciesClusters, toggleClusterExpansion, rejuvenateSpeciesCluster } from '../src/systems/crew';
+import { buyMutation } from '../src/ui/deck';
+import { triggerAbductStart } from '../src/systems/abduction';
 import { advanceFtueStep, FTUE_DIRECTIVES } from '../src/ui/directives';
 import { openVoyagerDialog, closeVoyagerDialog, isVoyagerDialogOpen } from '../src/ui/voyager-dialog';
 import { handleVoyagerScan, setLockedTarget } from '../src/input/controls';
@@ -1349,6 +1353,283 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(testMoon).toBeDefined();
         expect(testMoon!.bodyMesh!.castShadow).toBe(true);
         expect(testMoon!.bodyMesh!.receiveShadow).toBe(false);
+    });
+
+    test("26. Bio-Ship Evolution & Dynamic Cocoon Capacity (Scaling 4 -> 6 -> 10 -> 20 -> 30)", () => {
+        // 1. Initial starting capacity must be 4
+        expect(STATE.maxCrewCapacity).toBe(4);
+        STATE.crew = [];
+
+        // Add 4 dummy members
+        for (let i = 0; i < 4; i++) {
+            STATE.crew.push({
+                id: 1000 + i,
+                name: `Probe ${i}`,
+                species: 'Terranischer Pionier',
+                role: 'pilot',
+                roleName: 'Astral-Pilot',
+                buffDesc: '+30% Schub',
+                stress: 20,
+                baseStressRate: 0.1,
+                illusionStability: 100,
+                status: 'Harmonisch',
+                thought: 'Bereit',
+                age: 20,
+                maxLifespan: 500
+            });
+        }
+        expect(STATE.crew.length).toBe(4);
+
+        // Abduction must reject when capacity is full
+        STATE.nearestPlanet = {
+            name: 'Target World',
+            size: 5.0,
+            mesh: { position: new THREE.Vector3(12, 0, 10), scale: new THREE.Vector3(1, 1, 1) } as any
+        };
+        STATE.abductActive = false;
+        triggerAbductStart();
+        expect(STATE.abductActive).toBe(false); // Gated behind max capacity!
+
+        // 2. Buy 'hivemind' mutation -> expands to 6
+        STATE.bioRes = 1000;
+        STATE.siliconRes = 1000;
+        buyMutation('hivemind');
+        expect(STATE.mutations.hivemind.purchased).toBe(true);
+        expect(STATE.maxCrewCapacity).toBe(6);
+
+        // 3. Buy 'neural_cluster' mutation -> expands to 10
+        STATE.bioRes = 2000;
+        STATE.siliconRes = 2000;
+        buyMutation('neural_cluster');
+        expect(STATE.mutations.neural_cluster.purchased).toBe(true);
+        expect(STATE.maxCrewCapacity).toBe(10);
+
+        // 4. Buy 'cryo_matrix' mutation -> expands to 20
+        STATE.bioRes = 3000;
+        STATE.siliconRes = 3000;
+        buyMutation('cryo_matrix');
+        expect(STATE.mutations.cryo_matrix.purchased).toBe(true);
+        expect(STATE.maxCrewCapacity).toBe(20);
+
+        // 5. Buy 'hive_cerebrum' mutation -> expands to 30
+        STATE.bioRes = 5000;
+        STATE.siliconRes = 5000;
+        buyMutation('hive_cerebrum');
+        expect(STATE.mutations.hive_cerebrum.purchased).toBe(true);
+        expect(STATE.maxCrewCapacity).toBe(30);
+    });
+
+    test("27. Species Clustering, Aggregated Metrics & Collective Operations", () => {
+        STATE.crew = [];
+
+        // Create 6 Terrans (scholarly)
+        for (let i = 0; i < 6; i++) {
+            STATE.crew.push({
+                id: 2000 + i,
+                name: `Terran ${i}`,
+                species: 'Terranischer Pionier (Erde)',
+                speciesArchetypeName: 'Terranischer Pionier',
+                speciesColor: '#3b82f6',
+                avatarIcon: '🧑‍🚀',
+                disposition: 'scholarly',
+                role: i % 2 === 0 ? 'biologist' : 'engineer',
+                roleName: i % 2 === 0 ? 'Bio-Architekt' : 'Naniten-Meister',
+                buffDesc: 'Buff',
+                stress: 20 + i * 5,
+                baseStressRate: 0.1,
+                illusionStability: 80 - i * 2,
+                status: 'Arbeitet',
+                thought: 'Forschung...',
+                age: 100 + i * 20,
+                maxLifespan: 500,
+                rejuvenationCount: 0
+            });
+        }
+
+        // Create 5 Ash Warriors (martial)
+        for (let i = 0; i < 5; i++) {
+            STATE.crew.push({
+                id: 3000 + i,
+                name: `Kragh ${i}`,
+                species: 'Ash-Krieger (Kasernen)',
+                speciesArchetypeName: 'Ash-Krieger (Xenomilitär)',
+                speciesColor: '#ef4444',
+                avatarIcon: '⚔️',
+                disposition: 'martial',
+                role: 'pilot',
+                roleName: 'Astral-Pilot',
+                buffDesc: 'Schub',
+                stress: 30 + i * 2,
+                baseStressRate: 0.2,
+                illusionStability: 90,
+                status: 'Kampfbereit',
+                thought: 'Ehre!',
+                age: 150 + i * 10,
+                maxLifespan: 400,
+                rejuvenationCount: 0
+            });
+        }
+
+        expect(STATE.crew.length).toBe(11);
+
+        // 1. Check getSpeciesClusters
+        const clusters = getSpeciesClusters();
+        expect(clusters.length).toBe(2);
+
+        const terranCluster = clusters.find(c => c.speciesName === 'Terranischer Pionier');
+        expect(terranCluster).toBeDefined();
+        expect(terranCluster!.count).toBe(6);
+        expect(terranCluster!.disposition).toBe('scholarly');
+        expect(terranCluster!.avgStress).toBe(Math.round((20 + 25 + 30 + 35 + 40 + 45) / 6));
+
+        const ashCluster = clusters.find(c => c.speciesName === 'Ash-Krieger (Xenomilitär)');
+        expect(ashCluster).toBeDefined();
+        expect(ashCluster!.count).toBe(5);
+        expect(ashCluster!.disposition).toBe('martial');
+        expect(ashCluster!.dominantRole).toBe('Astral-Pilot');
+
+        // 2. Toggle Expansion
+        expect(terranCluster!.isExpanded).toBe(false);
+        toggleClusterExpansion('Terranischer Pionier');
+        const clustersUpdated = getSpeciesClusters();
+        const terranUpdated = clustersUpdated.find(c => c.speciesName === 'Terranischer Pionier');
+        expect(terranUpdated!.isExpanded).toBe(true);
+
+        // 3. Collective Rejuvenation
+        STATE.bioEnergy = 300;
+        STATE.bioRes = 200;
+        const initialAshAges = ashCluster!.members.map(m => m.age);
+        rejuvenateSpeciesCluster('Ash-Krieger (Xenomilitär)');
+
+        // All 5 Ash members must have age reduced by 35% of maxLifespan
+        ashCluster!.members.forEach((m, idx) => {
+            expect(m.age).toBeLessThan(initialAshAges[idx]);
+            expect(m.rejuvenationCount).toBe(1);
+        });
+        expect(STATE.bioEnergy).toBe(300 - (5 * 20));
+        expect(STATE.bioRes).toBe(200 - (5 * 10));
+    });
+
+    test("28. Triad Paradigms, Sub-Codex Combinations & Species Disposition Matrix", () => {
+        STATE.crew = [];
+
+        // Add 2 Martial, 2 Scholarly, 1 Empathic
+        STATE.crew.push({
+            id: 4001,
+            name: 'Kragh-1',
+            species: 'Ash-Krieger',
+            disposition: 'martial',
+            role: 'pilot',
+            roleName: 'Pilot',
+            buffDesc: 'Buff',
+            stress: 10,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: 'Ok',
+            thought: 'Ruhm',
+            age: 50,
+            maxLifespan: 500
+        });
+        STATE.crew.push({
+            id: 4002,
+            name: 'Kragh-2',
+            species: 'Ash-Krieger',
+            disposition: 'martial',
+            role: 'pilot',
+            roleName: 'Pilot',
+            buffDesc: 'Buff',
+            stress: 10,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: 'Ok',
+            thought: 'Ruhm',
+            age: 50,
+            maxLifespan: 500
+        });
+        STATE.crew.push({
+            id: 4003,
+            name: 'Dr. Song',
+            species: 'Terraner',
+            disposition: 'scholarly',
+            role: 'biologist',
+            roleName: 'Biologe',
+            buffDesc: 'Buff',
+            stress: 10,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: 'Ok',
+            thought: 'Analyse',
+            age: 50,
+            maxLifespan: 500
+        });
+        STATE.crew.push({
+            id: 4004,
+            name: 'Dr. Vance',
+            species: 'Terraner',
+            disposition: 'scholarly',
+            role: 'biologist',
+            roleName: 'Biologe',
+            buffDesc: 'Buff',
+            stress: 10,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: 'Ok',
+            thought: 'Analyse',
+            age: 50,
+            maxLifespan: 500
+        });
+        STATE.crew.push({
+            id: 4005,
+            name: 'Maya-Sol',
+            species: 'Olyndar',
+            disposition: 'empathic',
+            role: 'psychologist',
+            roleName: 'Psychologe',
+            buffDesc: 'Buff',
+            stress: 10,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: 'Ok',
+            thought: 'Ruhe',
+            age: 50,
+            maxLifespan: 1000
+        });
+
+        // 1. Domination + Iron Discipline (Brute force: martial crew resists)
+        setPrimaryParadigm('domination');
+        setActiveSubCodex('iron_discipline');
+        updateParadigmModifiers();
+        expect(STATE.paradigmModifiers.thrustBonus).toBe(0.45);
+        // 2 martial crew members add resistance: drainMult increases
+        expect(STATE.paradigmModifiers.mentalDrainMult).toBeGreaterThan(1.55);
+        expect(STATE.paradigmModifiers.stressModifier).toBeGreaterThan(0.7);
+
+        // 2. Domination + Gunboat Diplomacy (Martial crew respects strength)
+        setActiveSubCodex('gunboat_diplomacy');
+        updateParadigmModifiers();
+        expect(STATE.paradigmModifiers.thrustBonus).toBe(0.30);
+        expect(STATE.paradigmModifiers.stressModifier).toBeLessThan(0); // Stress reduced!
+
+        // 3. Deception + Benevolent Facade (Scholarly crew analyzes glitches)
+        setPrimaryParadigm('deception');
+        setActiveSubCodex('benevolent_facade');
+        updateParadigmModifiers();
+        expect(STATE.paradigmModifiers.stealthBonus).toBe(0.45);
+        expect(STATE.paradigmModifiers.harmonyBonus).toBe(0.15);
+        // 2 scholarly minds add slight mental drain to maintain facade
+        expect(STATE.paradigmModifiers.mentalDrainMult).toBeGreaterThan(1.0);
+
+        // 4. Symbiosis + Living Symbiosis (Organic unity)
+        setPrimaryParadigm('symbiosis');
+        setActiveSubCodex('living_symbiosis');
+        updateParadigmModifiers();
+        expect(STATE.paradigmModifiers.bioRegenBonus).toBe(0.60);
+        expect(STATE.paradigmModifiers.harmonyBonus).toBe(0.45);
+        expect(STATE.paradigmModifiers.stressModifier).toBeLessThan(-1.5);
+
+        // Verify crew buffs integrate paradigm modifiers
+        calculateCrewBuffs();
+        expect(STATE.crewBuffs.bioGain).toBeGreaterThan(1.5);
     });
 });
 

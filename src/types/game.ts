@@ -50,12 +50,16 @@ export interface StarData {
 }
 
 export type SpeciesLifespanCategory = 'ephemeral' | 'mortal' | 'longlived' | 'ancient';
+export type SpeciesDisposition = 'martial' | 'scholarly' | 'empathic' | 'lithoid' | 'synthetic';
 
 export interface CrewMember {
     id: number;
     name: string;
     species: string;
+    speciesArchetypeName?: string;
     speciesType?: SpeciesLifespanCategory;
+    disposition?: SpeciesDisposition;
+    clusterId?: string;
     role: 'pilot' | 'biologist' | 'engineer' | 'psychologist' | 'cryptologist' | string;
     roleName: string;
     roleIcon?: string;
@@ -310,6 +314,39 @@ export interface MutationItem {
     desc?: string;
 }
 
+export type PrimaryParadigm = 'domination' | 'deception' | 'symbiosis';
+export type SubCodex =
+    | 'iron_discipline'     // Gewalt + Gewalt: Brutale Unterdrückung, max Kampf-Bonus
+    | 'gunboat_diplomacy'   // Gewalt + Diplomatie: Krieger respektieren Stärke, moderate Kosten
+    | 'nightmare_terror'    // Gewalt + Täuschung: Horror-Matrix, lähmende Angst
+    | 'benevolent_facade'   // Täuschung + Diplomatie: Falsche Utopie, glückliche Gefangene
+    | 'illusory_matrix'     // Täuschung + Täuschung: Perfekte Schein-Welt, hoher Stealth
+    | 'living_symbiosis'    // Harmonie + Harmonie: Organische Einheit, starke Bio-Regeneration
+    | 'pragmatic_accord';   // Harmonie + Diplomatie: Nüchterne Partnerschaft
+
+export interface ParadigmModifiers {
+    mentalDrainMult: number;
+    stressModifier: number;
+    thrustBonus: number;
+    stealthBonus: number;
+    bioRegenBonus: number;
+    harmonyBonus: number;
+}
+
+export interface SpeciesCluster {
+    speciesName: string;
+    speciesColor: string;
+    avatarIcon: string;
+    disposition: SpeciesDisposition;
+    count: number;
+    members: CrewMember[];
+    avgAgePercent: number;
+    avgStress: number;
+    avgStability: number;
+    dominantRole: string;
+    isExpanded?: boolean;
+}
+
 export interface CrewBuffs {
     thrust: number;
     bioGain: number;
@@ -347,6 +384,11 @@ export interface GameState {
     crewDialogueTimer: number;
     crewBuffs: CrewBuffs;
 
+    // Paradigms & Triad Doctrine System
+    primaryParadigm: PrimaryParadigm;
+    activeSubCodex: SubCodex;
+    paradigmModifiers: ParadigmModifiers;
+
     // Mutations
     mutations: {
         armor: MutationItem;
@@ -354,6 +396,9 @@ export interface GameState {
         synapses: MutationItem;
         cocoon: MutationItem;
         hivemind: MutationItem;
+        neural_cluster: MutationItem;
+        cryo_matrix: MutationItem;
+        hive_cerebrum: MutationItem;
         folddrive: MutationItem;
         translator: MutationItem;
         ibad?: MutationItem;

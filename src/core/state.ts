@@ -24,7 +24,7 @@ export const STATE: GameState = {
     warpRange: 90,
 
     // Crew Management & Synergies
-    maxCrewCapacity: 2,
+    maxCrewCapacity: 4,
     crewSatietyTimer: 0,
     crewDialogueTimer: 15,
     crewBuffs: {
@@ -36,13 +36,28 @@ export const STATE: GameState = {
         psionicBonus: 0
     },
 
+    // Paradigms & Triad Doctrine System
+    primaryParadigm: 'deception',
+    activeSubCodex: 'benevolent_facade',
+    paradigmModifiers: {
+        mentalDrainMult: 1.0,
+        stressModifier: 0.0,
+        thrustBonus: 0.0,
+        stealthBonus: 0.20,
+        bioRegenBonus: 0.0,
+        harmonyBonus: 0.10
+    },
+
     // Mutations
     mutations: {
         armor: { purchased: false, bioCost: 180, siliconCost: 110 },
         o2: { purchased: false, bioCost: 140, siliconCost: 60 },
         synapses: { purchased: false, bioCost: 260, siliconCost: 160 },
-        cocoon: { purchased: false, bioCost: 320, siliconCost: 140 },
-        hivemind: { purchased: false, bioCost: 500, siliconCost: 320 },
+        cocoon: { purchased: true, bioCost: 320, siliconCost: 140, name: "Neuronales Kokon-Gewebe", desc: "Basis-Kokons für 4 Gefangene." },
+        hivemind: { purchased: false, bioCost: 500, siliconCost: 320, name: "Symbiotische Synapsen-Kammer", desc: "Max 6 Crew & +20% auf alle Spezialisten-Buffs" },
+        neural_cluster: { purchased: false, bioCost: 650, siliconCost: 450, name: "Neuronale Waben-Kammer", desc: "Erweitert Crew-Kapazität auf 10 & dämpft Dissonanz" },
+        cryo_matrix: { purchased: false, bioCost: 950, siliconCost: 750, name: "Bio-Kryo-Kaverne", desc: "Erweitert Crew-Kapazität auf 20 & verlangsamt Zelltod um 25%" },
+        hive_cerebrum: { purchased: false, bioCost: 1500, siliconCost: 1200, name: "Schwarm-Zerebrum", desc: "Max 30 Crew • Schaltet Schwarm-Resonanz frei" },
         folddrive: { purchased: false, bioCost: 380, siliconCost: 420 },
         translator: { purchased: false, bioCost: 120, siliconCost: 80 },
         ibad: { 

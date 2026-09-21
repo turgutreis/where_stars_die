@@ -1,6 +1,6 @@
 import { STATE } from '../core/state';
 import { CrewMember } from '../types/game';
-import { rejuvenateCrewMember } from '../systems/crew';
+import { rejuvenateCrewMember, getSpeciesClusters, rejuvenateSpeciesCluster, toggleClusterExpansion } from '../systems/crew';
 
 let lastRenderedCrewIds = '';
 
@@ -20,19 +20,40 @@ export function updatePartyGrid(): void {
         return;
     }
 
-    // Check if member IDs or order changed
-    const currentCrewIds = crew.map(c => `${c.id}_${c.ageCategory}`).join('|');
+    const clusters = getSpeciesClusters();
+    const useClustering = crew.length >= 6 || clusters.some(cl => cl.count >= 4);
+
+    // Check if member IDs, order or clustering changed
+    const currentCrewIds = `${STATE.primaryParadigm}_${useClustering}_` + crew.map(c => `${c.id}_${c.ageCategory}`).join('|');
     const structureChanged = currentCrewIds !== lastRenderedCrewIds;
+
+    const pIcon = STATE.primaryParadigm === 'domination' ? '⚡' : (STATE.primaryParadigm === 'symbiosis' ? '🌱' : '🔮');
+    const pLabel = STATE.primaryParadigm === 'domination' ? 'Herrschaft' : (STATE.primaryParadigm === 'symbiosis' ? 'Symbiose' : 'Täuschung');
+
+    const doctrineBadge = `
+        <div class="party-doctrine-badge" style="margin-bottom: 6px; padding: 3px 6px; font-size: 0.65rem; font-weight: bold; border-radius: 4px; background: rgba(15,23,42,0.8); border: 1px solid rgba(168,85,247,0.4); color: #cbd5e1; display: flex; align-items: center; justify-content: space-between;">
+            <span>${pIcon} ${pLabel}</span>
+            <span style="font-size: 0.6rem; color: #38bdf8;">${crew.length}/${STATE.maxCrewCapacity}</span>
+        </div>
+    `;
 
     if (structureChanged) {
         lastRenderedCrewIds = currentCrewIds;
-        container.innerHTML = crew.map(c => renderPartyCard(c)).join('');
+        if (useClustering) {
+            let html = doctrineBadge;
+            clusters.forEach(cl => {
+                html += renderPartyClusterCard(cl);
+            });
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = doctrineBadge + crew.map(c => renderPartyCard(c)).join('');
+        }
         attachPartyGridEvents();
     } else {
         // Fast DOM live-update for age bars, percentages, and status
         crew.forEach(c => {
             const card = document.getElementById(`party-card-${c.id}`);
-            if (!card) return;
+            if (!card || typeof card.querySelector !== 'function') return;
 
             const maxLife = c.maxLifespan || 540;
             const currentAge = Math.min(maxLife, Math.floor(c.age || 0));
@@ -75,6 +96,41 @@ export function updatePartyGrid(): void {
             }
         });
     }
+}
+
+function renderPartyClusterCard(cl: any): string {
+    let dispIcon = '🔬';
+    if (cl.disposition === 'martial') dispIcon = '⚔️';
+    else if (cl.disposition === 'empathic') dispIcon = '🍄';
+    else if (cl.disposition === 'synthetic') dispIcon = '🤖';
+    else if (cl.disposition === 'lithoid') dispIcon = '💠';
+
+    return `
+        <div class="party-cluster-card glass-panel" style="margin-bottom: 6px; padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(30,41,59,0.7);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 1.1rem;">${cl.avatarIcon}</span>
+                    <div>
+                        <div style="font-weight: 700; color: ${cl.speciesColor}; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px;">${cl.speciesName}</div>
+                        <span style="font-size: 0.6rem; color: #38bdf8;">${cl.count}x • ${dispIcon}</span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 3px;">
+                    <button class="party-cluster-rejuv-btn" data-cluster-species="${cl.speciesName}" title="Kollektiv-Verjüngung (${cl.count}x)" style="cursor: pointer; background: rgba(16,185,129,0.3); border: 1px solid #10b981; color: #fff; border-radius: 3px; font-size: 0.65rem; padding: 1px 4px;">💉</button>
+                    <button class="party-cluster-toggle-btn" data-cluster-toggle="${cl.speciesName}" style="cursor: pointer; background: rgba(168,85,247,0.3); border: 1px solid #a855f7; color: #fff; border-radius: 3px; font-size: 0.65rem; padding: 1px 4px;">${cl.isExpanded ? '▲' : '▼'}</button>
+                </div>
+            </div>
+            <!-- Average Vitality Track -->
+            <div style="margin-top: 4px; height: 3px; background: rgba(0,0,0,0.4); border-radius: 2px; overflow: hidden;">
+                <div style="width: ${cl.avgAgePercent}%; height: 100%; background: #10b981;"></div>
+            </div>
+            ${cl.isExpanded ? `
+                <div class="party-cluster-members" style="margin-top: 6px; padding-left: 4px; border-left: 2px solid ${cl.speciesColor};">
+                    ${cl.members.map((m: CrewMember) => renderPartyCard(m)).join('')}
+                </div>
+            ` : ''}
+        </div>
+    `;
 }
 
 function renderPartyCard(c: CrewMember): string {
@@ -159,6 +215,30 @@ function attachPartyGridEvents(): void {
             const id = Number(btn.getAttribute('data-rejuv-id'));
             if (id) {
                 rejuvenateCrewMember(id);
+                updatePartyGrid();
+            }
+        };
+    });
+
+    const clusterRejuvBtns = document.querySelectorAll<HTMLButtonElement>('.party-cluster-rejuv-btn');
+    clusterRejuvBtns.forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const species = btn.getAttribute('data-cluster-species');
+            if (species) {
+                rejuvenateSpeciesCluster(species);
+                updatePartyGrid();
+            }
+        };
+    });
+
+    const clusterToggleBtns = document.querySelectorAll<HTMLButtonElement>('.party-cluster-toggle-btn');
+    clusterToggleBtns.forEach(btn => {
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const species = btn.getAttribute('data-cluster-toggle');
+            if (species) {
+                toggleClusterExpansion(species);
                 updatePartyGrid();
             }
         };
