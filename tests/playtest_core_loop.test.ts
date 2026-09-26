@@ -38,15 +38,36 @@ if (typeof globalThis.document === 'undefined') {
             moveTo: () => {},
             lineTo: () => {},
             closePath: () => {},
+            save: () => {},
+            restore: () => {},
+            translate: () => {},
+            rotate: () => {},
+            scale: () => {},
+            transform: () => {},
+            resetTransform: () => {},
+            setLineDash: () => {},
+            fillText: () => {},
+            strokeText: () => {},
+            measureText: () => ({ width: 10 }),
             createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
             getImageData: () => ({ data: new Uint8ClampedArray(1024) }),
             putImageData: () => {}
         })
     };
+    const elementsMap: Record<string, any> = {};
     (globalThis as any).document = {
-        getElementById: () => dummyEl,
-        createElement: () => ({ ...dummyEl }),
-        createElementNS: () => ({ ...dummyEl }),
+        getElementById: (id: string) => {
+            if (!elementsMap[id]) {
+                elementsMap[id] = {
+                    ...dummyEl,
+                    style: {},
+                    classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => false }
+                };
+            }
+            return elementsMap[id];
+        },
+        createElement: () => ({ ...dummyEl, style: {} }),
+        createElementNS: () => ({ ...dummyEl, style: {} }),
         querySelector: () => dummyEl,
         querySelectorAll: () => []
     };
@@ -116,7 +137,7 @@ import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, upda
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
 import { updatePhysics } from '../src/engine/physics';
 import { generateProceduralCandidates, getCrewReactiveThought } from '../src/systems/crew-generation';
-import { calculateCrewBuffs, updateCrewSimulation, rejuvenateCrewMember, setPrimaryParadigm, setActiveSubCodex, updateParadigmModifiers, getSpeciesClusters, toggleClusterExpansion, rejuvenateSpeciesCluster } from '../src/systems/crew';
+import { calculateCrewBuffs, updateCrewSimulation, rejuvenateCrewMember, setPrimaryParadigm, setActiveSubCodex, updateParadigmModifiers, getSpeciesClusters, toggleClusterExpansion, rejuvenateSpeciesCluster, cyclePrimaryParadigm, getExpandedClustersKey, clearExpandedClusters, setCrewStation, getStationCrewCounts, calculateRadiationProtection } from '../src/systems/crew';
 import { buyMutation } from '../src/ui/deck';
 import { triggerAbductStart } from '../src/systems/abduction';
 import { advanceFtueStep, FTUE_DIRECTIVES } from '../src/ui/directives';
@@ -132,6 +153,10 @@ import { LIGHTING_PROFILES, getLightingProfileForSystem } from '../src/graphics/
 import { applySystemLighting, updateColorGrading } from '../src/engine/postprocessing';
 import { createPlanetaryRings } from '../src/procedural/planet-rings';
 import { createPlayerMesh } from '../src/procedural/meshes';
+import { chooseFirstContactDoctrine, openFirstContactModal, isFirstContactModalOpen } from '../src/ui/first-contact-modal';
+import { MUTATION_DEFINITIONS, MUTATION_CONNECTIONS, selectMutationNode, getSelectedMutationKey } from '../src/ui/evolution-tree';
+import { spawnSystemFleet, updateFleet, triggerBioDischarge, salvageNearestWreck, clearFleet } from '../src/systems/fleet';
+import { updateMinimap, initHUD } from '../src/ui/hud';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -1506,8 +1531,12 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
             expect(m.age).toBeLessThan(initialAshAges[idx]);
             expect(m.rejuvenationCount).toBe(1);
         });
-        expect(STATE.bioEnergy).toBe(300 - (5 * 20));
-        expect(STATE.bioRes).toBe(200 - (5 * 10));
+        const stationCounts = getStationCrewCounts();
+        const bioDiscount = Math.min(0.5, stationCounts.bio_incubator * 0.15);
+        const reqBio = Math.round(20 * (1 - bioDiscount));
+        const reqRes = Math.round(10 * (1 - bioDiscount));
+        expect(STATE.bioEnergy).toBe(300 - (5 * reqBio));
+        expect(STATE.bioRes).toBe(200 - (5 * reqRes));
     });
 
     test("28. Triad Paradigms, Sub-Codex Combinations & Species Disposition Matrix", () => {
@@ -1596,7 +1625,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         });
 
         // 1. Domination + Iron Discipline (Brute force: martial crew resists)
-        setPrimaryParadigm('domination');
+        setPrimaryParadigm('domination', true);
         setActiveSubCodex('iron_discipline');
         updateParadigmModifiers();
         expect(STATE.paradigmModifiers.thrustBonus).toBe(0.45);
@@ -1611,7 +1640,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.paradigmModifiers.stressModifier).toBeLessThan(0); // Stress reduced!
 
         // 3. Deception + Benevolent Facade (Scholarly crew analyzes glitches)
-        setPrimaryParadigm('deception');
+        setPrimaryParadigm('deception', true);
         setActiveSubCodex('benevolent_facade');
         updateParadigmModifiers();
         expect(STATE.paradigmModifiers.stealthBonus).toBe(0.45);
@@ -1620,7 +1649,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.paradigmModifiers.mentalDrainMult).toBeGreaterThan(1.0);
 
         // 4. Symbiosis + Living Symbiosis (Organic unity)
-        setPrimaryParadigm('symbiosis');
+        setPrimaryParadigm('symbiosis', true);
         setActiveSubCodex('living_symbiosis');
         updateParadigmModifiers();
         expect(STATE.paradigmModifiers.bioRegenBonus).toBe(0.60);
@@ -1630,6 +1659,484 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         // Verify crew buffs integrate paradigm modifiers
         calculateCrewBuffs();
         expect(STATE.crewBuffs.bioGain).toBeGreaterThan(1.5);
+    });
+
+    test("29. Paradigm Switching Cycle & Cluster Expansion State Verification", () => {
+        clearExpandedClusters();
+        STATE.primaryParadigm = 'deception';
+        
+        // Cycle: deception -> domination -> symbiosis -> deception (instant mode for test validation)
+        cyclePrimaryParadigm(true);
+        expect(STATE.primaryParadigm).toBe('domination');
+        expect(STATE.activeSubCodex).toBe('gunboat_diplomacy'); // Default assigned on domination switch
+
+        cyclePrimaryParadigm(true);
+        expect(STATE.primaryParadigm).toBe('symbiosis');
+        // 'gunboat_diplomacy' is compatible with both domination & symbiosis (Protection Pact), so preserved
+        expect(STATE.activeSubCodex).toBe('gunboat_diplomacy');
+
+        cyclePrimaryParadigm(true);
+        expect(STATE.primaryParadigm).toBe('deception');
+        expect(STATE.activeSubCodex).toBe('benevolent_facade'); // Default assigned on deception switch
+
+        // Test cluster expansion toggle and key generation
+        expect(getExpandedClustersKey()).toBe('');
+        toggleClusterExpansion('Terraner');
+        expect(getExpandedClustersKey()).toBe('Terraner');
+        
+        toggleClusterExpansion('Olyndar');
+        expect(getExpandedClustersKey()).toBe('Olyndar,Terraner');
+
+        toggleClusterExpansion('Terraner');
+        expect(getExpandedClustersKey()).toBe('Olyndar');
+
+        toggleClusterExpansion('Olyndar');
+        expect(getExpandedClustersKey()).toBe('');
+    });
+
+    test("30. Organ-Station Synergy, Station Tick Effects & Psionic Upheaval (Transition)", () => {
+        STATE.crew = [];
+        STATE.primaryParadigm = 'deception';
+        STATE.doctrineTransition = {
+            active: false,
+            fromParadigm: 'deception',
+            targetParadigm: 'deception',
+            progress: 1.0,
+            duration: 25.0
+        };
+
+        // Add 4 crew members with different optimal organ assignments
+        STATE.crew.push({
+            id: 5001,
+            name: 'Pilot Thorne',
+            species: 'Terraner',
+            disposition: 'martial',
+            role: 'pilot',
+            roleName: 'Pilot',
+            buffDesc: 'Buff',
+            stress: 10,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: 'Ok',
+            thought: 'Fokus',
+            age: 40,
+            maxLifespan: 500
+        });
+        STATE.crew.push({
+            id: 5002,
+            name: 'Eng Petrov',
+            species: 'Cyborg',
+            disposition: 'lithoid',
+            role: 'engineer',
+            roleName: 'Ingenieur',
+            buffDesc: 'Buff',
+            stress: 10,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: 'Ok',
+            thought: 'Fokus',
+            age: 40,
+            maxLifespan: 500
+        });
+        STATE.crew.push({
+            id: 5003,
+            name: 'Bio Song',
+            species: 'Myzel',
+            disposition: 'synthetic',
+            role: 'biologist',
+            roleName: 'Biologe',
+            buffDesc: 'Buff',
+            stress: 10,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: 'Ok',
+            thought: 'Fokus',
+            age: 40,
+            maxLifespan: 500
+        });
+        STATE.crew.push({
+            id: 5004,
+            name: 'Psi Vance',
+            species: 'Olyndar',
+            disposition: 'empathic',
+            role: 'psychologist',
+            roleName: 'Psychologe',
+            buffDesc: 'Buff',
+            stress: 10,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: 'Ok',
+            thought: 'Fokus',
+            age: 40,
+            maxLifespan: 500
+        });
+
+        // 1. Test Optimal Station Assignment
+        calculateCrewBuffs();
+        const counts = getStationCrewCounts();
+        expect(counts.flight_synapse).toBe(1);
+        expect(counts.chitin_gland).toBe(1);
+        expect(counts.bio_incubator).toBe(1);
+        expect(counts.dream_core).toBe(1);
+
+        // Verify Station Buff Contributions
+        expect(STATE.crewBuffs.thrust).toBeGreaterThan(1.0);
+        expect(STATE.crewBuffs.repairRate).toBeGreaterThan(0.9);
+        expect(STATE.crewBuffs.bioGain).toBeGreaterThan(1.1);
+        expect(STATE.crewBuffs.psionicBonus).toBeGreaterThan(20);
+
+        // 2. Test Manual Station Switch
+        setCrewStation(5001, 'chitin_gland');
+        const updatedCounts = getStationCrewCounts();
+        expect(updatedCounts.flight_synapse).toBe(0);
+        expect(updatedCounts.chitin_gland).toBe(2);
+
+        // Re-assign back to optimal
+        setCrewStation(5001, 'flight_synapse');
+
+        // 3. Test Real-time Station Tick (Chitin Gland Silicon Auto-Repair)
+        STATE.health = 50;
+        STATE.maxHealth = 100;
+        STATE.siliconRes = 25;
+        updateCrewSimulation(2.0); // 2 seconds tick
+        expect(STATE.health).toBeGreaterThan(50);
+        expect(STATE.siliconRes).toBeLessThan(25);
+
+        // 4. Test Psionic Upheaval (Doctrine Transition Process)
+        expect(STATE.primaryParadigm).toBe('deception');
+        setPrimaryParadigm('domination', false); // Non-instant transition trigger
+        expect(STATE.doctrineTransition.active).toBe(true);
+        expect(STATE.doctrineTransition.fromParadigm).toBe('deception');
+        expect(STATE.doctrineTransition.targetParadigm).toBe('domination');
+        expect(STATE.doctrineTransition.progress).toBe(0.0);
+
+        // Modifiers must be interpolated, not abruptly switched
+        updateParadigmModifiers();
+        expect(STATE.primaryParadigm).toBe('deception'); // Still in transition
+
+        // Advance simulation with Dream Core accelerating the shift
+        updateCrewSimulation(10.0);
+        expect(STATE.doctrineTransition.progress).toBeGreaterThan(0.3);
+
+        // Telepathy doubles transition speed
+        STATE.telepathyActive = true;
+        updateCrewSimulation(10.0);
+        expect(STATE.doctrineTransition.progress).toBeGreaterThan(0.8);
+
+        // Finish transition
+        updateCrewSimulation(10.0);
+        expect(STATE.doctrineTransition.active).toBe(false);
+        expect(STATE.primaryParadigm).toBe('domination');
+        STATE.telepathyActive = false;
+    });
+
+    test("31. Initial neutral solitude, first contact doctrine decision modal & instant doctrine awakening", () => {
+        // Reset to initial game-start state
+        STATE.primaryParadigm = 'neutral';
+        STATE.activeSubCodex = 'none';
+        STATE.crew = [];
+        updateParadigmModifiers();
+
+        // 1. In neutral solitude: modifiers are all zeroed out
+        expect(STATE.primaryParadigm).toBe('neutral');
+        expect(STATE.activeSubCodex).toBe('none');
+        expect(STATE.paradigmModifiers.thrustBonus).toBe(0);
+        expect(STATE.paradigmModifiers.stealthBonus).toBe(0);
+        expect(STATE.paradigmModifiers.bioRegenBonus).toBe(0);
+        expect(STATE.paradigmModifiers.harmonyBonus).toBe(0);
+
+        // Attempting to cycle paradigm without crew does nothing (Najmafar is trapped in solitude)
+        cyclePrimaryParadigm();
+        expect(STATE.primaryParadigm).toBe('neutral');
+
+        // 2. Generate first contact candidate and trigger modal
+        const candidates = generateProceduralCandidates(12345, 1);
+        expect(candidates.length).toBe(1);
+        const firstBeing = candidates[0];
+
+        // Abduct the candidate
+        STATE.crew.push(firstBeing);
+        openFirstContactModal(firstBeing);
+        expect(isFirstContactModalOpen()).toBe(true);
+
+        // 3. Player chooses Symbiosis
+        chooseFirstContactDoctrine('symbiosis');
+        expect(isFirstContactModalOpen()).toBe(false);
+        expect(STATE.primaryParadigm).toBe('symbiosis');
+        expect(STATE.activeSubCodex).toBe('living_symbiosis');
+
+        // Initial choice is instantly awakened without upheaval transition delay
+        expect(STATE.doctrineTransition.active).toBe(false);
+        expect(STATE.paradigmModifiers.bioRegenBonus).toBeGreaterThan(0);
+
+        // Subsequent cycling now moves between the three doctrines
+        cyclePrimaryParadigm(true);
+        expect(STATE.primaryParadigm).toBe('deception');
+    });
+
+    test("32. Organic Synaptic Evolution Web: Node layout hierarchy, SVG axon state connections, inspector selection, and progressive mutation synthesis", () => {
+        // 1. Verify Definition Coverage for All 3 Branches stemming from Najmafar's Nucleus
+        expect(MUTATION_DEFINITIONS.nucleus).toBeDefined();
+        expect(MUTATION_DEFINITIONS.nucleus.branch).toBe('nucleus');
+
+        // Ast 1: Chitin & Fleisch
+        expect(MUTATION_DEFINITIONS.organic_siphon).toBeDefined();
+        expect(MUTATION_DEFINITIONS.chitin_armor).toBeDefined();
+        expect(MUTATION_DEFINITIONS.vector_tentacles).toBeDefined();
+        expect(MUTATION_DEFINITIONS.blade_armor).toBeDefined();
+        expect(MUTATION_DEFINITIONS.chitin_armor.branch).toBe('chitin');
+
+        // Ast 2: Neuronales Nest
+        expect(MUTATION_DEFINITIONS.cocoon).toBeDefined();
+        expect(MUTATION_DEFINITIONS.hivemind).toBeDefined();
+        expect(MUTATION_DEFINITIONS.neural_cluster).toBeDefined();
+        expect(MUTATION_DEFINITIONS.cryo_matrix).toBeDefined();
+        expect(MUTATION_DEFINITIONS.hive_cerebrum).toBeDefined();
+        expect(MUTATION_DEFINITIONS.cocoon.branch).toBe('cocoon');
+
+        // Ast 3: Psionik & Geist
+        expect(MUTATION_DEFINITIONS.telepathic_focus).toBeDefined();
+        expect(MUTATION_DEFINITIONS.psionic_pulse).toBeDefined();
+        expect(MUTATION_DEFINITIONS.chimera_veil).toBeDefined();
+        expect(MUTATION_DEFINITIONS.resonance_screech).toBeDefined();
+        expect(MUTATION_DEFINITIONS.telepathic_focus.branch).toBe('psionic');
+
+        // Relikt
+        expect(MUTATION_DEFINITIONS.ibad).toBeDefined();
+        expect(MUTATION_DEFINITIONS.ibad.branch).toBe('artifact');
+
+        // 2. Verify Hierarchical Axon Connections for all 3 Branches
+        expect(MUTATION_CONNECTIONS).toContainEqual(['nucleus', 'organic_siphon']);
+        expect(MUTATION_CONNECTIONS).toContainEqual(['organic_siphon', 'chitin_armor']);
+        expect(MUTATION_CONNECTIONS).toContainEqual(['chitin_armor', 'vector_tentacles']);
+        expect(MUTATION_CONNECTIONS).toContainEqual(['vector_tentacles', 'blade_armor']);
+
+        expect(MUTATION_CONNECTIONS).toContainEqual(['nucleus', 'cocoon']);
+        expect(MUTATION_CONNECTIONS).toContainEqual(['cocoon', 'hivemind']);
+        expect(MUTATION_CONNECTIONS).toContainEqual(['hivemind', 'neural_cluster']);
+        expect(MUTATION_CONNECTIONS).toContainEqual(['neural_cluster', 'cryo_matrix']);
+        expect(MUTATION_CONNECTIONS).toContainEqual(['cryo_matrix', 'hive_cerebrum']);
+
+        expect(MUTATION_CONNECTIONS).toContainEqual(['nucleus', 'telepathic_focus']);
+        expect(MUTATION_CONNECTIONS).toContainEqual(['telepathic_focus', 'psionic_pulse']);
+        expect(MUTATION_CONNECTIONS).toContainEqual(['psionic_pulse', 'chimera_veil']);
+        expect(MUTATION_CONNECTIONS).toContainEqual(['chimera_veil', 'resonance_screech']);
+
+        expect(MUTATION_CONNECTIONS).toContainEqual(['psionic_pulse', 'ibad']);
+
+        // 3. Test Inspector Selection
+        selectMutationNode('chitin_armor');
+        expect(getSelectedMutationKey()).toBe('chitin_armor');
+
+        selectMutationNode('psionic_pulse');
+        expect(getSelectedMutationKey()).toBe('psionic_pulse');
+
+        // 4. Test Organic Purchase of Chitin & Fleisch Branch and Escalating Radiation Protection
+        STATE.bioRes = 2000;
+        STATE.siliconRes = 2000;
+        if (STATE.mutations.organic_siphon) STATE.mutations.organic_siphon.purchased = false;
+        if (STATE.mutations.chitin_armor) STATE.mutations.chitin_armor.purchased = false;
+        if (STATE.mutations.vector_tentacles) STATE.mutations.vector_tentacles.purchased = false;
+        if (STATE.mutations.blade_armor) STATE.mutations.blade_armor.purchased = false;
+        if (STATE.mutations.armor) STATE.mutations.armor.purchased = false;
+
+        // Step A: Base Radiation Protection is 0
+        expect(calculateRadiationProtection()).toBe(0);
+
+        // Step B: Buy Organischer Siphon -> +25% Radiation Protection
+        buyMutation('organic_siphon');
+        expect(STATE.mutations.organic_siphon?.purchased).toBe(true);
+        expect(calculateRadiationProtection()).toBeCloseTo(0.25, 2);
+
+        // Step C: Buy Chitin-Panzer -> +25% Radiation Protection (Total 50%)
+        buyMutation('chitin_armor');
+        expect(STATE.mutations.chitin_armor?.purchased).toBe(true);
+        expect(STATE.mutations.armor.purchased).toBe(true); // legacy alias synced
+        expect(calculateRadiationProtection()).toBeCloseTo(0.50, 2);
+
+        // Step D: Buy Vektor-Tentakel -> Upgrades agility & thrust
+        const oldThrust = STATE.thrustStrength;
+        buyMutation('vector_tentacles');
+        expect(STATE.mutations.vector_tentacles?.purchased).toBe(true);
+        expect(STATE.thrustStrength).toBeGreaterThan(oldThrust);
+
+        // Step E: Buy Klingen-Panzerung -> +35% Radiation Protection (Total 85%)
+        buyMutation('blade_armor');
+        expect(STATE.mutations.blade_armor?.purchased).toBe(true);
+        expect(calculateRadiationProtection()).toBeCloseTo(0.85, 2);
+
+        // 5. Radiation Damage & Aging Mitigation in Hazardous Zone
+        // Mock a hazardous planet with Extreme radiation
+        STATE.nearestPlanet = {
+            attributes: { radiationLevel: 'Extreme' }
+        } as any;
+        STATE.health = 100;
+        STATE.crew = [{
+            id: 'c-test-rad',
+            name: 'RadTest',
+            species: 'Human',
+            age: 0,
+            maxLifespan: 1000,
+            stress: 0
+        }] as any;
+
+        // Tick simulation with 85% shielding
+        updateCrewSimulation(1.0);
+        // With 85% protection: ambient Extreme (0.9) * (1 - 0.85) = 0.135 effective radiation (below 0.25 threshold)
+        // Hull takes 0 damage and aging multiplier is modest: 1.0 + (0.135 * 1.5) = ~1.20x vs 2.35x unshielded
+        expect(STATE.health).toBe(100);
+        expect(STATE.crew[0].age).toBeLessThan(1.5);
+    });
+
+    test("33. Orbital Planetary Fleet Defense: Spacefaring & Advanced civilizations spawn patrol fleets, intercept hostile incursions, and respond to EMP bio-discharge & salvage", () => {
+        clearFleet();
+        activePlanets.length = 0;
+
+        // 1. Setup Spacefaring civilized planet
+        const planetGroup = new THREE.Group();
+        planetGroup.position.set(150, 0, 0);
+
+        const civilizedPlanet: any = {
+            name: 'Valerius Prime',
+            type: 'Habitable',
+            size: 6.0,
+            distance: 150,
+            mesh: planetGroup,
+            isMoon: false,
+            scanned: false,
+            attributes: {
+                atmos: "Stickstoff & Sauerstoff",
+                temp: "22°C",
+                bio: "Komplex",
+                res: "Hoch",
+                species: {
+                    hasSentient: true,
+                    name: 'Valerianer',
+                    population: 5000000000,
+                    techLevel: 'Spacefaring',
+                    defenseRating: 65,
+                    fleetDisposition: 'Defensive'
+                }
+            }
+        };
+
+        activePlanets.push(civilizedPlanet);
+
+        // 2. Spawn fleets
+        spawnSystemFleet();
+        expect(STATE.fleetShips.length).toBe(2); // Spacefaring spawns 2 ships (1 corvette, 1 interceptor)
+        const corvette = STATE.fleetShips.find(s => s.type === 'corvette');
+        const interceptor = STATE.fleetShips.find(s => s.type === 'interceptor');
+        expect(corvette).toBeDefined();
+        expect(interceptor).toBeDefined();
+        expect(corvette!.state).toBe('patrol');
+        expect(interceptor!.state).toBe('patrol');
+
+        // 3. Patrol Tick - Ships orbit around planet
+        const initialAngle = corvette!.orbitAngle;
+        updateFleet(0.5);
+        expect(corvette!.orbitAngle).not.toBe(initialAngle);
+
+        // 4. Incursion Detection - Player approaches Valerius Prime within 35 units
+        STATE.playerPosition.set(140, 0, 0); // 10 units away from planet
+        updateFleet(0.1);
+        expect(corvette!.state).toBe('intercept');
+        expect(interceptor!.state).toBe('intercept');
+
+        // 5. Hostile Intercept & Fire Projectile
+        corvette!.attackCooldown = 0.05;
+        updateFleet(0.1);
+        expect(STATE.fleetProjectiles.length).toBeGreaterThan(0);
+
+        // 6. Player Countermeasure: Trigger EMP Bio-Discharge [X]
+        STATE.bioDischargeCooldown = 0;
+        STATE.bioEnergy = 50;
+        STATE.mentalEnergy = 50;
+        triggerBioDischarge();
+        expect(STATE.empCharging).toBe(true);
+
+        // Advance EMP charging timer to discharge shockwave
+        updateFleet(0.5);
+        expect(STATE.empCharging).toBe(false);
+
+        // Shockwave hits and stuns hostile ships
+        updateFleet(0.1);
+        expect(corvette!.state).toBe('stunned');
+        expect(corvette!.stunTimer).toBeGreaterThan(0);
+
+        // 7. Salvage & Bio-Assimilation [E]
+        STATE.playerPosition.copy(corvette!.position);
+        STATE.siliconRes = 0;
+        STATE.bioEnergy = 10;
+        const salvaged = salvageNearestWreck();
+        expect(salvaged).toBe(true);
+        expect(STATE.siliconRes).toBe(35);
+        expect(STATE.bioEnergy).toBe(40);
+        expect(STATE.fleetShips.length).toBe(1);
+
+        // 8. Hyperjump Sector Cleanup
+        clearFleet();
+        expect(STATE.fleetShips.length).toBe(0);
+        expect(STATE.fleetProjectiles.length).toBe(0);
+    });
+
+    test("34. Minimap Radar Celestial Navigation & Planetary Gravity Vectors: Renders 360° off-screen planetary gravity beacons on radar perimeter and provides subtle long-range tidal drift", () => {
+        // 1. Setup mock active planet far outside radar range (e.g. 350 AE away)
+        const planetGroup = new THREE.Group();
+        planetGroup.position.set(0, 0, -350); // 350 AE north
+
+        const targetPlanet: any = {
+            name: 'Aethelgard Prime',
+            type: 'Habitable',
+            size: 7.0,
+            distance: 350,
+            angle: 0,
+            speed: 0.05,
+            mesh: planetGroup,
+            source: {
+                type: 'planet',
+                position: new THREE.Vector3(0, 0, -350),
+                mass: 600,
+                radius: 7.0,
+                gravityRange: 50.0,
+                isAbsorbed: false
+            },
+            isMoon: false,
+            attributes: {
+                species: {
+                    hasSentient: true,
+                    name: 'Aethelgardianer',
+                    population: 4200000000
+                }
+            }
+        };
+
+        activePlanets.length = 0;
+        activePlanets.push(targetPlanet);
+        STATE.gravitySources = [targetPlanet.source];
+        STATE.lockedTarget = targetPlanet;
+        STATE.playerPosition.set(0, 0, 0);
+
+        // 2. Initialize HUD & Run Minimap Update (renders off-screen perimeter indicators without errors)
+        initHUD();
+        expect(() => updateMinimap()).not.toThrow();
+
+        // 3. Long-range subtle cosmic gravity tidal pull (beyond immediate gravityRange = 50 up to 120)
+        targetPlanet.distance = 100;
+        targetPlanet.angle = 0;
+        targetPlanet.speed = 0;
+        targetPlanet.source.position.set(100, 0, 0); // distance = 100 (> 50 and < 120)
+        STATE.playerPosition.set(0, 0, 0);
+        STATE.playerVelocity.set(0, 0, 0);
+        STATE.isThrusting = false;
+        STATE.keys.w = false;
+        STATE.keys.s = false;
+        STATE.flightAssist = false;
+
+        updatePhysics(0.1);
+        // Player should experience a subtle tidal pull toward +X
+        expect(STATE.playerVelocity.x).toBeGreaterThan(0);
+        expect(STATE.playerPosition.x).toBeGreaterThan(0);
     });
 });
 

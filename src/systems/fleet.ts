@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { STATE } from '../core/state';
+import { STATE, activePlanets } from '../core/state';
 import { scene } from '../engine/scene';
 import { addLogEntry } from '../ui/hud';
 import { playCrashSound, playSiliconCollectSound, playEmpChargeSound } from '../engine/audio';
 import { empLight } from '../procedural/meshes';
+import { collapseQuantumCivilization } from '../procedural/quantum-civ';
 import { FleetShip, FleetProjectile, PlanetEntry } from '../types/game';
 
 let shockwaveMesh: THREE.Mesh | null = null;
@@ -11,17 +12,38 @@ let shockwaveTimer = 0;
 
 export const initPlanetDefenseFleets = spawnSystemFleet;
 
-export function spawnSystemFleet(systemInput?: any) {
+export function spawnSystemFleet(planetsInput?: any) {
     clearFleet();
 
-    const system = systemInput || (STATE.universe && STATE.universe.systems ? STATE.universe.systems[STATE.currentSystemId] : null);
-    if (!system || !system.planets) return;
+    let planets: PlanetEntry[] = [];
+    if (planetsInput && Array.isArray(planetsInput) && planetsInput.length > 0) {
+        planets = planetsInput;
+    } else if (activePlanets && activePlanets.length > 0) {
+        planets = activePlanets;
+    } else if (STATE.universe && STATE.universe.systems && STATE.universe.systems[STATE.currentSystemId]?.planets) {
+        planets = STATE.universe.systems[STATE.currentSystemId].planets;
+    }
 
-    system.planets.forEach((p: PlanetEntry) => {
-        const hasPop = p.attributes && p.attributes.species && p.attributes.species.population > 0;
-        const tech = p.attributes && p.attributes.species ? p.attributes.species.techLevel : 'Primitive';
+    if (!planets || planets.length === 0) return;
 
-        if (hasPop && (tech === 'Spacefaring' || tech === 'Hyper-Advanced' || tech === 'Industrial')) {
+    planets.forEach((p: PlanetEntry) => {
+        if (p.isMoon) return;
+        const species = (p.attributes && p.attributes.species) || p.species;
+        if (!species || !species.population || species.population <= 0) return;
+
+        // If techLevel is missing, deterministically derive it via Quantum Civ
+        if (!species.techLevel) {
+            const seed = (p.name || 'Planet').split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) + STATE.currentSystemId;
+            const qCiv = collapseQuantumCivilization(STATE.currentSystemId, 0, seed);
+            species.techLevel = qCiv.quantumTechLevel;
+            species.defenseRating = qCiv.quantumTechLevel === 'Primitive' ? 0 : (qCiv.quantumTechLevel === 'Industrial' ? 20 : (qCiv.quantumTechLevel === 'Spacefaring' ? 65 : 95));
+            species.fleetDisposition = qCiv.militaryDoctrine === 'Militaristic' ? 'Militaristic' : (qCiv.militaryDoctrine === 'Pacifist' ? 'Pacifist' : 'Defensive');
+            species.factionId = species.factionId || qCiv.factionId;
+        }
+
+        const tech = species.techLevel;
+
+        if (tech === 'Spacefaring' || tech === 'Hyper-Advanced' || tech === 'Industrial') {
             const shipCount = tech === 'Hyper-Advanced' ? 3 : (tech === 'Spacefaring' ? 2 : 1);
 
             for (let i = 0; i < shipCount; i++) {
@@ -52,13 +74,17 @@ export function spawnSystemFleet(systemInput?: any) {
                 shipGroup.add(bodyMesh);
 
                 // Initial Orbital Placement around Planet
-                const orbitRadius = p.size + 4.0 + i * 2.5;
+                const pSize = p.size || 5.0;
+                const orbitRadius = pSize + 4.0 + i * 2.5;
                 const orbitAngle = (i * (Math.PI * 2 / shipCount)) + Math.random() * 0.5;
 
+                const planetX = p.mesh ? p.mesh.position.x : 0;
+                const planetZ = p.mesh ? p.mesh.position.z : 0;
+
                 shipGroup.position.set(
-                    p.mesh.position.x + Math.cos(orbitAngle) * orbitRadius,
+                    planetX + Math.cos(orbitAngle) * orbitRadius,
                     0,
-                    p.mesh.position.z + Math.sin(orbitAngle) * orbitRadius
+                    planetZ + Math.sin(orbitAngle) * orbitRadius
                 );
 
                 scene.add(shipGroup);
@@ -68,7 +94,7 @@ export function spawnSystemFleet(systemInput?: any) {
                     mesh: shipGroup,
                     bodyMesh: bodyMesh,
                     type: isCorvette ? 'corvette' : 'interceptor',
-                    name: `${isCorvette ? 'Schwere Korvette' : 'Abfangjäger'} ${p.name.substring(0, 4)}-${i + 1}`,
+                    name: `${isCorvette ? 'Schwere Korvette' : 'Abfangjäger'} ${(p.name || 'Orb').substring(0, 4)}-${i + 1}`,
                     position: shipGroup.position,
                     velocity: new THREE.Vector3(0, 0, 0),
                     homePlanet: p,
@@ -206,7 +232,7 @@ export function updateFleet(dt: number) {
             return;
         }
 
-        const planetPos = ship.homePlanet.mesh.position;
+        const planetPos = (ship.homePlanet && ship.homePlanet.mesh) ? ship.homePlanet.mesh.position : ship.position;
         const distToPlayer = ship.position.distanceTo(playerPos);
         const distPlanetToPlayer = planetPos.distanceTo(playerPos);
 

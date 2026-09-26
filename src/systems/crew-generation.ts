@@ -1,5 +1,5 @@
 import { STATE } from '../core/state';
-import { CrewMember, SpeciesLifespanCategory, SpeciesDisposition } from '../types/game';
+import { CrewMember, SpeciesLifespanCategory, SpeciesDisposition, OrganStationId } from '../types/game';
 
 // ----------------------------------------------------------------------------
 // PROCEDURAL CREW & ABDUCTION SPECIES GENERATOR
@@ -139,7 +139,7 @@ export const SPECIES_ARCHETYPES: SpeciesArchetype[] = [
 export const ROLE_DEFINITIONS: Record<string, {
     roleName: string;
     roleIcon: string;
-    station: 'nervous_system' | 'metabolism_chamber' | 'nanite_forge' | 'psi_resonator';
+    station: OrganStationId;
     stationName: string;
     buffDesc: string;
     baseStressRate: number;
@@ -147,32 +147,32 @@ export const ROLE_DEFINITIONS: Record<string, {
     pilot: {
         roleName: "🛸 Astral-Pilot",
         roleIcon: "🛸",
-        station: "nervous_system",
-        stationName: "🧠 Nervenknoten-Kern",
+        station: "flight_synapse",
+        stationName: "Flug-Synapse",
         buffDesc: "+30% Schubkraft & Manövrierbarkeit",
         baseStressRate: 0.18
     },
     biologist: {
         roleName: "🌱 Bio-Architekt",
         roleIcon: "🌱",
-        station: "metabolism_chamber",
-        stationName: "🧬 Verdauungs-Membran",
+        station: "bio_incubator",
+        stationName: "Bio-Inkubator",
         buffDesc: "+45% Biomasse-Ertrag beim Ernten",
         baseStressRate: 0.15
     },
     engineer: {
         roleName: "🔧 Naniten-Meister",
         roleIcon: "🔧",
-        station: "nanite_forge",
-        stationName: "⚙️ Naniten-Schmiede",
+        station: "chitin_gland",
+        stationName: "Chitin-Drüse",
         buffDesc: "+0.6 HP/s Naniten-Reparatur",
         baseStressRate: 0.20
     },
     psychologist: {
         roleName: "🧘 Gedanken-Diplomat",
         roleIcon: "🧘",
-        station: "psi_resonator",
-        stationName: "🔮 Psionischer Resonator",
+        station: "dream_core",
+        stationName: "Traum-Kern",
         buffDesc: "-40% Crew-Stressaufbau & Psi-Fokus",
         baseStressRate: 0.12
     }

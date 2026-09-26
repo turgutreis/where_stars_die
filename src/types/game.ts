@@ -52,6 +52,21 @@ export interface StarData {
 export type SpeciesLifespanCategory = 'ephemeral' | 'mortal' | 'longlived' | 'ancient';
 export type SpeciesDisposition = 'martial' | 'scholarly' | 'empathic' | 'lithoid' | 'synthetic';
 
+export type OrganStationId = 'flight_synapse' | 'chitin_gland' | 'bio_incubator' | 'dream_core';
+
+export interface OrganStationData {
+    id: OrganStationId;
+    name: string;
+    subtitle: string;
+    icon: string;
+    optimalRoles: string[];
+    optimalDispositions: string[];
+    description: string;
+    assignedCount: number;
+    efficiency: number;
+    activitySummary: string;
+}
+
 export interface CrewMember {
     id: number;
     name: string;
@@ -83,8 +98,9 @@ export interface CrewMember {
         desc: string;
         type: 'bio' | 'stress' | 'speed' | 'repair' | 'psionic' | 'quirk';
     };
-    station?: 'nervous_system' | 'metabolism_chamber' | 'nanite_forge' | 'psi_resonator';
+    station?: OrganStationId;
     stationName?: string;
+    stationActivity?: string;
     avatarIcon?: string;
     criticalAlertTriggered?: boolean;
     speciesColor?: string;
@@ -314,8 +330,9 @@ export interface MutationItem {
     desc?: string;
 }
 
-export type PrimaryParadigm = 'domination' | 'deception' | 'symbiosis';
+export type PrimaryParadigm = 'neutral' | 'domination' | 'deception' | 'symbiosis';
 export type SubCodex =
+    | 'none'                // Keine Sub-Doktrin vor Erstkontakt
     | 'iron_discipline'     // Gewalt + Gewalt: Brutale Unterdrückung, max Kampf-Bonus
     | 'gunboat_diplomacy'   // Gewalt + Diplomatie: Krieger respektieren Stärke, moderate Kosten
     | 'nightmare_terror'    // Gewalt + Täuschung: Horror-Matrix, lähmende Angst
@@ -356,6 +373,14 @@ export interface CrewBuffs {
     psionicBonus: number;
 }
 
+export interface DoctrineTransition {
+    active: boolean;
+    fromParadigm: PrimaryParadigm;
+    targetParadigm: PrimaryParadigm;
+    progress: number; // 0.0 to 1.0
+    duration: number; // in seconds
+}
+
 export interface GameState {
     // Player Stats
     health: number;
@@ -388,21 +413,35 @@ export interface GameState {
     primaryParadigm: PrimaryParadigm;
     activeSubCodex: SubCodex;
     paradigmModifiers: ParadigmModifiers;
+    doctrineTransition?: DoctrineTransition;
 
     // Mutations
     mutations: {
-        armor: MutationItem;
-        o2: MutationItem;
-        synapses: MutationItem;
+        nucleus?: MutationItem;
+        organic_siphon?: MutationItem;
+        chitin_armor?: MutationItem;
+        vector_tentacles?: MutationItem;
+        blade_armor?: MutationItem;
         cocoon: MutationItem;
         hivemind: MutationItem;
         neural_cluster: MutationItem;
         cryo_matrix: MutationItem;
         hive_cerebrum: MutationItem;
+        telepathic_focus?: MutationItem;
+        psionic_pulse?: MutationItem;
+        chimera_veil?: MutationItem;
+        resonance_screech?: MutationItem;
+        armor: MutationItem;
+        o2: MutationItem;
+        synapses: MutationItem;
         folddrive: MutationItem;
         translator: MutationItem;
         ibad?: MutationItem;
     };
+    radiationResistance?: number;
+    ambientRadiation?: number;
+    effectiveRadiation?: number;
+    radiationSource?: string;
 
     // Physics
     playerPosition: THREE.Vector3;

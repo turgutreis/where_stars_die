@@ -244,13 +244,136 @@ html {
 }
 .mini-music-btn:hover { opacity: 1; }
 
+/* Radiation Cockpit Hazard Telemetry */
+.hud-radiation-meter {
+    position: absolute;
+    top: 68px;
+    left: 16px;
+    width: 250px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 14px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.72rem;
+    z-index: 30;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+}
+
+.hud-radiation-meter .rad-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.hud-radiation-meter .rad-icon {
+    font-size: 0.95rem;
+    filter: drop-shadow(0 0 6px #facc15);
+}
+
+.hud-radiation-meter .rad-label {
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: #facc15;
+    flex-grow: 1;
+}
+
+.hud-radiation-meter .rad-shield-badge {
+    background: rgba(16, 185, 129, 0.18);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #34d399;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+
+.hud-radiation-meter .rad-bar-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.hud-radiation-meter .rad-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #facc15, #f97316);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.hud-radiation-meter .rad-status-text {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.70rem;
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* State Modifiers */
+.hud-radiation-meter.caution {
+    border-color: rgba(250, 204, 21, 0.35);
+}
+
+.hud-radiation-meter.hazard {
+    border-color: rgba(239, 68, 68, 0.85);
+    background: rgba(40, 10, 15, 0.85);
+    animation: radHazardPulse 1.2s infinite ease-in-out;
+}
+
+.hud-radiation-meter.hazard .rad-bar {
+    background: linear-gradient(90deg, #f97316, #ef4444);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+}
+
+.hud-radiation-meter.hazard .rad-label {
+    color: #ef4444;
+}
+
+.hud-radiation-meter.hazard .rad-status-text {
+    color: #fca5a5;
+    font-weight: 600;
+}
+
+.hud-radiation-meter.shielded {
+    border-color: rgba(16, 185, 129, 0.4);
+    background: rgba(10, 30, 22, 0.75);
+}
+
+.hud-radiation-meter.shielded .rad-label {
+    color: #34d399;
+}
+
+.hud-radiation-meter.shielded .rad-bar {
+    background: linear-gradient(90deg, #10b981, #06b6d4);
+}
+
+.hud-radiation-meter.shielded .rad-status-text {
+    color: #a7f3d0;
+}
+
+@keyframes radHazardPulse {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(239, 68, 68, 0.4), 0 8px 32px rgba(0, 0, 0, 0.8);
+        border-color: rgba(239, 68, 68, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 35px rgba(239, 68, 68, 0.8), 0 8px 32px rgba(0, 0, 0, 0.9);
+        border-color: rgba(239, 68, 68, 1);
+    }
+}
+
 /* 3. Contextual Slide-In Scanner Hologram */
 .hud-scanner-card {
     position: absolute;
-    top: 72px;
+    top: 142px;
     left: 16px;
     width: 290px;
-    max-height: calc(100vh - 160px);
+    max-height: calc(100vh - 180px);
     overflow-y: auto;
     padding: 16px;
     display: flex;
@@ -446,12 +569,13 @@ html {
 
 /* 7. Central Bio-Deck Modal */
 .deck-modal-content {
-    width: 90%;
-    max-width: 960px;
-    max-height: 85vh;
+    width: 95%;
+    max-width: 1420px;
+    height: 90vh;
+    max-height: 90vh;
     display: flex;
     flex-direction: column;
-    padding: 24px;
+    padding: 24px 28px;
     gap: 16px;
     overflow: hidden;
     margin: auto;
@@ -922,6 +1046,119 @@ html {
 .moon-chip-btn:hover {
     background: rgba(56, 189, 248, 0.15);
     border-color: #38bdf8;
+}
+
+/* Organ-Stationen (Najmafars Schiffs-Zentren) */
+.organ-stations-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin: 8px 0;
+}
+
+.organ-station-card {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 6px 8px;
+    transition: all 0.25s ease;
+    cursor: default;
+}
+
+.organ-station-card.active {
+    border-color: rgba(56, 189, 248, 0.5);
+    background: rgba(30, 41, 59, 0.75);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.15);
+}
+
+.organ-station-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+.organ-station-count {
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(56, 189, 248, 0.2);
+    color: #38bdf8;
+    font-weight: 700;
+}
+
+.organ-station-desc {
+    font-size: 0.6rem;
+    color: #94a3b8;
+    margin-top: 2px;
+    line-height: 1.2;
+}
+
+/* Station Mini Buttons for Crew Cards */
+.station-switch-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.station-mini-btn {
+    padding: 2px 5px;
+    font-size: 0.62rem;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.station-mini-btn:hover {
+    background: rgba(56, 189, 248, 0.25);
+    border-color: #38bdf8;
+    color: #fff;
+}
+
+.station-mini-btn.active {
+    background: rgba(168, 85, 247, 0.3);
+    border-color: #a855f7;
+    color: #fff;
+    font-weight: 700;
+    box-shadow: 0 0 6px rgba(168, 85, 247, 0.4);
+}
+
+/* Psionic Upheaval / Transition Card & Shimmer */
+.doctrine-transition-card {
+    position: relative;
+    overflow: hidden;
+    animation: transitionPulse 2.5s infinite ease-in-out;
+}
+
+@keyframes transitionPulse {
+    0% { border-color: rgba(168, 85, 247, 0.4); box-shadow: 0 0 6px rgba(168, 85, 247, 0.1); }
+    50% { border-color: rgba(56, 189, 248, 0.8); box-shadow: 0 0 16px rgba(56, 189, 248, 0.3); }
+    100% { border-color: rgba(168, 85, 247, 0.4); box-shadow: 0 0 6px rgba(168, 85, 247, 0.1); }
+}
+
+.transition-fill-bar {
+    position: relative;
+    overflow: hidden;
+}
+
+.transition-fill-bar::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    animation: transitionShimmer 1.5s infinite linear;
+}
+
+@keyframes transitionShimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
 }
 
 /* Role Synergy Slots */
@@ -2910,46 +3147,65 @@ body.game-started .hud-left {
 /* HUD Psionic Compass Indicator */
 .psionic-compass-hud {
     position: absolute;
-    top: 75px;
+    top: 18px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 6px 14px;
-    background: rgba(15, 23, 42, 0.75);
-    border: 1px solid rgba(217, 70, 239, 0.4);
-    border-radius: 20px;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    box-shadow: 0 0 16px rgba(217, 70, 239, 0.25);
+    gap: 12px;
+    padding: 7px 18px;
+    background: rgba(15, 23, 42, 0.82);
+    border: 1px solid rgba(217, 70, 239, 0.45);
+    border-radius: 24px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 0 20px rgba(217, 70, 239, 0.25);
     z-index: 100;
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
     animation: psio-pulse-glow 2.5s infinite alternate ease-in-out;
+}
+
+.psionic-compass-hud:hover {
+    transform: translateX(-50%) scale(1.03);
+    border-color: #38bdf8;
+    box-shadow: 0 0 26px rgba(56, 189, 248, 0.45);
+    background: rgba(15, 23, 42, 0.94);
+}
+
+.psionic-compass-hud.locked-mode {
+    border-color: rgba(56, 189, 248, 0.6);
+    box-shadow: 0 0 22px rgba(56, 189, 248, 0.35);
+}
+
+.psionic-compass-hud.sentient-pulse {
+    border-color: rgba(217, 70, 239, 0.7);
+    box-shadow: 0 0 24px rgba(217, 70, 239, 0.45);
 }
 
 @keyframes psio-pulse-glow {
     0% {
-        box-shadow: 0 0 8px rgba(217, 70, 239, 0.2);
+        box-shadow: 0 0 10px rgba(217, 70, 239, 0.2);
     }
-
     100% {
-        box-shadow: 0 0 22px rgba(217, 70, 239, 0.6);
+        box-shadow: 0 0 22px rgba(217, 70, 239, 0.55);
     }
 }
 
 .compass-beacon-icon {
-    font-size: 1.1rem;
+    font-size: 1.25rem;
     animation: beacon-bounce 1.5s infinite alternate ease-in-out;
+    line-height: 1;
 }
 
 @keyframes beacon-bounce {
     0% {
-        transform: scale(0.9);
+        transform: scale(0.92);
     }
-
     100% {
-        transform: scale(1.15);
+        transform: scale(1.12);
     }
 }
 
@@ -2957,34 +3213,121 @@ body.game-started .hud-left {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+    line-height: 1.25;
 }
 
 .compass-label {
     font-size: 0.62rem;
     color: #d946ef;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     font-weight: 700;
     font-family: 'Orbitron', sans-serif;
 }
 
 .compass-target {
-    font-size: 0.78rem;
+    font-size: 0.82rem;
     color: #f8fafc;
     font-weight: 700;
+    font-family: 'Outfit', sans-serif;
 }
 
 .compass-dist {
-    font-size: 0.65rem;
+    font-size: 0.68rem;
     color: #38bdf8;
+    font-family: 'Outfit', sans-serif;
 }
 
 .compass-arrow {
-    font-size: 1.1rem;
-    color: #d946ef;
-    text-shadow: 0 0 8px #d946ef;
-    transition: transform 0.1s linear;
+    font-size: 1.15rem;
+    color: #38bdf8;
+    text-shadow: 0 0 10px #38bdf8;
+    transition: transform 0.08s linear;
+    margin-left: 2px;
+    line-height: 1;
+}
+
+.compass-key-prompt {
+    font-size: 0.6rem;
+    font-family: 'Orbitron', monospace;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 3px 7px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     margin-left: 4px;
+}
+
+/* Screen-Edge Celestial Gravitational Markers */
+.screen-edge-gravity-markers {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 95;
+    overflow: hidden;
+}
+
+.edge-planet-marker {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    border-radius: 20px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 0 16px rgba(0, 0, 0, 0.7);
+    transition: transform 0.15s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
+}
+
+.edge-planet-marker:hover {
+    transform: translate(-50%, -50%) scale(1.08);
+    border-color: #38bdf8;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.55);
+    z-index: 105;
+}
+
+.edge-planet-marker.locked {
+    border-color: #38bdf8;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.65);
+    background: rgba(14, 116, 144, 0.5);
+}
+
+.edge-planet-marker.sentient {
+    border-color: rgba(217, 70, 239, 0.65);
+    box-shadow: 0 0 16px rgba(217, 70, 239, 0.45);
+}
+
+.edge-planet-chevron {
+    font-size: 0.85rem;
+    color: #38bdf8;
+    line-height: 1;
+}
+
+.edge-planet-icon {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.edge-planet-name {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    white-space: nowrap;
+}
+
+.edge-planet-dist {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.66rem;
+    color: #38bdf8;
+    white-space: nowrap;
 }
 
 /* Galaxy Map Life Filter Button */
@@ -4015,6 +4358,23 @@ body.game-started .hud-left {
     gap: 8px;
     z-index: 18;
     pointer-events: auto;
+}
+
+.party-doctrine-btn {
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.party-doctrine-btn:hover {
+    background: rgba(30, 41, 59, 0.95) !important;
+    border-color: rgba(168, 85, 247, 0.8) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
+}
+
+.party-cluster-header:hover,
+.species-cluster-header:hover {
+    filter: brightness(1.2);
 }
 
 .party-card {
@@ -5185,4 +5545,998 @@ body.game-started .hud-left {
 .voyager-map-action-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 22px rgba(245, 158, 11, 0.6);
+}
+
+/* ==========================================================================
+   FIRST CONTACT / PSIONIC CROSSROADS MODAL
+   ========================================================================== */
+.first-contact-dialog-content {
+    max-width: 900px;
+    width: 92%;
+    background: rgba(10, 15, 29, 0.95);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    box-shadow: 0 0 50px rgba(56, 189, 248, 0.2), 0 0 100px rgba(168, 85, 247, 0.15);
+    border-radius: 12px;
+    padding: 24px;
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+    backdrop-filter: blur(16px);
+}
+
+.first-contact-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+}
+
+.first-contact-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.first-contact-emblem {
+    font-size: 2rem;
+    filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.6));
+}
+
+.first-contact-header h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #f8fafc;
+    letter-spacing: 0.8px;
+    margin: 0;
+}
+
+.first-contact-header-sub {
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+.first-contact-status-badge {
+    padding: 4px 10px;
+    background: rgba(168, 85, 247, 0.2);
+    border: 1px solid rgba(168, 85, 247, 0.5);
+    color: #d8b4fe;
+    font-size: 0.68rem;
+    font-weight: 700;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+}
+
+.first-contact-candidate-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    margin-bottom: 16px;
+}
+
+.fc-avatar-ring {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    border: 2px solid #38bdf8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+}
+
+.fc-avatar-icon {
+    font-size: 1.8rem;
+}
+
+.first-contact-info-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.fc-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fc-name-row strong {
+    font-size: 0.95rem;
+    color: #f8fafc;
+}
+
+.fc-species-tag {
+    font-size: 0.7rem;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.fc-role-tag {
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+.fc-thought-quote {
+    font-size: 0.72rem;
+    color: #cbd5e1;
+    font-style: italic;
+    margin-top: 2px;
+}
+
+.first-contact-narrative {
+    font-size: 0.78rem;
+    color: #cbd5e1;
+    line-height: 1.5;
+    margin-bottom: 20px;
+}
+
+.first-contact-narrative p {
+    margin-bottom: 6px;
+}
+
+.first-contact-hint {
+    color: #94a3b8;
+    font-size: 0.72rem;
+}
+
+.first-contact-choices-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+}
+
+.fc-choice-card {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.25s ease;
+}
+
+.fc-choice-card:hover {
+    transform: translateY(-3px);
+}
+
+.fc-choice-card.domination {
+    border-color: rgba(239, 68, 68, 0.4);
+    background: linear-gradient(180deg, rgba(239, 68, 68, 0.08) 0%, rgba(15, 23, 42, 0.85) 100%);
+}
+
+.fc-choice-card.domination:hover {
+    border-color: #ef4444;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+}
+
+.fc-choice-card.deception {
+    border-color: rgba(56, 189, 248, 0.4);
+    background: linear-gradient(180deg, rgba(56, 189, 248, 0.08) 0%, rgba(15, 23, 42, 0.85) 100%);
+}
+
+.fc-choice-card.deception:hover {
+    border-color: #38bdf8;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+}
+
+.fc-choice-card.symbiosis {
+    border-color: rgba(16, 185, 129, 0.4);
+    background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.85) 100%);
+}
+
+.fc-choice-card.symbiosis:hover {
+    border-color: #10b981;
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.fc-choice-badge {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    margin-bottom: 6px;
+}
+
+.fc-choice-card.domination .fc-choice-badge { color: #f87171; }
+.fc-choice-card.deception .fc-choice-badge { color: #38bdf8; }
+.fc-choice-card.symbiosis .fc-choice-badge { color: #34d399; }
+
+.fc-choice-card h3 {
+    font-size: 0.95rem;
+    color: #f8fafc;
+    margin: 0 0 8px 0;
+}
+
+.fc-choice-flavor {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    line-height: 1.4;
+    margin-bottom: 12px;
+    font-style: italic;
+    min-height: 48px;
+}
+
+.fc-choice-perks {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.72rem;
+    color: #cbd5e1;
+}
+
+.fc-select-btn {
+    width: 100%;
+    padding: 10px 14px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+
+.fc-select-btn.domination {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    color: #fca5a5;
+}
+
+.fc-select-btn.domination:hover {
+    background: #ef4444;
+    color: #fff;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+}
+
+.fc-select-btn.deception {
+    background: rgba(56, 189, 248, 0.2);
+    border-color: #38bdf8;
+    color: #bae6fd;
+}
+
+.fc-select-btn.deception:hover {
+    background: #38bdf8;
+    color: #0f172a;
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.5);
+}
+
+.fc-select-btn.symbiosis {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: #10b981;
+    color: #a7f3d0;
+}
+
+.fc-select-btn.symbiosis:hover {
+    background: #10b981;
+    color: #0f172a;
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+}
+
+@media (max-width: 768px) {
+    .first-contact-choices-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+/* ORGANIC NEURAL EVOLUTION NETWORK (SYNAPTIC WEB & INSPECTOR)                */
+/* -------------------------------------------------------------------------- */
+.evolution-network-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    height: 100%;
+    min-height: 540px;
+}
+
+.evo-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    border-radius: 8px;
+}
+
+.evo-title-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.evo-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #f8fafc;
+    letter-spacing: 0.5px;
+}
+
+.evo-subtitle {
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+.evo-status-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.evo-stat-pill {
+    padding: 4px 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border-radius: 6px;
+    background: rgba(168, 85, 247, 0.2);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    color: #d8b4fe;
+}
+
+.evo-res-pill {
+    padding: 4px 10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border-radius: 6px;
+}
+
+.evo-res-pill.bio {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #34d399;
+}
+
+.evo-res-pill.silicon {
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    color: #38bdf8;
+}
+
+.evolution-arena {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 16px;
+    flex: 1;
+    min-height: 520px;
+    position: relative;
+}
+
+/* Synapse Graph Container (Zerg / Vorlon Living Bio-Hull) */
+.synapse-graph-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 520px;
+    background: radial-gradient(circle at 12% 50%, rgba(244, 63, 94, 0.16) 0%, rgba(88, 28, 135, 0.18) 35%, rgba(15, 23, 42, 0.9) 70%, rgba(2, 6, 23, 0.98) 100%);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.85);
+}
+
+.synapse-neural-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.synapse-bg-rings {
+    position: absolute;
+    inset: 0;
+    background-image: 
+        radial-gradient(rgba(168, 85, 247, 0.06) 1.5px, transparent 1.5px),
+        radial-gradient(rgba(16, 185, 129, 0.04) 1px, transparent 1px);
+    background-size: 32px 32px, 16px 16px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.synapse-axons-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.axon-path {
+    fill: none;
+    stroke-linecap: round;
+    transition: all 0.3s ease;
+}
+
+.axon-path.axon-active {
+    stroke: #10b981;
+    stroke-width: 2.4;
+    filter: url(#axon-glow-active);
+    stroke-dasharray: 6 4;
+    animation: axonPulseFlow 1.8s linear infinite;
+}
+
+.axon-path.axon-active.axon-chitin {
+    stroke: #10b981;
+    filter: drop-shadow(0 0 8px #10b981cc);
+}
+
+.axon-path.axon-active.axon-cocoon {
+    stroke: #c084fc;
+    filter: drop-shadow(0 0 8px #c084fccc);
+}
+
+.axon-path.axon-active.axon-psionic {
+    stroke: #38bdf8;
+    filter: drop-shadow(0 0 8px #38bdf8cc);
+}
+
+.axon-path.axon-active.axon-artifact {
+    stroke: #f59e0b;
+    filter: drop-shadow(0 0 8px #f59e0bcc);
+}
+
+.axon-path.axon-available {
+    stroke: #c084fc;
+    stroke-width: 1.8;
+    stroke-dasharray: 4 3;
+    opacity: 0.85;
+}
+
+.axon-path.axon-available.axon-chitin {
+    stroke: rgba(16, 185, 129, 0.7);
+}
+
+.axon-path.axon-available.axon-cocoon {
+    stroke: rgba(192, 132, 252, 0.7);
+}
+
+.axon-path.axon-available.axon-psionic {
+    stroke: rgba(56, 189, 248, 0.7);
+}
+
+.axon-path.axon-locked {
+    stroke: rgba(255, 255, 255, 0.12);
+    stroke-width: 1.2;
+    stroke-dasharray: 2 4;
+    opacity: 0.5;
+}
+
+.axon-path.path-highlight {
+    stroke: #38bdf8 !important;
+    stroke-width: 3.2px !important;
+    filter: drop-shadow(0 0 8px #38bdf8) !important;
+    opacity: 1 !important;
+    animation: axonFastPulse 0.8s linear infinite !important;
+}
+
+@keyframes axonFastPulse {
+    0% { stroke-dashoffset: 20; }
+    100% { stroke-dashoffset: 0; }
+}
+
+@keyframes axonPulseFlow {
+    0% { stroke-dashoffset: 20; }
+    100% { stroke-dashoffset: 0; }
+}
+
+.synapse-nodes-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: auto;
+}
+
+/* Individual Synapse Node (Zerg Chitin Carapace / Vorlon Bio-Crystalline Frame) */
+.synapse-node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: transform 0.25s ease;
+    user-select: none;
+}
+
+.synapse-node:hover {
+    z-index: 10;
+}
+
+.synapse-node-ring {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    transform: rotate(45deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    background: radial-gradient(circle at 30% 30%, rgba(30, 41, 59, 0.95), rgba(8, 12, 22, 0.98));
+    border: 2px solid rgba(148, 163, 184, 0.3);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.8), inset 0 0 8px rgba(0, 0, 0, 0.7);
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.synapse-node:hover .synapse-node-ring {
+    transform: rotate(45deg) scale(1.15);
+}
+
+.synapse-node-icon {
+    transform: rotate(-45deg);
+    font-size: 1.25rem;
+    z-index: 2;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.9));
+}
+
+.synapse-node-pulse {
+    position: absolute;
+    inset: -4px;
+    border-radius: 12px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.synapse-node.purchased .synapse-node-ring {
+    border-color: #10b981;
+    background: radial-gradient(circle at 30% 30%, rgba(16, 185, 129, 0.35), rgba(6, 78, 59, 0.45) 55%, rgba(8, 12, 22, 0.95) 100%);
+    box-shadow: 0 0 18px rgba(16, 185, 129, 0.65), inset 0 0 8px rgba(16, 185, 129, 0.35);
+    animation: organBreathe 3.6s infinite ease-in-out;
+}
+
+@keyframes organBreathe {
+    0% { transform: rotate(45deg) scale(1); }
+    50% { transform: rotate(45deg) scale(1.06); box-shadow: 0 0 24px rgba(16, 185, 129, 0.85); }
+    100% { transform: rotate(45deg) scale(1); }
+}
+
+/* Cephalic Bio-Core (Najmafar's Herzzelle / Zerebrum) */
+.synapse-node.root-nucleus .synapse-node-ring {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    transform: rotate(0deg);
+    border-width: 3px;
+    border-color: #f43f5e;
+    background: radial-gradient(circle at 35% 35%, rgba(244, 63, 94, 0.6) 0%, rgba(159, 18, 57, 0.4) 45%, rgba(15, 23, 42, 0.95) 75%);
+    box-shadow: 0 0 32px rgba(244, 63, 94, 0.85), inset 0 0 16px rgba(251, 113, 133, 0.5);
+    animation: nucleusHeartbeat 2.2s infinite ease-in-out;
+}
+
+.synapse-node.root-nucleus:hover .synapse-node-ring {
+    transform: rotate(0deg) scale(1.12);
+}
+
+.synapse-node.root-nucleus .synapse-node-icon {
+    transform: rotate(0deg);
+    font-size: 1.55rem;
+}
+
+@keyframes nucleusHeartbeat {
+    0% { transform: scale(1); box-shadow: 0 0 22px rgba(244, 63, 94, 0.5); }
+    15% { transform: scale(1.14); box-shadow: 0 0 40px rgba(244, 63, 94, 0.95); }
+    26% { transform: scale(1.05); box-shadow: 0 0 25px rgba(244, 63, 94, 0.6); }
+    38% { transform: scale(1.2); box-shadow: 0 0 48px rgba(251, 113, 133, 1); }
+    58% { transform: scale(1); box-shadow: 0 0 22px rgba(244, 63, 94, 0.5); }
+    100% { transform: scale(1); box-shadow: 0 0 22px rgba(244, 63, 94, 0.5); }
+}
+
+/* Branch Specific Node Themes */
+.synapse-node.branch-chitin.purchased .synapse-node-ring {
+    border-color: #10b981;
+    background: radial-gradient(circle at 30% 30%, rgba(16, 185, 129, 0.35), rgba(6, 78, 59, 0.5) 55%, rgba(8, 12, 22, 0.95) 100%);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.65), inset 0 0 8px rgba(16, 185, 129, 0.4);
+}
+.synapse-node.branch-chitin.available.affordable .synapse-node-ring {
+    border-color: #34d399;
+    box-shadow: 0 0 16px rgba(52, 211, 153, 0.65);
+}
+.synapse-node.branch-chitin.available .synapse-node-pulse {
+    border-color: #10b981;
+}
+
+.synapse-node.branch-cocoon.purchased .synapse-node-ring {
+    border-color: #c084fc;
+    background: radial-gradient(circle at 30% 30%, rgba(192, 132, 252, 0.35), rgba(107, 33, 168, 0.5) 55%, rgba(8, 12, 22, 0.95) 100%);
+    box-shadow: 0 0 20px rgba(192, 132, 252, 0.65), inset 0 0 8px rgba(192, 132, 252, 0.4);
+}
+.synapse-node.branch-cocoon.available.affordable .synapse-node-ring {
+    border-color: #c084fc;
+    box-shadow: 0 0 16px rgba(192, 132, 252, 0.65);
+}
+.synapse-node.branch-cocoon.available .synapse-node-pulse {
+    border-color: #c084fc;
+}
+
+.synapse-node.branch-psionic.purchased .synapse-node-ring {
+    border-color: #38bdf8;
+    background: radial-gradient(circle at 30% 30%, rgba(56, 189, 248, 0.35), rgba(3, 105, 161, 0.5) 55%, rgba(8, 12, 22, 0.95) 100%);
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.65), inset 0 0 8px rgba(56, 189, 248, 0.4);
+}
+.synapse-node.branch-psionic.available.affordable .synapse-node-ring {
+    border-color: #38bdf8;
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.65);
+}
+.synapse-node.branch-psionic.available .synapse-node-pulse {
+    border-color: #38bdf8;
+}
+
+.synapse-node.available .synapse-node-ring {
+    border-color: #f59e0b;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+
+.synapse-node.available.affordable .synapse-node-ring {
+    border-color: #c084fc;
+    box-shadow: 0 0 16px rgba(192, 132, 252, 0.6);
+}
+
+.synapse-node.available .synapse-node-pulse {
+    opacity: 0.6;
+    border: 1px solid #c084fc;
+    animation: nodePulseEffect 2s infinite ease-out;
+}
+
+.synapse-node.locked {
+    opacity: 0.45;
+    filter: grayscale(0.85);
+}
+
+.synapse-node.locked .synapse-node-ring {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.synapse-node.selected .synapse-node-ring {
+    outline: 2px solid #38bdf8;
+    outline-offset: 3px;
+    box-shadow: 0 0 24px #38bdf8cc;
+}
+
+.synapse-node.path-highlight .synapse-node-ring {
+    border-color: #38bdf8 !important;
+    box-shadow: 0 0 25px #38bdf8dd, inset 0 0 10px #38bdf888 !important;
+}
+
+/* Spice Relic Special Glow */
+.synapse-node[data-mutation="ibad"].purchased .synapse-node-ring {
+    border-color: #f59e0b;
+    background: radial-gradient(circle at 30% 30%, rgba(245, 158, 11, 0.35), rgba(180, 83, 9, 0.5) 50%, rgba(8, 12, 22, 0.95) 100%);
+    box-shadow: 0 0 25px rgba(245, 158, 11, 0.8), inset 0 0 12px rgba(56, 189, 248, 0.6);
+    animation: spiceGaze 3.5s infinite ease-in-out;
+}
+
+@keyframes spiceGaze {
+    0% { filter: hue-rotate(0deg); }
+    50% { filter: hue-rotate(20deg) scale(1.05); }
+    100% { filter: hue-rotate(0deg); }
+}
+
+@keyframes nodePulseEffect {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(1.4); opacity: 0; }
+}
+
+.synapse-node-tag {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    z-index: 3;
+}
+
+.synapse-node-name {
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: 0.02em;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.8);
+    white-space: nowrap;
+}
+
+.synapse-node-badge {
+    font-size: 0.56rem;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(3, 7, 18, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: 2px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
+    white-space: nowrap;
+}
+
+/* Synapse Inspector Card */
+.synapse-inspector-card {
+    display: flex;
+    flex-direction: column;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 8px;
+    padding: 14px;
+    height: 100%;
+    box-sizing: border-box;
+    justify-content: space-between;
+}
+
+.inspector-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+
+.inspector-icon-ring {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+    border: 2px solid #a855f7;
+    flex-shrink: 0;
+}
+
+.inspector-icon {
+    font-size: 1.5rem;
+}
+
+.inspector-title-col {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.inspector-branch-tag {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.inspector-title {
+    margin: 0;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #f8fafc;
+    line-height: 1.2;
+}
+
+.inspector-status-badge {
+    display: inline-block;
+    font-size: 0.58rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: 2px;
+    letter-spacing: 0.4px;
+}
+
+.inspector-status-badge.active {
+    background: rgba(16, 185, 129, 0.2);
+    border: 1px solid #10b981;
+    color: #34d399;
+}
+
+.inspector-status-badge.ready {
+    background: rgba(192, 132, 252, 0.2);
+    border: 1px solid #c084fc;
+    color: #e9d5ff;
+}
+
+.inspector-status-badge.insufficient {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid #ef4444;
+    color: #fca5a5;
+}
+
+.inspector-status-badge.locked {
+    background: rgba(100, 116, 139, 0.2);
+    border: 1px solid #64748b;
+    color: #cbd5e1;
+}
+
+.inspector-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.inspector-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.inspector-sec-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #94a3b8;
+    letter-spacing: 0.4px;
+}
+
+.inspector-desc {
+    margin: 0;
+    font-size: 0.7rem;
+    color: #e2e8f0;
+    line-height: 1.35;
+}
+
+.inspector-lore {
+    font-size: 0.62rem;
+    color: #a855f7;
+    margin-top: 2px;
+    line-height: 1.3;
+}
+
+.inspector-effect-pill {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 4px;
+    padding: 6px 8px;
+}
+
+.effect-icon {
+    font-size: 0.8rem;
+}
+
+.effect-text {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #38bdf8;
+    line-height: 1.3;
+}
+
+.inspector-prec-row {
+    font-size: 0.65rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.inspector-prec-row.met {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #a7f3d0;
+}
+
+.inspector-prec-row.missing {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+}
+
+.inspector-cost-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+.inspector-cost-card {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cost-type {
+    font-size: 0.58rem;
+    color: #94a3b8;
+}
+
+.cost-amount {
+    font-size: 0.72rem;
+    font-weight: 700;
+    margin: 2px 0;
+}
+
+.inspector-cost-card.bio .cost-amount {
+    color: #10b981;
+}
+
+.inspector-cost-card.silicon .cost-amount {
+    color: #38bdf8;
+}
+
+.cost-status {
+    font-size: 0.58rem;
+    font-weight: 600;
+}
+
+.inspector-cost-card.afford .cost-status {
+    color: #10b981;
+}
+
+.inspector-cost-card.lacking .cost-status {
+    color: #ef4444;
+}
+
+.inspector-footer {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.synapse-inspect-buy-btn {
+    width: 100%;
+    padding: 10px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(56, 189, 248, 0.3));
+    border: 1px solid #c084fc;
+    color: #fff;
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
+}
+
+.synapse-inspect-buy-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.6), rgba(56, 189, 248, 0.6));
+    border-color: #38bdf8;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.6);
+    transform: translateY(-1px);
+}
+
+.synapse-inspect-buy-btn.purchased {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: #10b981;
+    color: #a7f3d0;
+    cursor: default;
+    box-shadow: none;
+}
+
+.synapse-inspect-buy-btn:disabled:not(.purchased) {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #64748b;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+@media (max-width: 860px) {
+    .evolution-arena {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+    .synapse-graph-wrapper {
+        min-height: 380px;
+    }
 }

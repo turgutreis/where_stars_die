@@ -22,6 +22,7 @@ import { initGameOverUI, updateExplosionEffects } from './engine/game-over';
 import { triggerPrologueSequence, initPrologueListeners } from './ui/prologue';
 import { initDirectivesHUD, renderDirectives, updateVoyagerHUDTracker } from './ui/directives';
 import { initVoyagerDialogListeners } from './ui/voyager-dialog';
+import { initFirstContactModalListeners } from './ui/first-contact-modal';
 
 let lastTime = 0;
 let voyagerBeaconTimer = 0;
@@ -141,6 +142,7 @@ function init() {
     initPrologueListeners();
     initDirectivesHUD();
     initVoyagerDialogListeners();
+    initFirstContactModalListeners();
     renderCrewUI();
     updateMutationUI();
 

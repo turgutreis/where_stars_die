@@ -248,6 +248,80 @@ export function playCrashSound() {
     noise.stop(ctx.currentTime + 0.4);
 }
 
+export function playSynapseHoverSound(freq: number = 520) {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    try {
+        const time = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, time);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.25, time + 0.08);
+
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(900, time);
+
+        gain.gain.setValueAtTime(0, time);
+        gain.gain.linearRampToValueAtTime(0.035, time + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start();
+        osc.stop(time + 0.13);
+    } catch (e) {
+        // Safe audio fallback
+    }
+}
+
+export function playSynapseEvolveSound() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    try {
+        const time = ctx.currentTime;
+        
+        // Deep sub-biological boom
+        const sub = ctx.createOscillator();
+        const subGain = ctx.createGain();
+        sub.type = "sine";
+        sub.frequency.setValueAtTime(110, time);
+        sub.frequency.exponentialRampToValueAtTime(50, time + 0.6);
+        subGain.gain.setValueAtTime(0.12, time);
+        subGain.gain.exponentialRampToValueAtTime(0.001, time + 0.6);
+        sub.connect(subGain);
+        subGain.connect(ctx.destination);
+        sub.start();
+        sub.stop(time + 0.65);
+
+        // Harmonic ascending bloom
+        const chime = ctx.createOscillator();
+        const chimeGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        chime.type = "triangle";
+        chime.frequency.setValueAtTime(440, time);
+        chime.frequency.exponentialRampToValueAtTime(880, time + 0.35);
+        filter.type = "bandpass";
+        filter.frequency.setValueAtTime(800, time);
+        filter.frequency.exponentialRampToValueAtTime(2400, time + 0.4);
+        chimeGain.gain.setValueAtTime(0, time);
+        chimeGain.gain.linearRampToValueAtTime(0.09, time + 0.04);
+        chimeGain.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+
+        chime.connect(filter);
+        filter.connect(chimeGain);
+        chimeGain.connect(ctx.destination);
+        chime.start();
+        chime.stop(time + 0.55);
+    } catch (e) {
+        // Safe audio fallback
+    }
+}
+
 export function playLockOnSound() {
     const ctx = getAudioContext();
     if (!ctx) return;

@@ -355,6 +355,115 @@
         </div>
     </div>
 
+    <!-- First Contact / Psionic Crossroads Modal Overlay -->
+    <div id="first-contact-modal" class="modal-overlay" style="display: none; z-index: 1075;">
+        <div class="first-contact-dialog-content glass-panel">
+            <header class="first-contact-header">
+                <div class="first-contact-header-left">
+                    <span class="first-contact-emblem">🌌</span>
+                    <div>
+                        <h2>ERSTKONTAKT &bull; DIE PSIONISCHE WEGGABELUNG</h2>
+                        <span class="first-contact-header-sub">Najmafars Geist berührt zum ersten Mal ein sterbliches Bewusstsein</span>
+                    </div>
+                </div>
+                <div class="first-contact-header-right">
+                    <span class="first-contact-status-badge">✨ BEWUSSTSEINS-ERWACHEN</span>
+                    <button id="close-first-contact-modal-btn" class="close-diplo-btn" title="Schließen (Entscheidung im Deck fällen)">✕</button>
+                </div>
+            </header>
+
+            <div class="first-contact-body">
+                <!-- Candidate Intro Card -->
+                <div class="first-contact-candidate-row">
+                    <div class="first-contact-avatar-col">
+                        <div id="fc-candidate-ring" class="fc-avatar-ring">
+                            <span id="fc-candidate-avatar" class="fc-avatar-icon">👤</span>
+                        </div>
+                    </div>
+                    <div class="first-contact-info-col">
+                        <div class="fc-name-row">
+                            <strong id="fc-candidate-name">Subjekt</strong>
+                            <span id="fc-candidate-species" class="fc-species-tag">Spezies</span>
+                        </div>
+                        <div id="fc-candidate-role" class="fc-role-tag">Rolle</div>
+                        <div id="fc-candidate-thought" class="fc-thought-quote">💭 "..."</div>
+                    </div>
+                </div>
+
+                <div class="first-contact-narrative">
+                    <p>
+                        Seit dem Zerfall seiner Heimatwelt hinter dem kosmischen Horizont trieb Najmafar in absoluter Stille und lähmender Kälte durch die Leere.
+                        Nun liegt das erste vernunftbegabte Wesen in den Kokon-Kammern. Die kosmische Einsamkeit weicht einer drängenden Frage:
+                        <strong>Wie soll Najmafar diesem sterblichen Geist begegnen?</strong>
+                    </p>
+                    <p class="first-contact-hint">
+                        Deine Wahl bestimmt Najmafars primäre Schiffs-Philosophie und schaltet spezifische evolutionäre Synergien frei. <em>(Später durch psionische Umwälzung wandelbar).</em>
+                    </p>
+                </div>
+
+                <!-- 3 Choice Cards -->
+                <div class="first-contact-choices-grid">
+                    <!-- Choice 1: Domination -->
+                    <div class="fc-choice-card domination">
+                        <div>
+                            <div class="fc-choice-badge">⚡ PFAD DER HERRSCHAFT</div>
+                            <h3>Unterwerfung & Zwang</h3>
+                            <p class="fc-choice-flavor">
+                                „Unterwerfe den fremden Geist mit psionischem Joch. Eiserner Gehorsam und Disziplin befeuern Najmafars Triebwerke.“
+                            </p>
+                            <ul class="fc-choice-perks">
+                                <li>🚀 <strong>+25% bis +45% Schub & Wendigkeit</strong></li>
+                                <li>⚔️ Kriegerische Spezies respektieren Stärke</li>
+                                <li>⚠️ Erhöhter Mental-Drain & Meutereigefahr</li>
+                            </ul>
+                        </div>
+                        <button class="fc-select-btn domination" onclick="window.chooseFirstContactDoctrine('domination')">
+                            ⚡ Herrschaft wählen
+                        </button>
+                    </div>
+
+                    <!-- Choice 2: Deception -->
+                    <div class="fc-choice-card deception">
+                        <div>
+                            <div class="fc-choice-badge">🔮 PFAD DER TÄUSCHUNG</div>
+                            <h3>Traum-Matrix & Illusion</h3>
+                            <p class="fc-choice-flavor">
+                                „Errichte eine tröstliche Scheinwelt. Die Gefangenen glauben, sie forschen auf ihrer eigenen Heimatstation.“
+                            </p>
+                            <ul class="fc-choice-perks">
+                                <li>🔮 <strong>+35% bis +70% Tarnung (Stealth)</strong></li>
+                                <li>😌 Minimaler Stress, beruhigter Verstand</li>
+                                <li>🔍 Gelehrte können Matrix-Glitches bemerken</li>
+                            </ul>
+                        </div>
+                        <button class="fc-select-btn deception" onclick="window.chooseFirstContactDoctrine('deception')">
+                            🔮 Täuschung wählen
+                        </button>
+                    </div>
+
+                    <!-- Choice 3: Symbiosis -->
+                    <div class="fc-choice-card symbiosis">
+                        <div>
+                            <div class="fc-choice-badge">🌱 PFAD DER SYMBIOSE</div>
+                            <h3>Organische Harmonie</h3>
+                            <p class="fc-choice-flavor">
+                                „Öffne Najmafars Nervenbahnen für echte Resonanz. Verschmelzt als gleichberechtigte Partner im kosmischen Ozean.“
+                            </p>
+                            <ul class="fc-choice-perks">
+                                <li>🧪 <strong>+35% bis +60% Bio-Regeneration</strong></li>
+                                <li>💫 Einsamkeit weicht tiefer Geborgenheit</li>
+                                <li>💉 Telomer-Verjüngung stark begünstigt</li>
+                            </ul>
+                        </div>
+                        <button class="fc-select-btn symbiosis" onclick="window.chooseFirstContactDoctrine('symbiosis')">
+                            🌱 Symbiose wählen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Game Over Modal Overlay -->
     <div id="game-over-modal" class="modal-overlay"
         style="display: none; z-index: 1200; background: rgba(3, 7, 18, 0.88); backdrop-filter: blur(8px);">
@@ -403,17 +512,6 @@
 
     <!-- The WebGL Canvas for 3D simulation -->
     <div id="canvas-container"></div>
-
-    <!-- Psionic Compass HUD (Direction to living minds) -->
-    <div id="psionic-compass-hud" class="psionic-compass-hud" style="display: none;">
-        <div class="compass-beacon-icon">🧠</div>
-        <div class="compass-info">
-            <span class="compass-label">Gedanken-Echo:</span>
-            <span id="compass-planet-name" class="compass-target">-</span>
-            <span id="compass-distance-text" class="compass-dist">-</span>
-        </div>
-        <div id="compass-arrow-needle" class="compass-arrow">▲</div>
-    </div>
 
     <!-- Cinematic Prologue Overlay -->
     <div id="prologue-overlay" class="prologue-overlay hidden">
@@ -476,6 +574,19 @@
                 </div>
                 <span id="loneliness-text" class="vital-val-pill">80% (Verzweiflung)</span>
             </div>
+        </div>
+
+        <!-- Radiation & Environmental Hazard Telemetry -->
+        <div id="hud-radiation-meter" class="hud-radiation-meter glass-capsule" style="display: none;">
+            <div class="rad-header">
+                <span class="rad-icon">☢️</span>
+                <span id="rad-label" class="rad-label">STRAHLUNG: 0%</span>
+                <span id="rad-shield-badge" class="rad-shield-badge">🛡️ 0%</span>
+            </div>
+            <div class="rad-bar-track">
+                <div id="rad-level-bar" class="rad-bar" style="width: 0%;"></div>
+            </div>
+            <div id="rad-status-text" class="rad-status-text">SICHERE ZONE</div>
         </div>
 
         <!-- Persistent Left Party Grid HUD (RPG-Style Crew / Abductee Vital Matrix) -->
@@ -750,15 +861,17 @@
                                     <span class="meta-label">Kokon-Kapazität:</span>
                                     <span id="crew-capacity-text" class="meta-val highlight">0 / 2</span>
                                 </div>
-                                <div class="role-synergy-slots" id="role-synergy-slots">
-                                    <div class="role-slot" id="slot-pilot" title="Astral-Pilot (+30% Schubkraft)">🛸
-                                        Pilot</div>
-                                    <div class="role-slot" id="slot-biologist" title="Bio-Architekt (+45% Biomasse)">🌱
-                                        Biologe</div>
-                                    <div class="role-slot" id="slot-engineer"
-                                        title="Naniten-Meister (+Naniten-Reparatur)">🔧 Ingenieur</div>
-                                    <div class="role-slot" id="slot-psychologist"
-                                        title="Gedanken-Diplomatin (-40% Crew-Stress)">🧘 Psychologe</div>
+                                <div class="organ-stations-section" style="margin: 8px 0;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                        <span style="font-size: 0.65rem; font-weight: 700; color: #a855f7; text-transform: uppercase; letter-spacing: 0.5px;">🫀 Schiffs-Organ-Stationen</span>
+                                        <span style="font-size: 0.58rem; color: #94a3b8;">Kollektiv-Bindung</span>
+                                    </div>
+                                    <div class="organ-stations-grid" id="organ-stations-grid">
+                                        <!-- Dynamic 4 Organ Station Cards -->
+                                    </div>
+                                </div>
+                                <div id="role-synergy-slots" style="display: none;">
+                                    <div id="slot-pilot"></div><div id="slot-biologist"></div><div id="slot-engineer"></div><div id="slot-psychologist"></div>
                                 </div>
                                 <div id="crew-synergy-banner" class="crew-synergy-banner">
                                     <span id="crew-synergy-title" class="synergy-title">🌌 Kosmische Einsamkeit</span>
@@ -784,105 +897,66 @@
 
                 <!-- Tab 2: Evolution & Mutationen -->
                 <div id="tab-content-evolution" class="tab-content">
-                    <div class="mutation-list">
-                        <div class="mutation-item" id="mut-armor">
-                            <div class="mut-details">
-                                <span class="mut-name">Chitin-Panzerung</span>
-                                <span class="mut-desc">Halbiert Kollisionsschaden</span>
-                                <span class="mut-cost">Kosten: <span class="cost-val bio">180 Bio</span> | <span
-                                        class="cost-val silicon">110 Silizium</span></span>
+                    <div class="evolution-network-container">
+                        <!-- Top Status Bar -->
+                        <div class="evo-top-bar">
+                            <div class="evo-title-info">
+                                <span class="evo-title">🧬 Bio-Neuronales Evolutions-Netzwerk</span>
+                                <span class="evo-subtitle">Erweitere Najmafars lebende Organe, Chitin-Panzerung & Schwarm-Zerebrum</span>
                             </div>
-                            <button class="mut-btn" data-mutation="armor">Mutieren</button>
-                        </div>
-                        <div class="mutation-item" id="mut-o2">
-                            <div class="mut-details">
-                                <span class="mut-name">Sauerstoff-Drüse</span>
-                                <span class="mut-desc">-50% Crew-Stressaufbau</span>
-                                <span class="mut-cost">Kosten: <span class="cost-val bio">140 Bio</span> | <span
-                                        class="cost-val silicon">60 Silizium</span></span>
+                            <div class="evo-status-badges">
+                                <span class="evo-stat-pill" title="Aktive Evolutionen"><span id="evo-active-count">2/15</span> Aktiv</span>
+                                <span class="evo-res-pill bio" title="Verfügbare Biomasse">🌿 <span id="evo-bio-res">0</span> Bio</span>
+                                <span class="evo-res-pill silicon" title="Verfügbares Silizium">💠 <span id="evo-silicon-res">0</span> Silizium</span>
                             </div>
-                            <button class="mut-btn" data-mutation="o2">Mutieren</button>
                         </div>
-                        <div class="mutation-item" id="mut-synapses">
-                            <div class="mut-details">
-                                <span class="mut-name">Synapsen-Netzwerk</span>
-                                <span class="mut-desc">150 Max Mentalkraft & +65 LJ Gedanken-Reichweite</span>
-                                <span class="mut-cost">Kosten: <span class="cost-val bio">260 Bio</span> | <span
-                                        class="cost-val silicon">160 Silizium</span></span>
+
+                        <!-- Main 2-Column Evolution Arena -->
+                        <div class="evolution-arena">
+                            <!-- Left: Synaptic Graph Area -->
+                            <div class="synapse-graph-wrapper" id="synapse-graph-container">
+                                <!-- Living Neural Fluid & Action Potential Canvas -->
+                                <canvas id="synapse-neural-canvas" class="synapse-neural-canvas"></canvas>
+
+                                <!-- SVG Axon Pathways -->
+                                <svg class="synapse-axons-svg" id="synapse-axons-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    <defs>
+                                        <filter id="axon-glow-active" x="-20%" y="-20%" width="140%" height="140%">
+                                            <feGaussianBlur stdDeviation="1.2" result="blur"/>
+                                            <feMerge>
+                                                <feMergeNode in="blur"/>
+                                                <feMergeNode in="SourceGraphic"/>
+                                            </feMerge>
+                                        </filter>
+                                    </defs>
+                                    <g id="synapse-axons-group"></g>
+                                </svg>
+
+                                <!-- Dynamic Synapse Nodes Layer -->
+                                <div class="synapse-nodes-layer" id="synapse-nodes-layer"></div>
+
+                                <!-- Subtle Bio Grid Backing -->
+                                <div class="synapse-bg-rings"></div>
                             </div>
-                            <button class="mut-btn" data-mutation="synapses">Mutieren</button>
+
+                            <!-- Right: Synaptic Organ Inspector -->
+                            <div class="synapse-inspector-card glass-panel" id="synapse-inspector-panel"></div>
                         </div>
-                        <div class="mutation-item" id="mut-cocoon">
-                            <div class="mut-details">
-                                <span class="mut-name">Neuronales Kokon-Gewebe</span>
-                                <span class="mut-desc">Erweitert Crew-Kapazität auf 4 & dämpft Stress</span>
-                                <span class="mut-cost">Kosten: <span class="cost-val bio">320 Bio</span> | <span
-                                        class="cost-val silicon">140 Silizium</span></span>
-                            </div>
-                            <button class="mut-btn" data-mutation="cocoon">Mutieren</button>
-                        </div>
-                        <div class="mutation-item" id="mut-hivemind">
-                            <div class="mut-details">
-                                <span class="mut-name">Symbiotische Synapsen-Kammer</span>
-                                <span class="mut-desc">Max 6 Crew & +20% auf alle Spezialisten-Buffs</span>
-                                <span class="mut-cost">Kosten: <span class="cost-val bio">500 Bio</span> | <span
-                                        class="cost-val silicon">320 Silizium</span></span>
-                            </div>
-                            <button class="mut-btn" data-mutation="hivemind">Mutieren</button>
-                        </div>
-                        <div class="mutation-item" id="mut-neural-cluster">
-                            <div class="mut-details">
-                                <span class="mut-name">Neuronale Waben-Kammer</span>
-                                <span class="mut-desc">Erweitert Crew-Kapazität auf 10 & dämpft Dissonanz</span>
-                                <span class="mut-cost">Kosten: <span class="cost-val bio">650 Bio</span> | <span
-                                        class="cost-val silicon">450 Silizium</span></span>
-                            </div>
-                            <button class="mut-btn" data-mutation="neural_cluster">Mutieren</button>
-                        </div>
-                        <div class="mutation-item" id="mut-cryo-matrix">
-                            <div class="mut-details">
-                                <span class="mut-name">Bio-Kryo-Kaverne</span>
-                                <span class="mut-desc">Erweitert Crew-Kapazität auf 20 & verlangsamt Zelltod um 25%</span>
-                                <span class="mut-cost">Kosten: <span class="cost-val bio">950 Bio</span> | <span
-                                        class="cost-val silicon">750 Silizium</span></span>
-                            </div>
-                            <button class="mut-btn" data-mutation="cryo_matrix">Mutieren</button>
-                        </div>
-                        <div class="mutation-item" id="mut-hive-cerebrum">
-                            <div class="mut-details">
-                                <span class="mut-name">Schwarm-Zerebrum</span>
-                                <span class="mut-desc">Max 30 Crew • Schaltet Schwarm-Resonanz frei</span>
-                                <span class="mut-cost">Kosten: <span class="cost-val bio">1500 Bio</span> | <span
-                                        class="cost-val silicon">1200 Silizium</span></span>
-                            </div>
-                            <button class="mut-btn" data-mutation="hive_cerebrum">Mutieren</button>
-                        </div>
-                        <div class="mutation-item" id="mut-folddrive">
-                            <div class="mut-details">
-                                <span class="mut-name">Raumzeit-Faltungsmembran</span>
-                                <span class="mut-desc">Warp-Reichweite 160 LJ (-30% Energiekosten)</span>
-                                <span class="mut-cost">Kosten: <span class="cost-val bio">380 Bio</span> | <span
-                                        class="cost-val silicon">420 Silizium</span></span>
-                            </div>
-                            <button class="mut-btn" data-mutation="folddrive">Mutieren</button>
-                        </div>
-                        <div class="mutation-item" id="mut-translator">
-                            <div class="mut-details">
-                                <span class="mut-name">Dschinn-Übersetzer</span>
-                                <span class="mut-desc">Dechiffriert Funk & Besatzungs-Gedanken</span>
-                                <span class="mut-cost">Kosten: <span class="cost-val bio">120 Bio</span> | <span
-                                        class="cost-val silicon">80 Silizium</span></span>
-                            </div>
-                            <button class="mut-btn" data-mutation="translator">Mutieren</button>
-                        </div>
-                        <div class="mutation-item" id="mut-ibad" style="display: none; border-color: rgba(168, 85, 247, 0.4); background: rgba(88, 28, 135, 0.18);">
-                            <div class="mut-details">
-                                <span class="mut-name" style="color: #c084fc; font-weight: bold;">👁️ Augen des Ibad (Melange)</span>
-                                <span class="mut-desc">Weitsicht der Fremen • Harmonisiert den Geist (Heilung von Psychosen)</span>
-                                <span class="mut-cost" style="color: #38bdf8;">Artefakt-Mutation von Arrakis</span>
-                            </div>
-                            <button class="mut-btn purchased" data-mutation="ibad" disabled>Aktiviert ✓</button>
-                        </div>
+                    </div>
+
+                    <!-- Compatibility elements for legacy queries and automated tests -->
+                    <div class="mutation-list-compat" style="display: none;">
+                        <div class="mutation-item" id="mut-armor"><button class="mut-btn" data-mutation="armor"></button></div>
+                        <div class="mutation-item" id="mut-o2"><button class="mut-btn" data-mutation="o2"></button></div>
+                        <div class="mutation-item" id="mut-synapses"><button class="mut-btn" data-mutation="synapses"></button></div>
+                        <div class="mutation-item" id="mut-cocoon"><button class="mut-btn" data-mutation="cocoon"></button></div>
+                        <div class="mutation-item" id="mut-hivemind"><button class="mut-btn" data-mutation="hivemind"></button></div>
+                        <div class="mutation-item" id="mut-neural-cluster"><button class="mut-btn" data-mutation="neural_cluster"></button></div>
+                        <div class="mutation-item" id="mut-cryo-matrix"><button class="mut-btn" data-mutation="cryo_matrix"></button></div>
+                        <div class="mutation-item" id="mut-hive-cerebrum"><button class="mut-btn" data-mutation="hive_cerebrum"></button></div>
+                        <div class="mutation-item" id="mut-folddrive"><button class="mut-btn" data-mutation="folddrive"></button></div>
+                        <div class="mutation-item" id="mut-translator"><button class="mut-btn" data-mutation="translator"></button></div>
+                        <div class="mutation-item" id="mut-ibad"><button class="mut-btn purchased" data-mutation="ibad"></button></div>
                     </div>
                 </div>
 

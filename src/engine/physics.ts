@@ -96,7 +96,9 @@ export function updatePhysics(dt: number) {
             const pz = p.distance * Math.sin(p.angle);
 
             p.mesh.position.set(px, 0, pz);
-            p.source.position.set(px, 0, pz);
+            if (p.source && p.source.position) {
+                p.source.position.set(px, 0, pz);
+            }
             if (p.ringMesh) {
                 p.ringMesh.position.set(px, 0, pz);
             }
@@ -267,6 +269,16 @@ export function updatePhysics(dt: number) {
             const dist = Math.sqrt(distSq);
             // Softened Plummer gravity: F = G*M / (r^2 + 25.0)
             const gForce = (STATE.gConstant * s.mass) / (distSq + 25.0);
+            const invDist = 1 / Math.max(0.1, dist);
+
+            netGx += dx * invDist * gForce;
+            netGz += dz * invDist * gForce;
+        } else if (distSq < rangeSq * 5.76) {
+            // Subtle long-range cosmic gravity tidal pull up to 2.4x gravity range
+            const dist = Math.sqrt(distSq);
+            const extendedMax = s.gravityRange * 2.4;
+            const tidalFalloff = (extendedMax - dist) / (extendedMax - s.gravityRange);
+            const gForce = ((STATE.gConstant * s.mass) / (distSq + 50.0)) * (0.14 * tidalFalloff);
             const invDist = 1 / Math.max(0.1, dist);
 
             netGx += dx * invDist * gForce;
