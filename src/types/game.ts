@@ -50,12 +50,31 @@ export interface StarData {
 }
 
 export type SpeciesLifespanCategory = 'ephemeral' | 'mortal' | 'longlived' | 'ancient';
+export type SpeciesDisposition = 'martial' | 'scholarly' | 'empathic' | 'lithoid' | 'synthetic';
+
+export type OrganStationId = 'flight_synapse' | 'chitin_gland' | 'bio_incubator' | 'dream_core';
+
+export interface OrganStationData {
+    id: OrganStationId;
+    name: string;
+    subtitle: string;
+    icon: string;
+    optimalRoles: string[];
+    optimalDispositions: string[];
+    description: string;
+    assignedCount: number;
+    efficiency: number;
+    activitySummary: string;
+}
 
 export interface CrewMember {
     id: number;
     name: string;
     species: string;
+    speciesArchetypeName?: string;
     speciesType?: SpeciesLifespanCategory;
+    disposition?: SpeciesDisposition;
+    clusterId?: string;
     role: 'pilot' | 'biologist' | 'engineer' | 'psychologist' | 'cryptologist' | string;
     roleName: string;
     roleIcon?: string;
@@ -79,8 +98,9 @@ export interface CrewMember {
         desc: string;
         type: 'bio' | 'stress' | 'speed' | 'repair' | 'psionic' | 'quirk';
     };
-    station?: 'nervous_system' | 'metabolism_chamber' | 'nanite_forge' | 'psi_resonator';
+    station?: OrganStationId;
     stationName?: string;
+    stationActivity?: string;
     avatarIcon?: string;
     criticalAlertTriggered?: boolean;
     speciesColor?: string;
@@ -310,6 +330,40 @@ export interface MutationItem {
     desc?: string;
 }
 
+export type PrimaryParadigm = 'neutral' | 'domination' | 'deception' | 'symbiosis';
+export type SubCodex =
+    | 'none'                // Keine Sub-Doktrin vor Erstkontakt
+    | 'iron_discipline'     // Gewalt + Gewalt: Brutale Unterdrückung, max Kampf-Bonus
+    | 'gunboat_diplomacy'   // Gewalt + Diplomatie: Krieger respektieren Stärke, moderate Kosten
+    | 'nightmare_terror'    // Gewalt + Täuschung: Horror-Matrix, lähmende Angst
+    | 'benevolent_facade'   // Täuschung + Diplomatie: Falsche Utopie, glückliche Gefangene
+    | 'illusory_matrix'     // Täuschung + Täuschung: Perfekte Schein-Welt, hoher Stealth
+    | 'living_symbiosis'    // Harmonie + Harmonie: Organische Einheit, starke Bio-Regeneration
+    | 'pragmatic_accord';   // Harmonie + Diplomatie: Nüchterne Partnerschaft
+
+export interface ParadigmModifiers {
+    mentalDrainMult: number;
+    stressModifier: number;
+    thrustBonus: number;
+    stealthBonus: number;
+    bioRegenBonus: number;
+    harmonyBonus: number;
+}
+
+export interface SpeciesCluster {
+    speciesName: string;
+    speciesColor: string;
+    avatarIcon: string;
+    disposition: SpeciesDisposition;
+    count: number;
+    members: CrewMember[];
+    avgAgePercent: number;
+    avgStress: number;
+    avgStability: number;
+    dominantRole: string;
+    isExpanded?: boolean;
+}
+
 export interface CrewBuffs {
     thrust: number;
     bioGain: number;
@@ -317,6 +371,14 @@ export interface CrewBuffs {
     repairRate: number;
     stressDampening: number;
     psionicBonus: number;
+}
+
+export interface DoctrineTransition {
+    active: boolean;
+    fromParadigm: PrimaryParadigm;
+    targetParadigm: PrimaryParadigm;
+    progress: number; // 0.0 to 1.0
+    duration: number; // in seconds
 }
 
 export interface GameState {
@@ -347,17 +409,39 @@ export interface GameState {
     crewDialogueTimer: number;
     crewBuffs: CrewBuffs;
 
+    // Paradigms & Triad Doctrine System
+    primaryParadigm: PrimaryParadigm;
+    activeSubCodex: SubCodex;
+    paradigmModifiers: ParadigmModifiers;
+    doctrineTransition?: DoctrineTransition;
+
     // Mutations
     mutations: {
+        nucleus?: MutationItem;
+        organic_siphon?: MutationItem;
+        chitin_armor?: MutationItem;
+        vector_tentacles?: MutationItem;
+        blade_armor?: MutationItem;
+        cocoon: MutationItem;
+        hivemind: MutationItem;
+        neural_cluster: MutationItem;
+        cryo_matrix: MutationItem;
+        hive_cerebrum: MutationItem;
+        telepathic_focus?: MutationItem;
+        psionic_pulse?: MutationItem;
+        chimera_veil?: MutationItem;
+        resonance_screech?: MutationItem;
         armor: MutationItem;
         o2: MutationItem;
         synapses: MutationItem;
-        cocoon: MutationItem;
-        hivemind: MutationItem;
         folddrive: MutationItem;
         translator: MutationItem;
         ibad?: MutationItem;
     };
+    radiationResistance?: number;
+    ambientRadiation?: number;
+    effectiveRadiation?: number;
+    radiationSource?: string;
 
     // Physics
     playerPosition: THREE.Vector3;

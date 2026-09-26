@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { STATE, activePlanets } from '../core/state';
-import { scene } from '../engine/scene';
+import { scene, camera } from '../engine/scene';
 import { playSonarChime } from '../engine/audio';
-import { toggleDeckModal } from './deck';
-import { toggleGalaxyMap } from '../systems/galaxy-map';
+import { toggleDeckModal, isDeckOpen } from './deck';
+import { toggleGalaxyMap, isMapOpen } from '../systems/galaxy-map';
 import { toggleFlightAssist } from '../input/controls';
 import { triggerBioDischarge } from '../systems/fleet';
 import { projectedTrajectoryPoints } from '../engine/trajectory';
+import { PlanetEntry } from '../types/game';
 
 let minimapCanvas: HTMLCanvasElement | null = null;
 let minimapCtx: CanvasRenderingContext2D | null = null;
@@ -44,6 +45,32 @@ export function initHUD() {
     const dockAssistBtn = document.getElementById('dock-assist-btn');
     if (dockAssistBtn) {
         dockAssistBtn.addEventListener('click', () => toggleFlightAssist());
+    }
+
+    const compassEl = document.getElementById('psionic-compass-hud');
+    if (compassEl) {
+        compassEl.addEventListener('click', () => {
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 't' }));
+        });
+    }
+
+    const markersContainer = document.getElementById('screen-edge-gravity-markers');
+    if (markersContainer) {
+        markersContainer.addEventListener('click', (e) => {
+            const marker = (e.target as HTMLElement).closest('.edge-planet-marker') as HTMLElement;
+            if (marker && marker.dataset.planetName) {
+                const targetName = marker.dataset.planetName;
+                const planet = activePlanets.find(p => p.name === targetName);
+                if (planet) {
+                    STATE.lockedTarget = planet;
+                    const badge = document.getElementById('target-lock-badge');
+                    const label = document.getElementById('target-label-text');
+                    if (badge) badge.style.display = 'flex';
+                    if (label) label.innerText = 'Fixiertes Ziel:';
+                    addLogEntry("NAV", `🎯 Zielerfassung fixiert auf: ${planet.name}`);
+                }
+            }
+        });
     }
 }
 
@@ -166,6 +193,54 @@ export function updateHUDStats(isHarmony = false) {
         const visited = STATE.visitedSystemIds ? STATE.visitedSystemIds.length : (STATE.systemsVisited || 1);
         chronosCountEl.innerText = `${visited}`;
     }
+
+    // 3. Radiation Cockpit Hazard Telemetry
+    const radMeter = document.getElementById('hud-radiation-meter');
+    const radLabel = document.getElementById('rad-label');
+    const radBar = document.getElementById('rad-level-bar');
+    const radBadge = document.getElementById('rad-shield-badge');
+    const radStatus = document.getElementById('rad-status-text');
+
+    const ambient = STATE.ambientRadiation || 0;
+    const effective = STATE.effectiveRadiation || 0;
+    const resistance = STATE.radiationResistance || 0;
+    const source = STATE.radiationSource || 'Kosmische Strahlung';
+
+    if (radMeter) {
+        if (ambient > 0.05) {
+            radMeter.style.display = 'flex';
+
+            const ambPercent = Math.round(ambient * 100);
+            const shieldPercent = Math.round(resistance * 100);
+
+            if (radLabel) radLabel.innerText = `STRAHLUNG: ${ambPercent}%`;
+            if (radBadge) radBadge.innerText = `🛡️ ${shieldPercent}%`;
+
+            if (radBar) {
+                radBar.style.width = `${ambPercent}%`;
+            }
+
+            if (effective > 0.15) {
+                const dmgPerSec = ((effective - 0.15) * 4.5).toFixed(1);
+                radMeter.className = 'hud-radiation-meter glass-capsule hazard';
+                if (radStatus) {
+                    radStatus.innerHTML = `<span class="rad-alert-icon">⚠️</span> STRAHLUNGSALARM: -${dmgPerSec} HP/s (${source})`;
+                }
+            } else if (resistance >= 0.50 && ambient > 0.20) {
+                radMeter.className = 'hud-radiation-meter glass-capsule shielded';
+                if (radStatus) {
+                    radStatus.innerHTML = `<span class="rad-shield-icon">🛡️</span> ABGESCHIRMT: ${shieldPercent}% Filterung ✓`;
+                }
+            } else {
+                radMeter.className = 'hud-radiation-meter glass-capsule caution';
+                if (radStatus) {
+                    radStatus.innerHTML = `<span>⚡</span> Strahlungsfeld aktiv (${source})`;
+                }
+            }
+        } else {
+            radMeter.style.display = 'none';
+        }
+    }
 }
 
 export function updateMinimap() {
@@ -273,6 +348,52 @@ export function updateMinimap() {
                 minimapCtx.fillStyle = source.resourceType === 'bio' ? '#00ff88' : '#38bdf8';
                 minimapCtx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
             }
+        } else if (source.type === 'planet' || source.type === 'star') {
+            // Off-screen planetary and stellar gravity vectors on radar rim
+            const angle = Math.atan2(dz, dx);
+            const edgeRadius = radius - 3.5;
+            const ex = cx + Math.cos(angle) * edgeRadius;
+            const ey = cy + Math.sin(angle) * edgeRadius;
+
+            const planetEntry = activePlanets.find(p => p.source === source);
+            const isLocked = STATE.lockedTarget && (STATE.lockedTarget === planetEntry || STATE.lockedTarget === source);
+            const hasSentient = planetEntry && planetEntry.attributes && planetEntry.attributes.species && planetEntry.attributes.species.population > 0;
+
+            if (isLocked) {
+                minimapCtx.fillStyle = '#38bdf8';
+                minimapCtx.beginPath();
+                minimapCtx.arc(ex, ey, 4.0, 0, Math.PI * 2);
+                minimapCtx.fill();
+
+                minimapCtx.strokeStyle = 'rgba(56, 189, 248, 0.9)';
+                minimapCtx.lineWidth = 1.5;
+                minimapCtx.beginPath();
+                minimapCtx.arc(ex, ey, 6.5, 0, Math.PI * 2);
+                minimapCtx.stroke();
+            } else if (hasSentient) {
+                minimapCtx.fillStyle = '#d946ef';
+                minimapCtx.beginPath();
+                minimapCtx.arc(ex, ey, 3.2, 0, Math.PI * 2);
+                minimapCtx.fill();
+
+                minimapCtx.strokeStyle = 'rgba(217, 70, 239, 0.8)';
+                minimapCtx.lineWidth = 1;
+                minimapCtx.beginPath();
+                minimapCtx.arc(ex, ey, 5.2, 0, Math.PI * 2);
+                minimapCtx.stroke();
+            } else if (source.type === 'star') {
+                minimapCtx.fillStyle = '#f59e0b';
+                minimapCtx.beginPath();
+                minimapCtx.arc(ex, ey, 3.5, 0, Math.PI * 2);
+                minimapCtx.fill();
+            } else if (planetEntry && !planetEntry.isMoon) {
+                const isHab = planetEntry.type === 'Habitable';
+                const isGas = planetEntry.type === 'Gas Giant';
+                minimapCtx.fillStyle = isHab ? '#10b981' : (isGas ? '#f59e0b' : '#64748b');
+                minimapCtx.beginPath();
+                minimapCtx.arc(ex, ey, 2.5, 0, Math.PI * 2);
+                minimapCtx.fill();
+            }
         }
     });
 
@@ -313,6 +434,16 @@ export function updateMinimap() {
             minimapCtx.lineWidth = 1.5;
             minimapCtx.beginPath();
             minimapCtx.arc(sx, sy, 8, 0, Math.PI * 2);
+            minimapCtx.stroke();
+        } else {
+            const angle = Math.atan2(dz, dx);
+            const edgeRadius = radius - 3.5;
+            const ex = cx + Math.cos(angle) * edgeRadius;
+            const ey = cy + Math.sin(angle) * edgeRadius;
+            minimapCtx.strokeStyle = '#38bdf8';
+            minimapCtx.lineWidth = 1.8;
+            minimapCtx.beginPath();
+            minimapCtx.arc(ex, ey, 7.5, 0, Math.PI * 2);
             minimapCtx.stroke();
         }
     }
@@ -548,4 +679,268 @@ export function triggerSystemArrivalBanner(system: any, factionName?: string) {
             banner.classList.remove('banner-exit');
         }, 800);
     }, 4500);
+}
+
+// ----------------------------------------------------------------------------
+// PSIONIC GRAVITATIONAL COMPASS & SENSORY ECOSYSTEM
+// ----------------------------------------------------------------------------
+
+export function updatePsionicCompass() {
+    const compassEl = document.getElementById('psionic-compass-hud');
+    if (!compassEl) return;
+
+    if (!STATE.gameStarted || isMapOpen() || isDeckOpen()) {
+        compassEl.style.display = 'none';
+        return;
+    }
+
+    // 1. Determine Tracked Target
+    let target: any = STATE.lockedTarget;
+    let targetPos: THREE.Vector3 | null = null;
+    let isLocked = !!STATE.lockedTarget;
+    let isSentient = false;
+
+    if (target) {
+        targetPos = target.mesh ? target.mesh.position : (target.position || (target.source ? target.source.position : null));
+        if (target.attributes && target.attributes.species && target.attributes.species.population > 0) {
+            isSentient = true;
+        }
+    }
+
+    if (!targetPos && activePlanets.length > 0) {
+        // Priority 1: Check for closest sentient planet
+        let bestSentient: any = null;
+        let bestSentientDist = Infinity;
+        let closestBody: any = null;
+        let closestDist = Infinity;
+
+        activePlanets.forEach(p => {
+            if (!p.mesh) return;
+            const d = p.mesh.position.distanceTo(STATE.playerPosition);
+            if (p.attributes && p.attributes.species && p.attributes.species.population > 0) {
+                if (d < bestSentientDist) {
+                    bestSentientDist = d;
+                    bestSentient = p;
+                }
+            }
+            if (d < closestDist) {
+                closestDist = d;
+                closestBody = p;
+            }
+        });
+
+        if (bestSentient && bestSentientDist < 450) {
+            target = bestSentient;
+            targetPos = bestSentient.mesh.position;
+            isSentient = true;
+        } else if (closestBody) {
+            target = closestBody;
+            targetPos = closestBody.mesh.position;
+            if (target.attributes && target.attributes.species && target.attributes.species.population > 0) {
+                isSentient = true;
+            }
+        }
+    }
+
+    // Fallback: check central star or Voyager probe
+    if (!targetPos) {
+        const star = STATE.gravitySources.find(s => s.type === 'star');
+        if (star) {
+            target = star;
+            targetPos = star.position;
+        }
+    }
+
+    if (!target || !targetPos) {
+        compassEl.style.display = 'none';
+        return;
+    }
+
+    compassEl.style.display = 'flex';
+    compassEl.className = `psionic-compass-hud ${isLocked ? 'locked-mode' : ''} ${isSentient ? 'sentient-pulse' : ''}`;
+
+    const dx = targetPos.x - STATE.playerPosition.x;
+    const dz = targetPos.z - STATE.playerPosition.z;
+    const dist = Math.hypot(dx, dz);
+
+    // Screen angle: camera looks down from +Y, -Z is screen UP, +X is screen RIGHT
+    const angleDeg = Math.atan2(dx, -dz) * (180 / Math.PI);
+    const needleEl = document.getElementById('compass-arrow-needle');
+    if (needleEl) {
+        needleEl.style.transform = `rotate(${angleDeg}deg)`;
+    }
+
+    const iconEl = document.getElementById('compass-beacon-icon');
+    const labelEl = document.getElementById('compass-label');
+    const nameEl = document.getElementById('compass-planet-name');
+    const distEl = document.getElementById('compass-distance-text');
+
+    // Organic Sensation of Gravitation
+    let gravSensation = '';
+    if (dist < 22) {
+        gravSensation = '⚡ Orbit-Eintritt / Starkes Gravitationsfeld';
+    } else if (dist < 65) {
+        gravSensation = '🌀 Spürbare Raumzeitkrümmung';
+    } else if (dist < 160) {
+        gravSensation = '🌌 Sanfte Schwerkraft-Dünung';
+    } else {
+        gravSensation = '🔭 Fernes Gravitations-Echo';
+    }
+
+    // Icon & Label styling
+    if (iconEl) {
+        if (isSentient) iconEl.innerText = '🧠';
+        else if (target.type === 'star' || target.type === 'Yellow Sun' || target.type === 'Black Hole') iconEl.innerText = '☀️';
+        else if (target.type === 'Gas Giant') iconEl.innerText = '🪐';
+        else if (target.type === 'Habitable') iconEl.innerText = '🌍';
+        else if (target.isMoon) iconEl.innerText = '🌕';
+        else if (target.type === 'voyager_probe' || target.name?.includes('Voyager')) iconEl.innerText = '📡';
+        else iconEl.innerText = '🌑';
+    }
+
+    if (labelEl) {
+        if (isLocked) {
+            labelEl.innerText = '🎯 FIXIERTES GRAVITATIONSZIEL:';
+            labelEl.style.color = '#38bdf8';
+        } else if (isSentient) {
+            labelEl.innerText = '🧠 PSIO- & GRAVITATIONS-RESONANZ:';
+            labelEl.style.color = '#d946ef';
+        } else {
+            labelEl.innerText = '🪐 RAUMZEIT-GEFÄLLE (NÄCHSTE MASSE):';
+            labelEl.style.color = '#a855f7';
+        }
+    }
+
+    if (nameEl) {
+        let displayName = target.name || 'Unbekannter Körper';
+        if (isSentient && target.attributes?.species?.name) {
+            displayName += ` (${target.attributes.species.name})`;
+        }
+        nameEl.innerText = displayName;
+    }
+
+    if (distEl) {
+        distEl.innerText = `${dist.toFixed(1)} AE • ${gravSensation}`;
+        distEl.innerHTML = `<strong>${dist.toFixed(1)} AE</strong> &bull; ${gravSensation}`;
+    }
+}
+
+// ----------------------------------------------------------------------------
+// SCREEN-EDGE CELESTIAL GRAVITATIONAL MARKERS
+// ----------------------------------------------------------------------------
+
+const cachedEdgeMarkers: Map<string, HTMLElement> = new Map();
+
+export function updateScreenEdgeMarkers() {
+    const container = document.getElementById('screen-edge-gravity-markers');
+    if (!container) return;
+
+    if (!STATE.gameStarted || isMapOpen() || isDeckOpen() || !camera) {
+        container.style.display = 'none';
+        return;
+    }
+
+    container.style.display = 'block';
+
+    if (!activePlanets || activePlanets.length === 0) {
+        container.innerHTML = '';
+        cachedEdgeMarkers.clear();
+        return;
+    }
+
+    // Collect candidates to mark: locked target + up to 3 nearest other planets
+    const candidates: { planet: PlanetEntry; dist: number; isLocked: boolean }[] = [];
+    const pPos = STATE.playerPosition;
+
+    activePlanets.forEach(p => {
+        if (!p.mesh || p.isMoon) return;
+        const d = p.mesh.position.distanceTo(pPos);
+        const isLocked = !!(STATE.lockedTarget && STATE.lockedTarget.name === p.name);
+        candidates.push({ planet: p, dist: d, isLocked });
+    });
+
+    // Sort: locked first, then by distance
+    candidates.sort((a, b) => {
+        if (a.isLocked) return -1;
+        if (b.isLocked) return 1;
+        return a.dist - b.dist;
+    });
+
+    const activeSubset = candidates.slice(0, 4);
+    const activeNames = new Set<string>();
+
+    const halfW = window.innerWidth / 2;
+    const halfH = window.innerHeight / 2;
+    const margin = 48; // px from screen border
+
+    activeSubset.forEach(item => {
+        const p = item.planet;
+        const worldPos = p.mesh.position;
+        const proj = worldPos.clone().project(camera);
+
+        // Check if on-screen (proj.x in [-0.85, 0.85] and proj.y in [-0.85, 0.85] and proj.z < 1)
+        const isOnScreen = proj.z < 1.0 && Math.abs(proj.x) < 0.86 && Math.abs(proj.y) < 0.86;
+        if (isOnScreen) return; // Do not show edge marker if planet is already visible in viewport
+
+        activeNames.add(p.name);
+
+        // Calculate 2D direction from center of screen in NDC
+        const dx = proj.x;
+        const dy = proj.y;
+
+        const maxRangeX = halfW - margin;
+        const maxRangeY = halfH - margin;
+
+        let edgeX = 0;
+        let edgeY = 0;
+
+        if (Math.abs(dx) * maxRangeY > Math.abs(dy) * maxRangeX) {
+            // Intersects left or right edge
+            edgeX = dx > 0 ? maxRangeX : -maxRangeX;
+            edgeY = (dx > 0 ? maxRangeX : -maxRangeX) * (dy / (Math.abs(dx) || 0.001));
+            edgeY = THREE.MathUtils.clamp(edgeY, -maxRangeY, maxRangeY);
+        } else {
+            // Intersects top or bottom edge
+            edgeY = dy > 0 ? maxRangeY : -maxRangeY;
+            edgeX = (dy > 0 ? maxRangeY : -maxRangeY) * (dx / (Math.abs(dy) || 0.001));
+            edgeX = THREE.MathUtils.clamp(edgeX, -maxRangeX, maxRangeX);
+        }
+
+        // Convert to screen pixel coordinates (Y inverted in NDC)
+        const screenX = halfW + edgeX;
+        const screenY = halfH - edgeY;
+
+        // Angle for arrow pointing towards the planet
+        const arrowAngleDeg = Math.atan2(-edgeY, edgeX) * (180 / Math.PI);
+
+        let markerEl = cachedEdgeMarkers.get(p.name);
+        if (!markerEl) {
+            markerEl = document.createElement('div');
+            markerEl.className = 'edge-planet-marker';
+            markerEl.dataset.planetName = p.name;
+            container.appendChild(markerEl);
+            cachedEdgeMarkers.set(p.name, markerEl);
+        }
+
+        const isSentient = !!(p.attributes?.species && p.attributes.species.population > 0);
+        markerEl.className = `edge-planet-marker ${item.isLocked ? 'locked' : ''} ${isSentient ? 'sentient' : ''}`;
+        markerEl.style.left = `${Math.round(screenX)}px`;
+        markerEl.style.top = `${Math.round(screenY)}px`;
+
+        const icon = isSentient ? '🧠' : (p.type === 'Gas Giant' ? '🪐' : (p.type === 'Habitable' ? '🌍' : '🌑'));
+        markerEl.innerHTML = `
+            <span class="edge-planet-chevron" style="transform: rotate(${arrowAngleDeg}deg); display: inline-block;">➤</span>
+            <span class="edge-planet-icon">${icon}</span>
+            <span class="edge-planet-name">${p.name}</span>
+            <span class="edge-planet-dist">${item.dist.toFixed(0)} AE</span>
+        `;
+    });
+
+    // Remove obsolete markers
+    cachedEdgeMarkers.forEach((el, name) => {
+        if (!activeNames.has(name)) {
+            if (el.parentNode) el.parentNode.removeChild(el);
+            cachedEdgeMarkers.delete(name);
+        }
+    });
 }

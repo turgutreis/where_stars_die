@@ -2,11 +2,12 @@ import { STATE } from '../core/state';
 import { createAbductBeam, removeAbductBeam, updateAbductBeam } from '../procedural/meshes';
 import { getAudioContext } from '../engine/audio';
 import { addLogEntry, updateHUDStats } from '../ui/hud';
-import { calculateCrewBuffs, renderCrewUI } from './crew';
+import { calculateCrewBuffs, renderCrewUI, assignCrewToOptimalStation } from './crew';
 import { updatePartyGrid } from '../ui/party-grid';
 import { updateScannerUI, generatePlanetAttributes } from './scanner';
 import { advanceFtueStep } from '../ui/directives';
 import { updateMutationUI } from '../ui/deck';
+import { openFirstContactModal } from '../ui/first-contact-modal';
 
 let abductOsc: OscillatorNode | null = null;
 let abductGain: GainNode | null = null;
@@ -133,6 +134,7 @@ export function completeAbduction() {
                     candidate.name = `${candidate.name} ${fallbackSuffix}`;
                 }
 
+                assignCrewToOptimalStation(candidate);
                 STATE.crew.push(candidate);
                 STATE.crewSatietyTimer = 0;
                 calculateCrewBuffs();
@@ -158,6 +160,11 @@ export function completeAbduction() {
                 renderCrewUI();
                 updatePartyGrid();
                 updateHUDStats();
+
+                if (STATE.primaryParadigm === 'neutral') {
+                    openFirstContactModal(candidate);
+                }
+
                 if (STATE.nearestPlanet === planet) {
                     updateScannerUI(planet, 10);
                 }
