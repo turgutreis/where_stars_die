@@ -16,6 +16,7 @@ import { createSunRays, SunRaysController } from '../procedural/sun-rays';
 import { ensureLoreSystems } from '../procedural/lore-systems';
 import { loadPlanetTexture, getTemplateForBody, resolveArchetypeTemplate, PLANET_ARCHETYPE_TEMPLATES } from '../procedural/planet-textures';
 import { applySystemLighting } from '../engine/postprocessing';
+import { triggerAutoSave } from './save-manager';
 
 export const activeCoronaMeshes: THREE.Object3D[] = [];
 export const activeCoronaUpdaters: ((dt: number) => void)[] = [];
@@ -925,6 +926,9 @@ export function initiateSystemArrival(fromSys: any, targetSys: any) {
 
     // 5. Trigger Cinematic System Arrival Banner
     triggerSystemArrivalBanner(targetSys, dominantFactionName);
+
+    // 6. Auto-Save on System Arrival
+    triggerAutoSave(`Ankunft in ${targetSys.name}`);
 }
 
 export function updateActivePlanets(dt: number) {

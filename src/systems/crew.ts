@@ -407,7 +407,8 @@ export function getSpeciesClusters(): SpeciesCluster[] {
     const map = new Map<string, CrewMember[]>();
 
     STATE.crew.forEach(c => {
-        const key = c.speciesArchetypeName || c.species.split(' (')[0] || c.species;
+        const rawSpecies = c.species || 'Unbekannt';
+        const key = c.speciesArchetypeName || rawSpecies.split(' (')[0] || rawSpecies;
         if (!map.has(key)) map.set(key, []);
         map.get(key)!.push(c);
     });

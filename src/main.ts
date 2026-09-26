@@ -23,6 +23,7 @@ import { triggerPrologueSequence, initPrologueListeners } from './ui/prologue';
 import { initDirectivesHUD, renderDirectives, updateVoyagerHUDTracker } from './ui/directives';
 import { initVoyagerDialogListeners } from './ui/voyager-dialog';
 import { initFirstContactModalListeners } from './ui/first-contact-modal';
+import { initSaveModal } from './ui/save-modal';
 
 let lastTime = 0;
 let voyagerBeaconTimer = 0;
@@ -161,6 +162,16 @@ function setupMenuListeners() {
     const startBtn = document.getElementById('start-game-btn');
     const mainMenu = document.getElementById('main-menu');
     const resumeBtn = document.getElementById('resume-game-btn');
+
+    initSaveModal(() => {
+        if (mainMenu) mainMenu.classList.add('menu-hidden');
+        document.body.classList.add('game-started');
+        if (resumeBtn) resumeBtn.style.display = 'block';
+        if (!isMusicPlaying() && !isMusicUserMuted()) {
+            toggleMusic(true);
+        }
+        renderDirectives();
+    });
 
     if (startBtn && mainMenu) {
         startBtn.addEventListener('click', () => {

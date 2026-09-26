@@ -2,10 +2,13 @@ import { expect, test, describe, beforeEach } from "bun:test";
 import * as THREE from 'three';
 
 // Headless Mocking
-if (typeof (globalThis as any).localStorage === 'undefined') {
+if (typeof (globalThis as any).localStorage === 'undefined' || !(globalThis as any).localStorage.removeItem) {
+    const memStore: Record<string, string> = {};
     (globalThis as any).localStorage = {
-        getItem: () => null,
-        setItem: () => {}
+        getItem: (k: string) => memStore[k] !== undefined ? memStore[k] : null,
+        setItem: (k: string, v: string) => { memStore[k] = String(v); },
+        removeItem: (k: string) => { delete memStore[k]; },
+        clear: () => { Object.keys(memStore).forEach(k => delete memStore[k]); }
     };
 }
 
@@ -157,6 +160,16 @@ import { chooseFirstContactDoctrine, openFirstContactModal, isFirstContactModalO
 import { MUTATION_DEFINITIONS, MUTATION_CONNECTIONS, selectMutationNode, getSelectedMutationKey } from '../src/ui/evolution-tree';
 import { spawnSystemFleet, updateFleet, triggerBioDischarge, salvageNearestWreck, clearFleet } from '../src/systems/fleet';
 import { updateMinimap, initHUD } from '../src/ui/hud';
+import { 
+    serializeCurrentState, 
+    saveToSlot, 
+    loadFromSlot, 
+    listAllSaves, 
+    deleteSaveSlot, 
+    PLAYTEST_PRESETS, 
+    loadPlaytestPreset, 
+    triggerAutoSave 
+} from '../src/systems/save-manager';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -2137,6 +2150,122 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         // Player should experience a subtle tidal pull toward +X
         expect(STATE.playerVelocity.x).toBeGreaterThan(0);
         expect(STATE.playerPosition.x).toBeGreaterThan(0);
+    });
+
+    test("35. Persistent Save & Load System: Serializes state, writes to slot, and faithfully restores crew, mutations, resources & navigation", async () => {
+        // 1. Prepare unique rich game state
+        STATE.currentSystemId = 2;
+        STATE.bioRes = 485;
+        STATE.siliconRes = 290;
+        STATE.health = 88;
+        STATE.primaryParadigm = 'symbiosis';
+        STATE.activeSubCodex = 'none';
+        STATE.playerPosition.set(45, 0, -120);
+        STATE.playerVelocity.set(3.5, 0, 1.2);
+        STATE.shipHeading = 1.45;
+
+        // Setup mutations
+        Object.keys(STATE.mutations).forEach(k => {
+            (STATE.mutations as any)[k].purchased = (k === 'nucleus' || k === 'cocoon');
+        });
+        STATE.mutations.organic_siphon.purchased = true;
+        STATE.mutations.chitin_armor.purchased = true;
+        STATE.mutations.hivemind.purchased = true;
+        STATE.maxCrewCapacity = 6;
+
+        // Setup 4 diverse crew members
+        STATE.crew = [
+            { id: 'c1', name: 'Pilot Jax', species: 'Aethelgardianer', role: 'pilot', station: 'flight_synapse', age: 30, lifespan: 100, status: 'nominal', stress: 10, efficiency: 1.2, traits: [], synergyLevel: 1 } as any,
+            { id: 'c2', name: 'Dr. Selene', species: 'Sol-Terrestrer', role: 'biologist', station: 'bio_incubator', age: 45, lifespan: 90, status: 'nominal', stress: 5, efficiency: 1.1, traits: [], synergyLevel: 2 } as any,
+            { id: 'c3', name: 'Ingenieur Boris', species: 'Sol-Terrestrer', role: 'engineer', station: 'chitin_gland', age: 38, lifespan: 85, status: 'nominal', stress: 20, efficiency: 1.0, traits: [], synergyLevel: 1 } as any,
+            { id: 'c4', name: 'Psion Lysa', species: 'Olyndar-Psioniker', role: 'psychologist', station: 'dream_core', age: 29, lifespan: 120, status: 'nominal', stress: 15, efficiency: 1.3, traits: [], synergyLevel: 1 } as any
+        ];
+
+        // 2. Save game to slot_1
+        const saveRes = await saveToSlot('slot_1', 'Automated Playtest Save');
+        expect(saveRes.success).toBe(true);
+        expect(saveRes.meta).toBeDefined();
+        expect(saveRes.meta!.crewCount).toBe(4);
+        expect(saveRes.meta!.bioRes).toBe(485);
+        expect(saveRes.meta!.primaryParadigm).toBe('symbiosis');
+
+        // 3. Corrupt/Reset current runtime state completely
+        STATE.bioRes = 0;
+        STATE.siliconRes = 0;
+        STATE.health = 20;
+        STATE.crew = [];
+        STATE.maxCrewCapacity = 4;
+        STATE.mutations.organic_siphon.purchased = false;
+        STATE.mutations.hivemind.purchased = false;
+        STATE.primaryParadigm = 'neutral';
+        STATE.playerPosition.set(0, 0, 0);
+
+        // 4. Load from slot_1 and verify complete fidelity
+        const loadRes = await loadFromSlot('slot_1');
+        expect(loadRes.success).toBe(true);
+
+        expect(STATE.bioRes).toBe(485);
+        expect(STATE.siliconRes).toBe(290);
+        expect(STATE.health).toBe(88);
+        expect(STATE.crew.length).toBe(4);
+        expect(STATE.crew[0].name).toBe('Pilot Jax');
+        expect(STATE.crew[1].station).toBe('bio_incubator');
+        expect(STATE.maxCrewCapacity).toBe(6);
+        expect(STATE.mutations.organic_siphon.purchased).toBe(true);
+        expect(STATE.mutations.hivemind.purchased).toBe(true);
+        expect(STATE.primaryParadigm).toBe('symbiosis');
+        expect(STATE.playerPosition.x).toBe(45);
+        expect(STATE.playerPosition.z).toBe(-120);
+
+        // 5. Test slot listing & deletion
+        const allSaves = await listAllSaves();
+        expect(allSaves.some(s => s.slotId === 'slot_1')).toBe(true);
+
+        const delRes = await deleteSaveSlot('slot_1');
+        expect(delRes).toBe(true);
+    });
+
+    test("36. Playtest Presets: Instant sandbox presets for Starter (2), Collective (10), and Leviathan (30 Crew)", async () => {
+        expect(PLAYTEST_PRESETS.starter).toBeDefined();
+        expect(PLAYTEST_PRESETS.collective).toBeDefined();
+        expect(PLAYTEST_PRESETS.leviathan).toBeDefined();
+
+        // 1. Starter Preset
+        const okStarter = await loadPlaytestPreset('starter');
+        expect(okStarter).toBe(true);
+        expect(STATE.maxCrewCapacity).toBe(4);
+        expect(STATE.crew.length).toBe(2);
+        expect(STATE.primaryParadigm).toBe('neutral');
+
+        // 2. Collective Preset (10 Crew, Symbiose, Neural Cluster)
+        const okCollective = await loadPlaytestPreset('collective');
+        expect(okCollective).toBe(true);
+        expect(STATE.maxCrewCapacity).toBe(10);
+        expect(STATE.crew.length).toBe(10);
+        expect(STATE.primaryParadigm).toBe('symbiosis');
+        expect(STATE.mutations.neural_cluster.purchased).toBe(true);
+        expect(STATE.mutations.chitin_armor.purchased).toBe(true);
+        expect(STATE.bioRes).toBe(750);
+        expect(STATE.siliconRes).toBe(480);
+
+        // Verify stations are occupied
+        const stationOccupied = new Set(STATE.crew.map(c => c.station));
+        expect(stationOccupied.has('flight_synapse')).toBe(true);
+        expect(stationOccupied.has('chitin_gland')).toBe(true);
+        expect(stationOccupied.has('bio_incubator')).toBe(true);
+        expect(stationOccupied.has('dream_core')).toBe(true);
+
+        // 3. Leviathan Preset (30 Crew, Full Mutations, 2500 Bio / 1800 Sil)
+        const okLeviathan = await loadPlaytestPreset('leviathan');
+        expect(okLeviathan).toBe(true);
+        expect(STATE.maxCrewCapacity).toBe(30);
+        expect(STATE.crew.length).toBe(30);
+        expect(STATE.mutations.hive_cerebrum.purchased).toBe(true);
+        expect(STATE.mutations.blade_armor.purchased).toBe(true);
+        expect(STATE.mutations.resonance_screech.purchased).toBe(true);
+        expect(STATE.mutations.ibad.purchased).toBe(true);
+        expect(STATE.bioRes).toBe(2500);
+        expect(STATE.siliconRes).toBe(1800);
     });
 });
 

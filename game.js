@@ -34217,7 +34217,8 @@ function updateParadigmModifiers() {
 function getSpeciesClusters() {
   const map = new Map;
   STATE.crew.forEach((c) => {
-    const key = c.speciesArchetypeName || c.species.split(" (")[0] || c.species;
+    const rawSpecies = c.species || "Unbekannt";
+    const key = c.speciesArchetypeName || rawSpecies.split(" (")[0] || rawSpecies;
     if (!map.has(key))
       map.set(key, []);
     map.get(key).push(c);
@@ -35332,6 +35333,815 @@ function renderFactionReputationUI() {
   });
 }
 
+// src/ui/evolution-tree.ts
+var MUTATION_DEFINITIONS = {
+  nucleus: {
+    key: "nucleus",
+    name: "Najmafars Herzzelle",
+    shortName: "Herzzelle",
+    branch: "nucleus",
+    branchLabel: "Najmafars Zerebrum",
+    branchColor: "#f43f5e",
+    icon: "\uD83E\uDEC0",
+    desc: "Pulsierender biometrischer Kern und Zerebral-Knotenpunkt von Najmafar.",
+    effect: "Vitales Zentrum aller neuronalen Stränge & Lebenspulse",
+    lore: "Hier schlägt Najmafars Herz in der Einsamkeit des Vakuums und speist alle biologischen Synapsen.",
+    precursor: null,
+    x: 10,
+    y: 50,
+    bioCost: 0,
+    siliconCost: 0
+  },
+  organic_siphon: {
+    key: "organic_siphon",
+    name: "Organischer Siphon",
+    shortName: "Bio-Siphon",
+    branch: "chitin",
+    branchLabel: "Chitin & Fleisch",
+    branchColor: "#10b981",
+    icon: "\uD83C\uDF31",
+    desc: "Raffinierte Biomasse-Saugkanäle und integrierte Strahlungs-Filterschichten.",
+    effect: "+35% Ernte-Geschwindigkeit • +25% Strahlungsschutz (verlangsamt strahlungsbedingten Zelltod)",
+    lore: "Fleischige Röhren saugen Mineralien und filtern kosmische Partikel direkt in den Rumpf.",
+    precursor: "nucleus",
+    x: 30,
+    y: 22,
+    bioCost: 120,
+    siliconCost: 60
+  },
+  chitin_armor: {
+    key: "chitin_armor",
+    name: "Chitin-Panzer",
+    shortName: "Chitin-Panzer",
+    branch: "chitin",
+    branchLabel: "Chitin & Fleisch",
+    branchColor: "#10b981",
+    icon: "\uD83D\uDEE1️",
+    desc: "Kristallisierte biomolekulare Chitin-Schuppen mit zusätzlicher Strahlungs-Reflexionsschicht.",
+    effect: "-50% Kollisionsschaden • +25% Strahlungsschutz (+50% kumulativ)",
+    lore: "Ein dichter Panzer aus organischen Silikaten umschließt Najmafars weiche Tentakel.",
+    precursor: "organic_siphon",
+    x: 50,
+    y: 18,
+    bioCost: 220,
+    siliconCost: 130
+  },
+  vector_tentacles: {
+    key: "vector_tentacles",
+    name: "Vektor-Tentakel",
+    shortName: "Vektor-Tentakel",
+    branch: "chitin",
+    branchLabel: "Chitin & Fleisch",
+    branchColor: "#10b981",
+    icon: "\uD83D\uDC19",
+    desc: "Verstärkte Muskelstränge und hydrodynamische Bio-Gegenstromdüsen im Vakuum.",
+    effect: "+25% Schub • +35% Wendigkeit • Hydrodynamische Bio-Bremse",
+    lore: "Muskulöse Tentakel peitschen durch das Raumkrümmungsfeld und verleihen ungeahnte Agilität.",
+    precursor: "chitin_armor",
+    x: 70,
+    y: 20,
+    bioCost: 360,
+    siliconCost: 240
+  },
+  blade_armor: {
+    key: "blade_armor",
+    name: "Klingen-Panzerung",
+    shortName: "Klingen-Panzer",
+    branch: "chitin",
+    branchLabel: "Chitin & Fleisch (Apex)",
+    branchColor: "#059669",
+    icon: "⚔️",
+    desc: "Rasiermesserscharfe Chitin-Stacheln und dichte bio-magnetische Schutzmembran.",
+    effect: "+35% Strahlungsschutz (bis zu 85% gesamt) • Reflektiert Nahbereichsschaden",
+    lore: "Kristalline Klingen brechen tödliche Röntgen- und Gammawellen naher Sterne vollkommen.",
+    precursor: "vector_tentacles",
+    x: 90,
+    y: 26,
+    bioCost: 550,
+    siliconCost: 420
+  },
+  cocoon: {
+    key: "cocoon",
+    name: "Kokon (4)",
+    shortName: "Kokon (4)",
+    branch: "cocoon",
+    branchLabel: "Neuronales Nest",
+    branchColor: "#c084fc",
+    icon: "\uD83E\uDD5A",
+    desc: "Organische Brutkammern und biometrisches Kokongewebe zur Unterbringung von 4 entführten Wesen.",
+    effect: "Basis-Kapazität: 4 Crew-Mitglieder • Schützt vor Weltraum-Hypoxie",
+    lore: "Das primäre Nestgewebe. Najmafars Zellwände formen nachgiebige Membranen für fremde Körper.",
+    precursor: "nucleus",
+    x: 28,
+    y: 50,
+    bioCost: 320,
+    siliconCost: 140
+  },
+  hivemind: {
+    key: "hivemind",
+    name: "Schwarm-Synapse (6)",
+    shortName: "Schwarm (6)",
+    branch: "cocoon",
+    branchLabel: "Neuronales Nest",
+    branchColor: "#c084fc",
+    icon: "\uD83E\uDDEC",
+    desc: "Verschaltet Nervenenden der Besatzung direkt mit Najmafars zentralem Nervenstrang.",
+    effect: "Crew-Kapazität: 6 • +20% auf alle Spezialisten-Buffs (Pilot, Bio, Ing, Psych)",
+    lore: "Feine Synapsenfäden senken sich aus der Decke herab und synchronisieren Gehirnwellen.",
+    precursor: "cocoon",
+    x: 43,
+    y: 50,
+    bioCost: 500,
+    siliconCost: 320
+  },
+  neural_cluster: {
+    key: "neural_cluster",
+    name: "Neuronale Wabe (10)",
+    shortName: "Wabe (10)",
+    branch: "cocoon",
+    branchLabel: "Neuronales Nest",
+    branchColor: "#a855f7",
+    icon: "\uD83D\uDD78️",
+    desc: "Geometrisch angeordnete Chitin-Wabenstrukturen dämpfen psionische Dissonanzen.",
+    effect: "Crew-Kapazität: 10 • Spezies-Clustering & Schutz vor Massenpanik",
+    lore: "Sechseckige Kammern isolieren divergierende mentale Schwingungen verfeindeter Spezies.",
+    precursor: "hivemind",
+    x: 58,
+    y: 50,
+    bioCost: 650,
+    siliconCost: 450
+  },
+  cryo_matrix: {
+    key: "cryo_matrix",
+    name: "Kryo-Matrix (20)",
+    shortName: "Kryo (20)",
+    branch: "cocoon",
+    branchLabel: "Neuronales Nest",
+    branchColor: "#a855f7",
+    icon: "❄️",
+    desc: "Organische Frost-Enzyme verlangsamen den natürlichen Zelltod um 25%.",
+    effect: "Crew-Kapazität: 20 • -25% Zelltod (verlängert Lebensdauer aller Gefangenen)",
+    lore: "Kryogene Schleimhäute kühlen den Metabolismus und frieren Telomer-Verfall ein.",
+    precursor: "neural_cluster",
+    x: 74,
+    y: 50,
+    bioCost: 950,
+    siliconCost: 750
+  },
+  hive_cerebrum: {
+    key: "hive_cerebrum",
+    name: "Schwarm-Zerebrum (30)",
+    shortName: "Zerebrum (30)",
+    branch: "cocoon",
+    branchLabel: "Neuronales Nest (Apex)",
+    branchColor: "#ec4899",
+    icon: "\uD83D\uDC51",
+    desc: "Vollendete psionische Schwarm-Kollimation und telepathische Verschmelzung.",
+    effect: "Crew-Kapazität: 30 • Schaltet maximale kollektive Schwarm-Resonanz frei",
+    lore: "Najmafar und die 30 Wesen verschmelzen zu einem einzigen kosmischen Über-Bewusstsein.",
+    precursor: "cryo_matrix",
+    x: 90,
+    y: 50,
+    bioCost: 1500,
+    siliconCost: 1200
+  },
+  telepathic_focus: {
+    key: "telepathic_focus",
+    name: "Telepathischer Fokus",
+    shortName: "Telepathie",
+    branch: "psionic",
+    branchLabel: "Psionik & Geist",
+    branchColor: "#38bdf8",
+    icon: "\uD83D\uDCE1",
+    desc: "Sub-kognitiver Sprachknoten dechiffriert fremde Frequenz-Muster und Gedanken.",
+    effect: "Automatisierte Dechiffrierung von Funksignalen & Crew-Gedanken • -30% Mentalkraft-Verbrauch",
+    lore: "Najmafar lernt die Sprachen der Sterblichen zu fühlen statt sie zu hören.",
+    precursor: "nucleus",
+    x: 30,
+    y: 78,
+    bioCost: 140,
+    siliconCost: 80
+  },
+  psionic_pulse: {
+    key: "psionic_pulse",
+    name: "Psionischer Impuls",
+    shortName: "Psio-Impuls",
+    branch: "psionic",
+    branchLabel: "Psionik & Geist",
+    branchColor: "#38bdf8",
+    icon: "⚡",
+    desc: "Verstärkt Najmafars Gedanken-Echo und erweitert die Telepathie-Reichweite.",
+    effect: "150 Max Mentalkraft • 140 LJ Gedanken-Echo Reichweite",
+    lore: "Lange bio-elektrische Tentakel ragen ins Vakuum und fangen mentale Resonanzen ferner Welten auf.",
+    precursor: "telepathic_focus",
+    x: 50,
+    y: 82,
+    bioCost: 280,
+    siliconCost: 160
+  },
+  chimera_veil: {
+    key: "chimera_veil",
+    name: "Schimären-Schleier",
+    shortName: "Schimäre",
+    branch: "psionic",
+    branchLabel: "Psionik & Geist",
+    branchColor: "#38bdf8",
+    icon: "\uD83C\uDF2B️",
+    desc: "Licht- und Sensorbeugendes Tarnfeld aus psionischen Interferenzen.",
+    effect: "+40% Tarnung (Stealth) • Stress-Immunität bei gegnerischer Sensor-Erfassung",
+    lore: "Das Schiff verschwimmt zu einer geisterhaften Fata Morgana im Lichtspektrum fremder Scanner.",
+    precursor: "psionic_pulse",
+    x: 70,
+    y: 80,
+    bioCost: 420,
+    siliconCost: 300
+  },
+  resonance_screech: {
+    key: "resonance_screech",
+    name: "Resonanz-Schrei",
+    shortName: "Resonanz",
+    branch: "psionic",
+    branchLabel: "Psionik & Geist (Apex)",
+    branchColor: "#0284c7",
+    icon: "\uD83D\uDCE3",
+    desc: "Vernichtende bio-akustische & psionische Schockwelle bricht künstliche Elektronik.",
+    effect: "Bio-EMP lähmt Drohnen 50% länger • Schlägt feindliche Entermannschaften in Flucht",
+    lore: "Ein ohrenbetäubender Schrei auf allen Frequenzen gleichzeitig zerreißt Schaltkreise und Verstand.",
+    precursor: "chimera_veil",
+    x: 90,
+    y: 74,
+    bioCost: 600,
+    siliconCost: 480
+  },
+  ibad: {
+    key: "ibad",
+    name: "Augen des Ibad (Melange)",
+    shortName: "Augen d. Ibad",
+    branch: "artifact",
+    branchLabel: "Kosmisches Arrakis-Relikt",
+    branchColor: "#f59e0b",
+    icon: "\uD83D\uDC41️",
+    desc: "Blau-in-blau gefärbte Sklera durch Arrakis-Melange. Prophetische Weitsicht.",
+    effect: "Harmonisiert den Geist • Heilt Psychosen & Traumata der Gefangenen",
+    lore: "Die Melange von Arrakis öffnet Najmafars Geist für Pfade der Zeit und heilt verletzte Seelen.",
+    precursor: "psionic_pulse",
+    x: 60,
+    y: 66,
+    bioCost: 0,
+    siliconCost: 0
+  }
+};
+Object.defineProperty(MUTATION_DEFINITIONS, "armor", {
+  get() {
+    return MUTATION_DEFINITIONS.chitin_armor;
+  },
+  enumerable: false,
+  configurable: true
+});
+Object.defineProperty(MUTATION_DEFINITIONS, "translator", {
+  get() {
+    return MUTATION_DEFINITIONS.telepathic_focus;
+  },
+  enumerable: false,
+  configurable: true
+});
+Object.defineProperty(MUTATION_DEFINITIONS, "synapses", {
+  get() {
+    return MUTATION_DEFINITIONS.psionic_pulse;
+  },
+  enumerable: false,
+  configurable: true
+});
+var MUTATION_CONNECTIONS = [
+  ["nucleus", "organic_siphon"],
+  ["organic_siphon", "chitin_armor"],
+  ["chitin_armor", "vector_tentacles"],
+  ["vector_tentacles", "blade_armor"],
+  ["nucleus", "cocoon"],
+  ["cocoon", "hivemind"],
+  ["hivemind", "neural_cluster"],
+  ["neural_cluster", "cryo_matrix"],
+  ["cryo_matrix", "hive_cerebrum"],
+  ["nucleus", "telepathic_focus"],
+  ["telepathic_focus", "psionic_pulse"],
+  ["psionic_pulse", "chimera_veil"],
+  ["chimera_veil", "resonance_screech"],
+  ["psionic_pulse", "ibad"]
+];
+var selectedMutationKey = "cocoon";
+var isCanvasLoopRunning = false;
+var animationFrameId = null;
+var spores = [];
+var sparks = [];
+var shockwaves = [];
+function selectMutationNode(key) {
+  if (!MUTATION_DEFINITIONS[key])
+    return;
+  selectedMutationKey = key;
+  updateEvolutionTreeUI();
+  const def = MUTATION_DEFINITIONS[key];
+  if (def) {
+    triggerSynapseShockwave(def.x, def.y, def.branchColor, 40);
+  }
+}
+function getNodeAncestors(key) {
+  const ancestors = [];
+  let current = MUTATION_DEFINITIONS[key]?.precursor;
+  while (current) {
+    ancestors.push(current);
+    current = MUTATION_DEFINITIONS[current]?.precursor || null;
+  }
+  return ancestors;
+}
+function highlightPathway(targetKey) {
+  const axons = document.querySelectorAll(".axon-path");
+  const nodes = document.querySelectorAll(".synapse-node");
+  axons.forEach((a) => a.classList.remove("path-highlight"));
+  nodes.forEach((n) => n.classList.remove("path-highlight"));
+  if (!targetKey)
+    return;
+  const ancestors = getNodeAncestors(targetKey);
+  const fullChain = [targetKey, ...ancestors];
+  fullChain.forEach((k) => {
+    const nodeEl = document.getElementById(`mut-node-${k}`);
+    if (nodeEl)
+      nodeEl.classList.add("path-highlight");
+  });
+  for (let i = 0;i < fullChain.length - 1; i++) {
+    const child = fullChain[i];
+    const parent = fullChain[i + 1];
+    const axonEl = document.getElementById(`axon-${parent}-${child}`);
+    if (axonEl)
+      axonEl.classList.add("path-highlight");
+  }
+}
+function getCubicBezierPoint(p0x, p0y, p1x, p1y, t) {
+  const dx = p1x - p0x;
+  const cx1 = p0x + dx * 0.5;
+  const cy1 = p0y;
+  const cx2 = p0x + dx * 0.5;
+  const cy2 = p1y;
+  const u = 1 - t;
+  const tt = t * t;
+  const uu = u * u;
+  const uuu = uu * u;
+  const ttt = tt * t;
+  const x = uuu * p0x + 3 * uu * t * cx1 + 3 * u * tt * cx2 + ttt * p1x;
+  const y = uuu * p0y + 3 * uu * t * cy1 + 3 * u * tt * cy2 + ttt * p1y;
+  return { x, y };
+}
+function triggerSynapseShockwave(pctX, pctY, color = "#c084fc", maxR = 70) {
+  const canvas = document.getElementById("synapse-neural-canvas");
+  if (!canvas)
+    return;
+  const w = canvas.width || 600;
+  const h = canvas.height || 440;
+  shockwaves.push({
+    x: pctX / 100 * w,
+    y: pctY / 100 * h,
+    radius: 4,
+    maxRadius: maxR,
+    alpha: 0.9,
+    color
+  });
+}
+function initEvolutionTree() {
+  const axonsGroup = document.getElementById("synapse-axons-group");
+  const nodesLayer = document.getElementById("synapse-nodes-layer");
+  if (!axonsGroup || !nodesLayer)
+    return;
+  axonsGroup.innerHTML = MUTATION_CONNECTIONS.map(([pKey, cKey]) => {
+    const p = MUTATION_DEFINITIONS[pKey];
+    const c = MUTATION_DEFINITIONS[cKey];
+    if (!p || !c)
+      return "";
+    const dx = c.x - p.x;
+    const cx1 = p.x + dx * 0.5;
+    const cy1 = p.y;
+    const cx2 = p.x + dx * 0.5;
+    const cy2 = c.y;
+    const d = `M ${p.x} ${p.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${c.x} ${c.y}`;
+    return `
+            <path id="axon-${pKey}-${cKey}" class="axon-path axon-locked axon-${c.branch}" d="${d}" data-parent="${pKey}" data-child="${cKey}" />
+        `;
+  }).join("");
+  nodesLayer.innerHTML = Object.values(MUTATION_DEFINITIONS).map((def) => {
+    const isRoot = def.key === "nucleus";
+    return `
+            <div class="synapse-node ${isRoot ? "root-nucleus" : ""} branch-${def.branch}" id="mut-node-${def.key}" data-mutation="${def.key}" style="left: ${def.x}%; top: ${def.y}%;">
+                <div class="synapse-node-ring">
+                    <span class="synapse-node-icon">${def.icon}</span>
+                    <span class="synapse-node-pulse"></span>
+                </div>
+                <div class="synapse-node-tag">
+                    <span class="synapse-node-name">${def.shortName || def.name}</span>
+                    <span class="synapse-node-badge" id="mut-badge-${def.key}">...</span>
+                </div>
+                <!-- Hidden button for backward compatibility with querySelector('.mut-btn[data-mutation="..."]') -->
+                <button class="mut-btn" data-mutation="${def.key}" style="display: none;"></button>
+            </div>
+        `;
+  }).join("");
+  const nodeEls = nodesLayer.querySelectorAll(".synapse-node");
+  nodeEls.forEach((el) => {
+    const key = el.getAttribute("data-mutation");
+    if (!key)
+      return;
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const def = MUTATION_DEFINITIONS[key];
+      const mut = STATE.mutations[key];
+      const isPurchased = Boolean(mut && mut.purchased);
+      let isPrecursorMet = true;
+      if (def && def.precursor) {
+        const prec = STATE.mutations[def.precursor];
+        isPrecursorMet = Boolean(prec && prec.purchased);
+      }
+      const canAfford = def && STATE.bioRes >= def.bioCost && STATE.siliconRes >= def.siliconCost;
+      if (def && !isPurchased && isPrecursorMet && canAfford) {
+        buyMutation(key);
+        playSynapseEvolveSound();
+        triggerSynapseShockwave(def.x, def.y, def.branchColor, 90);
+        selectMutationNode(key);
+      } else {
+        selectMutationNode(key);
+      }
+    };
+    el.onmouseenter = () => {
+      highlightPathway(key);
+      const def = MUTATION_DEFINITIONS[key];
+      if (def) {
+        const freq = 360 + def.y * 3.5;
+        playSynapseHoverSound(freq);
+      }
+    };
+    el.onmouseleave = () => {
+      highlightPathway(null);
+    };
+  });
+  spores.length = 0;
+  const sporeColors = ["#10b981", "#34d399", "#c084fc", "#a855f7", "#38bdf8", "#06b6d4", "#f43f5e"];
+  for (let i = 0;i < 42; i++) {
+    spores.push({
+      x: Math.random() * 600,
+      y: Math.random() * 440,
+      vx: (Math.random() - 0.5) * 8,
+      vy: (Math.random() - 0.5) * 8,
+      size: 1.5 + Math.random() * 2.5,
+      alpha: 0.15 + Math.random() * 0.45,
+      pulseSpeed: 1 + Math.random() * 2,
+      pulsePhase: Math.random() * Math.PI * 2,
+      color: sporeColors[Math.floor(Math.random() * sporeColors.length)]
+    });
+  }
+  startNeuralCanvasLoop();
+  updateEvolutionTreeUI();
+}
+function startNeuralCanvasLoop() {
+  if (isCanvasLoopRunning)
+    return;
+  isCanvasLoopRunning = true;
+  const canvas = document.getElementById("synapse-neural-canvas");
+  if (!canvas)
+    return;
+  let lastTimestamp = performance.now();
+  let sparkSpawnTimer = 0;
+  function renderLoop(time) {
+    if (!isCanvasLoopRunning)
+      return;
+    const dt = Math.min((time - lastTimestamp) / 1000, 0.1);
+    lastTimestamp = time;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      const rect = canvas.getBoundingClientRect();
+      if (canvas.width !== Math.floor(rect.width) || canvas.height !== Math.floor(rect.height)) {
+        canvas.width = Math.floor(rect.width) || 600;
+        canvas.height = Math.floor(rect.height) || 440;
+      }
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      const timeSec = time / 1000;
+      const membranePairs = [
+        ["nucleus", "organic_siphon"],
+        ["nucleus", "cocoon"],
+        ["nucleus", "telepathic_focus"],
+        ["organic_siphon", "cocoon"],
+        ["cocoon", "telepathic_focus"],
+        ["chitin_armor", "hivemind"],
+        ["hivemind", "psionic_pulse"],
+        ["vector_tentacles", "neural_cluster"],
+        ["neural_cluster", "chimera_veil"],
+        ["blade_armor", "hive_cerebrum"],
+        ["hive_cerebrum", "resonance_screech"]
+      ];
+      ctx.save();
+      membranePairs.forEach(([k1, k2], idx) => {
+        const n1 = MUTATION_DEFINITIONS[k1];
+        const n2 = MUTATION_DEFINITIONS[k2];
+        if (!n1 || !n2)
+          return;
+        const x1 = n1.x / 100 * w;
+        const y1 = n1.y / 100 * h;
+        const x2 = n2.x / 100 * w;
+        const y2 = n2.y / 100 * h;
+        const midX = (x1 + x2) * 0.5;
+        const midY = (y1 + y2) * 0.5 + Math.sin(timeSec * 1.5 + idx) * 8;
+        const grad = ctx.createLinearGradient(x1, y1, x2, y2);
+        grad.addColorStop(0, n1.branchColor + "20");
+        grad.addColorStop(0.5, "#a855f725");
+        grad.addColorStop(1, n2.branchColor + "20");
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.quadraticCurveTo(midX, midY, x2, y2);
+        ctx.stroke();
+      });
+      ctx.restore();
+      spores.forEach((s) => {
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+        if (s.x < 0) {
+          s.x = 0;
+          s.vx *= -1;
+        }
+        if (s.x > w) {
+          s.x = w;
+          s.vx *= -1;
+        }
+        if (s.y < 0) {
+          s.y = 0;
+          s.vy *= -1;
+        }
+        if (s.y > h) {
+          s.y = h;
+          s.vy *= -1;
+        }
+        s.pulsePhase += s.pulseSpeed * dt;
+        const dynamicAlpha = Math.max(0.05, s.alpha + Math.sin(s.pulsePhase) * 0.2);
+        ctx.save();
+        ctx.globalAlpha = dynamicAlpha;
+        ctx.fillStyle = s.color;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+      sparkSpawnTimer += dt;
+      if (sparkSpawnTimer >= 0.28) {
+        sparkSpawnTimer = 0;
+        const activeConn = MUTATION_CONNECTIONS.filter(([pKey, cKey]) => {
+          const pMut = STATE.mutations[pKey];
+          return Boolean(pMut && pMut.purchased);
+        });
+        if (activeConn.length > 0) {
+          const [pKey, cKey] = activeConn[Math.floor(Math.random() * activeConn.length)];
+          const cMut = STATE.mutations[cKey];
+          const cDef = MUTATION_DEFINITIONS[cKey];
+          const isBothPurchased = Boolean(cMut && cMut.purchased);
+          sparks.push({
+            pKey,
+            cKey,
+            t: 0,
+            speed: 0.5 + Math.random() * 0.6,
+            color: isBothPurchased ? cDef?.branchColor || "#34d399" : "#c084fc",
+            size: isBothPurchased ? 3.2 : 2.2
+          });
+        }
+      }
+      for (let i = sparks.length - 1;i >= 0; i--) {
+        const sp = sparks[i];
+        sp.t += sp.speed * dt;
+        if (sp.t >= 1) {
+          sparks.splice(i, 1);
+          continue;
+        }
+        const pDef = MUTATION_DEFINITIONS[sp.pKey];
+        const cDef = MUTATION_DEFINITIONS[sp.cKey];
+        if (!pDef || !cDef) {
+          sparks.splice(i, 1);
+          continue;
+        }
+        const p0x = pDef.x / 100 * w;
+        const p0y = pDef.y / 100 * h;
+        const p1x = cDef.x / 100 * w;
+        const p1y = cDef.y / 100 * h;
+        const pt = getCubicBezierPoint(p0x, p0y, p1x, p1y, sp.t);
+        ctx.save();
+        ctx.fillStyle = sp.color;
+        ctx.shadowColor = sp.color;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, sp.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      for (let i = shockwaves.length - 1;i >= 0; i--) {
+        const sw = shockwaves[i];
+        sw.radius += (sw.maxRadius - sw.radius) * (dt * 6);
+        sw.alpha -= dt * 1.5;
+        if (sw.alpha <= 0.02 || sw.radius >= sw.maxRadius * 0.95) {
+          shockwaves.splice(i, 1);
+          continue;
+        }
+        ctx.save();
+        ctx.strokeStyle = sw.color;
+        ctx.lineWidth = 2.5;
+        ctx.globalAlpha = Math.max(0, sw.alpha);
+        ctx.shadowColor = sw.color;
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+    animationFrameId = requestAnimationFrame(renderLoop);
+  }
+  animationFrameId = requestAnimationFrame(renderLoop);
+}
+function stopNeuralCanvasLoop() {
+  isCanvasLoopRunning = false;
+  if (animationFrameId !== null) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+}
+function updateEvolutionTreeUI() {
+  if (!STATE.mutations)
+    return;
+  let activeCount = 0;
+  const totalCount = Object.keys(MUTATION_DEFINITIONS).length;
+  const bioCountEl = document.getElementById("evo-bio-res");
+  const silCountEl = document.getElementById("evo-silicon-res");
+  if (bioCountEl)
+    bioCountEl.innerText = `${Math.floor(STATE.bioRes)}`;
+  if (silCountEl)
+    silCountEl.innerText = `${Math.floor(STATE.siliconRes)}`;
+  Object.values(MUTATION_DEFINITIONS).forEach((def) => {
+    const key = def.key;
+    const mut = STATE.mutations[key] || { purchased: false, bioCost: def.bioCost, siliconCost: def.siliconCost };
+    const isPurchased = Boolean(mut.purchased);
+    if (isPurchased)
+      activeCount++;
+    let isPrecursorMet = true;
+    if (def.precursor) {
+      const prec = STATE.mutations[def.precursor];
+      isPrecursorMet = Boolean(prec && prec.purchased);
+    }
+    const canAfford = STATE.bioRes >= def.bioCost && STATE.siliconRes >= def.siliconCost;
+    const isAvailable = !isPurchased && isPrecursorMet;
+    const isSelected = selectedMutationKey === key;
+    const nodeEl = document.getElementById(`mut-node-${key}`);
+    if (nodeEl) {
+      nodeEl.classList.toggle("purchased", isPurchased);
+      nodeEl.classList.toggle("available", isAvailable);
+      nodeEl.classList.toggle("affordable", isAvailable && canAfford);
+      nodeEl.classList.toggle("locked", !isPurchased && !isPrecursorMet);
+      nodeEl.classList.toggle("selected", isSelected);
+      const badgeEl = document.getElementById(`mut-badge-${key}`);
+      if (badgeEl) {
+        if (isPurchased) {
+          badgeEl.innerText = "✓ Aktiv";
+          badgeEl.style.color = "#10b981";
+        } else if (!isPrecursorMet) {
+          badgeEl.innerText = "\uD83D\uDD12 Gesperrt";
+          badgeEl.style.color = "#94a3b8";
+        } else {
+          badgeEl.innerText = `${def.bioCost}\uD83C\uDF3F`;
+          badgeEl.style.color = canAfford ? "#f59e0b" : "#ef4444";
+        }
+      }
+    }
+  });
+  const activeCountEl = document.getElementById("evo-active-count");
+  if (activeCountEl) {
+    activeCountEl.innerText = `${activeCount}/${totalCount}`;
+  }
+  MUTATION_CONNECTIONS.forEach(([pKey, cKey]) => {
+    const axonEl = document.getElementById(`axon-${pKey}-${cKey}`);
+    if (!axonEl)
+      return;
+    const pMut = STATE.mutations[pKey];
+    const cMut = STATE.mutations[cKey];
+    const pPurchased = Boolean(pMut && pMut.purchased);
+    const cPurchased = Boolean(cMut && cMut.purchased);
+    axonEl.classList.remove("axon-active", "axon-available", "axon-locked");
+    if (pPurchased && cPurchased) {
+      axonEl.classList.add("axon-active");
+    } else if (pPurchased) {
+      axonEl.classList.add("axon-available");
+    } else {
+      axonEl.classList.add("axon-locked");
+    }
+  });
+  renderSynapseInspector(selectedMutationKey);
+}
+function renderSynapseInspector(key) {
+  const inspector = document.getElementById("synapse-inspector-panel");
+  if (!inspector)
+    return;
+  const def = MUTATION_DEFINITIONS[key] || MUTATION_DEFINITIONS["cocoon"];
+  const mut = STATE.mutations[def.key] || { purchased: false, bioCost: def.bioCost, siliconCost: def.siliconCost };
+  const isPurchased = Boolean(mut.purchased);
+  let isPrecursorMet = true;
+  let precName = "";
+  if (def.precursor) {
+    const prec = STATE.mutations[def.precursor];
+    isPrecursorMet = Boolean(prec && prec.purchased);
+    precName = MUTATION_DEFINITIONS[def.precursor]?.name || def.precursor;
+  }
+  const canAfford = STATE.bioRes >= def.bioCost && STATE.siliconRes >= def.siliconCost;
+  const canMutate = !isPurchased && isPrecursorMet && canAfford;
+  let statusBadge = "";
+  if (isPurchased) {
+    statusBadge = `<span class="inspector-status-badge active">✓ VOLLSTÄNDIG ASSIMILIERT</span>`;
+  } else if (!isPrecursorMet) {
+    statusBadge = `<span class="inspector-status-badge locked">\uD83D\uDD12 GESPERRT (VORAUSSETZUNG FEHLT)</span>`;
+  } else if (canAfford) {
+    statusBadge = `<span class="inspector-status-badge ready">⚡ BEREIT ZUR SYNTHESE</span>`;
+  } else {
+    statusBadge = `<span class="inspector-status-badge insufficient">⚠️ RESSOURCEN FEHLEN</span>`;
+  }
+  const bioDeficit = Math.max(0, def.bioCost - STATE.bioRes);
+  const silDeficit = Math.max(0, def.siliconCost - STATE.siliconRes);
+  inspector.innerHTML = `
+        <div class="inspector-header">
+            <div class="inspector-icon-ring" style="border-color: ${def.branchColor}; box-shadow: 0 0 15px ${def.branchColor}66;">
+                <span class="inspector-icon">${def.icon}</span>
+            </div>
+            <div class="inspector-title-col">
+                <span class="inspector-branch-tag" style="color: ${def.branchColor};">${def.branchLabel}</span>
+                <h3 class="inspector-title">${def.name}</h3>
+                ${statusBadge}
+            </div>
+        </div>
+
+        <div class="inspector-body">
+            <!-- Lore & Description -->
+            <div class="inspector-section">
+                <div class="inspector-sec-label">\uD83E\uDDEC Biologische Mutation</div>
+                <p class="inspector-desc">${def.desc}</p>
+                <div class="inspector-lore">\uD83D\uDCAD <em>"${def.lore}"</em></div>
+            </div>
+
+            <!-- Effect & Game Mechanics -->
+            <div class="inspector-section">
+                <div class="inspector-sec-label">⚙️ Schiffs-Wirkung</div>
+                <div class="inspector-effect-pill">
+                    <span class="effect-icon">✨</span>
+                    <span class="effect-text">${def.effect}</span>
+                </div>
+            </div>
+
+            <!-- Precursor Requirement -->
+            ${def.precursor ? `
+                <div class="inspector-section">
+                    <div class="inspector-sec-label">\uD83D\uDD17 Synapsen-Verbindung</div>
+                    <div class="inspector-prec-row ${isPrecursorMet ? "met" : "missing"}">
+                        <span>${isPrecursorMet ? "✓" : "✗"} Erfordert:</span>
+                        <strong>${precName}</strong>
+                    </div>
+                </div>
+            ` : ""}
+
+            <!-- Costs -->
+            <div class="inspector-section">
+                <div class="inspector-sec-label">\uD83E\uDDEA Synthese-Kosten</div>
+                <div class="inspector-cost-grid">
+                    <div class="inspector-cost-card bio ${STATE.bioRes >= def.bioCost ? "afford" : "lacking"}">
+                        <span class="cost-type">\uD83C\uDF3F Biomasse</span>
+                        <span class="cost-amount">${def.bioCost} Bio</span>
+                        <span class="cost-status">${STATE.bioRes >= def.bioCost ? "✓ Genügend" : `-${Math.ceil(bioDeficit)} fehlt`}</span>
+                    </div>
+                    <div class="inspector-cost-card silicon ${STATE.siliconRes >= def.siliconCost ? "afford" : "lacking"}">
+                        <span class="cost-type">\uD83D\uDCA0 Silizium</span>
+                        <span class="cost-amount">${def.siliconCost} Silizium</span>
+                        <span class="cost-status">${STATE.siliconRes >= def.siliconCost ? "✓ Genügend" : `-${Math.ceil(silDeficit)} fehlt`}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action / Mutation Trigger Button -->
+        <div class="inspector-footer">
+            <button id="synapse-buy-trigger-btn" class="mut-btn synapse-inspect-buy-btn ${isPurchased ? "purchased" : ""}" data-mutation="${def.key}" ${!canMutate && !isPurchased || isPurchased ? "disabled" : ""}>
+                ${isPurchased ? "✓ Bereits assimiliert" : !isPrecursorMet ? "\uD83D\uDD12 Voraussetzung erforderlich" : canAfford ? "\uD83E\uDDEC Organ mutieren" : "⚠️ Ressourcen unzureichend"}
+            </button>
+        </div>
+    `;
+  const buyBtn = document.getElementById("synapse-buy-trigger-btn");
+  if (buyBtn && !isPurchased && isPrecursorMet && canAfford) {
+    buyBtn.onclick = () => {
+      buyMutation(def.key);
+      playSynapseEvolveSound();
+      triggerSynapseShockwave(def.x, def.y, def.branchColor, 90);
+      updateEvolutionTreeUI();
+    };
+  }
+}
+
 // src/procedural/quantum-civ.ts
 function cMul(a, b) {
   return {
@@ -36269,17 +37079,6 @@ function completeScanning() {
   }
 }
 var manuallyDismissedTarget = null;
-function dismissScannerPanel() {
-  const scannerPanel = document.getElementById("left-deck-panel");
-  if (scannerPanel) {
-    scannerPanel.classList.remove("visible");
-  }
-  if (STATE.lockedTarget) {
-    manuallyDismissedTarget = STATE.lockedTarget.name;
-  } else if (STATE.nearestPlanet) {
-    manuallyDismissedTarget = STATE.nearestPlanet.name;
-  }
-}
 function resetDismissedScanner() {
   manuallyDismissedTarget = null;
 }
@@ -36517,1586 +37316,6 @@ function updateScannerUI(planet, dist) {
       commsBtn.style.display = "none";
   }
 }
-
-// src/ui/evolution-tree.ts
-var MUTATION_DEFINITIONS = {
-  nucleus: {
-    key: "nucleus",
-    name: "Najmafars Herzzelle",
-    shortName: "Herzzelle",
-    branch: "nucleus",
-    branchLabel: "Najmafars Zerebrum",
-    branchColor: "#f43f5e",
-    icon: "\uD83E\uDEC0",
-    desc: "Pulsierender biometrischer Kern und Zerebral-Knotenpunkt von Najmafar.",
-    effect: "Vitales Zentrum aller neuronalen Stränge & Lebenspulse",
-    lore: "Hier schlägt Najmafars Herz in der Einsamkeit des Vakuums und speist alle biologischen Synapsen.",
-    precursor: null,
-    x: 10,
-    y: 50,
-    bioCost: 0,
-    siliconCost: 0
-  },
-  organic_siphon: {
-    key: "organic_siphon",
-    name: "Organischer Siphon",
-    shortName: "Bio-Siphon",
-    branch: "chitin",
-    branchLabel: "Chitin & Fleisch",
-    branchColor: "#10b981",
-    icon: "\uD83C\uDF31",
-    desc: "Raffinierte Biomasse-Saugkanäle und integrierte Strahlungs-Filterschichten.",
-    effect: "+35% Ernte-Geschwindigkeit • +25% Strahlungsschutz (verlangsamt strahlungsbedingten Zelltod)",
-    lore: "Fleischige Röhren saugen Mineralien und filtern kosmische Partikel direkt in den Rumpf.",
-    precursor: "nucleus",
-    x: 30,
-    y: 22,
-    bioCost: 120,
-    siliconCost: 60
-  },
-  chitin_armor: {
-    key: "chitin_armor",
-    name: "Chitin-Panzer",
-    shortName: "Chitin-Panzer",
-    branch: "chitin",
-    branchLabel: "Chitin & Fleisch",
-    branchColor: "#10b981",
-    icon: "\uD83D\uDEE1️",
-    desc: "Kristallisierte biomolekulare Chitin-Schuppen mit zusätzlicher Strahlungs-Reflexionsschicht.",
-    effect: "-50% Kollisionsschaden • +25% Strahlungsschutz (+50% kumulativ)",
-    lore: "Ein dichter Panzer aus organischen Silikaten umschließt Najmafars weiche Tentakel.",
-    precursor: "organic_siphon",
-    x: 50,
-    y: 18,
-    bioCost: 220,
-    siliconCost: 130
-  },
-  vector_tentacles: {
-    key: "vector_tentacles",
-    name: "Vektor-Tentakel",
-    shortName: "Vektor-Tentakel",
-    branch: "chitin",
-    branchLabel: "Chitin & Fleisch",
-    branchColor: "#10b981",
-    icon: "\uD83D\uDC19",
-    desc: "Verstärkte Muskelstränge und hydrodynamische Bio-Gegenstromdüsen im Vakuum.",
-    effect: "+25% Schub • +35% Wendigkeit • Hydrodynamische Bio-Bremse",
-    lore: "Muskulöse Tentakel peitschen durch das Raumkrümmungsfeld und verleihen ungeahnte Agilität.",
-    precursor: "chitin_armor",
-    x: 70,
-    y: 20,
-    bioCost: 360,
-    siliconCost: 240
-  },
-  blade_armor: {
-    key: "blade_armor",
-    name: "Klingen-Panzerung",
-    shortName: "Klingen-Panzer",
-    branch: "chitin",
-    branchLabel: "Chitin & Fleisch (Apex)",
-    branchColor: "#059669",
-    icon: "⚔️",
-    desc: "Rasiermesserscharfe Chitin-Stacheln und dichte bio-magnetische Schutzmembran.",
-    effect: "+35% Strahlungsschutz (bis zu 85% gesamt) • Reflektiert Nahbereichsschaden",
-    lore: "Kristalline Klingen brechen tödliche Röntgen- und Gammawellen naher Sterne vollkommen.",
-    precursor: "vector_tentacles",
-    x: 90,
-    y: 26,
-    bioCost: 550,
-    siliconCost: 420
-  },
-  cocoon: {
-    key: "cocoon",
-    name: "Kokon (4)",
-    shortName: "Kokon (4)",
-    branch: "cocoon",
-    branchLabel: "Neuronales Nest",
-    branchColor: "#c084fc",
-    icon: "\uD83E\uDD5A",
-    desc: "Organische Brutkammern und biometrisches Kokongewebe zur Unterbringung von 4 entführten Wesen.",
-    effect: "Basis-Kapazität: 4 Crew-Mitglieder • Schützt vor Weltraum-Hypoxie",
-    lore: "Das primäre Nestgewebe. Najmafars Zellwände formen nachgiebige Membranen für fremde Körper.",
-    precursor: "nucleus",
-    x: 28,
-    y: 50,
-    bioCost: 320,
-    siliconCost: 140
-  },
-  hivemind: {
-    key: "hivemind",
-    name: "Schwarm-Synapse (6)",
-    shortName: "Schwarm (6)",
-    branch: "cocoon",
-    branchLabel: "Neuronales Nest",
-    branchColor: "#c084fc",
-    icon: "\uD83E\uDDEC",
-    desc: "Verschaltet Nervenenden der Besatzung direkt mit Najmafars zentralem Nervenstrang.",
-    effect: "Crew-Kapazität: 6 • +20% auf alle Spezialisten-Buffs (Pilot, Bio, Ing, Psych)",
-    lore: "Feine Synapsenfäden senken sich aus der Decke herab und synchronisieren Gehirnwellen.",
-    precursor: "cocoon",
-    x: 43,
-    y: 50,
-    bioCost: 500,
-    siliconCost: 320
-  },
-  neural_cluster: {
-    key: "neural_cluster",
-    name: "Neuronale Wabe (10)",
-    shortName: "Wabe (10)",
-    branch: "cocoon",
-    branchLabel: "Neuronales Nest",
-    branchColor: "#a855f7",
-    icon: "\uD83D\uDD78️",
-    desc: "Geometrisch angeordnete Chitin-Wabenstrukturen dämpfen psionische Dissonanzen.",
-    effect: "Crew-Kapazität: 10 • Spezies-Clustering & Schutz vor Massenpanik",
-    lore: "Sechseckige Kammern isolieren divergierende mentale Schwingungen verfeindeter Spezies.",
-    precursor: "hivemind",
-    x: 58,
-    y: 50,
-    bioCost: 650,
-    siliconCost: 450
-  },
-  cryo_matrix: {
-    key: "cryo_matrix",
-    name: "Kryo-Matrix (20)",
-    shortName: "Kryo (20)",
-    branch: "cocoon",
-    branchLabel: "Neuronales Nest",
-    branchColor: "#a855f7",
-    icon: "❄️",
-    desc: "Organische Frost-Enzyme verlangsamen den natürlichen Zelltod um 25%.",
-    effect: "Crew-Kapazität: 20 • -25% Zelltod (verlängert Lebensdauer aller Gefangenen)",
-    lore: "Kryogene Schleimhäute kühlen den Metabolismus und frieren Telomer-Verfall ein.",
-    precursor: "neural_cluster",
-    x: 74,
-    y: 50,
-    bioCost: 950,
-    siliconCost: 750
-  },
-  hive_cerebrum: {
-    key: "hive_cerebrum",
-    name: "Schwarm-Zerebrum (30)",
-    shortName: "Zerebrum (30)",
-    branch: "cocoon",
-    branchLabel: "Neuronales Nest (Apex)",
-    branchColor: "#ec4899",
-    icon: "\uD83D\uDC51",
-    desc: "Vollendete psionische Schwarm-Kollimation und telepathische Verschmelzung.",
-    effect: "Crew-Kapazität: 30 • Schaltet maximale kollektive Schwarm-Resonanz frei",
-    lore: "Najmafar und die 30 Wesen verschmelzen zu einem einzigen kosmischen Über-Bewusstsein.",
-    precursor: "cryo_matrix",
-    x: 90,
-    y: 50,
-    bioCost: 1500,
-    siliconCost: 1200
-  },
-  telepathic_focus: {
-    key: "telepathic_focus",
-    name: "Telepathischer Fokus",
-    shortName: "Telepathie",
-    branch: "psionic",
-    branchLabel: "Psionik & Geist",
-    branchColor: "#38bdf8",
-    icon: "\uD83D\uDCE1",
-    desc: "Sub-kognitiver Sprachknoten dechiffriert fremde Frequenz-Muster und Gedanken.",
-    effect: "Automatisierte Dechiffrierung von Funksignalen & Crew-Gedanken • -30% Mentalkraft-Verbrauch",
-    lore: "Najmafar lernt die Sprachen der Sterblichen zu fühlen statt sie zu hören.",
-    precursor: "nucleus",
-    x: 30,
-    y: 78,
-    bioCost: 140,
-    siliconCost: 80
-  },
-  psionic_pulse: {
-    key: "psionic_pulse",
-    name: "Psionischer Impuls",
-    shortName: "Psio-Impuls",
-    branch: "psionic",
-    branchLabel: "Psionik & Geist",
-    branchColor: "#38bdf8",
-    icon: "⚡",
-    desc: "Verstärkt Najmafars Gedanken-Echo und erweitert die Telepathie-Reichweite.",
-    effect: "150 Max Mentalkraft • 140 LJ Gedanken-Echo Reichweite",
-    lore: "Lange bio-elektrische Tentakel ragen ins Vakuum und fangen mentale Resonanzen ferner Welten auf.",
-    precursor: "telepathic_focus",
-    x: 50,
-    y: 82,
-    bioCost: 280,
-    siliconCost: 160
-  },
-  chimera_veil: {
-    key: "chimera_veil",
-    name: "Schimären-Schleier",
-    shortName: "Schimäre",
-    branch: "psionic",
-    branchLabel: "Psionik & Geist",
-    branchColor: "#38bdf8",
-    icon: "\uD83C\uDF2B️",
-    desc: "Licht- und Sensorbeugendes Tarnfeld aus psionischen Interferenzen.",
-    effect: "+40% Tarnung (Stealth) • Stress-Immunität bei gegnerischer Sensor-Erfassung",
-    lore: "Das Schiff verschwimmt zu einer geisterhaften Fata Morgana im Lichtspektrum fremder Scanner.",
-    precursor: "psionic_pulse",
-    x: 70,
-    y: 80,
-    bioCost: 420,
-    siliconCost: 300
-  },
-  resonance_screech: {
-    key: "resonance_screech",
-    name: "Resonanz-Schrei",
-    shortName: "Resonanz",
-    branch: "psionic",
-    branchLabel: "Psionik & Geist (Apex)",
-    branchColor: "#0284c7",
-    icon: "\uD83D\uDCE3",
-    desc: "Vernichtende bio-akustische & psionische Schockwelle bricht künstliche Elektronik.",
-    effect: "Bio-EMP lähmt Drohnen 50% länger • Schlägt feindliche Entermannschaften in Flucht",
-    lore: "Ein ohrenbetäubender Schrei auf allen Frequenzen gleichzeitig zerreißt Schaltkreise und Verstand.",
-    precursor: "chimera_veil",
-    x: 90,
-    y: 74,
-    bioCost: 600,
-    siliconCost: 480
-  },
-  ibad: {
-    key: "ibad",
-    name: "Augen des Ibad (Melange)",
-    shortName: "Augen d. Ibad",
-    branch: "artifact",
-    branchLabel: "Kosmisches Arrakis-Relikt",
-    branchColor: "#f59e0b",
-    icon: "\uD83D\uDC41️",
-    desc: "Blau-in-blau gefärbte Sklera durch Arrakis-Melange. Prophetische Weitsicht.",
-    effect: "Harmonisiert den Geist • Heilt Psychosen & Traumata der Gefangenen",
-    lore: "Die Melange von Arrakis öffnet Najmafars Geist für Pfade der Zeit und heilt verletzte Seelen.",
-    precursor: "psionic_pulse",
-    x: 60,
-    y: 66,
-    bioCost: 0,
-    siliconCost: 0
-  }
-};
-Object.defineProperty(MUTATION_DEFINITIONS, "armor", {
-  get() {
-    return MUTATION_DEFINITIONS.chitin_armor;
-  },
-  enumerable: false,
-  configurable: true
-});
-Object.defineProperty(MUTATION_DEFINITIONS, "translator", {
-  get() {
-    return MUTATION_DEFINITIONS.telepathic_focus;
-  },
-  enumerable: false,
-  configurable: true
-});
-Object.defineProperty(MUTATION_DEFINITIONS, "synapses", {
-  get() {
-    return MUTATION_DEFINITIONS.psionic_pulse;
-  },
-  enumerable: false,
-  configurable: true
-});
-var MUTATION_CONNECTIONS = [
-  ["nucleus", "organic_siphon"],
-  ["organic_siphon", "chitin_armor"],
-  ["chitin_armor", "vector_tentacles"],
-  ["vector_tentacles", "blade_armor"],
-  ["nucleus", "cocoon"],
-  ["cocoon", "hivemind"],
-  ["hivemind", "neural_cluster"],
-  ["neural_cluster", "cryo_matrix"],
-  ["cryo_matrix", "hive_cerebrum"],
-  ["nucleus", "telepathic_focus"],
-  ["telepathic_focus", "psionic_pulse"],
-  ["psionic_pulse", "chimera_veil"],
-  ["chimera_veil", "resonance_screech"],
-  ["psionic_pulse", "ibad"]
-];
-var selectedMutationKey = "cocoon";
-var isCanvasLoopRunning = false;
-var animationFrameId = null;
-var spores = [];
-var sparks = [];
-var shockwaves = [];
-function selectMutationNode(key) {
-  if (!MUTATION_DEFINITIONS[key])
-    return;
-  selectedMutationKey = key;
-  updateEvolutionTreeUI();
-  const def = MUTATION_DEFINITIONS[key];
-  if (def) {
-    triggerSynapseShockwave(def.x, def.y, def.branchColor, 40);
-  }
-}
-function getNodeAncestors(key) {
-  const ancestors = [];
-  let current = MUTATION_DEFINITIONS[key]?.precursor;
-  while (current) {
-    ancestors.push(current);
-    current = MUTATION_DEFINITIONS[current]?.precursor || null;
-  }
-  return ancestors;
-}
-function highlightPathway(targetKey) {
-  const axons = document.querySelectorAll(".axon-path");
-  const nodes = document.querySelectorAll(".synapse-node");
-  axons.forEach((a) => a.classList.remove("path-highlight"));
-  nodes.forEach((n) => n.classList.remove("path-highlight"));
-  if (!targetKey)
-    return;
-  const ancestors = getNodeAncestors(targetKey);
-  const fullChain = [targetKey, ...ancestors];
-  fullChain.forEach((k) => {
-    const nodeEl = document.getElementById(`mut-node-${k}`);
-    if (nodeEl)
-      nodeEl.classList.add("path-highlight");
-  });
-  for (let i = 0;i < fullChain.length - 1; i++) {
-    const child = fullChain[i];
-    const parent = fullChain[i + 1];
-    const axonEl = document.getElementById(`axon-${parent}-${child}`);
-    if (axonEl)
-      axonEl.classList.add("path-highlight");
-  }
-}
-function getCubicBezierPoint(p0x, p0y, p1x, p1y, t) {
-  const dx = p1x - p0x;
-  const cx1 = p0x + dx * 0.5;
-  const cy1 = p0y;
-  const cx2 = p0x + dx * 0.5;
-  const cy2 = p1y;
-  const u = 1 - t;
-  const tt = t * t;
-  const uu = u * u;
-  const uuu = uu * u;
-  const ttt = tt * t;
-  const x = uuu * p0x + 3 * uu * t * cx1 + 3 * u * tt * cx2 + ttt * p1x;
-  const y = uuu * p0y + 3 * uu * t * cy1 + 3 * u * tt * cy2 + ttt * p1y;
-  return { x, y };
-}
-function triggerSynapseShockwave(pctX, pctY, color = "#c084fc", maxR = 70) {
-  const canvas = document.getElementById("synapse-neural-canvas");
-  if (!canvas)
-    return;
-  const w = canvas.width || 600;
-  const h = canvas.height || 440;
-  shockwaves.push({
-    x: pctX / 100 * w,
-    y: pctY / 100 * h,
-    radius: 4,
-    maxRadius: maxR,
-    alpha: 0.9,
-    color
-  });
-}
-function initEvolutionTree() {
-  const axonsGroup = document.getElementById("synapse-axons-group");
-  const nodesLayer = document.getElementById("synapse-nodes-layer");
-  if (!axonsGroup || !nodesLayer)
-    return;
-  axonsGroup.innerHTML = MUTATION_CONNECTIONS.map(([pKey, cKey]) => {
-    const p = MUTATION_DEFINITIONS[pKey];
-    const c = MUTATION_DEFINITIONS[cKey];
-    if (!p || !c)
-      return "";
-    const dx = c.x - p.x;
-    const cx1 = p.x + dx * 0.5;
-    const cy1 = p.y;
-    const cx2 = p.x + dx * 0.5;
-    const cy2 = c.y;
-    const d = `M ${p.x} ${p.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${c.x} ${c.y}`;
-    return `
-            <path id="axon-${pKey}-${cKey}" class="axon-path axon-locked axon-${c.branch}" d="${d}" data-parent="${pKey}" data-child="${cKey}" />
-        `;
-  }).join("");
-  nodesLayer.innerHTML = Object.values(MUTATION_DEFINITIONS).map((def) => {
-    const isRoot = def.key === "nucleus";
-    return `
-            <div class="synapse-node ${isRoot ? "root-nucleus" : ""} branch-${def.branch}" id="mut-node-${def.key}" data-mutation="${def.key}" style="left: ${def.x}%; top: ${def.y}%;">
-                <div class="synapse-node-ring">
-                    <span class="synapse-node-icon">${def.icon}</span>
-                    <span class="synapse-node-pulse"></span>
-                </div>
-                <div class="synapse-node-tag">
-                    <span class="synapse-node-name">${def.shortName || def.name}</span>
-                    <span class="synapse-node-badge" id="mut-badge-${def.key}">...</span>
-                </div>
-                <!-- Hidden button for backward compatibility with querySelector('.mut-btn[data-mutation="..."]') -->
-                <button class="mut-btn" data-mutation="${def.key}" style="display: none;"></button>
-            </div>
-        `;
-  }).join("");
-  const nodeEls = nodesLayer.querySelectorAll(".synapse-node");
-  nodeEls.forEach((el) => {
-    const key = el.getAttribute("data-mutation");
-    if (!key)
-      return;
-    el.onclick = (e) => {
-      e.stopPropagation();
-      const def = MUTATION_DEFINITIONS[key];
-      const mut = STATE.mutations[key];
-      const isPurchased = Boolean(mut && mut.purchased);
-      let isPrecursorMet = true;
-      if (def && def.precursor) {
-        const prec = STATE.mutations[def.precursor];
-        isPrecursorMet = Boolean(prec && prec.purchased);
-      }
-      const canAfford = def && STATE.bioRes >= def.bioCost && STATE.siliconRes >= def.siliconCost;
-      if (def && !isPurchased && isPrecursorMet && canAfford) {
-        buyMutation(key);
-        playSynapseEvolveSound();
-        triggerSynapseShockwave(def.x, def.y, def.branchColor, 90);
-        selectMutationNode(key);
-      } else {
-        selectMutationNode(key);
-      }
-    };
-    el.onmouseenter = () => {
-      highlightPathway(key);
-      const def = MUTATION_DEFINITIONS[key];
-      if (def) {
-        const freq = 360 + def.y * 3.5;
-        playSynapseHoverSound(freq);
-      }
-    };
-    el.onmouseleave = () => {
-      highlightPathway(null);
-    };
-  });
-  spores.length = 0;
-  const sporeColors = ["#10b981", "#34d399", "#c084fc", "#a855f7", "#38bdf8", "#06b6d4", "#f43f5e"];
-  for (let i = 0;i < 42; i++) {
-    spores.push({
-      x: Math.random() * 600,
-      y: Math.random() * 440,
-      vx: (Math.random() - 0.5) * 8,
-      vy: (Math.random() - 0.5) * 8,
-      size: 1.5 + Math.random() * 2.5,
-      alpha: 0.15 + Math.random() * 0.45,
-      pulseSpeed: 1 + Math.random() * 2,
-      pulsePhase: Math.random() * Math.PI * 2,
-      color: sporeColors[Math.floor(Math.random() * sporeColors.length)]
-    });
-  }
-  startNeuralCanvasLoop();
-  updateEvolutionTreeUI();
-}
-function startNeuralCanvasLoop() {
-  if (isCanvasLoopRunning)
-    return;
-  isCanvasLoopRunning = true;
-  const canvas = document.getElementById("synapse-neural-canvas");
-  if (!canvas)
-    return;
-  let lastTimestamp = performance.now();
-  let sparkSpawnTimer = 0;
-  function renderLoop(time) {
-    if (!isCanvasLoopRunning)
-      return;
-    const dt = Math.min((time - lastTimestamp) / 1000, 0.1);
-    lastTimestamp = time;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      const rect = canvas.getBoundingClientRect();
-      if (canvas.width !== Math.floor(rect.width) || canvas.height !== Math.floor(rect.height)) {
-        canvas.width = Math.floor(rect.width) || 600;
-        canvas.height = Math.floor(rect.height) || 440;
-      }
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-      const timeSec = time / 1000;
-      const membranePairs = [
-        ["nucleus", "organic_siphon"],
-        ["nucleus", "cocoon"],
-        ["nucleus", "telepathic_focus"],
-        ["organic_siphon", "cocoon"],
-        ["cocoon", "telepathic_focus"],
-        ["chitin_armor", "hivemind"],
-        ["hivemind", "psionic_pulse"],
-        ["vector_tentacles", "neural_cluster"],
-        ["neural_cluster", "chimera_veil"],
-        ["blade_armor", "hive_cerebrum"],
-        ["hive_cerebrum", "resonance_screech"]
-      ];
-      ctx.save();
-      membranePairs.forEach(([k1, k2], idx) => {
-        const n1 = MUTATION_DEFINITIONS[k1];
-        const n2 = MUTATION_DEFINITIONS[k2];
-        if (!n1 || !n2)
-          return;
-        const x1 = n1.x / 100 * w;
-        const y1 = n1.y / 100 * h;
-        const x2 = n2.x / 100 * w;
-        const y2 = n2.y / 100 * h;
-        const midX = (x1 + x2) * 0.5;
-        const midY = (y1 + y2) * 0.5 + Math.sin(timeSec * 1.5 + idx) * 8;
-        const grad = ctx.createLinearGradient(x1, y1, x2, y2);
-        grad.addColorStop(0, n1.branchColor + "20");
-        grad.addColorStop(0.5, "#a855f725");
-        grad.addColorStop(1, n2.branchColor + "20");
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.quadraticCurveTo(midX, midY, x2, y2);
-        ctx.stroke();
-      });
-      ctx.restore();
-      spores.forEach((s) => {
-        s.x += s.vx * dt;
-        s.y += s.vy * dt;
-        if (s.x < 0) {
-          s.x = 0;
-          s.vx *= -1;
-        }
-        if (s.x > w) {
-          s.x = w;
-          s.vx *= -1;
-        }
-        if (s.y < 0) {
-          s.y = 0;
-          s.vy *= -1;
-        }
-        if (s.y > h) {
-          s.y = h;
-          s.vy *= -1;
-        }
-        s.pulsePhase += s.pulseSpeed * dt;
-        const dynamicAlpha = Math.max(0.05, s.alpha + Math.sin(s.pulsePhase) * 0.2);
-        ctx.save();
-        ctx.globalAlpha = dynamicAlpha;
-        ctx.fillStyle = s.color;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      });
-      sparkSpawnTimer += dt;
-      if (sparkSpawnTimer >= 0.28) {
-        sparkSpawnTimer = 0;
-        const activeConn = MUTATION_CONNECTIONS.filter(([pKey, cKey]) => {
-          const pMut = STATE.mutations[pKey];
-          return Boolean(pMut && pMut.purchased);
-        });
-        if (activeConn.length > 0) {
-          const [pKey, cKey] = activeConn[Math.floor(Math.random() * activeConn.length)];
-          const cMut = STATE.mutations[cKey];
-          const cDef = MUTATION_DEFINITIONS[cKey];
-          const isBothPurchased = Boolean(cMut && cMut.purchased);
-          sparks.push({
-            pKey,
-            cKey,
-            t: 0,
-            speed: 0.5 + Math.random() * 0.6,
-            color: isBothPurchased ? cDef?.branchColor || "#34d399" : "#c084fc",
-            size: isBothPurchased ? 3.2 : 2.2
-          });
-        }
-      }
-      for (let i = sparks.length - 1;i >= 0; i--) {
-        const sp = sparks[i];
-        sp.t += sp.speed * dt;
-        if (sp.t >= 1) {
-          sparks.splice(i, 1);
-          continue;
-        }
-        const pDef = MUTATION_DEFINITIONS[sp.pKey];
-        const cDef = MUTATION_DEFINITIONS[sp.cKey];
-        if (!pDef || !cDef) {
-          sparks.splice(i, 1);
-          continue;
-        }
-        const p0x = pDef.x / 100 * w;
-        const p0y = pDef.y / 100 * h;
-        const p1x = cDef.x / 100 * w;
-        const p1y = cDef.y / 100 * h;
-        const pt = getCubicBezierPoint(p0x, p0y, p1x, p1y, sp.t);
-        ctx.save();
-        ctx.fillStyle = sp.color;
-        ctx.shadowColor = sp.color;
-        ctx.shadowBlur = 8;
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, sp.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-      for (let i = shockwaves.length - 1;i >= 0; i--) {
-        const sw = shockwaves[i];
-        sw.radius += (sw.maxRadius - sw.radius) * (dt * 6);
-        sw.alpha -= dt * 1.5;
-        if (sw.alpha <= 0.02 || sw.radius >= sw.maxRadius * 0.95) {
-          shockwaves.splice(i, 1);
-          continue;
-        }
-        ctx.save();
-        ctx.strokeStyle = sw.color;
-        ctx.lineWidth = 2.5;
-        ctx.globalAlpha = Math.max(0, sw.alpha);
-        ctx.shadowColor = sw.color;
-        ctx.shadowBlur = 12;
-        ctx.beginPath();
-        ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-    animationFrameId = requestAnimationFrame(renderLoop);
-  }
-  animationFrameId = requestAnimationFrame(renderLoop);
-}
-function stopNeuralCanvasLoop() {
-  isCanvasLoopRunning = false;
-  if (animationFrameId !== null) {
-    cancelAnimationFrame(animationFrameId);
-    animationFrameId = null;
-  }
-}
-function updateEvolutionTreeUI() {
-  if (!STATE.mutations)
-    return;
-  let activeCount = 0;
-  const totalCount = Object.keys(MUTATION_DEFINITIONS).length;
-  const bioCountEl = document.getElementById("evo-bio-res");
-  const silCountEl = document.getElementById("evo-silicon-res");
-  if (bioCountEl)
-    bioCountEl.innerText = `${Math.floor(STATE.bioRes)}`;
-  if (silCountEl)
-    silCountEl.innerText = `${Math.floor(STATE.siliconRes)}`;
-  Object.values(MUTATION_DEFINITIONS).forEach((def) => {
-    const key = def.key;
-    const mut = STATE.mutations[key] || { purchased: false, bioCost: def.bioCost, siliconCost: def.siliconCost };
-    const isPurchased = Boolean(mut.purchased);
-    if (isPurchased)
-      activeCount++;
-    let isPrecursorMet = true;
-    if (def.precursor) {
-      const prec = STATE.mutations[def.precursor];
-      isPrecursorMet = Boolean(prec && prec.purchased);
-    }
-    const canAfford = STATE.bioRes >= def.bioCost && STATE.siliconRes >= def.siliconCost;
-    const isAvailable = !isPurchased && isPrecursorMet;
-    const isSelected = selectedMutationKey === key;
-    const nodeEl = document.getElementById(`mut-node-${key}`);
-    if (nodeEl) {
-      nodeEl.classList.toggle("purchased", isPurchased);
-      nodeEl.classList.toggle("available", isAvailable);
-      nodeEl.classList.toggle("affordable", isAvailable && canAfford);
-      nodeEl.classList.toggle("locked", !isPurchased && !isPrecursorMet);
-      nodeEl.classList.toggle("selected", isSelected);
-      const badgeEl = document.getElementById(`mut-badge-${key}`);
-      if (badgeEl) {
-        if (isPurchased) {
-          badgeEl.innerText = "✓ Aktiv";
-          badgeEl.style.color = "#10b981";
-        } else if (!isPrecursorMet) {
-          badgeEl.innerText = "\uD83D\uDD12 Gesperrt";
-          badgeEl.style.color = "#94a3b8";
-        } else {
-          badgeEl.innerText = `${def.bioCost}\uD83C\uDF3F`;
-          badgeEl.style.color = canAfford ? "#f59e0b" : "#ef4444";
-        }
-      }
-    }
-  });
-  const activeCountEl = document.getElementById("evo-active-count");
-  if (activeCountEl) {
-    activeCountEl.innerText = `${activeCount}/${totalCount}`;
-  }
-  MUTATION_CONNECTIONS.forEach(([pKey, cKey]) => {
-    const axonEl = document.getElementById(`axon-${pKey}-${cKey}`);
-    if (!axonEl)
-      return;
-    const pMut = STATE.mutations[pKey];
-    const cMut = STATE.mutations[cKey];
-    const pPurchased = Boolean(pMut && pMut.purchased);
-    const cPurchased = Boolean(cMut && cMut.purchased);
-    axonEl.classList.remove("axon-active", "axon-available", "axon-locked");
-    if (pPurchased && cPurchased) {
-      axonEl.classList.add("axon-active");
-    } else if (pPurchased) {
-      axonEl.classList.add("axon-available");
-    } else {
-      axonEl.classList.add("axon-locked");
-    }
-  });
-  renderSynapseInspector(selectedMutationKey);
-}
-function renderSynapseInspector(key) {
-  const inspector = document.getElementById("synapse-inspector-panel");
-  if (!inspector)
-    return;
-  const def = MUTATION_DEFINITIONS[key] || MUTATION_DEFINITIONS["cocoon"];
-  const mut = STATE.mutations[def.key] || { purchased: false, bioCost: def.bioCost, siliconCost: def.siliconCost };
-  const isPurchased = Boolean(mut.purchased);
-  let isPrecursorMet = true;
-  let precName = "";
-  if (def.precursor) {
-    const prec = STATE.mutations[def.precursor];
-    isPrecursorMet = Boolean(prec && prec.purchased);
-    precName = MUTATION_DEFINITIONS[def.precursor]?.name || def.precursor;
-  }
-  const canAfford = STATE.bioRes >= def.bioCost && STATE.siliconRes >= def.siliconCost;
-  const canMutate = !isPurchased && isPrecursorMet && canAfford;
-  let statusBadge = "";
-  if (isPurchased) {
-    statusBadge = `<span class="inspector-status-badge active">✓ VOLLSTÄNDIG ASSIMILIERT</span>`;
-  } else if (!isPrecursorMet) {
-    statusBadge = `<span class="inspector-status-badge locked">\uD83D\uDD12 GESPERRT (VORAUSSETZUNG FEHLT)</span>`;
-  } else if (canAfford) {
-    statusBadge = `<span class="inspector-status-badge ready">⚡ BEREIT ZUR SYNTHESE</span>`;
-  } else {
-    statusBadge = `<span class="inspector-status-badge insufficient">⚠️ RESSOURCEN FEHLEN</span>`;
-  }
-  const bioDeficit = Math.max(0, def.bioCost - STATE.bioRes);
-  const silDeficit = Math.max(0, def.siliconCost - STATE.siliconRes);
-  inspector.innerHTML = `
-        <div class="inspector-header">
-            <div class="inspector-icon-ring" style="border-color: ${def.branchColor}; box-shadow: 0 0 15px ${def.branchColor}66;">
-                <span class="inspector-icon">${def.icon}</span>
-            </div>
-            <div class="inspector-title-col">
-                <span class="inspector-branch-tag" style="color: ${def.branchColor};">${def.branchLabel}</span>
-                <h3 class="inspector-title">${def.name}</h3>
-                ${statusBadge}
-            </div>
-        </div>
-
-        <div class="inspector-body">
-            <!-- Lore & Description -->
-            <div class="inspector-section">
-                <div class="inspector-sec-label">\uD83E\uDDEC Biologische Mutation</div>
-                <p class="inspector-desc">${def.desc}</p>
-                <div class="inspector-lore">\uD83D\uDCAD <em>"${def.lore}"</em></div>
-            </div>
-
-            <!-- Effect & Game Mechanics -->
-            <div class="inspector-section">
-                <div class="inspector-sec-label">⚙️ Schiffs-Wirkung</div>
-                <div class="inspector-effect-pill">
-                    <span class="effect-icon">✨</span>
-                    <span class="effect-text">${def.effect}</span>
-                </div>
-            </div>
-
-            <!-- Precursor Requirement -->
-            ${def.precursor ? `
-                <div class="inspector-section">
-                    <div class="inspector-sec-label">\uD83D\uDD17 Synapsen-Verbindung</div>
-                    <div class="inspector-prec-row ${isPrecursorMet ? "met" : "missing"}">
-                        <span>${isPrecursorMet ? "✓" : "✗"} Erfordert:</span>
-                        <strong>${precName}</strong>
-                    </div>
-                </div>
-            ` : ""}
-
-            <!-- Costs -->
-            <div class="inspector-section">
-                <div class="inspector-sec-label">\uD83E\uDDEA Synthese-Kosten</div>
-                <div class="inspector-cost-grid">
-                    <div class="inspector-cost-card bio ${STATE.bioRes >= def.bioCost ? "afford" : "lacking"}">
-                        <span class="cost-type">\uD83C\uDF3F Biomasse</span>
-                        <span class="cost-amount">${def.bioCost} Bio</span>
-                        <span class="cost-status">${STATE.bioRes >= def.bioCost ? "✓ Genügend" : `-${Math.ceil(bioDeficit)} fehlt`}</span>
-                    </div>
-                    <div class="inspector-cost-card silicon ${STATE.siliconRes >= def.siliconCost ? "afford" : "lacking"}">
-                        <span class="cost-type">\uD83D\uDCA0 Silizium</span>
-                        <span class="cost-amount">${def.siliconCost} Silizium</span>
-                        <span class="cost-status">${STATE.siliconRes >= def.siliconCost ? "✓ Genügend" : `-${Math.ceil(silDeficit)} fehlt`}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Action / Mutation Trigger Button -->
-        <div class="inspector-footer">
-            <button id="synapse-buy-trigger-btn" class="mut-btn synapse-inspect-buy-btn ${isPurchased ? "purchased" : ""}" data-mutation="${def.key}" ${!canMutate && !isPurchased || isPurchased ? "disabled" : ""}>
-                ${isPurchased ? "✓ Bereits assimiliert" : !isPrecursorMet ? "\uD83D\uDD12 Voraussetzung erforderlich" : canAfford ? "\uD83E\uDDEC Organ mutieren" : "⚠️ Ressourcen unzureichend"}
-            </button>
-        </div>
-    `;
-  const buyBtn = document.getElementById("synapse-buy-trigger-btn");
-  if (buyBtn && !isPurchased && isPrecursorMet && canAfford) {
-    buyBtn.onclick = () => {
-      buyMutation(def.key);
-      playSynapseEvolveSound();
-      triggerSynapseShockwave(def.x, def.y, def.branchColor, 90);
-      updateEvolutionTreeUI();
-    };
-  }
-}
-
-// src/ui/deck.ts
-function isDeckOpen() {
-  const modal = document.getElementById("deck-modal");
-  return modal ? modal.style.display === "flex" : false;
-}
-function toggleDeckModal(force) {
-  const modal = document.getElementById("deck-modal");
-  if (!modal)
-    return;
-  const isVisible = modal.style.display === "flex";
-  const nextState = force !== undefined ? force : !isVisible;
-  modal.style.display = nextState ? "flex" : "none";
-  if (nextState) {
-    renderCrewUI(true);
-    updateMutationUI();
-    renderFactionReputationUI();
-    startNeuralCanvasLoop();
-  } else {
-    stopNeuralCanvasLoop();
-  }
-}
-function initDeckUI() {
-  const leftCollapseBtn = document.getElementById("left-collapse-btn");
-  if (leftCollapseBtn) {
-    leftCollapseBtn.addEventListener("click", () => {
-      dismissScannerPanel();
-    });
-  }
-  const tabButtons = document.querySelectorAll("#right-deck-tabs .tab-btn");
-  tabButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const targetTab = btn.getAttribute("data-tab");
-      tabButtons.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      const crewContent = document.getElementById("tab-content-crew");
-      const evoContent = document.getElementById("tab-content-evolution");
-      const facContent = document.getElementById("tab-content-factions");
-      const logContent = document.getElementById("tab-content-log");
-      if (crewContent) {
-        crewContent.classList.toggle("active", targetTab === "crew");
-        if (targetTab === "crew") {
-          renderCrewUI(true);
-        }
-      }
-      if (evoContent) {
-        evoContent.classList.toggle("active", targetTab === "evolution");
-        if (targetTab === "evolution") {
-          startNeuralCanvasLoop();
-          updateEvolutionTreeUI();
-        } else {
-          stopNeuralCanvasLoop();
-        }
-      }
-      if (logContent)
-        logContent.classList.toggle("active", targetTab === "log");
-      if (facContent) {
-        facContent.classList.toggle("active", targetTab === "factions");
-        if (targetTab === "factions") {
-          renderFactionReputationUI();
-        }
-      }
-    });
-  });
-  renderFactionReputationUI();
-  initEvolutionTree();
-  const mutButtons = document.querySelectorAll(".mut-btn");
-  mutButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const mutType = btn.getAttribute("data-mutation");
-      if (mutType) {
-        buyMutation(mutType);
-      }
-    });
-  });
-}
-function buyMutation(type) {
-  const mut = STATE.mutations[type];
-  if (!mut || mut.purchased)
-    return;
-  if (STATE.bioRes >= mut.bioCost && STATE.siliconRes >= mut.siliconCost) {
-    STATE.bioRes -= mut.bioCost;
-    STATE.siliconRes -= mut.siliconCost;
-    mut.purchased = true;
-    playSiliconCollectSound();
-    const btn = document.querySelector(`.mut-btn[data-mutation="${type}"]`);
-    if (btn) {
-      btn.classList.add("purchased");
-      btn.innerHTML = "Aktiviert ✓";
-    }
-    if (type === "armor" || type === "chitin_armor") {
-      if (STATE.mutations.armor)
-        STATE.mutations.armor.purchased = true;
-      if (STATE.mutations.chitin_armor)
-        STATE.mutations.chitin_armor.purchased = true;
-      addLogEntry("EVOLUTION", "Organischer Chitin-Panzer gehärtet. Kollisionsschaden um 50% reduziert & Besatzung vor kosmischer Strahlung geschützt.");
-      const hull = document.getElementById("schematic-hull");
-      if (hull)
-        hull.setAttribute("stroke-width", "4");
-    } else if (type === "organic_siphon") {
-      addLogEntry("EVOLUTION", "Organischer Siphon ausgebildet! Ernte-Geschwindigkeit +35% & Strahlungs-Bio-Filter aktiv (-25% Strahlungsschaden).");
-    } else if (type === "vector_tentacles") {
-      STATE.thrustStrength = 20.6;
-      STATE.turnSpeed = 3.2;
-      addLogEntry("EVOLUTION", "Vektor-Tentakel erwacht! +25% Schub, +35% Wendigkeit & hydrodynamische Bio-Bremse online.");
-    } else if (type === "blade_armor") {
-      addLogEntry("EVOLUTION", "Klingen-Panzerung assimiliert! Dornen-Chitin reflektiert Schaden & bildet dichte magnetische Barriere (-80% Strahlung).");
-    } else if (type === "o2") {
-      addLogEntry("EVOLUTION", "Metabolische O2-Synthese aktiviert. Stress-Zuwachs halbiert.");
-    } else if (type === "synapses" || type === "psionic_pulse") {
-      if (STATE.mutations.synapses)
-        STATE.mutations.synapses.purchased = true;
-      if (STATE.mutations.psionic_pulse)
-        STATE.mutations.psionic_pulse.purchased = true;
-      STATE.psionicRange = 140;
-      STATE.maxMentalEnergy = 150;
-      calculateCrewBuffs();
-      addLogEntry("EVOLUTION", "Psionischer Impuls entfesselt! Gedanken-Echo Reichweite auf 140 LJ vergrößert & Mentalkraft auf 150.");
-    } else if (type === "chimera_veil") {
-      if (!STATE.paradigmModifiers)
-        STATE.paradigmModifiers = { thrustBonus: 0, stealthBonus: 0, mentalDrainMult: 1, bioRegenBonus: 0, harmonyBonus: 0, stressModifier: 0 };
-      STATE.paradigmModifiers.stealthBonus += 0.4;
-      addLogEntry("EVOLUTION", "Schimären-Schleier aktiv! Psionische Lichtbrechung gewährt +40% Tarnung (Stealth) & Schutz vor Sensor-Stress.");
-    } else if (type === "resonance_screech") {
-      addLogEntry("EVOLUTION", "Resonanz-Schrei assimiliert! Bio-EMP Schockwelle lähmt Drohnen 50% länger und sendet panikbrechende Wellen.");
-    } else if (type === "cocoon") {
-      STATE.maxCrewCapacity = 4;
-      addLogEntry("EVOLUTION", "Neuronales Kokon-Gewebe mutiert! Maximale Crew-Kapazität auf 4 erweitert.");
-      renderCrewUI();
-    } else if (type === "hivemind") {
-      STATE.maxCrewCapacity = 6;
-      calculateCrewBuffs();
-      addLogEntry("EVOLUTION", "Symbiotische Synapsen-Kammer erwacht! Kapazität auf 6 erhöht & alle Spezialisten-Buffs um +20% verstärkt!");
-      renderCrewUI();
-    } else if (type === "neural_cluster") {
-      STATE.maxCrewCapacity = 10;
-      calculateCrewBuffs();
-      addLogEntry("EVOLUTION", "Neuronale Waben-Kammer expandiert! Max 10 Crew-Mitglieder & Dissonanz-Dämpfung aktiv.");
-      renderCrewUI();
-    } else if (type === "cryo_matrix") {
-      STATE.maxCrewCapacity = 20;
-      calculateCrewBuffs();
-      addLogEntry("EVOLUTION", "Bio-Kryo-Kaverne herangewachsen! Max 20 Crew-Mitglieder & Zelltod um 25% verlangsamt.");
-      renderCrewUI();
-    } else if (type === "hive_cerebrum") {
-      STATE.maxCrewCapacity = 30;
-      calculateCrewBuffs();
-      addLogEntry("EVOLUTION", "Schwarm-Zerebrum erwacht! Max 30 Crew-Mitglieder • Volle telepathische Schwarm-Resonanz aktiv!");
-      renderCrewUI();
-    } else if (type === "folddrive") {
-      STATE.warpRange = 160;
-      addLogEntry("EVOLUTION", "Raumfaltungs-Membran mutiert! Warp-Reichweite auf 160 LJ erweitert, Faltungskosten um 30% gesenkt.");
-    } else if (type === "translator" || type === "telepathic_focus") {
-      if (STATE.mutations.translator)
-        STATE.mutations.translator.purchased = true;
-      if (STATE.mutations.telepathic_focus)
-        STATE.mutations.telepathic_focus.purchased = true;
-      addLogEntry("EVOLUTION", "Telepathischer Fokus synchronisiert! Alien-Funksignale & Crew-Dialoge werden dechiffriert.");
-    }
-    updateMutationUI();
-  } else {
-    addLogEntry("SYSTEM", `Evolution fehlgeschlagen: Nicht genügend Ressourcen (${mut.bioCost} Bio | ${mut.siliconCost} Silizium benötigt)!`);
-  }
-}
-function updateMutationUI() {
-  const bioEl = document.getElementById("res-bio-count");
-  const silEl = document.getElementById("res-silicon-count");
-  if (bioEl)
-    bioEl.innerText = `${Math.floor(STATE.bioRes)}`;
-  if (silEl)
-    silEl.innerText = `${Math.floor(STATE.siliconRes)}`;
-  Object.keys(STATE.mutations).forEach((key) => {
-    const mut = STATE.mutations[key];
-    const btn = document.querySelector(`.mut-btn[data-mutation="${key}"]`);
-    if (btn) {
-      if (mut.purchased) {
-        btn.disabled = true;
-        btn.classList.add("purchased");
-        btn.innerText = "Aktiviert ✓";
-      } else {
-        const canAfford = STATE.bioRes >= mut.bioCost && STATE.siliconRes >= mut.siliconCost;
-        btn.disabled = !canAfford;
-      }
-    }
-  });
-  const ibadCard = document.getElementById("mut-ibad");
-  if (ibadCard) {
-    ibadCard.style.display = STATE.mutations.ibad && STATE.mutations.ibad.purchased ? "flex" : "none";
-  }
-  updateEvolutionTreeUI();
-}
-
-// src/ui/hud.ts
-var minimapCanvas = null;
-var minimapCtx = null;
-var currentRadarRange = 220;
-var sonarWaveMesh = null;
-var sonarTimer = 0;
-function initHUD() {
-  minimapCanvas = document.getElementById("minimap-canvas");
-  if (minimapCanvas) {
-    minimapCtx = minimapCanvas.getContext("2d");
-  }
-  const sonarBtn = document.getElementById("psionic-sonar-btn") || document.getElementById("dock-sonar-btn");
-  if (sonarBtn) {
-    sonarBtn.addEventListener("click", triggerPsionicSonar);
-  }
-  const dockDeckBtn = document.getElementById("dock-deck-btn");
-  if (dockDeckBtn) {
-    dockDeckBtn.addEventListener("click", () => toggleDeckModal());
-  }
-  const closeDeckBtn = document.getElementById("close-deck-modal-btn");
-  if (closeDeckBtn) {
-    closeDeckBtn.addEventListener("click", () => toggleDeckModal(false));
-  }
-  const dockMapBtn = document.getElementById("dock-map-btn");
-  if (dockMapBtn) {
-    dockMapBtn.addEventListener("click", () => toggleGalaxyMap());
-  }
-  const dockAssistBtn = document.getElementById("dock-assist-btn");
-  if (dockAssistBtn) {
-    dockAssistBtn.addEventListener("click", () => toggleFlightAssist());
-  }
-  const compassEl = document.getElementById("psionic-compass-hud");
-  if (compassEl) {
-    compassEl.addEventListener("click", () => {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" }));
-    });
-  }
-  const markersContainer = document.getElementById("screen-edge-gravity-markers");
-  if (markersContainer) {
-    markersContainer.addEventListener("click", (e) => {
-      const marker = e.target.closest(".edge-planet-marker");
-      if (marker && marker.dataset.planetName) {
-        const targetName = marker.dataset.planetName;
-        const planet = activePlanets.find((p) => p.name === targetName);
-        if (planet) {
-          STATE.lockedTarget = planet;
-          const badge = document.getElementById("target-lock-badge");
-          const label = document.getElementById("target-label-text");
-          if (badge)
-            badge.style.display = "flex";
-          if (label)
-            label.innerText = "Fixiertes Ziel:";
-          addLogEntry("NAV", `\uD83C\uDFAF Zielerfassung fixiert auf: ${planet.name}`);
-        }
-      }
-    });
-  }
-}
-function addLogEntry(category, message) {
-  const list = document.getElementById("log-list");
-  const toastStream = document.getElementById("hud-fading-log-stream");
-  const now = new Date;
-  const timeStr = `${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-  let catClass = "sys";
-  let catText = "SYSTEM";
-  if (category === "TELEPATHY") {
-    catClass = "telepathy";
-    catText = "TELEPATHIE";
-  } else if (category === "CREW") {
-    catClass = "crew";
-    catText = "CREW-FUNK";
-  } else if (category === "EVOLUTION") {
-    catClass = "evolution";
-    catText = "EVOLUTION";
-  }
-  if (list) {
-    const li = document.createElement("li");
-    li.className = "log-item";
-    li.innerHTML = `
-            <span class="log-time">[${timeStr}]</span>
-            <span class="log-cat ${catClass}">[${catText}]</span>
-            <span class="log-msg">${message}</span>
-        `;
-    list.prepend(li);
-    while (list.children.length > 50) {
-      list.removeChild(list.lastChild);
-    }
-  }
-  if (toastStream) {
-    const toast = document.createElement("div");
-    toast.className = `fading-toast ${catClass}`;
-    toast.innerHTML = `<span style="font-weight: bold; margin-right: 4px;">[${catText}]</span> ${message}`;
-    toastStream.appendChild(toast);
-    while (toastStream.children.length > 4) {
-      toastStream.removeChild(toastStream.firstChild);
-    }
-    setTimeout(() => {
-      if (toast.parentNode === toastStream) {
-        toastStream.removeChild(toast);
-      }
-    }, 5000);
-  }
-}
-function updateHUDStats(isHarmony = false) {
-  const hpBar = document.getElementById("core-health-bar") || document.getElementById("health-bar");
-  const hpTxt = document.getElementById("core-health-text") || document.getElementById("health-text");
-  const bioBar = document.getElementById("bio-energy-bar") || document.getElementById("energy-bar");
-  const bioTxt = document.getElementById("bio-energy-text") || document.getElementById("energy-text");
-  const mentalBar = document.getElementById("telepathy-energy-bar") || document.getElementById("mental-bar");
-  const mentalTxt = document.getElementById("telepathy-energy-text") || document.getElementById("mental-text");
-  const loneBar = document.getElementById("loneliness-bar");
-  const loneTxt = document.getElementById("loneliness-text");
-  if (hpBar) {
-    hpBar.style.width = `${STATE.health / STATE.maxHealth * 100}%`;
-    if (STATE.health < 30) {
-      hpBar.className = "progress-bar health danger";
-    } else {
-      hpBar.className = "progress-bar health";
-    }
-  }
-  if (hpTxt)
-    hpTxt.innerText = `${Math.round(STATE.health)}%`;
-  if (bioBar)
-    bioBar.style.width = `${STATE.bioEnergy / STATE.maxBioEnergy * 100}%`;
-  if (bioTxt)
-    bioTxt.innerText = `${Math.round(STATE.bioEnergy)}%`;
-  if (mentalBar)
-    mentalBar.style.width = `${STATE.mentalEnergy / STATE.maxMentalEnergy * 100}%`;
-  if (mentalTxt)
-    mentalTxt.innerText = `${Math.round(STATE.mentalEnergy)}/${STATE.maxMentalEnergy}`;
-  if (loneBar) {
-    loneBar.style.width = `${STATE.loneliness}%`;
-    if (isHarmony) {
-      loneBar.style.background = "linear-gradient(90deg, #10b981, #38bdf8)";
-    } else {
-      loneBar.style.background = STATE.loneliness > 60 ? "linear-gradient(90deg, #d946ef, #ef4444)" : "linear-gradient(90deg, #38bdf8, #a855f7)";
-    }
-  }
-  if (loneTxt) {
-    let loneState = "Verzweiflung";
-    if (isHarmony)
-      loneState = "\uD83D\uDCAB Kosmische Harmonie";
-    else if (STATE.loneliness < 30)
-      loneState = "Duale Resonanz";
-    else if (STATE.loneliness < 60)
-      loneState = "Erste Bindung";
-    else if (STATE.loneliness < 70)
-      loneState = "Geistige Sättigung";
-    loneTxt.innerText = `${Math.round(STATE.loneliness)}% (${loneState})`;
-  }
-  const currentSys = STATE.universe?.systems?.find((s) => s.id === STATE.currentSystemId);
-  const sysNameEl = document.getElementById("hud-current-system-name");
-  if (sysNameEl) {
-    sysNameEl.innerText = `\uD83E\uDE90 ${currentSys ? currentSys.name : "Sol Invictus"}`;
-  }
-  const bioCountEl = document.getElementById("res-bio-count");
-  if (bioCountEl) {
-    bioCountEl.innerText = `${Math.floor(STATE.bioRes || 0)}`;
-  }
-  const silCountEl = document.getElementById("res-silicon-count");
-  if (silCountEl) {
-    silCountEl.innerText = `${Math.floor(STATE.siliconRes || 0)}`;
-  }
-  const chronosCountEl = document.getElementById("chronos-count");
-  if (chronosCountEl) {
-    const visited = STATE.visitedSystemIds ? STATE.visitedSystemIds.length : STATE.systemsVisited || 1;
-    chronosCountEl.innerText = `${visited}`;
-  }
-  const radMeter = document.getElementById("hud-radiation-meter");
-  const radLabel = document.getElementById("rad-label");
-  const radBar = document.getElementById("rad-level-bar");
-  const radBadge = document.getElementById("rad-shield-badge");
-  const radStatus = document.getElementById("rad-status-text");
-  const ambient = STATE.ambientRadiation || 0;
-  const effective = STATE.effectiveRadiation || 0;
-  const resistance = STATE.radiationResistance || 0;
-  const source = STATE.radiationSource || "Kosmische Strahlung";
-  if (radMeter) {
-    if (ambient > 0.05) {
-      radMeter.style.display = "flex";
-      const ambPercent = Math.round(ambient * 100);
-      const shieldPercent = Math.round(resistance * 100);
-      if (radLabel)
-        radLabel.innerText = `STRAHLUNG: ${ambPercent}%`;
-      if (radBadge)
-        radBadge.innerText = `\uD83D\uDEE1️ ${shieldPercent}%`;
-      if (radBar) {
-        radBar.style.width = `${ambPercent}%`;
-      }
-      if (effective > 0.15) {
-        const dmgPerSec = ((effective - 0.15) * 4.5).toFixed(1);
-        radMeter.className = "hud-radiation-meter glass-capsule hazard";
-        if (radStatus) {
-          radStatus.innerHTML = `<span class="rad-alert-icon">⚠️</span> STRAHLUNGSALARM: -${dmgPerSec} HP/s (${source})`;
-        }
-      } else if (resistance >= 0.5 && ambient > 0.2) {
-        radMeter.className = "hud-radiation-meter glass-capsule shielded";
-        if (radStatus) {
-          radStatus.innerHTML = `<span class="rad-shield-icon">\uD83D\uDEE1️</span> ABGESCHIRMT: ${shieldPercent}% Filterung ✓`;
-        }
-      } else {
-        radMeter.className = "hud-radiation-meter glass-capsule caution";
-        if (radStatus) {
-          radStatus.innerHTML = `<span>⚡</span> Strahlungsfeld aktiv (${source})`;
-        }
-      }
-    } else {
-      radMeter.style.display = "none";
-    }
-  }
-}
-function updateMinimap() {
-  if (!minimapCanvas || !minimapCtx)
-    return;
-  const width = minimapCanvas.width;
-  const height = minimapCanvas.height;
-  const cx = width / 2;
-  const cy = height / 2;
-  const approach = STATE.orbitTransitionProgress || 0;
-  const isMoon = STATE.orbitLevel === "moon";
-  const baseTargetRange = isMoon ? 24 : 220 - 175 * approach;
-  currentRadarRange = MathUtils.lerp(currentRadarRange, Math.max(24, baseTargetRange), 0.08);
-  const range = currentRadarRange;
-  minimapCtx.fillStyle = "rgba(3, 7, 18, 0.85)";
-  minimapCtx.fillRect(0, 0, width, height);
-  const radius = width / 2 - 4;
-  minimapCtx.strokeStyle = "rgba(56, 189, 248, 0.15)";
-  minimapCtx.lineWidth = 1;
-  minimapCtx.beginPath();
-  minimapCtx.arc(cx, cy, radius * 0.33, 0, Math.PI * 2);
-  minimapCtx.stroke();
-  minimapCtx.beginPath();
-  minimapCtx.arc(cx, cy, radius * 0.66, 0, Math.PI * 2);
-  minimapCtx.stroke();
-  minimapCtx.beginPath();
-  minimapCtx.arc(cx, cy, radius, 0, Math.PI * 2);
-  minimapCtx.stroke();
-  minimapCtx.strokeStyle = "rgba(56, 189, 248, 0.08)";
-  minimapCtx.beginPath();
-  minimapCtx.moveTo(cx, cy - radius);
-  minimapCtx.lineTo(cx, cy + radius);
-  minimapCtx.moveTo(cx - radius, cy);
-  minimapCtx.lineTo(cx + radius, cy);
-  minimapCtx.stroke();
-  const invRangeRadius = radius / range;
-  STATE.gravitySources.forEach((source) => {
-    if (source.isAbsorbed)
-      return;
-    const dx = source.position.x - STATE.playerPosition.x;
-    const dz = source.position.z - STATE.playerPosition.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    if (dist < range) {
-      const sx = cx + dx * invRangeRadius;
-      const sy = cy + dz * invRangeRadius;
-      if (source.type === "star") {
-        minimapCtx.fillStyle = "#f59e0b";
-        minimapCtx.beginPath();
-        minimapCtx.arc(sx, sy, 5, 0, Math.PI * 2);
-        minimapCtx.fill();
-      } else if (source.type === "planet") {
-        const planetEntry = activePlanets.find((p) => p.source === source);
-        const hasSentient = planetEntry && planetEntry.attributes.species && planetEntry.attributes.species.population > 0;
-        if (hasSentient) {
-          minimapCtx.fillStyle = "#d946ef";
-          minimapCtx.beginPath();
-          minimapCtx.arc(sx, sy, 4.5, 0, Math.PI * 2);
-          minimapCtx.fill();
-          minimapCtx.strokeStyle = "rgba(217, 70, 239, 0.8)";
-          minimapCtx.beginPath();
-          minimapCtx.arc(sx, sy, 6.5 + Math.sin(Date.now() * 0.008) * 1.5, 0, Math.PI * 2);
-          minimapCtx.stroke();
-        } else {
-          minimapCtx.fillStyle = planetEntry && planetEntry.isMoon ? "#94a3b8" : "#38bdf8";
-          minimapCtx.beginPath();
-          minimapCtx.arc(sx, sy, planetEntry && planetEntry.isMoon ? 2 : 3.5, 0, Math.PI * 2);
-          minimapCtx.fill();
-        }
-      } else if ((source.type === "voyager_probe" || source.isVoyager) && STATE.voyagerSignalDetected) {
-        minimapCtx.fillStyle = "#fbbf24";
-        minimapCtx.beginPath();
-        minimapCtx.arc(sx, sy, 4, 0, Math.PI * 2);
-        minimapCtx.fill();
-        const wavePulse = 5 + Math.sin(Date.now() * 0.007) * 3;
-        minimapCtx.strokeStyle = "rgba(251, 191, 36, 0.75)";
-        minimapCtx.lineWidth = 1.2;
-        minimapCtx.beginPath();
-        minimapCtx.arc(sx, sy, wavePulse, 0, Math.PI * 2);
-        minimapCtx.stroke();
-        minimapCtx.fillStyle = "#fbbf24";
-        minimapCtx.font = "8px Orbitron, sans-serif";
-        const probeLabel = STATE.voyagerScanned ? "\uD83D\uDCE1 VOYAGER 2" : "\uD83D\uDCE1 UNBEKANNTES SIGNAL";
-        minimapCtx.fillText(probeLabel, sx + 7, sy + 3);
-      } else if (source.type === "asteroid") {
-        minimapCtx.fillStyle = source.resourceType === "bio" ? "#00ff88" : "#38bdf8";
-        minimapCtx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
-      }
-    } else if (source.type === "planet" || source.type === "star") {
-      const angle = Math.atan2(dz, dx);
-      const edgeRadius = radius - 3.5;
-      const ex = cx + Math.cos(angle) * edgeRadius;
-      const ey = cy + Math.sin(angle) * edgeRadius;
-      const planetEntry = activePlanets.find((p) => p.source === source);
-      const isLocked = STATE.lockedTarget && (STATE.lockedTarget === planetEntry || STATE.lockedTarget === source);
-      const hasSentient = planetEntry && planetEntry.attributes && planetEntry.attributes.species && planetEntry.attributes.species.population > 0;
-      if (isLocked) {
-        minimapCtx.fillStyle = "#38bdf8";
-        minimapCtx.beginPath();
-        minimapCtx.arc(ex, ey, 4, 0, Math.PI * 2);
-        minimapCtx.fill();
-        minimapCtx.strokeStyle = "rgba(56, 189, 248, 0.9)";
-        minimapCtx.lineWidth = 1.5;
-        minimapCtx.beginPath();
-        minimapCtx.arc(ex, ey, 6.5, 0, Math.PI * 2);
-        minimapCtx.stroke();
-      } else if (hasSentient) {
-        minimapCtx.fillStyle = "#d946ef";
-        minimapCtx.beginPath();
-        minimapCtx.arc(ex, ey, 3.2, 0, Math.PI * 2);
-        minimapCtx.fill();
-        minimapCtx.strokeStyle = "rgba(217, 70, 239, 0.8)";
-        minimapCtx.lineWidth = 1;
-        minimapCtx.beginPath();
-        minimapCtx.arc(ex, ey, 5.2, 0, Math.PI * 2);
-        minimapCtx.stroke();
-      } else if (source.type === "star") {
-        minimapCtx.fillStyle = "#f59e0b";
-        minimapCtx.beginPath();
-        minimapCtx.arc(ex, ey, 3.5, 0, Math.PI * 2);
-        minimapCtx.fill();
-      } else if (planetEntry && !planetEntry.isMoon) {
-        const isHab = planetEntry.type === "Habitable";
-        const isGas = planetEntry.type === "Gas Giant";
-        minimapCtx.fillStyle = isHab ? "#10b981" : isGas ? "#f59e0b" : "#64748b";
-        minimapCtx.beginPath();
-        minimapCtx.arc(ex, ey, 2.5, 0, Math.PI * 2);
-        minimapCtx.fill();
-      }
-    }
-  });
-  if (STATE.voyagerSignalDetected && !STATE.voyagerScanned && STATE.voyagerProbe && STATE.voyagerProbe.position) {
-    const vx = STATE.voyagerProbe.position.x - STATE.playerPosition.x;
-    const vz = STATE.voyagerProbe.position.z - STATE.playerPosition.z;
-    const vDist = Math.hypot(vx, vz);
-    if (vDist >= range) {
-      const angle = Math.atan2(vz, vx);
-      const edgeRadius = radius - 3;
-      const ex = cx + Math.cos(angle) * edgeRadius;
-      const ey = cy + Math.sin(angle) * edgeRadius;
-      minimapCtx.fillStyle = "#fbbf24";
-      minimapCtx.beginPath();
-      minimapCtx.arc(ex, ey, 3.5, 0, Math.PI * 2);
-      minimapCtx.fill();
-      minimapCtx.strokeStyle = "rgba(251, 191, 36, 0.8)";
-      minimapCtx.lineWidth = 1;
-      minimapCtx.beginPath();
-      minimapCtx.arc(ex, ey, 5.5, 0, Math.PI * 2);
-      minimapCtx.stroke();
-    }
-  }
-  const lockedTargetPos = STATE.lockedTarget ? STATE.lockedTarget.position || (STATE.lockedTarget.source ? STATE.lockedTarget.source.position : null) : null;
-  if (lockedTargetPos) {
-    const dx = lockedTargetPos.x - STATE.playerPosition.x;
-    const dz = lockedTargetPos.z - STATE.playerPosition.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    if (dist < range) {
-      const sx = cx + dx * invRangeRadius;
-      const sy = cy + dz * invRangeRadius;
-      minimapCtx.strokeStyle = "#38bdf8";
-      minimapCtx.lineWidth = 1.5;
-      minimapCtx.beginPath();
-      minimapCtx.arc(sx, sy, 8, 0, Math.PI * 2);
-      minimapCtx.stroke();
-    } else {
-      const angle = Math.atan2(dz, dx);
-      const edgeRadius = radius - 3.5;
-      const ex = cx + Math.cos(angle) * edgeRadius;
-      const ey = cy + Math.sin(angle) * edgeRadius;
-      minimapCtx.strokeStyle = "#38bdf8";
-      minimapCtx.lineWidth = 1.8;
-      minimapCtx.beginPath();
-      minimapCtx.arc(ex, ey, 7.5, 0, Math.PI * 2);
-      minimapCtx.stroke();
-    }
-  }
-  STATE.fleetShips.forEach((ship) => {
-    const dx = ship.position.x - STATE.playerPosition.x;
-    const dz = ship.position.z - STATE.playerPosition.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    if (dist < range) {
-      const sx = cx + dx * invRangeRadius;
-      const sy = cy + dz * invRangeRadius;
-      if (ship.state === "disabled") {
-        minimapCtx.fillStyle = "#64748b";
-        minimapCtx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
-      } else if (ship.state === "intercept") {
-        minimapCtx.fillStyle = "#f43f5e";
-        minimapCtx.beginPath();
-        minimapCtx.arc(sx, sy, 3.5, 0, Math.PI * 2);
-        minimapCtx.fill();
-        minimapCtx.strokeStyle = "rgba(244, 63, 94, 0.8)";
-        minimapCtx.beginPath();
-        minimapCtx.arc(sx, sy, 5.5 + Math.sin(Date.now() * 0.015) * 1.5, 0, Math.PI * 2);
-        minimapCtx.stroke();
-      } else {
-        minimapCtx.fillStyle = "#f59e0b";
-        minimapCtx.beginPath();
-        minimapCtx.arc(sx, sy, 2.5, 0, Math.PI * 2);
-        minimapCtx.fill();
-      }
-    }
-  });
-  STATE.fleetProjectiles.forEach((proj) => {
-    const dx = proj.position.x - STATE.playerPosition.x;
-    const dz = proj.position.z - STATE.playerPosition.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    if (dist < range) {
-      const sx = cx + dx * invRangeRadius;
-      const sy = cy + dz * invRangeRadius;
-      minimapCtx.fillStyle = proj.type === "emp" ? "#a855f7" : "#38bdf8";
-      minimapCtx.fillRect(sx - 1, sy - 1, 2, 2);
-    }
-  });
-  if (projectedTrajectoryPoints && projectedTrajectoryPoints.length > 1) {
-    minimapCtx.save();
-    minimapCtx.lineWidth = 1.5;
-    for (let i = 0;i < projectedTrajectoryPoints.length - 1; i++) {
-      const p0 = projectedTrajectoryPoints[i];
-      const p1 = projectedTrajectoryPoints[i + 1];
-      const dx0 = p0.x - STATE.playerPosition.x;
-      const dz0 = p0.z - STATE.playerPosition.z;
-      const dx1 = p1.x - STATE.playerPosition.x;
-      const dz1 = p1.z - STATE.playerPosition.z;
-      const dist0 = Math.hypot(dx0, dz0);
-      const dist1 = Math.hypot(dx1, dz1);
-      if (dist0 > range && dist1 > range)
-        continue;
-      const sx0 = cx + dx0 * invRangeRadius;
-      const sy0 = cy + dz0 * invRangeRadius;
-      const sx1 = cx + dx1 * invRangeRadius;
-      const sy1 = cy + dz1 * invRangeRadius;
-      const r0 = Math.hypot(sx0 - cx, sy0 - cy);
-      const r1 = Math.hypot(sx1 - cx, sy1 - cy);
-      if (r0 <= radius && r1 <= radius) {
-        minimapCtx.strokeStyle = p0.isGravityArc ? "rgba(217, 70, 239, 0.85)" : "rgba(56, 189, 248, 0.55)";
-        minimapCtx.beginPath();
-        minimapCtx.moveTo(sx0, sy0);
-        minimapCtx.lineTo(sx1, sy1);
-        minimapCtx.stroke();
-      }
-    }
-    minimapCtx.restore();
-  }
-  const heading = STATE.playerGroup ? STATE.playerGroup.rotation.y : 0;
-  minimapCtx.save();
-  minimapCtx.translate(cx, cy);
-  minimapCtx.rotate(-heading);
-  minimapCtx.fillStyle = "#10b981";
-  minimapCtx.shadowColor = "#10b981";
-  minimapCtx.shadowBlur = 8;
-  minimapCtx.beginPath();
-  minimapCtx.moveTo(0, -7);
-  minimapCtx.lineTo(5, 5);
-  minimapCtx.lineTo(0, 2.5);
-  minimapCtx.lineTo(-5, 5);
-  minimapCtx.closePath();
-  minimapCtx.fill();
-  minimapCtx.restore();
-  minimapCtx.fillStyle = "rgba(56, 189, 248, 0.85)";
-  minimapCtx.font = "9px monospace";
-  minimapCtx.textAlign = "center";
-  const modeLabel = STATE.orbitLevel === "moon" ? `\uD83C\uDF15 MOND: ${STATE.activeMoonOrbit?.name || "Orbit"}` : STATE.orbitLevel === "planet" ? `\uD83E\uDE90 SUB-SYS: ${STATE.orbitPlanet?.name || "Orbit"}` : `RADAR: ${Math.round(range)} LJ`;
-  minimapCtx.fillText(modeLabel, cx, height - 6);
-}
-function triggerPsionicSonar() {
-  if (!STATE.gameStarted)
-    return;
-  if (STATE.mentalEnergy < 15) {
-    addLogEntry("SYSTEM", "Zu wenig Mentalkraft für psionischen Sonar-Ruf (15% benötigt)!");
-    return;
-  }
-  STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - 15);
-  if (sonarWaveMesh) {
-    scene.remove(sonarWaveMesh);
-    if (sonarWaveMesh.geometry)
-      sonarWaveMesh.geometry.dispose();
-    if (sonarWaveMesh.material)
-      sonarWaveMesh.material.dispose();
-  }
-  const ringGeo = new RingGeometry(1, 4, 64);
-  ringGeo.rotateX(Math.PI / 2);
-  const ringMat = new MeshBasicMaterial({
-    color: 14239471,
-    transparent: true,
-    opacity: 0.9,
-    side: DoubleSide,
-    blending: AdditiveBlending
-  });
-  sonarWaveMesh = new Mesh(ringGeo, ringMat);
-  sonarWaveMesh.position.copy(STATE.playerPosition);
-  scene.add(sonarWaveMesh);
-  sonarTimer = 1;
-  playSonarChime();
-  const sentientPlanets = activePlanets.filter((p) => p.attributes && p.attributes.species && p.attributes.species.population > 0);
-  if (sentientPlanets.length > 0) {
-    const names = sentientPlanets.map((p) => `${p.name} (${p.attributes.species.name})`).join(", ");
-    addLogEntry("SYSTEM", `PSIONISCHER RUF: Mentales Resonanz-Echo empfangen von: ${names}! Kompass aktiv.`);
-  } else {
-    addLogEntry("SYSTEM", "PSIONISCHER RUF: Keine Gedanken-Signaturen in diesem System (Kosmische Stille).");
-  }
-}
-function updateSonarWave(dt) {
-  if (!sonarWaveMesh)
-    return;
-  sonarTimer -= dt;
-  const progress = 1 - sonarTimer;
-  const scale = 1 + progress * 60;
-  sonarWaveMesh.scale.set(scale, 1, scale);
-  sonarWaveMesh.material.opacity = Math.max(0, sonarTimer * 0.9);
-  if (sonarTimer <= 0) {
-    scene.remove(sonarWaveMesh);
-    if (sonarWaveMesh.geometry)
-      sonarWaveMesh.geometry.dispose();
-    if (sonarWaveMesh.material)
-      sonarWaveMesh.material.dispose();
-    sonarWaveMesh = null;
-  }
-}
-var arrivalBannerTimeout = null;
-function triggerSystemArrivalBanner(system, factionName) {
-  const banner = document.getElementById("system-arrival-banner");
-  if (!banner)
-    return;
-  if (arrivalBannerTimeout) {
-    clearTimeout(arrivalBannerTimeout);
-    arrivalBannerTimeout = null;
-  }
-  const titleEl = document.getElementById("arrival-system-title");
-  const sectorEl = document.getElementById("arrival-sector-label");
-  const starEl = document.getElementById("arrival-star-badge");
-  const planetsEl = document.getElementById("arrival-planets-badge");
-  const factionEl = document.getElementById("arrival-faction-badge");
-  if (titleEl)
-    titleEl.innerText = (system.name || "UNBEKANNT").toUpperCase();
-  if (sectorEl)
-    sectorEl.innerText = system.sectorName ? `${system.sectorName.toUpperCase()} • TRANSIT` : "SYSTEM-TRANSIT ABGESCHLOSSEN";
-  if (starEl && system.star) {
-    starEl.innerText = `⭐ ${system.star.type || "Zentralgestirn"}`;
-  }
-  const planetCount = system.planets ? system.planets.length : 0;
-  let moonCount = 0;
-  if (system.planets) {
-    system.planets.forEach((p) => {
-      if (p.moons)
-        moonCount += p.moons.length;
-    });
-  }
-  if (planetsEl) {
-    planetsEl.innerText = moonCount > 0 ? `\uD83E\uDE90 ${planetCount} Planeten | ${moonCount} Monde` : `\uD83E\uDE90 ${planetCount} Himmelskörper`;
-  }
-  if (factionEl) {
-    if (factionName) {
-      factionEl.innerText = `\uD83D\uDEE1️ ${factionName}`;
-      factionEl.style.display = "inline-flex";
-    } else {
-      factionEl.innerText = `\uD83C\uDF0C Unerschlossener Raum`;
-      factionEl.style.display = "inline-flex";
-    }
-  }
-  banner.classList.remove("banner-exit");
-  banner.style.display = "flex";
-  arrivalBannerTimeout = setTimeout(() => {
-    banner.classList.add("banner-exit");
-    setTimeout(() => {
-      banner.style.display = "none";
-      banner.classList.remove("banner-exit");
-    }, 800);
-  }, 4500);
-}
-var cachedEdgeMarkers = new Map;
 
 // src/systems/fleet.ts
 var shockwaveMesh = null;
@@ -40408,7 +39627,1272 @@ function initiateSystemArrival(fromSys, targetSys) {
   }
   playWarpDropoutSound();
   triggerSystemArrivalBanner(targetSys, dominantFactionName);
+  triggerAutoSave(`Ankunft in ${targetSys.name}`);
 }
+
+// src/systems/save-manager.ts
+var SAVE_STORAGE_PREFIX = "najmafar_save_";
+var SAVE_INDEX_KEY = "najmafar_saves_index";
+var lastAutoSaveTime = 0;
+var AUTO_SAVE_THROTTLE_MS = 4000;
+function formatTimestamp(ts) {
+  const d = new Date(ts);
+  return `${d.toLocaleDateString("de-DE")} ${d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`;
+}
+function getSystemName(sysId) {
+  if (STATE.universe && STATE.universe.systems) {
+    const s = STATE.universe.systems.find((sys) => sys.id === sysId);
+    if (s)
+      return s.name;
+  }
+  return sysId === 1 ? "Sol Invictus" : `Sektor ${sysId}`;
+}
+function serializeCurrentState(slotId, customName) {
+  const now = Date.now();
+  const sysName = getSystemName(STATE.currentSystemId);
+  const paradigm = STATE.primaryParadigm || "neutral";
+  const doctrine = STATE.activeSubCodex || "none";
+  const serializedMutations = {};
+  if (STATE.mutations) {
+    Object.keys(STATE.mutations).forEach((k) => {
+      const m = STATE.mutations[k];
+      if (m) {
+        serializedMutations[k] = {
+          purchased: Boolean(m.purchased),
+          bioCost: m.bioCost,
+          siliconCost: m.siliconCost
+        };
+      }
+    });
+  }
+  const meta = {
+    slotId,
+    name: customName || (slotId === "autosave" ? `Auto-Save: ${sysName}` : `Spielstand (${sysName})`),
+    timestamp: now,
+    dateFormatted: formatTimestamp(now),
+    systemName: sysName,
+    systemId: STATE.currentSystemId,
+    crewCount: STATE.crew ? STATE.crew.length : 0,
+    maxCrewCapacity: STATE.maxCrewCapacity || 4,
+    bioRes: Math.floor(STATE.bioRes || 0),
+    siliconRes: Math.floor(STATE.siliconRes || 0),
+    primaryParadigm: paradigm,
+    activeDoctrine: doctrine,
+    health: Math.round(STATE.health || 100),
+    playTimeFormatted: "00:00",
+    version: 1
+  };
+  return {
+    version: 1,
+    timestamp: now,
+    meta,
+    vitals: {
+      health: STATE.health,
+      maxHealth: STATE.maxHealth,
+      bioEnergy: STATE.bioEnergy,
+      maxBioEnergy: STATE.maxBioEnergy,
+      mentalEnergy: STATE.mentalEnergy,
+      maxMentalEnergy: STATE.maxMentalEnergy,
+      loneliness: STATE.loneliness,
+      bioRes: STATE.bioRes,
+      siliconRes: STATE.siliconRes
+    },
+    navigation: {
+      currentSystemId: STATE.currentSystemId,
+      visitedSystemIds: STATE.visitedSystemIds ? [...STATE.visitedSystemIds] : [STATE.currentSystemId],
+      systemsVisited: STATE.systemsVisited || 1,
+      playerPosition: {
+        x: STATE.playerPosition ? STATE.playerPosition.x : 0,
+        y: STATE.playerPosition ? STATE.playerPosition.y : 0,
+        z: STATE.playerPosition ? STATE.playerPosition.z : 95
+      },
+      playerVelocity: {
+        x: STATE.playerVelocity ? STATE.playerVelocity.x : 0,
+        y: STATE.playerVelocity ? STATE.playerVelocity.y : 0,
+        z: STATE.playerVelocity ? STATE.playerVelocity.z : 0
+      },
+      shipHeading: STATE.shipHeading || 0
+    },
+    paradigms: {
+      primaryParadigm: paradigm,
+      activeSubCodex: doctrine,
+      firstContactResolved: STATE.firstContactResolved || false,
+      paradigmModifiers: STATE.paradigmModifiers ? { ...STATE.paradigmModifiers } : {}
+    },
+    mutations: serializedMutations,
+    maxCrewCapacity: STATE.maxCrewCapacity || 4,
+    crew: STATE.crew ? JSON.parse(JSON.stringify(STATE.crew)) : [],
+    scannedPlanets: STATE.scannedPlanets ? JSON.parse(JSON.stringify(STATE.scannedPlanets)) : {},
+    depletedPlanets: STATE.depletedPlanets ? JSON.parse(JSON.stringify(STATE.depletedPlanets)) : {},
+    voyager: {
+      detected: Boolean(STATE.voyagerSignalDetected),
+      scanned: Boolean(STATE.voyagerScanned),
+      dialogSeen: Boolean(STATE.voyagerDialogSeen)
+    },
+    ftue: {
+      step: STATE.ftueStep || 0,
+      completed: Boolean(STATE.ftueCompleted)
+    },
+    reputation: STATE.reputation ? { ...STATE.reputation } : {}
+  };
+}
+async function saveToSlot(slotId, customName) {
+  try {
+    const data = serializeCurrentState(slotId, customName);
+    const jsonStr = JSON.stringify(data);
+    const api = window.api;
+    if (api && typeof api.saveGame === "function") {
+      await api.saveGame(slotId, jsonStr);
+    }
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(SAVE_STORAGE_PREFIX + slotId, jsonStr);
+      updateLocalSaveIndex(data.meta);
+    }
+    showSaveToast(`\uD83D\uDCBE Spielstand gesichert: ${data.meta.name}`);
+    return { success: true, meta: data.meta };
+  } catch (e) {
+    console.error("Save error:", e);
+    return { success: false, error: e.message || String(e) };
+  }
+}
+async function loadFromSlot(slotId) {
+  try {
+    let jsonStr = null;
+    const api = window.api;
+    if (api && typeof api.loadGame === "function") {
+      const res = await api.loadGame(slotId);
+      if (res && res.success && res.data) {
+        jsonStr = res.data;
+      }
+    }
+    if (!jsonStr && typeof localStorage !== "undefined") {
+      jsonStr = localStorage.getItem(SAVE_STORAGE_PREFIX + slotId);
+    }
+    if (!jsonStr) {
+      return { success: false, error: `Speicher-Slot "${slotId}" nicht gefunden.` };
+    }
+    const data = JSON.parse(jsonStr);
+    await applyLoadedState(data);
+    showSaveToast(`\uD83E\uDDEC Spielstand geladen: ${data.meta?.name || slotId}`);
+    return { success: true };
+  } catch (e) {
+    console.error("Load error:", e);
+    return { success: false, error: e.message || String(e) };
+  }
+}
+async function applyLoadedState(data) {
+  if (!data || !data.vitals) {
+    throw new Error("Ungültiges Speicherdaten-Format.");
+  }
+  STATE.health = data.vitals.health;
+  STATE.maxHealth = data.vitals.maxHealth || 100;
+  STATE.bioEnergy = data.vitals.bioEnergy;
+  STATE.maxBioEnergy = data.vitals.maxBioEnergy || 100;
+  STATE.mentalEnergy = data.vitals.mentalEnergy;
+  STATE.maxMentalEnergy = data.vitals.maxMentalEnergy || 100;
+  STATE.loneliness = data.vitals.loneliness;
+  STATE.bioRes = data.vitals.bioRes;
+  STATE.siliconRes = data.vitals.siliconRes;
+  if (data.mutations) {
+    Object.keys(data.mutations).forEach((k) => {
+      if (STATE.mutations[k]) {
+        STATE.mutations[k].purchased = data.mutations[k].purchased;
+      }
+    });
+  }
+  STATE.maxCrewCapacity = data.maxCrewCapacity || 4;
+  STATE.crew = Array.isArray(data.crew) ? data.crew : [];
+  calculateCrewBuffs();
+  if (data.paradigms) {
+    STATE.primaryParadigm = data.paradigms.primaryParadigm || "neutral";
+    STATE.activeSubCodex = data.paradigms.activeSubCodex || "none";
+    if (data.paradigms.firstContactResolved !== undefined) {
+      STATE.firstContactResolved = data.paradigms.firstContactResolved;
+    }
+    if (data.paradigms.paradigmModifiers) {
+      STATE.paradigmModifiers = { ...data.paradigms.paradigmModifiers };
+    }
+  }
+  if (data.scannedPlanets)
+    STATE.scannedPlanets = data.scannedPlanets;
+  if (data.depletedPlanets)
+    STATE.depletedPlanets = data.depletedPlanets;
+  if (data.voyager) {
+    STATE.voyagerSignalDetected = data.voyager.detected;
+    STATE.voyagerScanned = data.voyager.scanned;
+    STATE.voyagerDialogSeen = data.voyager.dialogSeen;
+  }
+  if (data.ftue) {
+    STATE.ftueStep = data.ftue.step;
+    STATE.ftueCompleted = data.ftue.completed;
+  }
+  if (data.reputation) {
+    STATE.reputation = { ...data.reputation };
+  }
+  const targetSysId = data.navigation ? data.navigation.currentSystemId : 1;
+  STATE.visitedSystemIds = data.navigation && data.navigation.visitedSystemIds ? data.navigation.visitedSystemIds : [targetSysId];
+  STATE.systemsVisited = data.navigation ? data.navigation.systemsVisited : 1;
+  if (data.navigation && data.navigation.playerPosition) {
+    STATE.playerPosition.set(data.navigation.playerPosition.x, data.navigation.playerPosition.y, data.navigation.playerPosition.z);
+  }
+  if (data.navigation && data.navigation.playerVelocity) {
+    STATE.playerVelocity.set(data.navigation.playerVelocity.x, data.navigation.playerVelocity.y, data.navigation.playerVelocity.z);
+  }
+  STATE.shipHeading = data.navigation ? data.navigation.shipHeading || 0 : 0;
+  if (STATE.playerGroup) {
+    STATE.playerGroup.position.copy(STATE.playerPosition);
+    STATE.playerGroup.rotation.y = STATE.shipHeading;
+  }
+  if (STATE.currentSystemId !== targetSysId) {
+    STATE.currentSystemId = targetSysId;
+    clearActiveSystem();
+    spawnPlanetsAndAsteroids();
+  }
+  reapplyAllMutations();
+  updatePartyGrid();
+  renderCrewUI(true);
+  updateHUDStats();
+  addLogEntry("SYSTEM", `Reise fortgesetzt: ${data.meta?.name || "Spielstand geladen"}`);
+}
+async function listAllSaves() {
+  const savesMap = new Map;
+  const api = window.api;
+  if (api && typeof api.listSaves === "function") {
+    try {
+      const res = await api.listSaves();
+      if (res && res.success && Array.isArray(res.saves)) {
+        res.saves.forEach((s) => {
+          if (s.meta && s.slotId) {
+            savesMap.set(s.slotId, {
+              ...s.meta,
+              slotId: s.slotId
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("Electron listSaves failed, falling back to localStorage", e);
+    }
+  }
+  if (typeof localStorage !== "undefined") {
+    try {
+      const rawIdx = localStorage.getItem(SAVE_INDEX_KEY);
+      if (rawIdx) {
+        const list = JSON.parse(rawIdx);
+        list.forEach((item) => {
+          if (item.slotId && !savesMap.has(item.slotId)) {
+            savesMap.set(item.slotId, item);
+          }
+        });
+      }
+    } catch (err) {}
+  }
+  const result = Array.from(savesMap.values());
+  result.sort((a, b) => b.timestamp - a.timestamp);
+  return result;
+}
+async function getLatestSave() {
+  const all = await listAllSaves();
+  return all.length > 0 ? all[0] : null;
+}
+async function deleteSaveSlot(slotId) {
+  const api = window.api;
+  if (api && typeof api.deleteSave === "function") {
+    await api.deleteSave(slotId);
+  }
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem(SAVE_STORAGE_PREFIX + slotId);
+    removeLocalSaveIndex(slotId);
+  }
+  return true;
+}
+function updateLocalSaveIndex(meta) {
+  if (typeof localStorage === "undefined")
+    return;
+  try {
+    let index = [];
+    const raw = localStorage.getItem(SAVE_INDEX_KEY);
+    if (raw)
+      index = JSON.parse(raw);
+    index = index.filter((m) => m.slotId !== meta.slotId);
+    index.unshift(meta);
+    localStorage.setItem(SAVE_INDEX_KEY, JSON.stringify(index));
+  } catch (e) {}
+}
+function removeLocalSaveIndex(slotId) {
+  if (typeof localStorage === "undefined")
+    return;
+  try {
+    const raw = localStorage.getItem(SAVE_INDEX_KEY);
+    if (raw) {
+      const index = JSON.parse(raw).filter((m) => m.slotId !== slotId);
+      localStorage.setItem(SAVE_INDEX_KEY, JSON.stringify(index));
+    }
+  } catch (e) {}
+}
+async function triggerAutoSave(reason = "Hyperraum-Transit") {
+  const now = Date.now();
+  if (now - lastAutoSaveTime < AUTO_SAVE_THROTTLE_MS)
+    return;
+  lastAutoSaveTime = now;
+  await saveToSlot("autosave", `Auto-Save: ${reason}`);
+}
+function showSaveToast(text) {
+  const container = document.getElementById("crew-death-toast-container");
+  if (!container)
+    return;
+  const toast = document.createElement("div");
+  toast.className = "save-toast";
+  toast.innerHTML = `
+        <span class="save-toast-icon">\uD83D\uDCBE</span>
+        <div class="save-toast-info">
+            <div class="save-toast-title">SYNAPSE GESICHERT</div>
+            <div class="save-toast-desc">${text}</div>
+        </div>
+    `;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add("fade-out");
+    setTimeout(() => toast.remove(), 400);
+  }, 2800);
+}
+var PLAYTEST_PRESETS = {
+  starter: {
+    id: "starter",
+    name: "\uD83C\uDF31 Neugeborener Organismus",
+    badge: "FRÜHPHASE (2 CREW)",
+    description: "Startzustand in Sol Invictus. Basiskokon mit 2 Entführten, minimale Ressourcen zum Ausprobieren der Grundlagen.",
+    targetCrew: 2,
+    capacity: 4,
+    resources: { bio: 120, silicon: 80 },
+    paradigm: "neutral",
+    subCodex: "none",
+    mutations: ["nucleus", "cocoon"]
+  },
+  collective: {
+    id: "collective",
+    name: "\uD83E\uDDEC Schwarm-Verbund",
+    badge: "MITTELPHASE (10 CREW)",
+    description: "Neuronale Waben-Kammer mit 10 Spezialisten verteilt auf alle 4 Stationen. Symbiose-Doktrin & Chitin-Strahlenschutz.",
+    targetCrew: 10,
+    capacity: 10,
+    resources: { bio: 750, silicon: 480 },
+    paradigm: "symbiosis",
+    subCodex: "none",
+    mutations: ["nucleus", "organic_siphon", "chitin_armor", "cocoon", "hivemind", "neural_cluster", "telepathic_focus"]
+  },
+  leviathan: {
+    id: "leviathan",
+    name: "\uD83C\uDF0C Kosmisches Leviathan",
+    badge: "ENDPHASE (30 CREW • MAX MUTATIONEN)",
+    description: "Voll besetztes Schwarm-Zerebrum mit 30 Crew-Mitgliedern, allen Mutationen (Klingen-Panzer, Resonanz-Schrei, Augen des Ibad) und reichhaltigen Ressourcen.",
+    targetCrew: 30,
+    capacity: 30,
+    resources: { bio: 2500, silicon: 1800 },
+    paradigm: "domination",
+    subCodex: "none",
+    mutations: [
+      "nucleus",
+      "organic_siphon",
+      "chitin_armor",
+      "vector_tentacles",
+      "blade_armor",
+      "cocoon",
+      "hivemind",
+      "neural_cluster",
+      "cryo_matrix",
+      "hive_cerebrum",
+      "telepathic_focus",
+      "psionic_pulse",
+      "chimera_veil",
+      "resonance_screech",
+      "ibad"
+    ]
+  }
+};
+async function loadPlaytestPreset(presetId) {
+  const preset = PLAYTEST_PRESETS[presetId];
+  if (!preset)
+    return false;
+  if (STATE.mutations) {
+    Object.keys(STATE.mutations).forEach((k) => {
+      STATE.mutations[k].purchased = preset.mutations.includes(k);
+    });
+  }
+  STATE.bioRes = preset.resources.bio;
+  STATE.siliconRes = preset.resources.silicon;
+  STATE.maxCrewCapacity = preset.capacity;
+  STATE.health = 100;
+  STATE.maxHealth = 100;
+  STATE.bioEnergy = 100;
+  STATE.mentalEnergy = 100;
+  STATE.loneliness = preset.targetCrew > 5 ? 20 : 75;
+  STATE.primaryParadigm = preset.paradigm;
+  STATE.activeSubCodex = preset.subCodex;
+  STATE.firstContactResolved = preset.targetCrew > 2;
+  const roles = [
+    "pilot",
+    "engineer",
+    "biologist",
+    "psychologist",
+    "cryptologist"
+  ];
+  const stations = [
+    "flight_synapse",
+    "chitin_gland",
+    "bio_incubator",
+    "dream_core"
+  ];
+  const speciesNames = ["Sol-Terrestrer", "Aethelgardianer", "Olyndar-Psioniker", "Vulkanier", "Zerg-Larve"];
+  const mockCrew = [];
+  for (let i = 0;i < preset.targetCrew; i++) {
+    const role = roles[i % roles.length];
+    const station = stations[i % stations.length];
+    const species = speciesNames[i % speciesNames.length];
+    const id = `preset_${preset.id}_c${i + 1}`;
+    mockCrew.push({
+      id,
+      name: `${species} #${i + 1}`,
+      species,
+      role,
+      roleName: role.toUpperCase(),
+      station,
+      status: "nominal",
+      age: 25 + i * 2,
+      lifespan: 90,
+      stress: 15,
+      synergyLevel: 1 + i % 3,
+      efficiency: 1 + i * 0.05,
+      traits: ["resilient"],
+      isSpecialist: i % 2 === 0
+    });
+  }
+  STATE.crew = mockCrew;
+  reapplyAllMutations();
+  calculateCrewBuffs();
+  updatePartyGrid();
+  renderCrewUI(true);
+  updateHUDStats();
+  addLogEntry("SYSTEM", `Test-Profil aktiviert: ${preset.name} (${preset.targetCrew} Besatzung)`);
+  showSaveToast(`\uD83E\uDDEA Test-Profil aktiv: ${preset.name}`);
+  return true;
+}
+
+// src/ui/deck.ts
+function isDeckOpen() {
+  const modal = document.getElementById("deck-modal");
+  return modal ? modal.style.display === "flex" : false;
+}
+function toggleDeckModal(force) {
+  const modal = document.getElementById("deck-modal");
+  if (!modal)
+    return;
+  const isVisible = modal.style.display === "flex";
+  const nextState = force !== undefined ? force : !isVisible;
+  modal.style.display = nextState ? "flex" : "none";
+  if (nextState) {
+    renderCrewUI(true);
+    updateMutationUI();
+    renderFactionReputationUI();
+    startNeuralCanvasLoop();
+  } else {
+    stopNeuralCanvasLoop();
+  }
+}
+function initDeckUI() {
+  const leftCollapseBtn = document.getElementById("left-collapse-btn");
+  if (leftCollapseBtn) {
+    leftCollapseBtn.addEventListener("click", () => {
+      dismissScannerPanel();
+    });
+  }
+  const tabButtons = document.querySelectorAll("#right-deck-tabs .tab-btn");
+  tabButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetTab = btn.getAttribute("data-tab");
+      tabButtons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const crewContent = document.getElementById("tab-content-crew");
+      const evoContent = document.getElementById("tab-content-evolution");
+      const facContent = document.getElementById("tab-content-factions");
+      const logContent = document.getElementById("tab-content-log");
+      if (crewContent) {
+        crewContent.classList.toggle("active", targetTab === "crew");
+        if (targetTab === "crew") {
+          renderCrewUI(true);
+        }
+      }
+      if (evoContent) {
+        evoContent.classList.toggle("active", targetTab === "evolution");
+        if (targetTab === "evolution") {
+          startNeuralCanvasLoop();
+          updateEvolutionTreeUI();
+        } else {
+          stopNeuralCanvasLoop();
+        }
+      }
+      if (logContent)
+        logContent.classList.toggle("active", targetTab === "log");
+      if (facContent) {
+        facContent.classList.toggle("active", targetTab === "factions");
+        if (targetTab === "factions") {
+          renderFactionReputationUI();
+        }
+      }
+    });
+  });
+  renderFactionReputationUI();
+  initEvolutionTree();
+  const mutButtons = document.querySelectorAll(".mut-btn");
+  mutButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mutType = btn.getAttribute("data-mutation");
+      if (mutType) {
+        buyMutation(mutType);
+      }
+    });
+  });
+}
+function buyMutation(type) {
+  const mut = STATE.mutations[type];
+  if (!mut || mut.purchased)
+    return;
+  if (STATE.bioRes >= mut.bioCost && STATE.siliconRes >= mut.siliconCost) {
+    STATE.bioRes -= mut.bioCost;
+    STATE.siliconRes -= mut.siliconCost;
+    mut.purchased = true;
+    playSiliconCollectSound();
+    const btn = document.querySelector(`.mut-btn[data-mutation="${type}"]`);
+    if (btn) {
+      btn.classList.add("purchased");
+      btn.innerHTML = "Aktiviert ✓";
+    }
+    if (type === "armor" || type === "chitin_armor") {
+      if (STATE.mutations.armor)
+        STATE.mutations.armor.purchased = true;
+      if (STATE.mutations.chitin_armor)
+        STATE.mutations.chitin_armor.purchased = true;
+      addLogEntry("EVOLUTION", "Organischer Chitin-Panzer gehärtet. Kollisionsschaden um 50% reduziert & Besatzung vor kosmischer Strahlung geschützt.");
+      const hull = document.getElementById("schematic-hull");
+      if (hull)
+        hull.setAttribute("stroke-width", "4");
+    } else if (type === "organic_siphon") {
+      addLogEntry("EVOLUTION", "Organischer Siphon ausgebildet! Ernte-Geschwindigkeit +35% & Strahlungs-Bio-Filter aktiv (-25% Strahlungsschaden).");
+    } else if (type === "vector_tentacles") {
+      STATE.thrustStrength = 20.6;
+      STATE.turnSpeed = 3.2;
+      addLogEntry("EVOLUTION", "Vektor-Tentakel erwacht! +25% Schub, +35% Wendigkeit & hydrodynamische Bio-Bremse online.");
+    } else if (type === "blade_armor") {
+      addLogEntry("EVOLUTION", "Klingen-Panzerung assimiliert! Dornen-Chitin reflektiert Schaden & bildet dichte magnetische Barriere (-80% Strahlung).");
+    } else if (type === "o2") {
+      addLogEntry("EVOLUTION", "Metabolische O2-Synthese aktiviert. Stress-Zuwachs halbiert.");
+    } else if (type === "synapses" || type === "psionic_pulse") {
+      if (STATE.mutations.synapses)
+        STATE.mutations.synapses.purchased = true;
+      if (STATE.mutations.psionic_pulse)
+        STATE.mutations.psionic_pulse.purchased = true;
+      STATE.psionicRange = 140;
+      STATE.maxMentalEnergy = 150;
+      calculateCrewBuffs();
+      addLogEntry("EVOLUTION", "Psionischer Impuls entfesselt! Gedanken-Echo Reichweite auf 140 LJ vergrößert & Mentalkraft auf 150.");
+    } else if (type === "chimera_veil") {
+      if (!STATE.paradigmModifiers)
+        STATE.paradigmModifiers = { thrustBonus: 0, stealthBonus: 0, mentalDrainMult: 1, bioRegenBonus: 0, harmonyBonus: 0, stressModifier: 0 };
+      STATE.paradigmModifiers.stealthBonus += 0.4;
+      addLogEntry("EVOLUTION", "Schimären-Schleier aktiv! Psionische Lichtbrechung gewährt +40% Tarnung (Stealth) & Schutz vor Sensor-Stress.");
+    } else if (type === "resonance_screech") {
+      addLogEntry("EVOLUTION", "Resonanz-Schrei assimiliert! Bio-EMP Schockwelle lähmt Drohnen 50% länger und sendet panikbrechende Wellen.");
+    } else if (type === "cocoon") {
+      STATE.maxCrewCapacity = 4;
+      addLogEntry("EVOLUTION", "Neuronales Kokon-Gewebe mutiert! Maximale Crew-Kapazität auf 4 erweitert.");
+      renderCrewUI();
+    } else if (type === "hivemind") {
+      STATE.maxCrewCapacity = 6;
+      calculateCrewBuffs();
+      addLogEntry("EVOLUTION", "Symbiotische Synapsen-Kammer erwacht! Kapazität auf 6 erhöht & alle Spezialisten-Buffs um +20% verstärkt!");
+      renderCrewUI();
+    } else if (type === "neural_cluster") {
+      STATE.maxCrewCapacity = 10;
+      calculateCrewBuffs();
+      addLogEntry("EVOLUTION", "Neuronale Waben-Kammer expandiert! Max 10 Crew-Mitglieder & Dissonanz-Dämpfung aktiv.");
+      renderCrewUI();
+    } else if (type === "cryo_matrix") {
+      STATE.maxCrewCapacity = 20;
+      calculateCrewBuffs();
+      addLogEntry("EVOLUTION", "Bio-Kryo-Kaverne herangewachsen! Max 20 Crew-Mitglieder & Zelltod um 25% verlangsamt.");
+      renderCrewUI();
+    } else if (type === "hive_cerebrum") {
+      STATE.maxCrewCapacity = 30;
+      calculateCrewBuffs();
+      addLogEntry("EVOLUTION", "Schwarm-Zerebrum erwacht! Max 30 Crew-Mitglieder • Volle telepathische Schwarm-Resonanz aktiv!");
+      renderCrewUI();
+    } else if (type === "folddrive") {
+      STATE.warpRange = 160;
+      addLogEntry("EVOLUTION", "Raumfaltungs-Membran mutiert! Warp-Reichweite auf 160 LJ erweitert, Faltungskosten um 30% gesenkt.");
+    } else if (type === "translator" || type === "telepathic_focus") {
+      if (STATE.mutations.translator)
+        STATE.mutations.translator.purchased = true;
+      if (STATE.mutations.telepathic_focus)
+        STATE.mutations.telepathic_focus.purchased = true;
+      addLogEntry("EVOLUTION", "Telepathischer Fokus synchronisiert! Alien-Funksignale & Crew-Dialoge werden dechiffriert.");
+    }
+    updateMutationUI();
+    triggerAutoSave(`Mutation: ${mut.name || type}`);
+  } else {
+    addLogEntry("SYSTEM", `Evolution fehlgeschlagen: Nicht genügend Ressourcen (${mut.bioCost} Bio | ${mut.siliconCost} Silizium benötigt)!`);
+  }
+}
+function updateMutationUI() {
+  const bioEl = document.getElementById("res-bio-count");
+  const silEl = document.getElementById("res-silicon-count");
+  if (bioEl)
+    bioEl.innerText = `${Math.floor(STATE.bioRes)}`;
+  if (silEl)
+    silEl.innerText = `${Math.floor(STATE.siliconRes)}`;
+  Object.keys(STATE.mutations).forEach((key) => {
+    const mut = STATE.mutations[key];
+    const btn = document.querySelector(`.mut-btn[data-mutation="${key}"]`);
+    if (btn) {
+      if (mut.purchased) {
+        btn.disabled = true;
+        btn.classList.add("purchased");
+        btn.innerText = "Aktiviert ✓";
+      } else {
+        const canAfford = STATE.bioRes >= mut.bioCost && STATE.siliconRes >= mut.siliconCost;
+        btn.disabled = !canAfford;
+      }
+    }
+  });
+  const ibadCard = document.getElementById("mut-ibad");
+  if (ibadCard) {
+    ibadCard.style.display = STATE.mutations.ibad && STATE.mutations.ibad.purchased ? "flex" : "none";
+  }
+  updateEvolutionTreeUI();
+}
+function reapplyAllMutations() {
+  let capacity = 4;
+  let thrust = 16.5;
+  let turn = 2.85;
+  let psionicRange = 75;
+  let maxMental = 100;
+  let stealthBonus = 0;
+  const m = STATE.mutations;
+  if (m) {
+    if (m.hive_cerebrum?.purchased)
+      capacity = 30;
+    else if (m.cryo_matrix?.purchased)
+      capacity = 20;
+    else if (m.neural_cluster?.purchased)
+      capacity = 10;
+    else if (m.hivemind?.purchased)
+      capacity = 6;
+    else if (m.cocoon?.purchased)
+      capacity = 4;
+    if (m.vector_tentacles?.purchased) {
+      thrust = 20.6;
+      turn = 3.2;
+    }
+    if (m.psionic_pulse?.purchased || m.synapses?.purchased) {
+      psionicRange = 140;
+      maxMental = 150;
+    }
+    if (m.chimera_veil?.purchased) {
+      stealthBonus = 0.4;
+    }
+  }
+  STATE.maxCrewCapacity = capacity;
+  STATE.thrustStrength = thrust;
+  STATE.turnSpeed = turn;
+  STATE.psionicRange = psionicRange;
+  STATE.maxMentalEnergy = maxMental;
+  if (!STATE.paradigmModifiers) {
+    STATE.paradigmModifiers = { thrustBonus: 0, stealthBonus: 0, mentalDrainMult: 1, bioRegenBonus: 0, harmonyBonus: 0, stressModifier: 0 };
+  }
+  STATE.paradigmModifiers.stealthBonus = stealthBonus;
+  calculateCrewBuffs();
+  updateMutationUI();
+  updateEvolutionTreeUI();
+}
+
+// src/ui/hud.ts
+var minimapCanvas = null;
+var minimapCtx = null;
+var currentRadarRange = 220;
+var sonarWaveMesh = null;
+var sonarTimer = 0;
+function initHUD() {
+  minimapCanvas = document.getElementById("minimap-canvas");
+  if (minimapCanvas) {
+    minimapCtx = minimapCanvas.getContext("2d");
+  }
+  const sonarBtn = document.getElementById("psionic-sonar-btn") || document.getElementById("dock-sonar-btn");
+  if (sonarBtn) {
+    sonarBtn.addEventListener("click", triggerPsionicSonar);
+  }
+  const dockDeckBtn = document.getElementById("dock-deck-btn");
+  if (dockDeckBtn) {
+    dockDeckBtn.addEventListener("click", () => toggleDeckModal());
+  }
+  const closeDeckBtn = document.getElementById("close-deck-modal-btn");
+  if (closeDeckBtn) {
+    closeDeckBtn.addEventListener("click", () => toggleDeckModal(false));
+  }
+  const dockMapBtn = document.getElementById("dock-map-btn");
+  if (dockMapBtn) {
+    dockMapBtn.addEventListener("click", () => toggleGalaxyMap());
+  }
+  const dockAssistBtn = document.getElementById("dock-assist-btn");
+  if (dockAssistBtn) {
+    dockAssistBtn.addEventListener("click", () => toggleFlightAssist());
+  }
+  const compassEl = document.getElementById("psionic-compass-hud");
+  if (compassEl) {
+    compassEl.addEventListener("click", () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" }));
+    });
+  }
+  const markersContainer = document.getElementById("screen-edge-gravity-markers");
+  if (markersContainer) {
+    markersContainer.addEventListener("click", (e) => {
+      const marker = e.target.closest(".edge-planet-marker");
+      if (marker && marker.dataset.planetName) {
+        const targetName = marker.dataset.planetName;
+        const planet = activePlanets.find((p) => p.name === targetName);
+        if (planet) {
+          STATE.lockedTarget = planet;
+          const badge = document.getElementById("target-lock-badge");
+          const label = document.getElementById("target-label-text");
+          if (badge)
+            badge.style.display = "flex";
+          if (label)
+            label.innerText = "Fixiertes Ziel:";
+          addLogEntry("NAV", `\uD83C\uDFAF Zielerfassung fixiert auf: ${planet.name}`);
+        }
+      }
+    });
+  }
+}
+function addLogEntry(category, message) {
+  const list = document.getElementById("log-list");
+  const toastStream = document.getElementById("hud-fading-log-stream");
+  const now = new Date;
+  const timeStr = `${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+  let catClass = "sys";
+  let catText = "SYSTEM";
+  if (category === "TELEPATHY") {
+    catClass = "telepathy";
+    catText = "TELEPATHIE";
+  } else if (category === "CREW") {
+    catClass = "crew";
+    catText = "CREW-FUNK";
+  } else if (category === "EVOLUTION") {
+    catClass = "evolution";
+    catText = "EVOLUTION";
+  }
+  if (list) {
+    const li = document.createElement("li");
+    li.className = "log-item";
+    li.innerHTML = `
+            <span class="log-time">[${timeStr}]</span>
+            <span class="log-cat ${catClass}">[${catText}]</span>
+            <span class="log-msg">${message}</span>
+        `;
+    list.prepend(li);
+    while (list.children.length > 50) {
+      list.removeChild(list.lastChild);
+    }
+  }
+  if (toastStream) {
+    const toast = document.createElement("div");
+    toast.className = `fading-toast ${catClass}`;
+    toast.innerHTML = `<span style="font-weight: bold; margin-right: 4px;">[${catText}]</span> ${message}`;
+    toastStream.appendChild(toast);
+    while (toastStream.children.length > 4) {
+      toastStream.removeChild(toastStream.firstChild);
+    }
+    setTimeout(() => {
+      if (toast.parentNode === toastStream) {
+        toastStream.removeChild(toast);
+      }
+    }, 5000);
+  }
+}
+function updateHUDStats(isHarmony = false) {
+  const hpBar = document.getElementById("core-health-bar") || document.getElementById("health-bar");
+  const hpTxt = document.getElementById("core-health-text") || document.getElementById("health-text");
+  const bioBar = document.getElementById("bio-energy-bar") || document.getElementById("energy-bar");
+  const bioTxt = document.getElementById("bio-energy-text") || document.getElementById("energy-text");
+  const mentalBar = document.getElementById("telepathy-energy-bar") || document.getElementById("mental-bar");
+  const mentalTxt = document.getElementById("telepathy-energy-text") || document.getElementById("mental-text");
+  const loneBar = document.getElementById("loneliness-bar");
+  const loneTxt = document.getElementById("loneliness-text");
+  if (hpBar) {
+    hpBar.style.width = `${STATE.health / STATE.maxHealth * 100}%`;
+    if (STATE.health < 30) {
+      hpBar.className = "progress-bar health danger";
+    } else {
+      hpBar.className = "progress-bar health";
+    }
+  }
+  if (hpTxt)
+    hpTxt.innerText = `${Math.round(STATE.health)}%`;
+  if (bioBar)
+    bioBar.style.width = `${STATE.bioEnergy / STATE.maxBioEnergy * 100}%`;
+  if (bioTxt)
+    bioTxt.innerText = `${Math.round(STATE.bioEnergy)}%`;
+  if (mentalBar)
+    mentalBar.style.width = `${STATE.mentalEnergy / STATE.maxMentalEnergy * 100}%`;
+  if (mentalTxt)
+    mentalTxt.innerText = `${Math.round(STATE.mentalEnergy)}/${STATE.maxMentalEnergy}`;
+  if (loneBar) {
+    loneBar.style.width = `${STATE.loneliness}%`;
+    if (isHarmony) {
+      loneBar.style.background = "linear-gradient(90deg, #10b981, #38bdf8)";
+    } else {
+      loneBar.style.background = STATE.loneliness > 60 ? "linear-gradient(90deg, #d946ef, #ef4444)" : "linear-gradient(90deg, #38bdf8, #a855f7)";
+    }
+  }
+  if (loneTxt) {
+    let loneState = "Verzweiflung";
+    if (isHarmony)
+      loneState = "\uD83D\uDCAB Kosmische Harmonie";
+    else if (STATE.loneliness < 30)
+      loneState = "Duale Resonanz";
+    else if (STATE.loneliness < 60)
+      loneState = "Erste Bindung";
+    else if (STATE.loneliness < 70)
+      loneState = "Geistige Sättigung";
+    loneTxt.innerText = `${Math.round(STATE.loneliness)}% (${loneState})`;
+  }
+  const currentSys = STATE.universe?.systems?.find((s) => s.id === STATE.currentSystemId);
+  const sysNameEl = document.getElementById("hud-current-system-name");
+  if (sysNameEl) {
+    sysNameEl.innerText = `\uD83E\uDE90 ${currentSys ? currentSys.name : "Sol Invictus"}`;
+  }
+  const bioCountEl = document.getElementById("res-bio-count");
+  if (bioCountEl) {
+    bioCountEl.innerText = `${Math.floor(STATE.bioRes || 0)}`;
+  }
+  const silCountEl = document.getElementById("res-silicon-count");
+  if (silCountEl) {
+    silCountEl.innerText = `${Math.floor(STATE.siliconRes || 0)}`;
+  }
+  const chronosCountEl = document.getElementById("chronos-count");
+  if (chronosCountEl) {
+    const visited = STATE.visitedSystemIds ? STATE.visitedSystemIds.length : STATE.systemsVisited || 1;
+    chronosCountEl.innerText = `${visited}`;
+  }
+  const radMeter = document.getElementById("hud-radiation-meter");
+  const radLabel = document.getElementById("rad-label");
+  const radBar = document.getElementById("rad-level-bar");
+  const radBadge = document.getElementById("rad-shield-badge");
+  const radStatus = document.getElementById("rad-status-text");
+  const ambient = STATE.ambientRadiation || 0;
+  const effective = STATE.effectiveRadiation || 0;
+  const resistance = STATE.radiationResistance || 0;
+  const source = STATE.radiationSource || "Kosmische Strahlung";
+  if (radMeter) {
+    if (ambient > 0.05) {
+      radMeter.style.display = "flex";
+      const ambPercent = Math.round(ambient * 100);
+      const shieldPercent = Math.round(resistance * 100);
+      if (radLabel)
+        radLabel.innerText = `STRAHLUNG: ${ambPercent}%`;
+      if (radBadge)
+        radBadge.innerText = `\uD83D\uDEE1️ ${shieldPercent}%`;
+      if (radBar) {
+        radBar.style.width = `${ambPercent}%`;
+      }
+      if (effective > 0.15) {
+        const dmgPerSec = ((effective - 0.15) * 4.5).toFixed(1);
+        radMeter.className = "hud-radiation-meter glass-capsule hazard";
+        if (radStatus) {
+          radStatus.innerHTML = `<span class="rad-alert-icon">⚠️</span> STRAHLUNGSALARM: -${dmgPerSec} HP/s (${source})`;
+        }
+      } else if (resistance >= 0.5 && ambient > 0.2) {
+        radMeter.className = "hud-radiation-meter glass-capsule shielded";
+        if (radStatus) {
+          radStatus.innerHTML = `<span class="rad-shield-icon">\uD83D\uDEE1️</span> ABGESCHIRMT: ${shieldPercent}% Filterung ✓`;
+        }
+      } else {
+        radMeter.className = "hud-radiation-meter glass-capsule caution";
+        if (radStatus) {
+          radStatus.innerHTML = `<span>⚡</span> Strahlungsfeld aktiv (${source})`;
+        }
+      }
+    } else {
+      radMeter.style.display = "none";
+    }
+  }
+}
+function updateMinimap() {
+  if (!minimapCanvas || !minimapCtx)
+    return;
+  const width = minimapCanvas.width;
+  const height = minimapCanvas.height;
+  const cx = width / 2;
+  const cy = height / 2;
+  const approach = STATE.orbitTransitionProgress || 0;
+  const isMoon = STATE.orbitLevel === "moon";
+  const baseTargetRange = isMoon ? 24 : 220 - 175 * approach;
+  currentRadarRange = MathUtils.lerp(currentRadarRange, Math.max(24, baseTargetRange), 0.08);
+  const range = currentRadarRange;
+  minimapCtx.fillStyle = "rgba(3, 7, 18, 0.85)";
+  minimapCtx.fillRect(0, 0, width, height);
+  const radius = width / 2 - 4;
+  minimapCtx.strokeStyle = "rgba(56, 189, 248, 0.15)";
+  minimapCtx.lineWidth = 1;
+  minimapCtx.beginPath();
+  minimapCtx.arc(cx, cy, radius * 0.33, 0, Math.PI * 2);
+  minimapCtx.stroke();
+  minimapCtx.beginPath();
+  minimapCtx.arc(cx, cy, radius * 0.66, 0, Math.PI * 2);
+  minimapCtx.stroke();
+  minimapCtx.beginPath();
+  minimapCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+  minimapCtx.stroke();
+  minimapCtx.strokeStyle = "rgba(56, 189, 248, 0.08)";
+  minimapCtx.beginPath();
+  minimapCtx.moveTo(cx, cy - radius);
+  minimapCtx.lineTo(cx, cy + radius);
+  minimapCtx.moveTo(cx - radius, cy);
+  minimapCtx.lineTo(cx + radius, cy);
+  minimapCtx.stroke();
+  const invRangeRadius = radius / range;
+  STATE.gravitySources.forEach((source) => {
+    if (source.isAbsorbed)
+      return;
+    const dx = source.position.x - STATE.playerPosition.x;
+    const dz = source.position.z - STATE.playerPosition.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < range) {
+      const sx = cx + dx * invRangeRadius;
+      const sy = cy + dz * invRangeRadius;
+      if (source.type === "star") {
+        minimapCtx.fillStyle = "#f59e0b";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 5, 0, Math.PI * 2);
+        minimapCtx.fill();
+      } else if (source.type === "planet") {
+        const planetEntry = activePlanets.find((p) => p.source === source);
+        const hasSentient = planetEntry && planetEntry.attributes.species && planetEntry.attributes.species.population > 0;
+        if (hasSentient) {
+          minimapCtx.fillStyle = "#d946ef";
+          minimapCtx.beginPath();
+          minimapCtx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+          minimapCtx.fill();
+          minimapCtx.strokeStyle = "rgba(217, 70, 239, 0.8)";
+          minimapCtx.beginPath();
+          minimapCtx.arc(sx, sy, 6.5 + Math.sin(Date.now() * 0.008) * 1.5, 0, Math.PI * 2);
+          minimapCtx.stroke();
+        } else {
+          minimapCtx.fillStyle = planetEntry && planetEntry.isMoon ? "#94a3b8" : "#38bdf8";
+          minimapCtx.beginPath();
+          minimapCtx.arc(sx, sy, planetEntry && planetEntry.isMoon ? 2 : 3.5, 0, Math.PI * 2);
+          minimapCtx.fill();
+        }
+      } else if ((source.type === "voyager_probe" || source.isVoyager) && STATE.voyagerSignalDetected) {
+        minimapCtx.fillStyle = "#fbbf24";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 4, 0, Math.PI * 2);
+        minimapCtx.fill();
+        const wavePulse = 5 + Math.sin(Date.now() * 0.007) * 3;
+        minimapCtx.strokeStyle = "rgba(251, 191, 36, 0.75)";
+        minimapCtx.lineWidth = 1.2;
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, wavePulse, 0, Math.PI * 2);
+        minimapCtx.stroke();
+        minimapCtx.fillStyle = "#fbbf24";
+        minimapCtx.font = "8px Orbitron, sans-serif";
+        const probeLabel = STATE.voyagerScanned ? "\uD83D\uDCE1 VOYAGER 2" : "\uD83D\uDCE1 UNBEKANNTES SIGNAL";
+        minimapCtx.fillText(probeLabel, sx + 7, sy + 3);
+      } else if (source.type === "asteroid") {
+        minimapCtx.fillStyle = source.resourceType === "bio" ? "#00ff88" : "#38bdf8";
+        minimapCtx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
+      }
+    } else if (source.type === "planet" || source.type === "star") {
+      const angle = Math.atan2(dz, dx);
+      const edgeRadius = radius - 3.5;
+      const ex = cx + Math.cos(angle) * edgeRadius;
+      const ey = cy + Math.sin(angle) * edgeRadius;
+      const planetEntry = activePlanets.find((p) => p.source === source);
+      const isLocked = STATE.lockedTarget && (STATE.lockedTarget === planetEntry || STATE.lockedTarget === source);
+      const hasSentient = planetEntry && planetEntry.attributes && planetEntry.attributes.species && planetEntry.attributes.species.population > 0;
+      if (isLocked) {
+        minimapCtx.fillStyle = "#38bdf8";
+        minimapCtx.beginPath();
+        minimapCtx.arc(ex, ey, 4, 0, Math.PI * 2);
+        minimapCtx.fill();
+        minimapCtx.strokeStyle = "rgba(56, 189, 248, 0.9)";
+        minimapCtx.lineWidth = 1.5;
+        minimapCtx.beginPath();
+        minimapCtx.arc(ex, ey, 6.5, 0, Math.PI * 2);
+        minimapCtx.stroke();
+      } else if (hasSentient) {
+        minimapCtx.fillStyle = "#d946ef";
+        minimapCtx.beginPath();
+        minimapCtx.arc(ex, ey, 3.2, 0, Math.PI * 2);
+        minimapCtx.fill();
+        minimapCtx.strokeStyle = "rgba(217, 70, 239, 0.8)";
+        minimapCtx.lineWidth = 1;
+        minimapCtx.beginPath();
+        minimapCtx.arc(ex, ey, 5.2, 0, Math.PI * 2);
+        minimapCtx.stroke();
+      } else if (source.type === "star") {
+        minimapCtx.fillStyle = "#f59e0b";
+        minimapCtx.beginPath();
+        minimapCtx.arc(ex, ey, 3.5, 0, Math.PI * 2);
+        minimapCtx.fill();
+      } else if (planetEntry && !planetEntry.isMoon) {
+        const isHab = planetEntry.type === "Habitable";
+        const isGas = planetEntry.type === "Gas Giant";
+        minimapCtx.fillStyle = isHab ? "#10b981" : isGas ? "#f59e0b" : "#64748b";
+        minimapCtx.beginPath();
+        minimapCtx.arc(ex, ey, 2.5, 0, Math.PI * 2);
+        minimapCtx.fill();
+      }
+    }
+  });
+  if (STATE.voyagerSignalDetected && !STATE.voyagerScanned && STATE.voyagerProbe && STATE.voyagerProbe.position) {
+    const vx = STATE.voyagerProbe.position.x - STATE.playerPosition.x;
+    const vz = STATE.voyagerProbe.position.z - STATE.playerPosition.z;
+    const vDist = Math.hypot(vx, vz);
+    if (vDist >= range) {
+      const angle = Math.atan2(vz, vx);
+      const edgeRadius = radius - 3;
+      const ex = cx + Math.cos(angle) * edgeRadius;
+      const ey = cy + Math.sin(angle) * edgeRadius;
+      minimapCtx.fillStyle = "#fbbf24";
+      minimapCtx.beginPath();
+      minimapCtx.arc(ex, ey, 3.5, 0, Math.PI * 2);
+      minimapCtx.fill();
+      minimapCtx.strokeStyle = "rgba(251, 191, 36, 0.8)";
+      minimapCtx.lineWidth = 1;
+      minimapCtx.beginPath();
+      minimapCtx.arc(ex, ey, 5.5, 0, Math.PI * 2);
+      minimapCtx.stroke();
+    }
+  }
+  const lockedTargetPos = STATE.lockedTarget ? STATE.lockedTarget.position || (STATE.lockedTarget.source ? STATE.lockedTarget.source.position : null) : null;
+  if (lockedTargetPos) {
+    const dx = lockedTargetPos.x - STATE.playerPosition.x;
+    const dz = lockedTargetPos.z - STATE.playerPosition.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < range) {
+      const sx = cx + dx * invRangeRadius;
+      const sy = cy + dz * invRangeRadius;
+      minimapCtx.strokeStyle = "#38bdf8";
+      minimapCtx.lineWidth = 1.5;
+      minimapCtx.beginPath();
+      minimapCtx.arc(sx, sy, 8, 0, Math.PI * 2);
+      minimapCtx.stroke();
+    } else {
+      const angle = Math.atan2(dz, dx);
+      const edgeRadius = radius - 3.5;
+      const ex = cx + Math.cos(angle) * edgeRadius;
+      const ey = cy + Math.sin(angle) * edgeRadius;
+      minimapCtx.strokeStyle = "#38bdf8";
+      minimapCtx.lineWidth = 1.8;
+      minimapCtx.beginPath();
+      minimapCtx.arc(ex, ey, 7.5, 0, Math.PI * 2);
+      minimapCtx.stroke();
+    }
+  }
+  STATE.fleetShips.forEach((ship) => {
+    const dx = ship.position.x - STATE.playerPosition.x;
+    const dz = ship.position.z - STATE.playerPosition.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < range) {
+      const sx = cx + dx * invRangeRadius;
+      const sy = cy + dz * invRangeRadius;
+      if (ship.state === "disabled") {
+        minimapCtx.fillStyle = "#64748b";
+        minimapCtx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
+      } else if (ship.state === "intercept") {
+        minimapCtx.fillStyle = "#f43f5e";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 3.5, 0, Math.PI * 2);
+        minimapCtx.fill();
+        minimapCtx.strokeStyle = "rgba(244, 63, 94, 0.8)";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 5.5 + Math.sin(Date.now() * 0.015) * 1.5, 0, Math.PI * 2);
+        minimapCtx.stroke();
+      } else {
+        minimapCtx.fillStyle = "#f59e0b";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+        minimapCtx.fill();
+      }
+    }
+  });
+  STATE.fleetProjectiles.forEach((proj) => {
+    const dx = proj.position.x - STATE.playerPosition.x;
+    const dz = proj.position.z - STATE.playerPosition.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < range) {
+      const sx = cx + dx * invRangeRadius;
+      const sy = cy + dz * invRangeRadius;
+      minimapCtx.fillStyle = proj.type === "emp" ? "#a855f7" : "#38bdf8";
+      minimapCtx.fillRect(sx - 1, sy - 1, 2, 2);
+    }
+  });
+  if (projectedTrajectoryPoints && projectedTrajectoryPoints.length > 1) {
+    minimapCtx.save();
+    minimapCtx.lineWidth = 1.5;
+    for (let i = 0;i < projectedTrajectoryPoints.length - 1; i++) {
+      const p0 = projectedTrajectoryPoints[i];
+      const p1 = projectedTrajectoryPoints[i + 1];
+      const dx0 = p0.x - STATE.playerPosition.x;
+      const dz0 = p0.z - STATE.playerPosition.z;
+      const dx1 = p1.x - STATE.playerPosition.x;
+      const dz1 = p1.z - STATE.playerPosition.z;
+      const dist0 = Math.hypot(dx0, dz0);
+      const dist1 = Math.hypot(dx1, dz1);
+      if (dist0 > range && dist1 > range)
+        continue;
+      const sx0 = cx + dx0 * invRangeRadius;
+      const sy0 = cy + dz0 * invRangeRadius;
+      const sx1 = cx + dx1 * invRangeRadius;
+      const sy1 = cy + dz1 * invRangeRadius;
+      const r0 = Math.hypot(sx0 - cx, sy0 - cy);
+      const r1 = Math.hypot(sx1 - cx, sy1 - cy);
+      if (r0 <= radius && r1 <= radius) {
+        minimapCtx.strokeStyle = p0.isGravityArc ? "rgba(217, 70, 239, 0.85)" : "rgba(56, 189, 248, 0.55)";
+        minimapCtx.beginPath();
+        minimapCtx.moveTo(sx0, sy0);
+        minimapCtx.lineTo(sx1, sy1);
+        minimapCtx.stroke();
+      }
+    }
+    minimapCtx.restore();
+  }
+  const heading = STATE.playerGroup ? STATE.playerGroup.rotation.y : 0;
+  minimapCtx.save();
+  minimapCtx.translate(cx, cy);
+  minimapCtx.rotate(-heading);
+  minimapCtx.fillStyle = "#10b981";
+  minimapCtx.shadowColor = "#10b981";
+  minimapCtx.shadowBlur = 8;
+  minimapCtx.beginPath();
+  minimapCtx.moveTo(0, -7);
+  minimapCtx.lineTo(5, 5);
+  minimapCtx.lineTo(0, 2.5);
+  minimapCtx.lineTo(-5, 5);
+  minimapCtx.closePath();
+  minimapCtx.fill();
+  minimapCtx.restore();
+  minimapCtx.fillStyle = "rgba(56, 189, 248, 0.85)";
+  minimapCtx.font = "9px monospace";
+  minimapCtx.textAlign = "center";
+  const modeLabel = STATE.orbitLevel === "moon" ? `\uD83C\uDF15 MOND: ${STATE.activeMoonOrbit?.name || "Orbit"}` : STATE.orbitLevel === "planet" ? `\uD83E\uDE90 SUB-SYS: ${STATE.orbitPlanet?.name || "Orbit"}` : `RADAR: ${Math.round(range)} LJ`;
+  minimapCtx.fillText(modeLabel, cx, height - 6);
+}
+function triggerPsionicSonar() {
+  if (!STATE.gameStarted)
+    return;
+  if (STATE.mentalEnergy < 15) {
+    addLogEntry("SYSTEM", "Zu wenig Mentalkraft für psionischen Sonar-Ruf (15% benötigt)!");
+    return;
+  }
+  STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - 15);
+  if (sonarWaveMesh) {
+    scene.remove(sonarWaveMesh);
+    if (sonarWaveMesh.geometry)
+      sonarWaveMesh.geometry.dispose();
+    if (sonarWaveMesh.material)
+      sonarWaveMesh.material.dispose();
+  }
+  const ringGeo = new RingGeometry(1, 4, 64);
+  ringGeo.rotateX(Math.PI / 2);
+  const ringMat = new MeshBasicMaterial({
+    color: 14239471,
+    transparent: true,
+    opacity: 0.9,
+    side: DoubleSide,
+    blending: AdditiveBlending
+  });
+  sonarWaveMesh = new Mesh(ringGeo, ringMat);
+  sonarWaveMesh.position.copy(STATE.playerPosition);
+  scene.add(sonarWaveMesh);
+  sonarTimer = 1;
+  playSonarChime();
+  const sentientPlanets = activePlanets.filter((p) => p.attributes && p.attributes.species && p.attributes.species.population > 0);
+  if (sentientPlanets.length > 0) {
+    const names = sentientPlanets.map((p) => `${p.name} (${p.attributes.species.name})`).join(", ");
+    addLogEntry("SYSTEM", `PSIONISCHER RUF: Mentales Resonanz-Echo empfangen von: ${names}! Kompass aktiv.`);
+  } else {
+    addLogEntry("SYSTEM", "PSIONISCHER RUF: Keine Gedanken-Signaturen in diesem System (Kosmische Stille).");
+  }
+}
+function updateSonarWave(dt) {
+  if (!sonarWaveMesh)
+    return;
+  sonarTimer -= dt;
+  const progress = 1 - sonarTimer;
+  const scale = 1 + progress * 60;
+  sonarWaveMesh.scale.set(scale, 1, scale);
+  sonarWaveMesh.material.opacity = Math.max(0, sonarTimer * 0.9);
+  if (sonarTimer <= 0) {
+    scene.remove(sonarWaveMesh);
+    if (sonarWaveMesh.geometry)
+      sonarWaveMesh.geometry.dispose();
+    if (sonarWaveMesh.material)
+      sonarWaveMesh.material.dispose();
+    sonarWaveMesh = null;
+  }
+}
+var arrivalBannerTimeout = null;
+function triggerSystemArrivalBanner(system, factionName) {
+  const banner = document.getElementById("system-arrival-banner");
+  if (!banner)
+    return;
+  if (arrivalBannerTimeout) {
+    clearTimeout(arrivalBannerTimeout);
+    arrivalBannerTimeout = null;
+  }
+  const titleEl = document.getElementById("arrival-system-title");
+  const sectorEl = document.getElementById("arrival-sector-label");
+  const starEl = document.getElementById("arrival-star-badge");
+  const planetsEl = document.getElementById("arrival-planets-badge");
+  const factionEl = document.getElementById("arrival-faction-badge");
+  if (titleEl)
+    titleEl.innerText = (system.name || "UNBEKANNT").toUpperCase();
+  if (sectorEl)
+    sectorEl.innerText = system.sectorName ? `${system.sectorName.toUpperCase()} • TRANSIT` : "SYSTEM-TRANSIT ABGESCHLOSSEN";
+  if (starEl && system.star) {
+    starEl.innerText = `⭐ ${system.star.type || "Zentralgestirn"}`;
+  }
+  const planetCount = system.planets ? system.planets.length : 0;
+  let moonCount = 0;
+  if (system.planets) {
+    system.planets.forEach((p) => {
+      if (p.moons)
+        moonCount += p.moons.length;
+    });
+  }
+  if (planetsEl) {
+    planetsEl.innerText = moonCount > 0 ? `\uD83E\uDE90 ${planetCount} Planeten | ${moonCount} Monde` : `\uD83E\uDE90 ${planetCount} Himmelskörper`;
+  }
+  if (factionEl) {
+    if (factionName) {
+      factionEl.innerText = `\uD83D\uDEE1️ ${factionName}`;
+      factionEl.style.display = "inline-flex";
+    } else {
+      factionEl.innerText = `\uD83C\uDF0C Unerschlossener Raum`;
+      factionEl.style.display = "inline-flex";
+    }
+  }
+  banner.classList.remove("banner-exit");
+  banner.style.display = "flex";
+  arrivalBannerTimeout = setTimeout(() => {
+    banner.classList.add("banner-exit");
+    setTimeout(() => {
+      banner.style.display = "none";
+      banner.classList.remove("banner-exit");
+    }, 800);
+  }, 4500);
+}
+var cachedEdgeMarkers = new Map;
 
 // src/systems/galaxy-map.ts
 var mapOpen = false;
@@ -41494,6 +41978,7 @@ function chooseFirstContactDoctrine(paradigm) {
   calculateCrewBuffs();
   renderCrewUI(true);
   updatePartyGrid();
+  triggerAutoSave(`Doktrin gewählt: ${titles[paradigm]}`);
 }
 function initFirstContactModalListeners() {
   const modal = document.getElementById("first-contact-modal");
@@ -43243,6 +43728,282 @@ function initPrologueListeners() {
   });
 }
 
+// src/ui/save-modal.ts
+var isSaveModalOpen = false;
+function initSaveModal(onStartGameCallback) {
+  const continueBtn = document.getElementById("continue-game-btn");
+  const saveProfilesBtn = document.getElementById("save-profiles-btn");
+  const closeBtn = document.getElementById("close-save-modal-btn");
+  const tabSlotsBtn = document.getElementById("save-tab-slots-btn");
+  const tabPresetsBtn = document.getElementById("save-tab-presets-btn");
+  const optQuickSaveBtn = document.getElementById("opt-quick-save-btn");
+  const optOpenSavesBtn = document.getElementById("opt-open-saves-btn");
+  if (continueBtn) {
+    continueBtn.addEventListener("click", async () => {
+      const latest = await getLatestSave();
+      if (latest) {
+        const res = await loadFromSlot(latest.slotId);
+        if (res.success) {
+          const mainMenu = document.getElementById("main-menu");
+          if (mainMenu)
+            mainMenu.style.display = "none";
+          STATE.gameStarted = true;
+          if (onStartGameCallback)
+            onStartGameCallback();
+        }
+      }
+    });
+  }
+  if (saveProfilesBtn) {
+    saveProfilesBtn.addEventListener("click", () => {
+      openSaveModal("slots");
+    });
+  }
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      closeSaveModal();
+    });
+  }
+  if (tabSlotsBtn && tabPresetsBtn) {
+    tabSlotsBtn.addEventListener("click", () => {
+      switchSaveTab("slots");
+    });
+    tabPresetsBtn.addEventListener("click", () => {
+      switchSaveTab("presets");
+    });
+  }
+  if (optQuickSaveBtn) {
+    optQuickSaveBtn.addEventListener("click", async () => {
+      await saveToSlot("slot_1", `Schnellspeicherstand (${STATE.currentSystemId === 1 ? "Sol Invictus" : "Sektor " + STATE.currentSystemId})`);
+      checkAndUpdateContinueButton();
+      renderSaveSlotsUI();
+    });
+  }
+  if (optOpenSavesBtn) {
+    optOpenSavesBtn.addEventListener("click", () => {
+      const optModal = document.getElementById("options-modal");
+      if (optModal)
+        optModal.style.display = "none";
+      openSaveModal("slots");
+    });
+  }
+  checkAndUpdateContinueButton();
+}
+async function checkAndUpdateContinueButton() {
+  const continueBtn = document.getElementById("continue-game-btn");
+  const continueText = document.getElementById("continue-game-text");
+  if (!continueBtn)
+    return;
+  try {
+    const latest = await getLatestSave();
+    if (latest) {
+      continueBtn.style.display = "flex";
+      if (continueText) {
+        continueText.innerHTML = `✨ <strong>Reise fortsetzen</strong> <span class="continue-meta">(${latest.systemName} • ${latest.crewCount}/${latest.maxCrewCapacity} Besatzung)</span>`;
+      }
+    } else {
+      continueBtn.style.display = "none";
+    }
+  } catch (e) {
+    continueBtn.style.display = "none";
+  }
+}
+function openSaveModal(initialTab = "slots") {
+  const modal = document.getElementById("save-load-modal");
+  if (!modal)
+    return;
+  isSaveModalOpen = true;
+  modal.style.display = "flex";
+  switchSaveTab(initialTab);
+  renderSaveSlotsUI();
+  renderPresetsUI();
+}
+function closeSaveModal() {
+  const modal = document.getElementById("save-load-modal");
+  if (!modal)
+    return;
+  isSaveModalOpen = false;
+  modal.style.display = "none";
+}
+function switchSaveTab(tab) {
+  const tabSlotsBtn = document.getElementById("save-tab-slots-btn");
+  const tabPresetsBtn = document.getElementById("save-tab-presets-btn");
+  const contentSlots = document.getElementById("save-tab-slots-content");
+  const contentPresets = document.getElementById("save-tab-presets-content");
+  if (tabSlotsBtn)
+    tabSlotsBtn.classList.toggle("active", tab === "slots");
+  if (tabPresetsBtn)
+    tabPresetsBtn.classList.toggle("active", tab === "presets");
+  if (contentSlots)
+    contentSlots.classList.toggle("active", tab === "slots");
+  if (contentPresets)
+    contentPresets.classList.toggle("active", tab === "presets");
+}
+async function renderSaveSlotsUI() {
+  const container = document.getElementById("save-slots-container");
+  if (!container)
+    return;
+  const allSaves = await listAllSaves();
+  const savesBySlot = {};
+  allSaves.forEach((s) => {
+    savesBySlot[s.slotId] = s;
+  });
+  const slotConfigs = [
+    { id: "autosave", title: "⚡ Automatischer Speicherstand", desc: "Sichert automatisch bei Hyperraum-Sprung & Evolutionen" },
+    { id: "slot_1", title: "\uD83D\uDCBE Speicherstand Slot 1", desc: "Manueller Speicherplatz" },
+    { id: "slot_2", title: "\uD83D\uDCBE Speicherstand Slot 2", desc: "Manueller Speicherplatz" },
+    { id: "slot_3", title: "\uD83D\uDCBE Speicherstand Slot 3", desc: "Manueller Speicherplatz" }
+  ];
+  container.innerHTML = "";
+  slotConfigs.forEach((slot) => {
+    const save = savesBySlot[slot.id];
+    const card = document.createElement("div");
+    card.className = `save-slot-card ${save ? "has-data" : "empty"}`;
+    if (save) {
+      const doctrineLabel = save.primaryParadigm === "symbiosis" ? "\uD83C\uDF31 Symbiose" : save.primaryParadigm === "domination" ? "⚡ Herrschaft" : save.primaryParadigm === "deception" ? "\uD83D\uDD2E Täuschung" : "\uD83D\uDCAB Neutral";
+      card.innerHTML = `
+                <div class="save-slot-main">
+                    <div class="slot-header-row">
+                        <span class="slot-title">${slot.title}</span>
+                        <span class="slot-date">\uD83D\uDCC5 ${save.dateFormatted}</span>
+                    </div>
+                    <div class="slot-name-highlight">${save.name}</div>
+                    <div class="slot-stats-row">
+                        <span class="slot-stat-chip">\uD83E\uDE90 ${save.systemName}</span>
+                        <span class="slot-stat-chip">\uD83D\uDC65 ${save.crewCount}/${save.maxCrewCapacity} Besatzung</span>
+                        <span class="slot-stat-chip">\uD83E\uDDEC ${save.bioRes} Bio &bull; \uD83D\uDC8E ${save.siliconRes} Sil</span>
+                        <span class="slot-stat-chip doctrine">${doctrineLabel}</span>
+                        <span class="slot-stat-chip health">❤️ ${save.health}% HP</span>
+                    </div>
+                </div>
+                <div class="save-slot-actions">
+                    <button class="slot-action-btn load-btn" data-slot="${slot.id}">
+                        <span>▶</span> Laden
+                    </button>
+                    ${STATE.gameStarted ? `
+                    <button class="slot-action-btn overwrite-btn" data-slot="${slot.id}">
+                        <span>\uD83D\uDCBE</span> Überschreiben
+                    </button>` : ""}
+                    <button class="slot-action-btn delete-btn" data-slot="${slot.id}" title="Löschen">
+                        ✕
+                    </button>
+                </div>
+            `;
+    } else {
+      card.innerHTML = `
+                <div class="save-slot-main">
+                    <div class="slot-header-row">
+                        <span class="slot-title">${slot.title}</span>
+                        <span class="slot-empty-badge">LEER</span>
+                    </div>
+                    <div class="slot-desc-sub">${slot.desc}</div>
+                </div>
+                <div class="save-slot-actions">
+                    ${STATE.gameStarted ? `
+                    <button class="slot-action-btn save-btn" data-slot="${slot.id}">
+                        <span>\uD83D\uDCBE</span> Jetzt Speichern
+                    </button>` : `
+                    <span class="slot-hint-text">Im Spiel speicherbar</span>`}
+                </div>
+            `;
+    }
+    container.appendChild(card);
+  });
+  container.querySelectorAll(".load-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const slotId = e.currentTarget.getAttribute("data-slot");
+      if (slotId) {
+        const res = await loadFromSlot(slotId);
+        if (res.success) {
+          closeSaveModal();
+          const mainMenu = document.getElementById("main-menu");
+          if (mainMenu)
+            mainMenu.style.display = "none";
+          STATE.gameStarted = true;
+        }
+      }
+    });
+  });
+  container.querySelectorAll(".save-btn, .overwrite-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const slotId = e.currentTarget.getAttribute("data-slot");
+      if (slotId) {
+        await saveToSlot(slotId);
+        checkAndUpdateContinueButton();
+        renderSaveSlotsUI();
+      }
+    });
+  });
+  container.querySelectorAll(".delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const slotId = e.currentTarget.getAttribute("data-slot");
+      if (slotId) {
+        await deleteSaveSlot(slotId);
+        checkAndUpdateContinueButton();
+        renderSaveSlotsUI();
+      }
+    });
+  });
+}
+function renderPresetsUI() {
+  const container = document.getElementById("presets-container");
+  if (!container)
+    return;
+  container.innerHTML = "";
+  Object.keys(PLAYTEST_PRESETS).forEach((key) => {
+    const preset = PLAYTEST_PRESETS[key];
+    const card = document.createElement("div");
+    card.className = `preset-card preset-${preset.id}`;
+    card.innerHTML = `
+            <div class="preset-card-top">
+                <div class="preset-badge">${preset.badge}</div>
+                <h3 class="preset-title">${preset.name}</h3>
+                <p class="preset-desc">${preset.description}</p>
+            </div>
+
+            <div class="preset-specs-list">
+                <div class="preset-spec-item">
+                    <span class="spec-label">\uD83D\uDC65 Besatzungs-Größe:</span>
+                    <span class="spec-val highlight">${preset.targetCrew} / ${preset.capacity} Individuen</span>
+                </div>
+                <div class="preset-spec-item">
+                    <span class="spec-label">\uD83E\uDDEA Ressourcen-Vorrat:</span>
+                    <span class="spec-val">${preset.resources.bio} Bio &bull; ${preset.resources.silicon} Silizium</span>
+                </div>
+                <div class="preset-spec-item">
+                    <span class="spec-label">\uD83E\uDDEC Mutationen freigeschaltet:</span>
+                    <span class="spec-val">${preset.mutations.length} Synapsen-Knoten</span>
+                </div>
+                <div class="preset-spec-item">
+                    <span class="spec-label">⚡ Paradigma:</span>
+                    <span class="spec-val">${preset.paradigm.toUpperCase()}</span>
+                </div>
+            </div>
+
+            <button class="preset-launch-btn" data-preset="${preset.id}">
+                <span>\uD83D\uDE80</span> Profil laden &amp; starten
+            </button>
+        `;
+    container.appendChild(card);
+  });
+  container.querySelectorAll(".preset-launch-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const presetId = e.currentTarget.getAttribute("data-preset");
+      if (presetId) {
+        const ok = await loadPlaytestPreset(presetId);
+        if (ok) {
+          closeSaveModal();
+          const mainMenu = document.getElementById("main-menu");
+          if (mainMenu)
+            mainMenu.style.display = "none";
+          STATE.gameStarted = true;
+          addLogEntry("SYSTEM", `Playtest-Preset "${presetId}" initialisiert. Flugbereit!`);
+        }
+      }
+    });
+  });
+}
+
 // src/main.ts
 var lastTime = 0;
 var voyagerBeaconTimer = 0;
@@ -43340,6 +44101,17 @@ function setupMenuListeners() {
   const startBtn = document.getElementById("start-game-btn");
   const mainMenu = document.getElementById("main-menu");
   const resumeBtn = document.getElementById("resume-game-btn");
+  initSaveModal(() => {
+    if (mainMenu)
+      mainMenu.classList.add("menu-hidden");
+    document.body.classList.add("game-started");
+    if (resumeBtn)
+      resumeBtn.style.display = "block";
+    if (!isMusicPlaying() && !isMusicUserMuted()) {
+      toggleMusic(true);
+    }
+    renderDirectives();
+  });
   if (startBtn && mainMenu) {
     startBtn.addEventListener("click", () => {
       mainMenu.classList.add("menu-hidden");

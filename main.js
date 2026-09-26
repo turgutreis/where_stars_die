@@ -85,7 +85,89 @@ ipcMain.handle('load-universe-data', async () => {
     }
 });
 
+// Saves directory helper
+function getSavesDir() {
+    const savesDir = path.join(app.getPath('userData'), 'saves');
+    if (!fs.existsSync(savesDir)) {
+        fs.mkdirSync(savesDir, { recursive: true });
+    }
+    return savesDir;
+}
+
+// IPC Handler to Save Game Slot
+ipcMain.handle('save-game', async (event, slotId, dataString) => {
+    try {
+        const savesDir = getSavesDir();
+        const safeSlot = slotId.replace(/[^a-zA-Z0-9_-]/g, '');
+        const filePath = path.join(savesDir, `${safeSlot}.json`);
+        fs.writeFileSync(filePath, dataString, 'utf-8');
+        return { success: true, slotId: safeSlot };
+    } catch (e) {
+        console.error("Save game error:", e);
+        return { success: false, error: e.message };
+    }
+});
+
+// IPC Handler to Load Game Slot
+ipcMain.handle('load-game', async (event, slotId) => {
+    try {
+        const savesDir = getSavesDir();
+        const safeSlot = slotId.replace(/[^a-zA-Z0-9_-]/g, '');
+        const filePath = path.join(savesDir, `${safeSlot}.json`);
+        if (fs.existsSync(filePath)) {
+            const raw = fs.readFileSync(filePath, 'utf-8');
+            return { success: true, data: raw };
+        }
+        return { success: false, error: `Save slot ${slotId} not found` };
+    } catch (e) {
+        console.error("Load game error:", e);
+        return { success: false, error: e.message };
+    }
+});
+
+// IPC Handler to List All Saves
+ipcMain.handle('list-saves', async () => {
+    try {
+        const savesDir = getSavesDir();
+        const files = fs.readdirSync(savesDir).filter(f => f.endsWith('.json'));
+        const saves = [];
+        for (const f of files) {
+            try {
+                const raw = fs.readFileSync(path.join(savesDir, f), 'utf-8');
+                const parsed = JSON.parse(raw);
+                saves.push({
+                    slotId: f.replace('.json', ''),
+                    meta: parsed.meta || {},
+                    timestamp: parsed.timestamp || 0
+                });
+            } catch (err) {
+                // skip corrupted
+            }
+        }
+        return { success: true, saves };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
+
+// IPC Handler to Delete Save Slot
+ipcMain.handle('delete-save', async (event, slotId) => {
+    try {
+        const savesDir = getSavesDir();
+        const safeSlot = slotId.replace(/[^a-zA-Z0-9_-]/g, '');
+        const filePath = path.join(savesDir, `${safeSlot}.json`);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            return { success: true };
+        }
+        return { success: false, error: 'File not found' };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
+
 // IPC Listener to Close App
 ipcMain.on('close-app', () => {
     app.quit();
 });
+
