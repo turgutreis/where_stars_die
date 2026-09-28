@@ -10,8 +10,14 @@ import {
     SaveMeta 
 } from '../systems/save-manager';
 import { addLogEntry } from './hud';
+import { hideMainMenu } from './menu-controller';
 
-let isSaveModalOpen = false;
+let isSaveModalActive = false;
+
+export function isSaveModalOpen(): boolean {
+    const modal = document.getElementById('save-load-modal');
+    return modal ? modal.style.display === 'flex' : false;
+}
 
 export function initSaveModal(onStartGameCallback?: () => void) {
     const continueBtn = document.getElementById('continue-game-btn');
@@ -30,8 +36,7 @@ export function initSaveModal(onStartGameCallback?: () => void) {
             if (latest) {
                 const res = await loadFromSlot(latest.slotId);
                 if (res.success) {
-                    const mainMenu = document.getElementById('main-menu');
-                    if (mainMenu) mainMenu.style.display = 'none';
+                    hideMainMenu();
                     STATE.gameStarted = true;
                     if (onStartGameCallback) onStartGameCallback();
                 }
@@ -104,7 +109,7 @@ export function openSaveModal(initialTab: 'slots' | 'presets' = 'slots') {
     const modal = document.getElementById('save-load-modal');
     if (!modal) return;
 
-    isSaveModalOpen = true;
+    isSaveModalActive = true;
     modal.style.display = 'flex';
     switchSaveTab(initialTab);
     renderSaveSlotsUI();
@@ -114,7 +119,7 @@ export function openSaveModal(initialTab: 'slots' | 'presets' = 'slots') {
 export function closeSaveModal() {
     const modal = document.getElementById('save-load-modal');
     if (!modal) return;
-    isSaveModalOpen = false;
+    isSaveModalActive = false;
     modal.style.display = 'none';
 }
 
@@ -217,8 +222,7 @@ export async function renderSaveSlotsUI() {
                 const res = await loadFromSlot(slotId);
                 if (res.success) {
                     closeSaveModal();
-                    const mainMenu = document.getElementById('main-menu');
-                    if (mainMenu) mainMenu.style.display = 'none';
+                    hideMainMenu();
                     STATE.gameStarted = true;
                 }
             }
@@ -300,8 +304,7 @@ export function renderPresetsUI() {
                 const ok = await loadPlaytestPreset(presetId);
                 if (ok) {
                     closeSaveModal();
-                    const mainMenu = document.getElementById('main-menu');
-                    if (mainMenu) mainMenu.style.display = 'none';
+                    hideMainMenu();
                     STATE.gameStarted = true;
                     addLogEntry("SYSTEM", `Playtest-Preset "${presetId}" initialisiert. Flugbereit!`);
                 }

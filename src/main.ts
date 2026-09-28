@@ -24,6 +24,7 @@ import { initDirectivesHUD, renderDirectives, updateVoyagerHUDTracker } from './
 import { initVoyagerDialogListeners } from './ui/voyager-dialog';
 import { initFirstContactModalListeners } from './ui/first-contact-modal';
 import { initSaveModal } from './ui/save-modal';
+import { hideMainMenu, showMainMenu, toggleMainMenu } from './ui/menu-controller';
 
 let lastTime = 0;
 let voyagerBeaconTimer = 0;
@@ -164,21 +165,21 @@ function setupMenuListeners() {
     const resumeBtn = document.getElementById('resume-game-btn');
 
     initSaveModal(() => {
-        if (mainMenu) mainMenu.classList.add('menu-hidden');
+        hideMainMenu();
         document.body.classList.add('game-started');
-        if (resumeBtn) resumeBtn.style.display = 'block';
+        if (resumeBtn) resumeBtn.style.display = 'flex';
         if (!isMusicPlaying() && !isMusicUserMuted()) {
             toggleMusic(true);
         }
         renderDirectives();
     });
 
-    if (startBtn && mainMenu) {
+    if (startBtn) {
         startBtn.addEventListener('click', () => {
-            mainMenu.classList.add('menu-hidden');
+            hideMainMenu();
             STATE.gameStarted = true;
             document.body.classList.add('game-started');
-            if (resumeBtn) resumeBtn.style.display = 'block';
+            if (resumeBtn) resumeBtn.style.display = 'flex';
 
             if (STATE.universe) {
                 clearActiveSystem();
@@ -206,34 +207,11 @@ function setupMenuListeners() {
         });
     }
 
-    if (resumeBtn && mainMenu) {
+    if (resumeBtn) {
         resumeBtn.addEventListener('click', () => {
-            mainMenu.classList.add('menu-hidden');
+            hideMainMenu();
         });
     }
-
-    window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            const howToModal = document.getElementById('how-to-play-modal');
-            if (howToModal && howToModal.style.display === 'flex') {
-                howToModal.style.display = 'none';
-                return;
-            }
-
-            if (isMapOpen()) {
-                toggleGalaxyMap();
-                return;
-            }
-
-            if (!mainMenu) return;
-            const runningInElectron = typeof (window as any).api !== 'undefined';
-            if (STATE.gameStarted) {
-                mainMenu.classList.toggle('menu-hidden');
-            } else if (runningInElectron) {
-                (window as any).api.closeApp();
-            }
-        }
-    });
 
     const howToBtn = document.getElementById('how-to-play-btn');
     const howToModal = document.getElementById('how-to-play-modal');

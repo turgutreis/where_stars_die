@@ -36516,6 +36516,10 @@ function closeDiplomacyComms() {
     overlay.style.display = "none";
   STATE.activeDiplomacyPlanet = null;
 }
+function isDiplomacyCommsOpen() {
+  const overlay = document.getElementById("diplomacy-overlay");
+  return overlay ? overlay.style.display === "flex" : false;
+}
 
 // src/systems/crew-generation.ts
 var SPECIES_ARCHETYPES = [
@@ -42418,6 +42422,316 @@ function initVoyagerDialogListeners() {
   });
 }
 
+// src/ui/menu-controller.ts
+function showMainMenu() {
+  const mainMenu = document.getElementById("main-menu");
+  if (!mainMenu)
+    return;
+  mainMenu.style.display = "flex";
+  mainMenu.classList.remove("menu-hidden");
+  const resumeBtn = document.getElementById("resume-game-btn");
+  if (resumeBtn) {
+    resumeBtn.style.display = STATE.gameStarted ? "flex" : "none";
+  }
+  const startBtn = document.getElementById("start-game-btn");
+  if (startBtn) {
+    startBtn.innerText = STATE.gameStarted ? "\uD83D\uDD04 Neue Reise beginnen (Reset)" : "\uD83E\uDDEC Bewusstsein entfalten";
+  }
+  checkAndUpdateContinueButton();
+}
+function hideMainMenu() {
+  const mainMenu = document.getElementById("main-menu");
+  if (!mainMenu)
+    return;
+  mainMenu.classList.add("menu-hidden");
+  mainMenu.style.display = "none";
+}
+function toggleMainMenu() {
+  const mainMenu = document.getElementById("main-menu");
+  if (!mainMenu)
+    return;
+  const isHidden = mainMenu.classList.contains("menu-hidden") || mainMenu.style.display === "none";
+  if (isHidden) {
+    showMainMenu();
+  } else {
+    hideMainMenu();
+  }
+}
+
+// src/ui/save-modal.ts
+var isSaveModalActive = false;
+function isSaveModalOpen() {
+  const modal = document.getElementById("save-load-modal");
+  return modal ? modal.style.display === "flex" : false;
+}
+function initSaveModal(onStartGameCallback) {
+  const continueBtn = document.getElementById("continue-game-btn");
+  const saveProfilesBtn = document.getElementById("save-profiles-btn");
+  const closeBtn = document.getElementById("close-save-modal-btn");
+  const tabSlotsBtn = document.getElementById("save-tab-slots-btn");
+  const tabPresetsBtn = document.getElementById("save-tab-presets-btn");
+  const optQuickSaveBtn = document.getElementById("opt-quick-save-btn");
+  const optOpenSavesBtn = document.getElementById("opt-open-saves-btn");
+  if (continueBtn) {
+    continueBtn.addEventListener("click", async () => {
+      const latest = await getLatestSave();
+      if (latest) {
+        const res = await loadFromSlot(latest.slotId);
+        if (res.success) {
+          hideMainMenu();
+          STATE.gameStarted = true;
+          if (onStartGameCallback)
+            onStartGameCallback();
+        }
+      }
+    });
+  }
+  if (saveProfilesBtn) {
+    saveProfilesBtn.addEventListener("click", () => {
+      openSaveModal("slots");
+    });
+  }
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      closeSaveModal();
+    });
+  }
+  if (tabSlotsBtn && tabPresetsBtn) {
+    tabSlotsBtn.addEventListener("click", () => {
+      switchSaveTab("slots");
+    });
+    tabPresetsBtn.addEventListener("click", () => {
+      switchSaveTab("presets");
+    });
+  }
+  if (optQuickSaveBtn) {
+    optQuickSaveBtn.addEventListener("click", async () => {
+      await saveToSlot("slot_1", `Schnellspeicherstand (${STATE.currentSystemId === 1 ? "Sol Invictus" : "Sektor " + STATE.currentSystemId})`);
+      checkAndUpdateContinueButton();
+      renderSaveSlotsUI();
+    });
+  }
+  if (optOpenSavesBtn) {
+    optOpenSavesBtn.addEventListener("click", () => {
+      const optModal = document.getElementById("options-modal");
+      if (optModal)
+        optModal.style.display = "none";
+      openSaveModal("slots");
+    });
+  }
+  checkAndUpdateContinueButton();
+}
+async function checkAndUpdateContinueButton() {
+  const continueBtn = document.getElementById("continue-game-btn");
+  const continueText = document.getElementById("continue-game-text");
+  if (!continueBtn)
+    return;
+  try {
+    const latest = await getLatestSave();
+    if (latest) {
+      continueBtn.style.display = "flex";
+      if (continueText) {
+        continueText.innerHTML = `✨ <strong>Reise fortsetzen</strong> <span class="continue-meta">(${latest.systemName} • ${latest.crewCount}/${latest.maxCrewCapacity} Besatzung)</span>`;
+      }
+    } else {
+      continueBtn.style.display = "none";
+    }
+  } catch (e) {
+    continueBtn.style.display = "none";
+  }
+}
+function openSaveModal(initialTab = "slots") {
+  const modal = document.getElementById("save-load-modal");
+  if (!modal)
+    return;
+  isSaveModalActive = true;
+  modal.style.display = "flex";
+  switchSaveTab(initialTab);
+  renderSaveSlotsUI();
+  renderPresetsUI();
+}
+function closeSaveModal() {
+  const modal = document.getElementById("save-load-modal");
+  if (!modal)
+    return;
+  isSaveModalActive = false;
+  modal.style.display = "none";
+}
+function switchSaveTab(tab) {
+  const tabSlotsBtn = document.getElementById("save-tab-slots-btn");
+  const tabPresetsBtn = document.getElementById("save-tab-presets-btn");
+  const contentSlots = document.getElementById("save-tab-slots-content");
+  const contentPresets = document.getElementById("save-tab-presets-content");
+  if (tabSlotsBtn)
+    tabSlotsBtn.classList.toggle("active", tab === "slots");
+  if (tabPresetsBtn)
+    tabPresetsBtn.classList.toggle("active", tab === "presets");
+  if (contentSlots)
+    contentSlots.classList.toggle("active", tab === "slots");
+  if (contentPresets)
+    contentPresets.classList.toggle("active", tab === "presets");
+}
+async function renderSaveSlotsUI() {
+  const container = document.getElementById("save-slots-container");
+  if (!container)
+    return;
+  const allSaves = await listAllSaves();
+  const savesBySlot = {};
+  allSaves.forEach((s) => {
+    savesBySlot[s.slotId] = s;
+  });
+  const slotConfigs = [
+    { id: "autosave", title: "⚡ Automatischer Speicherstand", desc: "Sichert automatisch bei Hyperraum-Sprung & Evolutionen" },
+    { id: "slot_1", title: "\uD83D\uDCBE Speicherstand Slot 1", desc: "Manueller Speicherplatz" },
+    { id: "slot_2", title: "\uD83D\uDCBE Speicherstand Slot 2", desc: "Manueller Speicherplatz" },
+    { id: "slot_3", title: "\uD83D\uDCBE Speicherstand Slot 3", desc: "Manueller Speicherplatz" }
+  ];
+  container.innerHTML = "";
+  slotConfigs.forEach((slot) => {
+    const save = savesBySlot[slot.id];
+    const card = document.createElement("div");
+    card.className = `save-slot-card ${save ? "has-data" : "empty"}`;
+    if (save) {
+      const doctrineLabel = save.primaryParadigm === "symbiosis" ? "\uD83C\uDF31 Symbiose" : save.primaryParadigm === "domination" ? "⚡ Herrschaft" : save.primaryParadigm === "deception" ? "\uD83D\uDD2E Täuschung" : "\uD83D\uDCAB Neutral";
+      card.innerHTML = `
+                <div class="save-slot-main">
+                    <div class="slot-header-row">
+                        <span class="slot-title">${slot.title}</span>
+                        <span class="slot-date">\uD83D\uDCC5 ${save.dateFormatted}</span>
+                    </div>
+                    <div class="slot-name-highlight">${save.name}</div>
+                    <div class="slot-stats-row">
+                        <span class="slot-stat-chip">\uD83E\uDE90 ${save.systemName}</span>
+                        <span class="slot-stat-chip">\uD83D\uDC65 ${save.crewCount}/${save.maxCrewCapacity} Besatzung</span>
+                        <span class="slot-stat-chip">\uD83E\uDDEC ${save.bioRes} Bio &bull; \uD83D\uDC8E ${save.siliconRes} Sil</span>
+                        <span class="slot-stat-chip doctrine">${doctrineLabel}</span>
+                        <span class="slot-stat-chip health">❤️ ${save.health}% HP</span>
+                    </div>
+                </div>
+                <div class="save-slot-actions">
+                    <button class="slot-action-btn load-btn" data-slot="${slot.id}">
+                        <span>▶</span> Laden
+                    </button>
+                    ${STATE.gameStarted ? `
+                    <button class="slot-action-btn overwrite-btn" data-slot="${slot.id}">
+                        <span>\uD83D\uDCBE</span> Überschreiben
+                    </button>` : ""}
+                    <button class="slot-action-btn delete-btn" data-slot="${slot.id}" title="Löschen">
+                        ✕
+                    </button>
+                </div>
+            `;
+    } else {
+      card.innerHTML = `
+                <div class="save-slot-main">
+                    <div class="slot-header-row">
+                        <span class="slot-title">${slot.title}</span>
+                        <span class="slot-empty-badge">LEER</span>
+                    </div>
+                    <div class="slot-desc-sub">${slot.desc}</div>
+                </div>
+                <div class="save-slot-actions">
+                    ${STATE.gameStarted ? `
+                    <button class="slot-action-btn save-btn" data-slot="${slot.id}">
+                        <span>\uD83D\uDCBE</span> Jetzt Speichern
+                    </button>` : `
+                    <span class="slot-hint-text">Im Spiel speicherbar</span>`}
+                </div>
+            `;
+    }
+    container.appendChild(card);
+  });
+  container.querySelectorAll(".load-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const slotId = e.currentTarget.getAttribute("data-slot");
+      if (slotId) {
+        const res = await loadFromSlot(slotId);
+        if (res.success) {
+          closeSaveModal();
+          hideMainMenu();
+          STATE.gameStarted = true;
+        }
+      }
+    });
+  });
+  container.querySelectorAll(".save-btn, .overwrite-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const slotId = e.currentTarget.getAttribute("data-slot");
+      if (slotId) {
+        await saveToSlot(slotId);
+        checkAndUpdateContinueButton();
+        renderSaveSlotsUI();
+      }
+    });
+  });
+  container.querySelectorAll(".delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const slotId = e.currentTarget.getAttribute("data-slot");
+      if (slotId) {
+        await deleteSaveSlot(slotId);
+        checkAndUpdateContinueButton();
+        renderSaveSlotsUI();
+      }
+    });
+  });
+}
+function renderPresetsUI() {
+  const container = document.getElementById("presets-container");
+  if (!container)
+    return;
+  container.innerHTML = "";
+  Object.keys(PLAYTEST_PRESETS).forEach((key) => {
+    const preset = PLAYTEST_PRESETS[key];
+    const card = document.createElement("div");
+    card.className = `preset-card preset-${preset.id}`;
+    card.innerHTML = `
+            <div class="preset-card-top">
+                <div class="preset-badge">${preset.badge}</div>
+                <h3 class="preset-title">${preset.name}</h3>
+                <p class="preset-desc">${preset.description}</p>
+            </div>
+
+            <div class="preset-specs-list">
+                <div class="preset-spec-item">
+                    <span class="spec-label">\uD83D\uDC65 Besatzungs-Größe:</span>
+                    <span class="spec-val highlight">${preset.targetCrew} / ${preset.capacity} Individuen</span>
+                </div>
+                <div class="preset-spec-item">
+                    <span class="spec-label">\uD83E\uDDEA Ressourcen-Vorrat:</span>
+                    <span class="spec-val">${preset.resources.bio} Bio &bull; ${preset.resources.silicon} Silizium</span>
+                </div>
+                <div class="preset-spec-item">
+                    <span class="spec-label">\uD83E\uDDEC Mutationen freigeschaltet:</span>
+                    <span class="spec-val">${preset.mutations.length} Synapsen-Knoten</span>
+                </div>
+                <div class="preset-spec-item">
+                    <span class="spec-label">⚡ Paradigma:</span>
+                    <span class="spec-val">${preset.paradigm.toUpperCase()}</span>
+                </div>
+            </div>
+
+            <button class="preset-launch-btn" data-preset="${preset.id}">
+                <span>\uD83D\uDE80</span> Profil laden &amp; starten
+            </button>
+        `;
+    container.appendChild(card);
+  });
+  container.querySelectorAll(".preset-launch-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const presetId = e.currentTarget.getAttribute("data-preset");
+      if (presetId) {
+        const ok = await loadPlaytestPreset(presetId);
+        if (ok) {
+          closeSaveModal();
+          hideMainMenu();
+          STATE.gameStarted = true;
+          addLogEntry("SYSTEM", `Playtest-Preset "${presetId}" initialisiert. Flugbereit!`);
+        }
+      }
+    });
+  });
+}
+
 // src/input/controls.ts
 var raycaster = new Raycaster;
 var mouseVec = new Vector2;
@@ -42461,15 +42775,41 @@ function setupControls() {
       toggleOptionsModal();
     }
     if (key === "escape") {
-      closeDiplomacyComms();
-      if (isVoyagerDialogOpen())
-        closeVoyagerDialog();
-      if (isOptionsModalOpen())
+      e.preventDefault();
+      if (isSaveModalOpen()) {
+        closeSaveModal();
+        return;
+      }
+      if (isOptionsModalOpen()) {
         closeOptionsModal();
-      if (isMapOpen())
+        return;
+      }
+      const howToModal = document.getElementById("how-to-play-modal");
+      if (howToModal && howToModal.style.display === "flex") {
+        howToModal.style.display = "none";
+        return;
+      }
+      if (isDiplomacyCommsOpen()) {
+        closeDiplomacyComms();
+        return;
+      }
+      if (isVoyagerDialogOpen()) {
+        closeVoyagerDialog();
+        return;
+      }
+      if (isMapOpen()) {
         toggleGalaxyMap();
-      if (isDeckOpen())
+        return;
+      }
+      if (isDeckOpen()) {
         toggleDeckModal(false);
+        return;
+      }
+      if (STATE.gameStarted) {
+        toggleMainMenu();
+      } else if (typeof window.api !== "undefined" && typeof window.api.closeApp === "function") {
+        window.api.closeApp();
+      }
     }
     if (key === "f") {
       if (STATE.voyagerProbe && STATE.voyagerProbe.position) {
@@ -42878,9 +43218,8 @@ function processInput(dt) {
     if (isPressedEdge(10))
       toggleFlightAssist();
     if (isPressedEdge(9)) {
-      const mainMenu = document.getElementById("main-menu");
-      if (mainMenu && STATE.gameStarted) {
-        mainMenu.classList.toggle("menu-hidden");
+      if (STATE.gameStarted) {
+        toggleMainMenu();
       }
     }
     prevGpButtons = gp.buttons.map((b) => b ? b.pressed || b.value > 0.5 : false);
@@ -43728,282 +44067,6 @@ function initPrologueListeners() {
   });
 }
 
-// src/ui/save-modal.ts
-var isSaveModalOpen = false;
-function initSaveModal(onStartGameCallback) {
-  const continueBtn = document.getElementById("continue-game-btn");
-  const saveProfilesBtn = document.getElementById("save-profiles-btn");
-  const closeBtn = document.getElementById("close-save-modal-btn");
-  const tabSlotsBtn = document.getElementById("save-tab-slots-btn");
-  const tabPresetsBtn = document.getElementById("save-tab-presets-btn");
-  const optQuickSaveBtn = document.getElementById("opt-quick-save-btn");
-  const optOpenSavesBtn = document.getElementById("opt-open-saves-btn");
-  if (continueBtn) {
-    continueBtn.addEventListener("click", async () => {
-      const latest = await getLatestSave();
-      if (latest) {
-        const res = await loadFromSlot(latest.slotId);
-        if (res.success) {
-          const mainMenu = document.getElementById("main-menu");
-          if (mainMenu)
-            mainMenu.style.display = "none";
-          STATE.gameStarted = true;
-          if (onStartGameCallback)
-            onStartGameCallback();
-        }
-      }
-    });
-  }
-  if (saveProfilesBtn) {
-    saveProfilesBtn.addEventListener("click", () => {
-      openSaveModal("slots");
-    });
-  }
-  if (closeBtn) {
-    closeBtn.addEventListener("click", () => {
-      closeSaveModal();
-    });
-  }
-  if (tabSlotsBtn && tabPresetsBtn) {
-    tabSlotsBtn.addEventListener("click", () => {
-      switchSaveTab("slots");
-    });
-    tabPresetsBtn.addEventListener("click", () => {
-      switchSaveTab("presets");
-    });
-  }
-  if (optQuickSaveBtn) {
-    optQuickSaveBtn.addEventListener("click", async () => {
-      await saveToSlot("slot_1", `Schnellspeicherstand (${STATE.currentSystemId === 1 ? "Sol Invictus" : "Sektor " + STATE.currentSystemId})`);
-      checkAndUpdateContinueButton();
-      renderSaveSlotsUI();
-    });
-  }
-  if (optOpenSavesBtn) {
-    optOpenSavesBtn.addEventListener("click", () => {
-      const optModal = document.getElementById("options-modal");
-      if (optModal)
-        optModal.style.display = "none";
-      openSaveModal("slots");
-    });
-  }
-  checkAndUpdateContinueButton();
-}
-async function checkAndUpdateContinueButton() {
-  const continueBtn = document.getElementById("continue-game-btn");
-  const continueText = document.getElementById("continue-game-text");
-  if (!continueBtn)
-    return;
-  try {
-    const latest = await getLatestSave();
-    if (latest) {
-      continueBtn.style.display = "flex";
-      if (continueText) {
-        continueText.innerHTML = `✨ <strong>Reise fortsetzen</strong> <span class="continue-meta">(${latest.systemName} • ${latest.crewCount}/${latest.maxCrewCapacity} Besatzung)</span>`;
-      }
-    } else {
-      continueBtn.style.display = "none";
-    }
-  } catch (e) {
-    continueBtn.style.display = "none";
-  }
-}
-function openSaveModal(initialTab = "slots") {
-  const modal = document.getElementById("save-load-modal");
-  if (!modal)
-    return;
-  isSaveModalOpen = true;
-  modal.style.display = "flex";
-  switchSaveTab(initialTab);
-  renderSaveSlotsUI();
-  renderPresetsUI();
-}
-function closeSaveModal() {
-  const modal = document.getElementById("save-load-modal");
-  if (!modal)
-    return;
-  isSaveModalOpen = false;
-  modal.style.display = "none";
-}
-function switchSaveTab(tab) {
-  const tabSlotsBtn = document.getElementById("save-tab-slots-btn");
-  const tabPresetsBtn = document.getElementById("save-tab-presets-btn");
-  const contentSlots = document.getElementById("save-tab-slots-content");
-  const contentPresets = document.getElementById("save-tab-presets-content");
-  if (tabSlotsBtn)
-    tabSlotsBtn.classList.toggle("active", tab === "slots");
-  if (tabPresetsBtn)
-    tabPresetsBtn.classList.toggle("active", tab === "presets");
-  if (contentSlots)
-    contentSlots.classList.toggle("active", tab === "slots");
-  if (contentPresets)
-    contentPresets.classList.toggle("active", tab === "presets");
-}
-async function renderSaveSlotsUI() {
-  const container = document.getElementById("save-slots-container");
-  if (!container)
-    return;
-  const allSaves = await listAllSaves();
-  const savesBySlot = {};
-  allSaves.forEach((s) => {
-    savesBySlot[s.slotId] = s;
-  });
-  const slotConfigs = [
-    { id: "autosave", title: "⚡ Automatischer Speicherstand", desc: "Sichert automatisch bei Hyperraum-Sprung & Evolutionen" },
-    { id: "slot_1", title: "\uD83D\uDCBE Speicherstand Slot 1", desc: "Manueller Speicherplatz" },
-    { id: "slot_2", title: "\uD83D\uDCBE Speicherstand Slot 2", desc: "Manueller Speicherplatz" },
-    { id: "slot_3", title: "\uD83D\uDCBE Speicherstand Slot 3", desc: "Manueller Speicherplatz" }
-  ];
-  container.innerHTML = "";
-  slotConfigs.forEach((slot) => {
-    const save = savesBySlot[slot.id];
-    const card = document.createElement("div");
-    card.className = `save-slot-card ${save ? "has-data" : "empty"}`;
-    if (save) {
-      const doctrineLabel = save.primaryParadigm === "symbiosis" ? "\uD83C\uDF31 Symbiose" : save.primaryParadigm === "domination" ? "⚡ Herrschaft" : save.primaryParadigm === "deception" ? "\uD83D\uDD2E Täuschung" : "\uD83D\uDCAB Neutral";
-      card.innerHTML = `
-                <div class="save-slot-main">
-                    <div class="slot-header-row">
-                        <span class="slot-title">${slot.title}</span>
-                        <span class="slot-date">\uD83D\uDCC5 ${save.dateFormatted}</span>
-                    </div>
-                    <div class="slot-name-highlight">${save.name}</div>
-                    <div class="slot-stats-row">
-                        <span class="slot-stat-chip">\uD83E\uDE90 ${save.systemName}</span>
-                        <span class="slot-stat-chip">\uD83D\uDC65 ${save.crewCount}/${save.maxCrewCapacity} Besatzung</span>
-                        <span class="slot-stat-chip">\uD83E\uDDEC ${save.bioRes} Bio &bull; \uD83D\uDC8E ${save.siliconRes} Sil</span>
-                        <span class="slot-stat-chip doctrine">${doctrineLabel}</span>
-                        <span class="slot-stat-chip health">❤️ ${save.health}% HP</span>
-                    </div>
-                </div>
-                <div class="save-slot-actions">
-                    <button class="slot-action-btn load-btn" data-slot="${slot.id}">
-                        <span>▶</span> Laden
-                    </button>
-                    ${STATE.gameStarted ? `
-                    <button class="slot-action-btn overwrite-btn" data-slot="${slot.id}">
-                        <span>\uD83D\uDCBE</span> Überschreiben
-                    </button>` : ""}
-                    <button class="slot-action-btn delete-btn" data-slot="${slot.id}" title="Löschen">
-                        ✕
-                    </button>
-                </div>
-            `;
-    } else {
-      card.innerHTML = `
-                <div class="save-slot-main">
-                    <div class="slot-header-row">
-                        <span class="slot-title">${slot.title}</span>
-                        <span class="slot-empty-badge">LEER</span>
-                    </div>
-                    <div class="slot-desc-sub">${slot.desc}</div>
-                </div>
-                <div class="save-slot-actions">
-                    ${STATE.gameStarted ? `
-                    <button class="slot-action-btn save-btn" data-slot="${slot.id}">
-                        <span>\uD83D\uDCBE</span> Jetzt Speichern
-                    </button>` : `
-                    <span class="slot-hint-text">Im Spiel speicherbar</span>`}
-                </div>
-            `;
-    }
-    container.appendChild(card);
-  });
-  container.querySelectorAll(".load-btn").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      const slotId = e.currentTarget.getAttribute("data-slot");
-      if (slotId) {
-        const res = await loadFromSlot(slotId);
-        if (res.success) {
-          closeSaveModal();
-          const mainMenu = document.getElementById("main-menu");
-          if (mainMenu)
-            mainMenu.style.display = "none";
-          STATE.gameStarted = true;
-        }
-      }
-    });
-  });
-  container.querySelectorAll(".save-btn, .overwrite-btn").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      const slotId = e.currentTarget.getAttribute("data-slot");
-      if (slotId) {
-        await saveToSlot(slotId);
-        checkAndUpdateContinueButton();
-        renderSaveSlotsUI();
-      }
-    });
-  });
-  container.querySelectorAll(".delete-btn").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      const slotId = e.currentTarget.getAttribute("data-slot");
-      if (slotId) {
-        await deleteSaveSlot(slotId);
-        checkAndUpdateContinueButton();
-        renderSaveSlotsUI();
-      }
-    });
-  });
-}
-function renderPresetsUI() {
-  const container = document.getElementById("presets-container");
-  if (!container)
-    return;
-  container.innerHTML = "";
-  Object.keys(PLAYTEST_PRESETS).forEach((key) => {
-    const preset = PLAYTEST_PRESETS[key];
-    const card = document.createElement("div");
-    card.className = `preset-card preset-${preset.id}`;
-    card.innerHTML = `
-            <div class="preset-card-top">
-                <div class="preset-badge">${preset.badge}</div>
-                <h3 class="preset-title">${preset.name}</h3>
-                <p class="preset-desc">${preset.description}</p>
-            </div>
-
-            <div class="preset-specs-list">
-                <div class="preset-spec-item">
-                    <span class="spec-label">\uD83D\uDC65 Besatzungs-Größe:</span>
-                    <span class="spec-val highlight">${preset.targetCrew} / ${preset.capacity} Individuen</span>
-                </div>
-                <div class="preset-spec-item">
-                    <span class="spec-label">\uD83E\uDDEA Ressourcen-Vorrat:</span>
-                    <span class="spec-val">${preset.resources.bio} Bio &bull; ${preset.resources.silicon} Silizium</span>
-                </div>
-                <div class="preset-spec-item">
-                    <span class="spec-label">\uD83E\uDDEC Mutationen freigeschaltet:</span>
-                    <span class="spec-val">${preset.mutations.length} Synapsen-Knoten</span>
-                </div>
-                <div class="preset-spec-item">
-                    <span class="spec-label">⚡ Paradigma:</span>
-                    <span class="spec-val">${preset.paradigm.toUpperCase()}</span>
-                </div>
-            </div>
-
-            <button class="preset-launch-btn" data-preset="${preset.id}">
-                <span>\uD83D\uDE80</span> Profil laden &amp; starten
-            </button>
-        `;
-    container.appendChild(card);
-  });
-  container.querySelectorAll(".preset-launch-btn").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      const presetId = e.currentTarget.getAttribute("data-preset");
-      if (presetId) {
-        const ok = await loadPlaytestPreset(presetId);
-        if (ok) {
-          closeSaveModal();
-          const mainMenu = document.getElementById("main-menu");
-          if (mainMenu)
-            mainMenu.style.display = "none";
-          STATE.gameStarted = true;
-          addLogEntry("SYSTEM", `Playtest-Preset "${presetId}" initialisiert. Flugbereit!`);
-        }
-      }
-    });
-  });
-}
-
 // src/main.ts
 var lastTime = 0;
 var voyagerBeaconTimer = 0;
@@ -44102,23 +44165,22 @@ function setupMenuListeners() {
   const mainMenu = document.getElementById("main-menu");
   const resumeBtn = document.getElementById("resume-game-btn");
   initSaveModal(() => {
-    if (mainMenu)
-      mainMenu.classList.add("menu-hidden");
+    hideMainMenu();
     document.body.classList.add("game-started");
     if (resumeBtn)
-      resumeBtn.style.display = "block";
+      resumeBtn.style.display = "flex";
     if (!isMusicPlaying() && !isMusicUserMuted()) {
       toggleMusic(true);
     }
     renderDirectives();
   });
-  if (startBtn && mainMenu) {
+  if (startBtn) {
     startBtn.addEventListener("click", () => {
-      mainMenu.classList.add("menu-hidden");
+      hideMainMenu();
       STATE.gameStarted = true;
       document.body.classList.add("game-started");
       if (resumeBtn)
-        resumeBtn.style.display = "block";
+        resumeBtn.style.display = "flex";
       if (STATE.universe) {
         clearActiveSystem();
         spawnPlanetsAndAsteroids();
@@ -44141,32 +44203,11 @@ function setupMenuListeners() {
       });
     });
   }
-  if (resumeBtn && mainMenu) {
+  if (resumeBtn) {
     resumeBtn.addEventListener("click", () => {
-      mainMenu.classList.add("menu-hidden");
+      hideMainMenu();
     });
   }
-  window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      const howToModal2 = document.getElementById("how-to-play-modal");
-      if (howToModal2 && howToModal2.style.display === "flex") {
-        howToModal2.style.display = "none";
-        return;
-      }
-      if (isMapOpen()) {
-        toggleGalaxyMap();
-        return;
-      }
-      if (!mainMenu)
-        return;
-      const runningInElectron2 = typeof window.api !== "undefined";
-      if (STATE.gameStarted) {
-        mainMenu.classList.toggle("menu-hidden");
-      } else if (runningInElectron2) {
-        window.api.closeApp();
-      }
-    }
-  });
   const howToBtn = document.getElementById("how-to-play-btn");
   const howToModal = document.getElementById("how-to-play-modal");
   const closeModalBtn = document.getElementById("close-modal-btn");

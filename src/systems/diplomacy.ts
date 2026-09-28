@@ -173,3 +173,9 @@ export function closeDiplomacyComms() {
     if (overlay) overlay.style.display = 'none';
     STATE.activeDiplomacyPlanet = null;
 }
+
+export function isDiplomacyCommsOpen(): boolean {
+    const overlay = document.getElementById('diplomacy-overlay');
+    return overlay ? overlay.style.display === 'flex' : false;
+}
+
