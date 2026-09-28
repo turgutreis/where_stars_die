@@ -3,8 +3,8 @@ import { playSiliconCollectSound } from '../engine/audio';
 import { addLogEntry } from './hud';
 import { calculateCrewBuffs, renderCrewUI } from '../systems/crew';
 import { renderFactionReputationUI } from '../systems/factions';
-import { dismissScannerPanel } from '../systems/scanner';
 import { initEvolutionTree, updateEvolutionTreeUI, startNeuralCanvasLoop, stopNeuralCanvasLoop } from './evolution-tree';
+import { triggerAutoSave } from '../systems/save-manager';
 
 export function isDeckOpen(): boolean {
     const modal = document.getElementById('deck-modal');
@@ -166,6 +166,7 @@ export function buyMutation(type: string) {
         }
 
         updateMutationUI();
+        triggerAutoSave(`Mutation: ${mut.name || type}`);
     } else {
         addLogEntry("SYSTEM", `Evolution fehlgeschlagen: Nicht genügend Ressourcen (${mut.bioCost} Bio | ${mut.siliconCost} Silizium benötigt)!`);
     }
@@ -197,5 +198,50 @@ export function updateMutationUI() {
         ibadCard.style.display = (STATE.mutations.ibad && STATE.mutations.ibad.purchased) ? 'flex' : 'none';
     }
 
+    updateEvolutionTreeUI();
+}
+
+export function reapplyAllMutations() {
+    let capacity = 4;
+    let thrust = 16.5;
+    let turn = 2.85;
+    let psionicRange = 75;
+    let maxMental = 100;
+    let stealthBonus = 0;
+
+    const m = STATE.mutations;
+    if (m) {
+        if (m.hive_cerebrum?.purchased) capacity = 30;
+        else if (m.cryo_matrix?.purchased) capacity = 20;
+        else if (m.neural_cluster?.purchased) capacity = 10;
+        else if (m.hivemind?.purchased) capacity = 6;
+        else if (m.cocoon?.purchased) capacity = 4;
+
+        if (m.vector_tentacles?.purchased) {
+            thrust = 20.6;
+            turn = 3.2;
+        }
+        if (m.psionic_pulse?.purchased || m.synapses?.purchased) {
+            psionicRange = 140;
+            maxMental = 150;
+        }
+        if (m.chimera_veil?.purchased) {
+            stealthBonus = 0.40;
+        }
+    }
+
+    STATE.maxCrewCapacity = capacity;
+    STATE.thrustStrength = thrust;
+    STATE.turnSpeed = turn;
+    STATE.psionicRange = psionicRange;
+    STATE.maxMentalEnergy = maxMental;
+
+    if (!STATE.paradigmModifiers) {
+        STATE.paradigmModifiers = { thrustBonus: 0, stealthBonus: 0, mentalDrainMult: 1, bioRegenBonus: 0, harmonyBonus: 0, stressModifier: 0 };
+    }
+    STATE.paradigmModifiers.stealthBonus = stealthBonus;
+
+    calculateCrewBuffs();
+    updateMutationUI();
     updateEvolutionTreeUI();
 }

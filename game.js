@@ -34217,7 +34217,8 @@ function updateParadigmModifiers() {
 function getSpeciesClusters() {
   const map = new Map;
   STATE.crew.forEach((c) => {
-    const key = c.speciesArchetypeName || c.species.split(" (")[0] || c.species;
+    const rawSpecies = c.species || "Unbekannt";
+    const key = c.speciesArchetypeName || rawSpecies.split(" (")[0] || rawSpecies;
     if (!map.has(key))
       map.set(key, []);
     map.get(key).push(c);
@@ -35332,1192 +35333,6 @@ function renderFactionReputationUI() {
   });
 }
 
-// src/procedural/quantum-civ.ts
-function cMul(a, b) {
-  return {
-    r: a.r * b.r - a.i * b.i,
-    i: a.r * b.i + a.i * b.r
-  };
-}
-function cNormSq(a) {
-  return a.r * a.r + a.i * a.i;
-}
-function lcg(seed) {
-  let s = Math.abs(seed) % 2147483647;
-  if (s === 0)
-    s = 1;
-  return () => {
-    s = s * 16807 % 2147483647;
-    return (s - 1) / 2147483646;
-  };
-}
-
-class QpuSimulator {
-  state;
-  numQubits = 8;
-  numStates = 256;
-  constructor(random) {
-    this.state = new Array(this.numStates).fill(null).map(() => ({ r: 0, i: 0 }));
-    this.state[0] = { r: 1, i: 0 };
-    for (let q = 0;q < this.numQubits; q++) {
-      this.applyHadamard(q);
-    }
-    this.applyCNOT(0, 1);
-    this.applyCNOT(2, 3);
-    this.applyCNOT(4, 5);
-    this.applyCNOT(6, 7);
-    for (let q = 0;q < this.numQubits; q++) {
-      const angle = random() * Math.PI * 2;
-      this.applyPhaseShift(q, angle);
-    }
-  }
-  applyHadamard(targetQubit) {
-    const bit = 1 << targetQubit;
-    const invSqrt2 = 1 / Math.SQRT2;
-    const newState = new Array(this.numStates);
-    for (let i = 0;i < this.numStates; i++) {
-      if ((i & bit) === 0) {
-        const i0 = i;
-        const i1 = i | bit;
-        const a = this.state[i0];
-        const b = this.state[i1];
-        newState[i0] = {
-          r: (a.r + b.r) * invSqrt2,
-          i: (a.i + b.i) * invSqrt2
-        };
-        newState[i1] = {
-          r: (a.r - b.r) * invSqrt2,
-          i: (a.i - b.i) * invSqrt2
-        };
-      }
-    }
-    this.state = newState;
-  }
-  applyCNOT(controlQubit, targetQubit) {
-    const controlBit = 1 << controlQubit;
-    const targetBit = 1 << targetQubit;
-    const newState = [...this.state];
-    for (let i = 0;i < this.numStates; i++) {
-      if ((i & controlBit) !== 0 && (i & targetBit) === 0) {
-        const i0 = i;
-        const i1 = i | targetBit;
-        const temp = newState[i0];
-        newState[i0] = newState[i1];
-        newState[i1] = temp;
-      }
-    }
-    this.state = newState;
-  }
-  applyPhaseShift(qubit, theta) {
-    const bit = 1 << qubit;
-    const phase = { r: Math.cos(theta), i: Math.sin(theta) };
-    for (let i = 0;i < this.numStates; i++) {
-      if ((i & bit) !== 0) {
-        this.state[i] = cMul(this.state[i], phase);
-      }
-    }
-  }
-  measureWavefunction(random) {
-    const probabilities = this.state.map(cNormSq);
-    const r = random();
-    let cumulative = 0;
-    let selectedState = 0;
-    for (let i = 0;i < probabilities.length; i++) {
-      cumulative += probabilities[i];
-      if (r <= cumulative) {
-        selectedState = i;
-        break;
-      }
-    }
-    const bits = [];
-    for (let q = 0;q < this.numQubits; q++) {
-      bits.push(selectedState >> q & 1);
-    }
-    return { stateIndex: selectedState, bits };
-  }
-}
-function generateQuantumWalkHistory(systemSeed, bits) {
-  const random = lcg(systemSeed + 999);
-  const eraPool = [
-    {
-      name: "Epoche des Ersten Flüsterns",
-      events: [
-        "Erste biologische Synthese primitiver Nervenbündel im Ammoniak-Ozean.",
-        "Entdeckung eines pulsierenden Monolithen aus gefrorenem Quanten-Licht.",
-        "Spontane telepathische Resonanz der Ur-Sippen während einer planetaren Sonnenfinsternis."
-      ],
-      paradoxes: [
-        "Ihre ältesten Schriften existieren in zwei diametral entgegengesetzten Bedeutungen gleichzeitig.",
-        "Stammesriten basieren auf Gesängen, die vor der Entstehung ihrer Sprache aufgezeichnet wurden."
-      ],
-      shifts: "Kollektive Meditation etablierte sich als primäres Kommunikationsmittel."
-    },
-    {
-      name: "Das Zeitalter der Dekohärenz",
-      events: [
-        "Bürgerkrieg zwischen Mechanisten und den Priestern der organischen Leere.",
-        "Spaltung des Heimatplaneten durch planetare Gravitations-Kerne.",
-        "Plötzlicher Stillstand aller siliziumbasierten Verbrennungsmotoren durch einen psionischen Puls."
-      ],
-      paradoxes: [
-        "Historiker fanden Denkmäler für Siege in Schlachten, die laut Sternenkarten nie stattfanden.",
-        "Die gesamte Kriegsflotte löste sich bei der Friedensunterzeichnung in bio-elektrischen Nebel auf."
-      ],
-      shifts: "Die Gesellschaft verbot isolierte Individualität und bildete telepathische Synapsen-Räte."
-    },
-    {
-      name: "Die Ära des Faltungs-Tors",
-      events: [
-        "Durchbruch in der Raumzeit-Krümmung ohne mechanischen Fusionsantrieb.",
-        "Erster physischer Kontakt mit einer Nomaden-Karawane des Konsortiums.",
-        "Errichtung eines 400 Kilometer weiten Orbital-Habitats aus lebendem Chitin."
-      ],
-      paradoxes: [
-        "Ihre Forscherschiffe kehrten 200 Jahre vor ihrem Starttermin unversehrt zurück.",
-        "Ihre Navigatoren sehen die Zukunft der Galaxie als eine flüssige, organische Wand."
-      ],
-      shifts: "Verankerung der Lehre vom 'Kosmischen Wanderer' im planetaren Gesetz."
-    }
-  ];
-  const eras = [];
-  eraPool.forEach((pool) => {
-    const evIdx = Math.floor(random() * pool.events.length);
-    const parIdx = Math.floor(random() * pool.paradoxes.length);
-    eras.push({
-      eraName: pool.name,
-      event: pool.events[evIdx],
-      paradoxDetail: pool.paradoxes[parIdx],
-      culturalShift: pool.shifts
-    });
-  });
-  return eras;
-}
-function collapseQuantumCivilization(systemId, planetIndex, seed) {
-  const random = lcg(seed * 7331 + systemId * 137 + planetIndex * 43);
-  const qpu = new QpuSimulator(random);
-  const { stateIndex, bits } = qpu.measureWavefunction(random);
-  const techCode = bits[1] << 1 | bits[0];
-  let techLevel = "Primitive";
-  let psionicAffinity = 25;
-  if (techCode === 1) {
-    techLevel = "Industrial";
-    psionicAffinity = 45;
-  } else if (techCode === 2) {
-    techLevel = "Spacefaring";
-    psionicAffinity = 75;
-  } else if (techCode === 3) {
-    techLevel = "Hyper-Advanced";
-    psionicAffinity = 95;
-  }
-  const socialCode = bits[3] << 1 | bits[2];
-  let archetype = "Symbiotische Bio-Kommune";
-  let doctrine = "Defensive";
-  let factionId = "free_traders";
-  if (socialCode === 0) {
-    archetype = "Telepathischer Synapsen-Schwarm";
-    doctrine = "Pacifist";
-    factionId = "olyndar_psion";
-  } else if (socialCode === 1) {
-    archetype = "Kybernetisches Nullpunkt-Kollektiv";
-    doctrine = "Defensive";
-    factionId = "vega_collective";
-  } else if (socialCode === 2) {
-    archetype = "Merkantile Gilden-Konföderation";
-    doctrine = "Pacifist";
-    factionId = "free_traders";
-  } else {
-    archetype = "Xenomilitärischer Kreuzzug";
-    doctrine = "Militaristic";
-    factionId = "xenomilitary_ash";
-  }
-  if (techLevel === "Hyper-Advanced" && bits[6] === 1) {
-    archetype = "Ewige Vorläufer-Wächter";
-    doctrine = "Defensive";
-    factionId = "aethelgard_guardians";
-  }
-  const worshipCode = bits[5] << 1 | bits[4];
-  const worshipsPlayer = worshipCode === 0 || factionId === "olyndar_psion";
-  const historyEras = generateQuantumWalkHistory(seed, bits);
-  const entanglementIndex = Math.round(55 + stateIndex % 45);
-  const paradoxFactor = Number(((bits[0] * 0.3 + bits[3] * 0.4 + bits[7] * 0.3) * 1.8 + 0.2).toFixed(2));
-  const collapseLog = `|Ψ⟩ kollabiert zu Zustand #${stateIndex.toString(16).toUpperCase()} (${bits.join("")}₂) | Verschränkungsgrad: ${entanglementIndex}%`;
-  return {
-    qubitStateVector: bits,
-    entanglementIndex,
-    societalArchetype: archetype,
-    paradoxFactor,
-    historyEras,
-    factionId,
-    worshipsPlayer,
-    quantumTechLevel: techLevel,
-    psionicAffinityScore: psionicAffinity,
-    militaryDoctrine: doctrine,
-    quantumCollapseLog: collapseLog
-  };
-}
-
-// src/systems/diplomacy.ts
-var ALIEN_GLYPHS = ["⍝", "⏁", "⍀", "⏃", "⋏", "⌇", "⌰", "⏃", "⏁", "⟟", "⍜", "⋏", "⍾", "⎍", "⏃", "⋏", "⏁", "⎍", "⋔", "Ψ", "Ω", "Δ", "Ξ", "Φ", "λ", "θ", "π", "Σ"];
-function generateAlienGlyphs(length = 120) {
-  let s = "";
-  for (let i = 0;i < length; i++) {
-    s += ALIEN_GLYPHS[Math.floor(Math.random() * ALIEN_GLYPHS.length)];
-    if (i % 8 === 0 && i > 0)
-      s += " ";
-  }
-  return s;
-}
-function openDiplomacyComms(planet) {
-  if (!planet || !planet.attributes?.species)
-    return;
-  STATE.activeDiplomacyPlanet = planet;
-  const spec = planet.attributes.species;
-  const factionId = spec.factionId || (spec.quantumCiv ? spec.quantumCiv.factionId : "free_traders");
-  const faction = getFaction(factionId);
-  const repScore = STATE.reputation[factionId] || 0;
-  const repInfo = getReputationTitle(repScore);
-  const hasTranslator = STATE.mutations.translator && STATE.mutations.translator.purchased;
-  const overlay = document.getElementById("diplomacy-overlay");
-  if (!overlay)
-    return;
-  overlay.style.display = "flex";
-  const headerTitle = document.getElementById("diplomacy-planet-name");
-  const factionEmblem = document.getElementById("diplomacy-faction-emblem");
-  const factionName = document.getElementById("diplomacy-faction-name");
-  const repBadge = document.getElementById("diplomacy-rep-badge");
-  if (headerTitle)
-    headerTitle.innerText = `${planet.name} – ${spec.name}`;
-  if (factionEmblem)
-    factionEmblem.innerText = faction.emblem;
-  if (factionName) {
-    factionName.innerText = faction.name;
-    factionName.style.color = faction.colorCss;
-  }
-  if (repBadge) {
-    repBadge.innerText = `${repInfo.label} (${repScore > 0 ? "+" : ""}${repScore})`;
-    repBadge.style.color = repInfo.color;
-  }
-  const dialogueBox = document.getElementById("diplomacy-dialogue-text");
-  const historyBox = document.getElementById("diplomacy-history-chronicle");
-  if (dialogueBox) {
-    if (!hasTranslator) {
-      dialogueBox.innerHTML = `
-                <div class="untranslated-warning">⚠️ KEIN DSCHINN-ÜBERSETZER AKTIV: Übertragungsfrequenz stark verschlüsselt.</div>
-                <div class="alien-glyph-stream">${generateAlienGlyphs(160)}</div>
-                <div class="translator-hint">Kaufe die Mutation 'Dschinn-Übersetzer' im Evolutions-Deck, um Sprache, Absichten und Quests zu verstehen.</div>
-            `;
-    } else {
-      let greeting = "";
-      if (spec.quantumCiv && spec.quantumCiv.worshipsPlayer) {
-        greeting = `„O Reisende aus dem gefalteten Raum! Unsere Synapsen-Priester haben dein Erscheinen im Quanten-Rauschen vorhergesagt. Dein lebendiger Leib trägt das Erbe der Ur-Schöpfer. Wie dürfen wir deinem Glanz dienen?“`;
-      } else if (repScore < -40) {
-        greeting = `„Achtung, bio-organische Anomalie! Deine Entführungen und Grenzverletzungen sind im gesamten Sektor registriert. Drehe sofort ab, oder unsere planetaren Railguns eröffnen das Feuer!“`;
-      } else if (factionId === "vega_collective") {
-        greeting = `„Logische Grußsequenz initiiert. Wir registrieren eine 99.4% nicht-mechanische Entropie-Signatur in deinem Kern. Wir schlagen einen Datenaustausch von Silizium-Ressourcen gegen Hyperraum-Telemetrie vor.“`;
-      } else if (factionId === "xenomilitary_ash") {
-        greeting = `„Hier spricht die Grenzkontrolle der Asche-Gilde. Halte deine Tentakel in neutraler Position. Wir tolerieren keine psionischen Übergriffe in diesem System.“`;
-      } else {
-        greeting = `„Willkommen im Orbit von ${planet.name}, fremder Wanderer! Unsere Handelsgilden sind bereit, Rohstoffe auszutauschen und deine Hülle zu versorgen.“`;
-      }
-      dialogueBox.innerHTML = `
-                <p class="translated-speech">${greeting}</p>
-                <div class="quantum-entanglement-tag">
-                    ⚛️ ${spec.quantumCiv ? spec.quantumCiv.quantumCollapseLog : "Quanten-Resonanz stabil"}
-                </div>
-            `;
-    }
-  }
-  if (historyBox) {
-    if (spec.quantumCiv && spec.quantumCiv.historyEras) {
-      historyBox.innerHTML = spec.quantumCiv.historyEras.map((era) => `
-                <div class="era-chronicle-item">
-                    <span class="era-title">\uD83D\uDCDC ${era.eraName}</span>
-                    <p class="era-desc">${era.event}</p>
-                    <span class="era-paradox">\uD83C\uDF00 Quanten-Paradoxon: ${era.paradoxDetail}</span>
-                </div>
-            `).join("");
-    } else {
-      historyBox.innerHTML = `<p style="color: #64748b;">Keine historischen Aufzeichnungen im aktuellen Sektor gefunden.</p>`;
-    }
-  }
-  renderDiplomacyActions(planet, factionId);
-}
-function renderDiplomacyActions(planet, factionId) {
-  const actionsContainer = document.getElementById("diplomacy-actions-container");
-  if (!actionsContainer)
-    return;
-  actionsContainer.innerHTML = "";
-  const tradeBtn = document.createElement("button");
-  tradeBtn.className = "diplo-action-btn trade";
-  tradeBtn.innerHTML = `<span>\uD83D\uDD04 Ressourcen-Tausch (40 Silizium ➔ 45 Bio)</span><span class="diplo-badge">+8 Rep</span>`;
-  tradeBtn.onclick = () => {
-    if (STATE.siliconRes >= 40) {
-      STATE.siliconRes -= 40;
-      STATE.bioRes += 45;
-      playBioCollectSound();
-      modifyReputation(factionId, 8, `Erfolgreicher Handelsvertrag mit ${planet.name}.`);
-      openDiplomacyComms(planet);
-    } else {
-      addLogEntry("SYSTEM", "Zu wenig Silizium für diesen Handel (40 benötigt)!");
-    }
-  };
-  actionsContainer.appendChild(tradeBtn);
-  const tributeBtn = document.createElement("button");
-  tributeBtn.className = "diplo-action-btn tribute";
-  tributeBtn.innerHTML = `<span>\uD83C\uDF81 Friedens-Tribut darbringen (30 Bio opfern)</span><span class="diplo-badge">+15 Rep</span>`;
-  tributeBtn.onclick = () => {
-    if (STATE.bioRes >= 30) {
-      STATE.bioRes -= 30;
-      STATE.health = Math.min(STATE.maxHealth, STATE.health + 25);
-      playSiliconCollectSound();
-      modifyReputation(factionId, 15, `Großzügiger Tribut an ${planet.name} übergeben (+25 HP Hüllenreparatur).`);
-      openDiplomacyComms(planet);
-    } else {
-      addLogEntry("SYSTEM", "Zu wenig Biomasse für Tribut (30 benötigt)!");
-    }
-  };
-  actionsContainer.appendChild(tributeBtn);
-  const blessingBtn = document.createElement("button");
-  blessingBtn.className = "diplo-action-btn psionic";
-  blessingBtn.innerHTML = `<span>\uD83E\uDDE0 Telepathischer Segen (25 Mentalkraft)</span><span class="diplo-badge">+20 Rep</span>`;
-  blessingBtn.onclick = () => {
-    if (STATE.mentalEnergy >= 25) {
-      STATE.mentalEnergy -= 25;
-      STATE.crew.forEach((c) => c.stress = Math.max(0, c.stress - 20));
-      modifyReputation(factionId, 20, `Telepathischer Segen harmonisiert planetare Geister (-20 Crew-Stress).`);
-      openDiplomacyComms(planet);
-    } else {
-      addLogEntry("SYSTEM", "Zu wenig Mentalkraft für telepathischen Segen (25% benötigt)!");
-    }
-  };
-  actionsContainer.appendChild(blessingBtn);
-  const threatBtn = document.createElement("button");
-  threatBtn.className = "diplo-action-btn threat";
-  threatBtn.innerHTML = `<span>⚔️ Drohung & Unterwerfung fordern</span><span class="diplo-badge danger">-30 Rep</span>`;
-  threatBtn.onclick = () => {
-    modifyReputation(factionId, -30, `Kriegerische Drohung gegen ${planet.name} ausgesprochen! Alarmstufe erhöht.`);
-    closeDiplomacyComms();
-  };
-  actionsContainer.appendChild(threatBtn);
-}
-function closeDiplomacyComms() {
-  const overlay = document.getElementById("diplomacy-overlay");
-  if (overlay)
-    overlay.style.display = "none";
-  STATE.activeDiplomacyPlanet = null;
-}
-
-// src/systems/crew-generation.ts
-var SPECIES_ARCHETYPES = [
-  {
-    speciesName: "Myzel-Symbiont",
-    speciesType: "ephemeral",
-    disposition: "empathic",
-    avatarIcon: "\uD83C\uDF44",
-    speciesColor: "#10b981",
-    firstNames: ["Thal", "Zhirr", "Oona", "Vael", "Kael", "Myco-9", "Sula", "Spore-7", "Phael", "Nyra", "Hypha-4", "Xylos", "Chitin-V", "Mycorrh", "Biolux-3", "Sporan-Rho", "Calyx", "Rhizo-2"],
-    titles: ["Bio-Architekt", "Sporen-Priester", "Membran-Wächter", "Kokon-Flechter", "Xenobotaniker", "Symbiose-Lotse", "Fungus-Resonator"],
-    origins: ["den Phosphor-Höhlen", "dem Myzel-Gürtel", "den Flechten-Ozeanen", "den Sporen-Nebeln", "den Bio-Kavernen", "den Nährstoff-Sümpfen"],
-    preferredRoles: ["biologist", "engineer"],
-    traits: [
-      { name: "Biolumineszent", desc: "+25% Biomasse-Metabolismus im Kokon", type: "bio" },
-      { name: "Sporen-Empathie", desc: "Beruhigt benachbarte Gefangene im Raumschiff", type: "stress" },
-      { name: "Schnell-Zellerneuerung", desc: "Hohe Regeneration, jedoch rascher Alterungsprozess", type: "quirk" }
-    ]
-  },
-  {
-    speciesName: "Cyborg-Synthet",
-    speciesType: "longlived",
-    disposition: "synthetic",
-    avatarIcon: "\uD83E\uDD16",
-    speciesColor: "#38bdf8",
-    firstNames: ["Dax-04", "Rex-Sigma", "Cipher-9", "Unit-77", "Nexus-V", "Kinet-8", "Proxy-Zero", "Vectis-9", "Null-1", "Synapse-X", "Core-42", "Aegis-7", "Proton-11", "Chronos-3", "Optic-88", "Echo-101"],
-    titles: ["Naniten-Meister", "Kybernetiker", "Subraum-Logiker", "Quanten-Mechaniker", "Reaktor-Pfleger", "Kinetik-Adept", "System-Architekt", "Gleichstrom-Lotse"],
-    origins: ["der Silizium-Schmiede", "dem Schaltkreis-Archipel", "den Titan-Minen", "den Daten-Gürteln", "den Quanten-Gießereien"],
-    preferredRoles: ["engineer", "pilot"],
-    traits: [
-      { name: "Maschinen-Synästhesie", desc: "+0.4 HP/s Naniten-Schiffshüllenreparatur", type: "repair" },
-      { name: "Emotionsloser Stoizismus", desc: "Immun gegen leichten Panikstress bei Hüllenschäden", type: "stress" },
-      { name: "Optische Übertaktung", desc: "+15% Manövrierbarkeit beim Flug", type: "speed" }
-    ]
-  },
-  {
-    speciesName: "Olyndar-Empath",
-    speciesType: "ancient",
-    disposition: "empathic",
-    avatarIcon: "\uD83E\uDDDD",
-    speciesColor: "#a855f7",
-    firstNames: ["Astraea", "Maya-Sol", "Solas", "Elyon", "Kaelen", "Lyra", "Seraph", "Zephyra", "Olynn", "Val-Marek", "Isolde", "Thalor-Sol", "Caelum", "Elysia", "Auriel", "Vesper", "Lumin"],
-    titles: ["Gedanken-Diplomat", "Astromant", "Resonanz-Weber", "Seelen-Navigator", "Traum-Hüter", "Äther-Sänger", "Sphären-Wächter", "Harmonie-Lotse"],
-    origins: ["den schwebenden Kristallsphären", "dem Äther-Konsens", "den Saphir-Tempeln", "den Ringwäldern", "den Astralen Säulen"],
-    preferredRoles: ["psychologist", "pilot"],
-    traits: [
-      { name: "Resonanz-Träumer", desc: "Senkt kosmische Einsamkeit des Schiffs um weitere 15%", type: "psionic" },
-      { name: "Telepathischer Anker", desc: "Verlangsamt Illusion-Decay aller Kokon-Wirte", type: "stress" },
-      { name: "Zeitloser Geist", desc: "Enorme biologische Langlebigkeit (über 20 Minuten)", type: "quirk" }
-    ]
-  },
-  {
-    speciesName: "Tiefsee-Oktanoide",
-    speciesType: "mortal",
-    disposition: "martial",
-    avatarIcon: "\uD83D\uDC19",
-    speciesColor: "#06b6d4",
-    firstNames: ["Nautis", "Triton", "Pelagos", "Hydros", "Moros", "Cala", "Mael", "Vell", "Thalass", "Gorgon", "Nerios", "Glaukos", "Benthos", "Proteus", "Abysso", "Thalor", "Karkin", "Ozean-8", "Kraal-Zeth", "Scylla-Mor", "Dagon-7", "Pontos"],
-    titles: ["Abyssal-Lotse", "Druckwellen-Architekt", "Kiemen-Navigator", "Tiefen-Echoforscher", "Hydro-Ingenieur", "Strömungs-Meister", "Thermen-Taucher", "Benthos-Führer"],
-    origins: ["den Methan-Gräben", "den Abyssal-Schloten", "den Salzwasser-Kernen", "den Gezeiten-Riffen", "den Tiefsee-Vulkanen", "den Schwefel-Quellen"],
-    preferredRoles: ["pilot", "biologist"],
-    traits: [
-      { name: "Druckresistenz", desc: "+20% Hüllendämpfung bei Gravitations-Stößen", type: "repair" },
-      { name: "Fluid-Schub", desc: "+20% Beschleunigung bei interstellarem Flug", type: "speed" },
-      { name: "Hydro-Synthese", desc: "Wandelt kinetische Energie langsam in Bio-Ressourcen um", type: "bio" }
-    ]
-  },
-  {
-    speciesName: "Kristalliner Lithoid",
-    speciesType: "longlived",
-    disposition: "lithoid",
-    avatarIcon: "\uD83D\uDCA0",
-    speciesColor: "#f59e0b",
-    firstNames: ["Pyrit-7", "Obsid-Prime", "Beryll-Rho", "Quarz-Matrix", "Granat-V", "Zirkon-9", "Silikat-Omega", "Basalt-K", "Andalus-3", "Topas-Delta", "Geod-12", "Monolith-4"],
-    titles: ["Prismen-Harmoniker", "Kristall-Geologe", "Kern-Resonator", "Seismologe", "Gesteins-Adept", "Feldspat-Meister", "Tektonik-Lotse"],
-    origins: ["den Obsidian-Stollen", "den Geoden-Schluchten", "den tektonischen Falten", "den Basalt-Hochebenen", "den Quarz-Kernen"],
-    preferredRoles: ["engineer", "psychologist"],
-    traits: [
-      { name: "Silizium-Katalysator", desc: "Reduziert Silizium-Verbrauch bei Naniten-Reparaturen", type: "repair" },
-      { name: "Refraktions-Matrix", desc: "+35 psionische Reichweite für Schiffssensoren", type: "psionic" },
-      { name: "Träge Zellteilung", desc: "Sehr langsame Alterung, benötigt selten Verjüngung", type: "quirk" }
-    ]
-  },
-  {
-    speciesName: "Terranischer Pionier",
-    speciesType: "mortal",
-    disposition: "scholarly",
-    avatarIcon: "\uD83E\uDDD1‍\uD83D\uDE80",
-    speciesColor: "#3b82f6",
-    firstNames: ["Aiden", "Cassian", "Elena", "Tarek", "Marcus", "Kira", "Nora", "Lin", "Youssef", "Darius", "Sora", "Mateo", "Leona", "Silas", "Amara", "Viktor", "Zoe", "Felix", "Selene", "Ronan", "Chloe", "Kenji", "Talia", "Ezekiel", "Mira", "Anton", "Maya", "Julian", "Liam", "Iris", "Jonas", "Freja"],
-    lastNames: ["Vance", "Thorne", "Kovacs", "Reyes", "Dubois", "Hansen", "Lindqvist", "Zhang", "Tanaka", "Moreau", "Al-Mansoor", "Petrov", "Becker", "Rossi", "Sterling", "Kowalski", "O'Neill", "Navarro", "Sinclair", "Vargas", "Hawthorne", "Castillo", "Müller", "Novak", "Richter", "Fontaine"],
-    titles: ["Cmdr.", "Dr.", "Bio-Pionier", "Astro-Ingenieur", "Exobiologe", "Kolonie-Scout", "System-Navigator", "Feldarzt", "Sensoren-Offizier", "Orbit-Lotse"],
-    origins: ["der Orbital-Station Alpha", "dem Kolonieschiff Exodus", "den Mars-Glaskuppeln", "den Mond-Außenposten", "der Venus-Wolkenstadt", "der Titan-Forschungsbasis"],
-    preferredRoles: ["pilot", "engineer", "biologist"],
-    traits: [
-      { name: "Unbeugsamer Wille", desc: "+25% Triebwerkschub bei kritischer Schiffs-Energie", type: "speed" },
-      { name: "Wissenschaftlicher Eifer", desc: "+30% Forschungs- & Telemetriegewinn beim Scannen", type: "psionic" },
-      { name: "Kollaborations-Drang", desc: "Verstärkt die Synergieeffekte anderer Crew-Mitglieder", type: "quirk" }
-    ]
-  },
-  {
-    speciesName: "Ash-Krieger (Xenomilitär)",
-    speciesType: "mortal",
-    disposition: "martial",
-    avatarIcon: "⚔️",
-    speciesColor: "#ef4444",
-    firstNames: ["Kragh", "Vorg", "Thok", "Xerath", "Brak", "Gorgash", "Malik-V", "Torgh", "Riktor", "Grom"],
-    titles: ["Kriegs-Kommandant", "Legionär", "Nahkampf-Adept", "Front-Offizier", "Taktiker"],
-    origins: ["den Obsidian-Kasernen", "den Schlacke-Gießereien", "den Orbital-Festungen", "den Asche-Wüsten"],
-    preferredRoles: ["pilot", "engineer"],
-    traits: [
-      { name: "Krieger-Ehrenkodex", desc: "Respektiert Stärke; rebelliert wild gegen schlaffe Unterwerfung", type: "quirk" },
-      { name: "Blut-Adrenalin", desc: "+35% Triebwerksschub bei Feindkontakt", type: "speed" },
-      { name: "Chitin-Knochen", desc: "+30% Resistenz gegen Schiffserschütterungen", type: "repair" }
-    ]
-  }
-];
-var ROLE_DEFINITIONS = {
-  pilot: {
-    roleName: "\uD83D\uDEF8 Astral-Pilot",
-    roleIcon: "\uD83D\uDEF8",
-    station: "flight_synapse",
-    stationName: "Flug-Synapse",
-    buffDesc: "+30% Schubkraft & Manövrierbarkeit",
-    baseStressRate: 0.18
-  },
-  biologist: {
-    roleName: "\uD83C\uDF31 Bio-Architekt",
-    roleIcon: "\uD83C\uDF31",
-    station: "bio_incubator",
-    stationName: "Bio-Inkubator",
-    buffDesc: "+45% Biomasse-Ertrag beim Ernten",
-    baseStressRate: 0.15
-  },
-  engineer: {
-    roleName: "\uD83D\uDD27 Naniten-Meister",
-    roleIcon: "\uD83D\uDD27",
-    station: "chitin_gland",
-    stationName: "Chitin-Drüse",
-    buffDesc: "+0.6 HP/s Naniten-Reparatur",
-    baseStressRate: 0.2
-  },
-  psychologist: {
-    roleName: "\uD83E\uDDD8 Gedanken-Diplomat",
-    roleIcon: "\uD83E\uDDD8",
-    station: "dream_core",
-    stationName: "Traum-Kern",
-    buffDesc: "-40% Crew-Stressaufbau & Psi-Fokus",
-    baseStressRate: 0.12
-  }
-};
-var LIFESPAN_PRESETS = {
-  ephemeral: { base: 280, variance: 80 },
-  mortal: { base: 560, variance: 120 },
-  longlived: { base: 950, variance: 200 },
-  ancient: { base: 1400, variance: 300 }
-};
-function generateProceduralCandidates(seedHash, count = 2, bannedNames) {
-  const candidates = [];
-  const roles = ["pilot", "biologist", "engineer", "psychologist"];
-  const usedNames = new Set(bannedNames || []);
-  if (typeof STATE !== "undefined" && STATE.crew) {
-    STATE.crew.forEach((c) => usedNames.add(c.name));
-  }
-  for (let i = 0;i < count; i++) {
-    let itemHash = seedHash * 31 + i * 179 + 42 >>> 0;
-    let chosenName = "";
-    let chosenArch = SPECIES_ARCHETYPES[itemHash % SPECIES_ARCHETYPES.length];
-    let origin = "";
-    for (let attempt = 0;attempt < 30; attempt++) {
-      const currentHash = itemHash + attempt * 7919 >>> 0;
-      const arch = SPECIES_ARCHETYPES[(itemHash + attempt) % SPECIES_ARCHETYPES.length];
-      chosenArch = arch;
-      const firstName = arch.firstNames[(currentHash + i * 3) % arch.firstNames.length];
-      const title = arch.titles[(currentHash + i * 5) % arch.titles.length];
-      origin = arch.origins[(currentHash + i * 7) % arch.origins.length];
-      let candidateName = "";
-      if (arch.lastNames && arch.lastNames.length > 0) {
-        const lastName = arch.lastNames[(currentHash + i * 11 + attempt * 17) % arch.lastNames.length];
-        candidateName = `${title} ${firstName} ${lastName}`;
-      } else {
-        candidateName = `${title} ${firstName}`;
-      }
-      if (!usedNames.has(candidateName)) {
-        chosenName = candidateName;
-        itemHash = currentHash;
-        break;
-      }
-    }
-    if (!chosenName || usedNames.has(chosenName)) {
-      const fallbackSuffix = ["II", "III", "IV", "V", "Prime", "Secundus"][i % 6];
-      chosenName = `${chosenName || "Pionier"} ${fallbackSuffix}`;
-    }
-    usedNames.add(chosenName);
-    let role = roles[(itemHash + i) % roles.length];
-    if (chosenArch.preferredRoles && chosenArch.preferredRoles.length > 0 && itemHash % 3 !== 0) {
-      role = chosenArch.preferredRoles[itemHash % chosenArch.preferredRoles.length];
-    }
-    const roleDef = ROLE_DEFINITIONS[role];
-    const trait = chosenArch.traits[(itemHash + i) % chosenArch.traits.length];
-    const preset = LIFESPAN_PRESETS[chosenArch.speciesType];
-    const lifespan = preset.base + itemHash % 100 / 100 * preset.variance;
-    const initialAge = lifespan * (0.05 + itemHash % 20 / 100);
-    candidates.push({
-      id: Date.now() + Math.floor(Math.random() * 1e6) + i * 1000 + itemHash % 999,
-      name: chosenName,
-      species: `${chosenArch.speciesName} (${origin})`,
-      speciesArchetypeName: chosenArch.speciesName,
-      speciesType: chosenArch.speciesType,
-      disposition: chosenArch.disposition,
-      role,
-      roleName: roleDef.roleName,
-      roleIcon: roleDef.roleIcon,
-      station: roleDef.station,
-      stationName: roleDef.stationName,
-      buffDesc: roleDef.buffDesc,
-      perk: trait.desc,
-      trait,
-      avatarIcon: chosenArch.avatarIcon,
-      speciesColor: chosenArch.speciesColor,
-      stress: 15 + itemHash % 15,
-      baseStressRate: roleDef.baseStressRate,
-      illusionStability: 100,
-      status: "Harmonisch",
-      thought: `Wartet im Kokon... Träumt von ${origin}.`,
-      age: initialAge,
-      maxLifespan: Math.round(lifespan),
-      ageCategory: "vital",
-      rejuvenationCount: 0,
-      criticalAlertTriggered: false
-    });
-  }
-  return candidates;
-}
-
-// src/ui/directives.ts
-var FTUE_DIRECTIVES = [
-  {
-    id: 0,
-    badge: "PHASE 1",
-    title: "Lebensfunke",
-    instruction: "Bewege die Najmafar mit [W/A/S/D] oder [Maus-Lenkung]",
-    hint: "Aktiviere den Bio-Schub und richte deine Sinnesorgane aus."
-  },
-  {
-    id: 1,
-    badge: "PHASE 2",
-    title: "System-Erkundung",
-    instruction: "Erkunde das Sternensystem: Fliege zu einem Planeten & scanne ihn mit [F]",
-    hint: "Halte Orbit-Abstand (< 25 AE) zu einem Himmelskörper und prüfe ihn auf Biosignaturen."
-  },
-  {
-    id: 2,
-    badge: "PHASE 3",
-    title: "Archaisches Signal",
-    instruction: "Folge dem goldenen Radar-Signal & Scanne das unbekannte Signal mit [F] oder [Klick]",
-    hint: "Eine künstliche metallische Anomalie treibt am Systemrand. Halte Abstand < 22 AE."
-  },
-  {
-    id: 3,
-    badge: "PHASE 4",
-    title: "Funke der Hoffnung",
-    instruction: "Öffne die Golden Record im Dialog & höre die Botschaft der Erde",
-    hint: "Die Klänge der Menschheit vertreiben die Depression (+50% Mentalkraft)."
-  },
-  {
-    id: 4,
-    badge: "PHASE 5",
-    title: "Aufbruch ins Leben",
-    instruction: "Öffne die Sternenkarte [M] – Kurs auf System mit Biosphäre",
-    hint: "Im Startsystem gibt es kein Leben. Finde eine bewohnbare Welt im Nachbarsystem!"
-  },
-  {
-    id: 5,
-    badge: "PHASE 6",
-    title: "Der erste Wirt",
-    instruction: "Scanne eine bewohnte Welt & führe eine Entführung [F] durch",
-    hint: "Übernehme ein intelligentes Wesen in deine Kokon-Matrix gegen die Einsamkeit."
-  }
-];
-var isCollapsed = false;
-function initDirectivesHUD() {
-  const toggleBtn = document.getElementById("toggle-directives-btn");
-  const container = document.getElementById("hud-directives");
-  if (toggleBtn && container) {
-    toggleBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      isCollapsed = !isCollapsed;
-      container.classList.toggle("collapsed", isCollapsed);
-      toggleBtn.innerText = isCollapsed ? "\uD83D\uDCCB" : "➖";
-    });
-  }
-  renderDirectives();
-}
-function renderDirectives() {
-  const container = document.getElementById("directives-list");
-  if (!container)
-    return;
-  const currentStep = STATE.ftueStep || 0;
-  let html = "";
-  FTUE_DIRECTIVES.forEach((d) => {
-    const isDone = d.id < currentStep;
-    const isActive = d.id === currentStep;
-    const isLocked = d.id > currentStep;
-    const statusClass = isDone ? "done" : isActive ? "active" : "locked";
-    const checkmark = isDone ? "✔" : isActive ? "◉" : "○";
-    html += `
-            <div class="directive-card ${statusClass}" data-step="${d.id}">
-                <div class="directive-status-icon">${checkmark}</div>
-                <div class="directive-body">
-                    <div class="directive-header">
-                        <span class="directive-badge">${d.badge}</span>
-                        <span class="directive-title">${d.title}</span>
-                    </div>
-                    <div class="directive-instruction">${d.instruction}</div>
-                    ${isActive ? `<div class="directive-hint">${d.hint}</div>` : ""}
-                </div>
-            </div>
-        `;
-  });
-  container.innerHTML = html;
-}
-function advanceFtueStep(targetStep) {
-  const current = STATE.ftueStep || 0;
-  if (targetStep > current) {
-    STATE.ftueStep = targetStep;
-    const completedDirective = FTUE_DIRECTIVES[current];
-    if (completedDirective) {
-      addLogEntry("SYSTEM", `Direktive erfüllt: [${completedDirective.title}] ✔`);
-    }
-    if (targetStep >= FTUE_DIRECTIVES.length) {
-      STATE.ftueCompleted = true;
-      addLogEntry("SYSTEM", "Alle Einführungs-Direktiven abgeschlossen. Das Schicksal der Galaxie liegt in deinen Händen.");
-    }
-    renderDirectives();
-  }
-}
-function triggerVoyagerSignalDetection() {
-  if (STATE.voyagerSignalDetected)
-    return;
-  STATE.voyagerSignalDetected = true;
-  try {
-    playVoyagerBeaconPing();
-  } catch (e) {}
-  addLogEntry("NAJMAFAR", "„Dieses System ist erstarrt... Niemand ist hier. Nur die Kälte der Leere.“");
-  addLogEntry("SENSOR", "ANOMALIE DETEKTIERT: Schwache elektromagnetische Trägerwelle (1420 MHz) empfangen!");
-  addLogEntry("SYSTEM", "Archaische Signalquelle am Systemrand geortet. UNBEKANNTES SIGNAL auf Radar und Nav-Tracker aufgeschaltet!");
-  advanceFtueStep(2);
-}
-function updateVoyagerHUDTracker() {
-  const trackerEl = document.getElementById("voyager-nav-tracker");
-  if (!trackerEl)
-    return;
-  if (!STATE.voyagerProbe || !STATE.voyagerSignalDetected || STATE.voyagerScanned) {
-    trackerEl.style.display = "none";
-    return;
-  }
-  const titleEl = trackerEl.querySelector(".voyager-tracker-title");
-  if (titleEl) {
-    titleEl.innerText = STATE.voyagerScanned ? "VOYAGER 2 SIGNAL" : "UNBEKANNTES SIGNAL";
-  }
-  const playerPos = STATE.playerPosition;
-  const probePos = STATE.voyagerProbe.position;
-  if (!playerPos || !probePos)
-    return;
-  const dx = probePos.x - playerPos.x;
-  const dz = probePos.z - playerPos.z;
-  const dist = Math.hypot(dx, dz);
-  trackerEl.style.display = "flex";
-  const distEl = document.getElementById("voyager-nav-dist");
-  const angleEl = document.getElementById("voyager-nav-arrow");
-  if (distEl) {
-    distEl.innerText = `${dist.toFixed(1)} AE`;
-  }
-  if (angleEl) {
-    const targetAngle = Math.atan2(dz, dx);
-    const heading = STATE.shipHeading || 0;
-    const relativeAngleDeg = (targetAngle - heading) * 180 / Math.PI;
-    angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
-  }
-}
-
-// src/systems/scanner.ts
-function generatePlanetAttributes(p) {
-  const sysId = STATE.currentSystemId || 0;
-  const nameHash = (p.name || "").split("").reduce((acc, char) => acc * 31 + char.charCodeAt(0) >>> 0, 0);
-  const distFactor = Math.floor((p.distance || 1) * 73);
-  const hash = (sysId * 7919 ^ nameHash * 17 ^ distFactor) >>> 0;
-  const tidalLock = typeof p.tidalLock === "boolean" ? p.tidalLock : (p.distance || 50) < 28 || p.type === "Rocky" && hash % 4 === 0;
-  const magnetosphere = p.magnetosphere || (p.type === "Gas Giant" ? hash % 3 === 0 ? "Hyper-Magnetic" : "Strong" : p.type === "Habitable" ? hash % 3 === 0 ? "Weak" : "Strong" : p.type === "Rocky" ? hash % 3 === 0 ? "None" : hash % 3 === 1 ? "Weak" : "Strong" : "Weak");
-  const geothermal = p.geothermal || (p.type === "Gas Giant" ? hash % 2 === 0 ? "Dead" : "Dormant" : p.type === "Habitable" ? hash % 2 === 0 ? "Dormant" : "Active Geysers" : p.type === "Rocky" ? hash % 3 === 0 ? "Hyper-Volcanic" : hash % 3 === 1 ? "Active Geysers" : "Dead" : "Active Geysers");
-  const radiationLevel = p.radiationLevel || (hash % 4 === 0 ? "Extreme" : hash % 4 === 1 ? "High" : hash % 4 === 2 ? "Moderate" : "Low");
-  const entangledTwinId = p.entangledTwinId ?? null;
-  const quantumResonance = p.quantumResonance ?? (entangledTwinId ? 0.85 : 0);
-  if (p.atmos && p.temp && p.bio && p.res && (p.type !== "Habitable" || p.species && p.species.candidates && p.species.candidates.length > 0)) {
-    return {
-      atmos: p.atmos,
-      temp: p.temp,
-      bio: p.bio,
-      res: p.res,
-      species: p.species || null,
-      tidalLock,
-      magnetosphere,
-      geothermal,
-      radiationLevel,
-      entangledTwinId,
-      quantumResonance
-    };
-  }
-  let atmos, temp, bio, res, species;
-  if (p.type === "Habitable") {
-    atmos = hash % 2 === 0 ? "Stickstoff & Sauerstoff (Klasse M)" : "Dichte Aerosole & Wasserdampf";
-    temp = 15 + hash % 15 + "°C";
-    bio = hash % 3 === 0 ? "Biolumineszierende Flora" : hash % 3 === 1 ? "Mikrobielle Kolonien" : "Komplexes Ökosystem";
-    res = "Reich an Biomasse, Kohlenstoff & O2";
-    const pool = generateProceduralCandidates(hash, hash % 2 === 0 ? 2 : 1);
-    const qCiv = collapseQuantumCivilization(STATE.currentSystemId, hash % 8, hash);
-    const faction = getFaction(qCiv.factionId);
-    species = {
-      hasSentient: true,
-      name: `${qCiv.societalArchetype} (${faction.shortName})`,
-      population: pool.length * 1000 + hash % 500,
-      candidates: pool,
-      techLevel: qCiv.quantumTechLevel,
-      defenseRating: qCiv.quantumTechLevel === "Primitive" ? 0 : qCiv.quantumTechLevel === "Industrial" ? 20 : qCiv.quantumTechLevel === "Spacefaring" ? 65 : 95,
-      fleetDisposition: qCiv.militaryDoctrine === "Militaristic" ? "Militaristic" : qCiv.militaryDoctrine === "Pacifist" ? "Pacifist" : "Defensive",
-      factionId: qCiv.factionId,
-      quantumCiv: qCiv
-    };
-  } else if (p.type === "Gas Giant") {
-    atmos = hash % 2 === 0 ? "Flüssiges Helium & Wasserstoff" : "Superdichtes Ammoniak & Methan";
-    temp = -120 - hash % 60 + "°C";
-    bio = hash % 5 === 0 ? "Schwebende Plankton-Analoge" : "Keine Signaturen erfasst";
-    res = "Extrem hoher Druck, Deuterium-Vorkommen";
-    species = null;
-  } else {
-    atmos = hash % 3 === 0 ? "Dünnes CO2-Vakuum" : hash % 3 === 1 ? "Schwefeldioxid & Argon" : "Keine Atmosphäre (Vakuum)";
-    temp = (hash % 2 === 0 ? "+" : "-") + hash % 250 + "°C";
-    bio = hash % 8 === 0 ? "Extremophile Flechten" : "Steril";
-    res = "Reich an Silizium-Kristallen, Eisen & Schwermetallen";
-    species = null;
-  }
-  return {
-    atmos,
-    temp,
-    bio,
-    res,
-    species,
-    tidalLock,
-    magnetosphere,
-    geothermal,
-    radiationLevel,
-    entangledTwinId,
-    quantumResonance
-  };
-}
-function triggerScanStart() {
-  const target = STATE.orbitLevel === "moon" && STATE.activeMoonOrbit ? STATE.activeMoonOrbit : STATE.nearestPlanet;
-  if (!STATE.gameStarted || STATE.scanningPlanet || STATE.extractingPlanet || !target)
-    return;
-  const planet = target;
-  const isAlreadyScanned = planet.scanned || STATE.scannedPlanets && STATE.scannedPlanets[planet.name];
-  if (isAlreadyScanned) {
-    addLogEntry("SYSTEM", `${planet.isMoon ? "Mond" : "Planet"} ${planet.name} ist bereits vollständig kartografiert & gescannt.`);
-    return;
-  }
-  const meshScale = planet.mesh ? planet.mesh.scale.x : 1;
-  const maxScanDist = Math.max(25, (planet.size || 2.5) * meshScale * 3.8);
-  const dx = STATE.playerPosition.x - planet.mesh.position.x;
-  const dz = STATE.playerPosition.z - planet.mesh.position.z;
-  const dist = Math.sqrt(dx * dx + dz * dz);
-  if (dist >= maxScanDist)
-    return;
-  STATE.scanningPlanet = planet;
-  STATE.scanProgress = 0;
-  const progContainer = document.getElementById("scan-progress-container");
-  if (progContainer)
-    progContainer.style.display = "block";
-  const scanBtn = document.getElementById("start-scan-btn");
-  if (scanBtn)
-    scanBtn.setAttribute("disabled", "true");
-  const visualRadius = (planet.size || 3) * meshScale;
-  createScanVisuals(STATE.playerPosition, planet.mesh.position, visualRadius);
-  startQuantumScanSound();
-  addLogEntry("SYSTEM", `Spektral-Scan initiiert für: ${STATE.scanningPlanet.name}. Halte Orbit-Position...`);
-}
-function updateScanning(dt) {
-  if (!STATE.scanningPlanet)
-    return;
-  const meshScale = STATE.scanningPlanet.mesh ? STATE.scanningPlanet.mesh.scale.x : 1;
-  const maxHoldDist = Math.max(32, (STATE.scanningPlanet.size || 2.5) * meshScale * 4.4);
-  const dx = STATE.playerPosition.x - STATE.scanningPlanet.mesh.position.x;
-  const dz = STATE.playerPosition.z - STATE.scanningPlanet.mesh.position.z;
-  const dist = Math.sqrt(dx * dx + dz * dz);
-  if (dist > maxHoldDist) {
-    cancelScanning("Signalverlust. Abstand überschritt Sicherheitsradius.");
-    return;
-  }
-  updateScanVisuals(STATE.playerPosition, STATE.scanningPlanet.mesh.position);
-  const scanSpeedMult = STATE.crewBuffs ? STATE.crewBuffs.scanSpeed : 1;
-  STATE.scanProgress += dt * 35 * scanSpeedMult;
-  updateQuantumScanSound(STATE.scanProgress);
-  const bar = document.getElementById("scan-progress-bar");
-  const text = document.getElementById("scan-progress-text");
-  if (bar)
-    bar.style.width = `${STATE.scanProgress}%`;
-  if (text)
-    text.innerText = `${Math.round(STATE.scanProgress)}%`;
-  if (STATE.scanProgress >= 100) {
-    completeScanning();
-  }
-}
-function cancelScanning(reason) {
-  stopQuantumScanSound(false);
-  removeScanVisuals();
-  addLogEntry("SYSTEM", `Scan abgebrochen: ${reason}`);
-  STATE.scanningPlanet = null;
-  STATE.scanProgress = 0;
-  const progContainer = document.getElementById("scan-progress-container");
-  if (progContainer)
-    progContainer.style.display = "none";
-}
-function completeScanning() {
-  stopQuantumScanSound(true);
-  removeScanVisuals();
-  const progContainer = document.getElementById("scan-progress-container");
-  if (progContainer)
-    progContainer.style.display = "none";
-  const planet = STATE.scanningPlanet;
-  try {
-    if (planet) {
-      if (!planet.attributes) {
-        planet.attributes = generatePlanetAttributes(planet);
-      }
-      planet.scanned = true;
-      STATE.scannedPlanets[planet.name] = true;
-      STATE.bioRes += 15;
-      STATE.siliconRes += 10;
-      STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 15);
-      addLogEntry("SYSTEM", `Spektral-Scan von ${planet.name} abgeschlossen! Atmosphärendatenbank aktualisiert (+15 Bio | +10 Silizium).`);
-      if (planet.attributes?.entangledTwinId) {
-        addLogEntry("SYSTEM", `QUANTEN-KOPPLUNG: ${planet.name} ist resonant verschränkt mit ${planet.attributes.entangledTwinId} (${Math.round((planet.attributes.quantumResonance || 0.85) * 100)}% Resonanz)!`);
-      }
-      if (planet.attributes?.species && planet.attributes.species.population > 0) {
-        addLogEntry("SYSTEM", `PSIO-DETEKTION: Intelligentes Leben (${planet.attributes.species.name}) auf ${planet.name} entdeckt! Psionischer Transfer [F] bereit.`);
-      } else {
-        addLogEntry("SENSOR", `Atmosphärendaten: ${planet.attributes?.atmos || "Vakuum"} | Bio: ${planet.attributes?.bio || "Steril"}. Keine Lebensformen detektiert.`);
-      }
-      if ((STATE.ftueStep || 0) <= 1 && !STATE.voyagerSignalDetected) {
-        triggerVoyagerSignalDetection();
-      } else if ((STATE.ftueStep || 0) === 1) {
-        advanceFtueStep(2);
-      }
-      updateScannerUI(planet, 10);
-    }
-  } catch (err) {
-    console.error("Scanner completion error:", err);
-  } finally {
-    STATE.scanningPlanet = null;
-    STATE.scanProgress = 0;
-  }
-}
-var manuallyDismissedTarget = null;
-function dismissScannerPanel() {
-  const scannerPanel = document.getElementById("left-deck-panel");
-  if (scannerPanel) {
-    scannerPanel.classList.remove("visible");
-  }
-  if (STATE.lockedTarget) {
-    manuallyDismissedTarget = STATE.lockedTarget.name;
-  } else if (STATE.nearestPlanet) {
-    manuallyDismissedTarget = STATE.nearestPlanet.name;
-  }
-}
-function resetDismissedScanner() {
-  manuallyDismissedTarget = null;
-}
-function updateScannerUI(planet, dist) {
-  const nameEl = document.getElementById("scan-planet-name");
-  const distEl = document.getElementById("scan-planet-dist");
-  const scanBtn = document.getElementById("start-scan-btn");
-  const placeholderBox = document.getElementById("scan-placeholder-box");
-  const resultsBox = document.getElementById("scan-results-box");
-  const harvestBtn = document.getElementById("start-harvest-btn");
-  const abductBtn = document.getElementById("start-abduct-btn");
-  const scannerPanel = document.getElementById("left-deck-panel");
-  if (!planet) {
-    if (scannerPanel)
-      scannerPanel.classList.remove("visible");
-    return;
-  }
-  if (manuallyDismissedTarget && manuallyDismissedTarget !== planet.name) {
-    manuallyDismissedTarget = null;
-  }
-  const isLocked = STATE.lockedTarget && STATE.lockedTarget.name === planet.name;
-  const isInOrbit = STATE.orbitPlanet && STATE.orbitPlanet.name === planet.name || STATE.activeMoonOrbit && STATE.activeMoonOrbit.name === planet.name;
-  const isCurrentlyVisible = scannerPanel ? scannerPanel.classList.contains("visible") : false;
-  const isDismissed = manuallyDismissedTarget === planet.name;
-  let shouldShow = false;
-  if (!isDismissed) {
-    if (isInOrbit || isLocked) {
-      shouldShow = true;
-    } else if (isCurrentlyVisible) {
-      shouldShow = dist <= 30;
-    } else {
-      shouldShow = dist <= 25;
-    }
-  }
-  if (scannerPanel) {
-    if (shouldShow) {
-      scannerPanel.classList.add("visible");
-    } else {
-      scannerPanel.classList.remove("visible");
-    }
-  }
-  if (nameEl)
-    nameEl.innerText = `${planet.name} (${planet.isMoon ? "Mond" : planet.type})`;
-  if (distEl) {
-    distEl.innerText = `${dist.toFixed(1)} ${dist < 20 ? "(In Sensorreichweite)" : "(Zu weit entfernt)"}`;
-    distEl.style.color = dist < 20 ? "#10b981" : "#f59e0b";
-  }
-  const orbitBadge = document.getElementById("orbit-subsystem-badge");
-  const orbitBadgeTitle = document.getElementById("orbit-badge-title");
-  const orbitBadgeSub = document.getElementById("orbit-badge-sub");
-  if (orbitBadge) {
-    if (STATE.orbitLevel === "moon" && STATE.activeMoonOrbit) {
-      orbitBadge.style.display = "flex";
-      if (orbitBadgeTitle) {
-        orbitBadgeTitle.innerText = `\uD83C\uDF15 MOND-ORBIT: ${STATE.activeMoonOrbit.name.toUpperCase()}`;
-      }
-      if (orbitBadgeSub) {
-        const parentName = STATE.activeMoonOrbit.parentPlanet ? STATE.activeMoonOrbit.parentPlanet.name : STATE.orbitPlanet ? STATE.orbitPlanet.name : "Zentralkörper";
-        const curRadius = STATE.activeMoonOrbit.source ? STATE.activeMoonOrbit.source.radius : STATE.activeMoonOrbit.size || 1;
-        const alt = Math.max(0.1, dist - curRadius).toFixed(1);
-        orbitBadgeSub.innerText = `Mutterplanet: ${parentName} • Höhe: ${alt} LJ`;
-      }
-    } else if (STATE.orbitLevel === "planet" && STATE.orbitPlanet) {
-      orbitBadge.style.display = "flex";
-      if (orbitBadgeTitle) {
-        orbitBadgeTitle.innerText = `\uD83E\uDE90 SUB-SYSTEM: ${STATE.orbitPlanet.name.toUpperCase()}`;
-      }
-      if (orbitBadgeSub) {
-        const moons = activePlanets.filter((m) => m.isMoon && m.parentPlanet === STATE.orbitPlanet);
-        const curRadius = STATE.orbitPlanet.source ? STATE.orbitPlanet.source.radius : STATE.orbitPlanet.size || 2.5;
-        const alt = Math.max(0.2, dist - curRadius).toFixed(1);
-        orbitBadgeSub.innerText = `Höhe: ${alt} LJ • ${moons.length} Monde im Orbit`;
-      }
-    } else {
-      orbitBadge.style.display = "none";
-    }
-  }
-  const meshScale = planet.mesh ? planet.mesh.scale.x : 1;
-  const maxScanDist = Math.max(25, (planet.size || 2.5) * meshScale * 3.8);
-  const inRange = dist < maxScanDist;
-  const isScanned = planet.scanned || STATE.scannedPlanets[planet.name];
-  if (distEl) {
-    distEl.innerText = `${dist.toFixed(1)} ${inRange ? "(In Sensorreichweite)" : "(Zu weit entfernt)"}`;
-    distEl.style.color = inRange ? "#10b981" : "#f59e0b";
-  }
-  if (scanBtn) {
-    scanBtn.disabled = !inRange || isScanned || STATE.scanningPlanet !== null;
-    if (isScanned) {
-      scanBtn.innerText = "Oberflächenscan Abgeschlossen ✓";
-    } else {
-      scanBtn.innerText = inRange ? "Scan initiieren [F]" : `Zu weit entfernt (< ${Math.round(maxScanDist)} nötig)`;
-    }
-  }
-  if (isScanned) {
-    if (!planet.attributes) {
-      planet.attributes = generatePlanetAttributes(planet);
-    }
-    const attrs = planet.attributes;
-    if (placeholderBox)
-      placeholderBox.style.display = "none";
-    if (resultsBox)
-      resultsBox.style.display = "block";
-    const titleEl = document.getElementById("scan-planet-title");
-    if (titleEl)
-      titleEl.innerText = `Analyse: ${planet.name}`;
-    const typeEl = document.getElementById("scan-planet-type");
-    if (typeEl)
-      typeEl.innerText = `${planet.type} (${planet.size}x)`;
-    const tempEl = document.getElementById("scan-planet-temp");
-    if (tempEl)
-      tempEl.innerText = attrs.temp || "-";
-    const bioEl = document.getElementById("scan-planet-bio");
-    if (bioEl)
-      bioEl.innerText = attrs.bio || "-";
-    const atmosEl = document.getElementById("scan-planet-atmos");
-    if (atmosEl)
-      atmosEl.innerText = attrs.atmos || "-";
-    const quantumRow = document.getElementById("scan-planet-quantum-row");
-    const quantumEl = document.getElementById("scan-planet-quantum");
-    if (quantumRow && quantumEl) {
-      if (attrs.entangledTwinId) {
-        quantumRow.style.display = "flex";
-        const resPct = Math.round((attrs.quantumResonance || 0.85) * 100);
-        quantumEl.innerHTML = `\uD83D\uDD17 Verschränkt mit <span style="color: #c084fc; font-weight: bold;">${attrs.entangledTwinId}</span> (${resPct}% Resonanz)`;
-      } else {
-        quantumRow.style.display = "none";
-      }
-    }
-    const physicsRow = document.getElementById("scan-planet-physics-row");
-    const physicsEl = document.getElementById("scan-planet-physics");
-    if (physicsRow && physicsEl) {
-      physicsRow.style.display = "flex";
-      const rotText = attrs.tidalLock ? "Gebundene Rotation (1:1)" : "Freie Rotation";
-      const geoText = attrs.geothermal ? ` • ${attrs.geothermal}` : "";
-      physicsEl.innerText = `${rotText}${geoText}`;
-    }
-    const radiationRow = document.getElementById("scan-planet-radiation-row");
-    const radiationEl = document.getElementById("scan-planet-radiation");
-    if (radiationRow && radiationEl) {
-      radiationRow.style.display = "flex";
-      const radLevel = attrs.radiationLevel || "Normal";
-      const magLevel = attrs.magnetosphere ? ` • \uD83E\uDDF2 ${attrs.magnetosphere}` : "";
-      radiationEl.innerText = `${radLevel}${magLevel}`;
-      if (radLevel === "Extreme") {
-        radiationEl.style.color = "#f43f5e";
-      } else if (radLevel === "High") {
-        radiationEl.style.color = "#fb923c";
-      } else {
-        radiationEl.style.color = "#facc15";
-      }
-    }
-    const resEl = document.getElementById("scan-planet-resources");
-    if (resEl)
-      resEl.innerText = attrs.res || "-";
-    const speciesRow = document.getElementById("scan-planet-species-row");
-    const speciesEl = document.getElementById("scan-planet-species");
-    const techRow = document.getElementById("scan-planet-tech-row");
-    const techEl = document.getElementById("scan-planet-tech");
-    const fleetRow = document.getElementById("scan-planet-fleet-row");
-    const fleetEl = document.getElementById("scan-planet-fleet");
-    const spec = attrs.species;
-    const hasSentient = spec && spec.population > 0;
-    if (speciesRow && speciesEl) {
-      if (hasSentient) {
-        speciesRow.style.display = "flex";
-        let candidateTag = "";
-        if (spec.candidates && spec.candidates.length > 0) {
-          const topCand = spec.candidates[0];
-          const hasRole = STATE.crew.some((c) => c.role === topCand.role);
-          candidateTag = hasRole ? `<br><span class="candidate-role-synergy-tag duplicate-role">\uD83D\uDC65 Ziel: ${topCand.roleName || topCand.role} (Verstärkt Buffs)</span>` : `<br><span class="candidate-role-synergy-tag new-role">✨ Ziel: ${topCand.roleName || topCand.role} (Neue Rolle: Synergie!)</span>`;
-        }
-        speciesEl.innerHTML = `<span style="color: #38bdf8; font-weight: bold;">${spec.name}</span> (Pop: ${spec.population})${candidateTag}`;
-      } else {
-        speciesRow.style.display = "none";
-      }
-    }
-    if (techRow && techEl) {
-      if (hasSentient && spec.techLevel) {
-        techRow.style.display = "flex";
-        let icon = "\uD83C\uDFDB️";
-        if (spec.techLevel === "Industrial")
-          icon = "\uD83C\uDFED";
-        if (spec.techLevel === "Spacefaring")
-          icon = "\uD83D\uDE80";
-        if (spec.techLevel === "Hyper-Advanced")
-          icon = "\uD83C\uDF0C";
-        techEl.innerText = `${icon} ${spec.techLevel} (${spec.fleetDisposition || "Defensiv"})`;
-      } else {
-        techRow.style.display = "none";
-      }
-    }
-    if (fleetRow && fleetEl) {
-      if (hasSentient && (spec.techLevel === "Spacefaring" || spec.techLevel === "Hyper-Advanced")) {
-        fleetRow.style.display = "flex";
-        const activeShips = STATE.fleetShips.filter((s) => s.homePlanet.name === planet.name);
-        const alertText = activeShips.some((s) => s.state === "intercept") ? "\uD83D\uDEA8 ALARM: Abfangkurs!" : "\uD83D\uDEE1️ Patrouille aktiv";
-        fleetEl.innerText = `${activeShips.length} Einheiten | ${alertText}`;
-        fleetEl.style.color = activeShips.some((s) => s.state === "intercept") ? "#f43f5e" : "#38bdf8";
-      } else {
-        fleetRow.style.display = "none";
-      }
-    }
-    const commsBtn = document.getElementById("start-comms-btn");
-    if (commsBtn) {
-      commsBtn.style.display = inRange && hasSentient ? "block" : "none";
-      commsBtn.onclick = () => openDiplomacyComms(planet);
-    }
-    if (harvestBtn) {
-      const isDepleted = planet.depleted || planet.harvested || STATE.depletedPlanets && STATE.depletedPlanets[planet.name];
-      harvestBtn.style.display = inRange && !STATE.extractingPlanet && !STATE.abductActive ? "block" : "none";
-      if (isDepleted) {
-        harvestBtn.disabled = true;
-        harvestBtn.innerText = "Ressourcen erschöpft ✕";
-        harvestBtn.style.opacity = "0.5";
-      } else {
-        harvestBtn.disabled = false;
-        harvestBtn.innerText = "Bio-Siphon aktivieren [E]";
-        harvestBtn.style.opacity = "1.0";
-      }
-    }
-    if (abductBtn) {
-      abductBtn.style.display = inRange && hasSentient && !STATE.abductActive && !STATE.extractingPlanet ? "block" : "none";
-    }
-  } else {
-    if (resultsBox)
-      resultsBox.style.display = "none";
-    if (placeholderBox)
-      placeholderBox.style.display = "block";
-    if (harvestBtn)
-      harvestBtn.style.display = "none";
-    if (abductBtn)
-      abductBtn.style.display = "none";
-    const commsBtn = document.getElementById("start-comms-btn");
-    if (commsBtn)
-      commsBtn.style.display = "none";
-  }
-}
-
 // src/ui/evolution-tree.ts
 var MUTATION_DEFINITIONS = {
   nucleus: {
@@ -37327,776 +36142,1184 @@ function renderSynapseInspector(key) {
   }
 }
 
-// src/ui/deck.ts
-function isDeckOpen() {
-  const modal = document.getElementById("deck-modal");
-  return modal ? modal.style.display === "flex" : false;
+// src/procedural/quantum-civ.ts
+function cMul(a, b) {
+  return {
+    r: a.r * b.r - a.i * b.i,
+    i: a.r * b.i + a.i * b.r
+  };
 }
-function toggleDeckModal(force) {
-  const modal = document.getElementById("deck-modal");
-  if (!modal)
-    return;
-  const isVisible = modal.style.display === "flex";
-  const nextState = force !== undefined ? force : !isVisible;
-  modal.style.display = nextState ? "flex" : "none";
-  if (nextState) {
-    renderCrewUI(true);
-    updateMutationUI();
-    renderFactionReputationUI();
-    startNeuralCanvasLoop();
-  } else {
-    stopNeuralCanvasLoop();
-  }
+function cNormSq(a) {
+  return a.r * a.r + a.i * a.i;
 }
-function initDeckUI() {
-  const leftCollapseBtn = document.getElementById("left-collapse-btn");
-  if (leftCollapseBtn) {
-    leftCollapseBtn.addEventListener("click", () => {
-      dismissScannerPanel();
-    });
-  }
-  const tabButtons = document.querySelectorAll("#right-deck-tabs .tab-btn");
-  tabButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const targetTab = btn.getAttribute("data-tab");
-      tabButtons.forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      const crewContent = document.getElementById("tab-content-crew");
-      const evoContent = document.getElementById("tab-content-evolution");
-      const facContent = document.getElementById("tab-content-factions");
-      const logContent = document.getElementById("tab-content-log");
-      if (crewContent) {
-        crewContent.classList.toggle("active", targetTab === "crew");
-        if (targetTab === "crew") {
-          renderCrewUI(true);
-        }
-      }
-      if (evoContent) {
-        evoContent.classList.toggle("active", targetTab === "evolution");
-        if (targetTab === "evolution") {
-          startNeuralCanvasLoop();
-          updateEvolutionTreeUI();
-        } else {
-          stopNeuralCanvasLoop();
-        }
-      }
-      if (logContent)
-        logContent.classList.toggle("active", targetTab === "log");
-      if (facContent) {
-        facContent.classList.toggle("active", targetTab === "factions");
-        if (targetTab === "factions") {
-          renderFactionReputationUI();
-        }
-      }
-    });
-  });
-  renderFactionReputationUI();
-  initEvolutionTree();
-  const mutButtons = document.querySelectorAll(".mut-btn");
-  mutButtons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const mutType = btn.getAttribute("data-mutation");
-      if (mutType) {
-        buyMutation(mutType);
-      }
-    });
-  });
-}
-function buyMutation(type) {
-  const mut = STATE.mutations[type];
-  if (!mut || mut.purchased)
-    return;
-  if (STATE.bioRes >= mut.bioCost && STATE.siliconRes >= mut.siliconCost) {
-    STATE.bioRes -= mut.bioCost;
-    STATE.siliconRes -= mut.siliconCost;
-    mut.purchased = true;
-    playSiliconCollectSound();
-    const btn = document.querySelector(`.mut-btn[data-mutation="${type}"]`);
-    if (btn) {
-      btn.classList.add("purchased");
-      btn.innerHTML = "Aktiviert ✓";
-    }
-    if (type === "armor" || type === "chitin_armor") {
-      if (STATE.mutations.armor)
-        STATE.mutations.armor.purchased = true;
-      if (STATE.mutations.chitin_armor)
-        STATE.mutations.chitin_armor.purchased = true;
-      addLogEntry("EVOLUTION", "Organischer Chitin-Panzer gehärtet. Kollisionsschaden um 50% reduziert & Besatzung vor kosmischer Strahlung geschützt.");
-      const hull = document.getElementById("schematic-hull");
-      if (hull)
-        hull.setAttribute("stroke-width", "4");
-    } else if (type === "organic_siphon") {
-      addLogEntry("EVOLUTION", "Organischer Siphon ausgebildet! Ernte-Geschwindigkeit +35% & Strahlungs-Bio-Filter aktiv (-25% Strahlungsschaden).");
-    } else if (type === "vector_tentacles") {
-      STATE.thrustStrength = 20.6;
-      STATE.turnSpeed = 3.2;
-      addLogEntry("EVOLUTION", "Vektor-Tentakel erwacht! +25% Schub, +35% Wendigkeit & hydrodynamische Bio-Bremse online.");
-    } else if (type === "blade_armor") {
-      addLogEntry("EVOLUTION", "Klingen-Panzerung assimiliert! Dornen-Chitin reflektiert Schaden & bildet dichte magnetische Barriere (-80% Strahlung).");
-    } else if (type === "o2") {
-      addLogEntry("EVOLUTION", "Metabolische O2-Synthese aktiviert. Stress-Zuwachs halbiert.");
-    } else if (type === "synapses" || type === "psionic_pulse") {
-      if (STATE.mutations.synapses)
-        STATE.mutations.synapses.purchased = true;
-      if (STATE.mutations.psionic_pulse)
-        STATE.mutations.psionic_pulse.purchased = true;
-      STATE.psionicRange = 140;
-      STATE.maxMentalEnergy = 150;
-      calculateCrewBuffs();
-      addLogEntry("EVOLUTION", "Psionischer Impuls entfesselt! Gedanken-Echo Reichweite auf 140 LJ vergrößert & Mentalkraft auf 150.");
-    } else if (type === "chimera_veil") {
-      if (!STATE.paradigmModifiers)
-        STATE.paradigmModifiers = { thrustBonus: 0, stealthBonus: 0, mentalDrainMult: 1, bioRegenBonus: 0, harmonyBonus: 0, stressModifier: 0 };
-      STATE.paradigmModifiers.stealthBonus += 0.4;
-      addLogEntry("EVOLUTION", "Schimären-Schleier aktiv! Psionische Lichtbrechung gewährt +40% Tarnung (Stealth) & Schutz vor Sensor-Stress.");
-    } else if (type === "resonance_screech") {
-      addLogEntry("EVOLUTION", "Resonanz-Schrei assimiliert! Bio-EMP Schockwelle lähmt Drohnen 50% länger und sendet panikbrechende Wellen.");
-    } else if (type === "cocoon") {
-      STATE.maxCrewCapacity = 4;
-      addLogEntry("EVOLUTION", "Neuronales Kokon-Gewebe mutiert! Maximale Crew-Kapazität auf 4 erweitert.");
-      renderCrewUI();
-    } else if (type === "hivemind") {
-      STATE.maxCrewCapacity = 6;
-      calculateCrewBuffs();
-      addLogEntry("EVOLUTION", "Symbiotische Synapsen-Kammer erwacht! Kapazität auf 6 erhöht & alle Spezialisten-Buffs um +20% verstärkt!");
-      renderCrewUI();
-    } else if (type === "neural_cluster") {
-      STATE.maxCrewCapacity = 10;
-      calculateCrewBuffs();
-      addLogEntry("EVOLUTION", "Neuronale Waben-Kammer expandiert! Max 10 Crew-Mitglieder & Dissonanz-Dämpfung aktiv.");
-      renderCrewUI();
-    } else if (type === "cryo_matrix") {
-      STATE.maxCrewCapacity = 20;
-      calculateCrewBuffs();
-      addLogEntry("EVOLUTION", "Bio-Kryo-Kaverne herangewachsen! Max 20 Crew-Mitglieder & Zelltod um 25% verlangsamt.");
-      renderCrewUI();
-    } else if (type === "hive_cerebrum") {
-      STATE.maxCrewCapacity = 30;
-      calculateCrewBuffs();
-      addLogEntry("EVOLUTION", "Schwarm-Zerebrum erwacht! Max 30 Crew-Mitglieder • Volle telepathische Schwarm-Resonanz aktiv!");
-      renderCrewUI();
-    } else if (type === "folddrive") {
-      STATE.warpRange = 160;
-      addLogEntry("EVOLUTION", "Raumfaltungs-Membran mutiert! Warp-Reichweite auf 160 LJ erweitert, Faltungskosten um 30% gesenkt.");
-    } else if (type === "translator" || type === "telepathic_focus") {
-      if (STATE.mutations.translator)
-        STATE.mutations.translator.purchased = true;
-      if (STATE.mutations.telepathic_focus)
-        STATE.mutations.telepathic_focus.purchased = true;
-      addLogEntry("EVOLUTION", "Telepathischer Fokus synchronisiert! Alien-Funksignale & Crew-Dialoge werden dechiffriert.");
-    }
-    updateMutationUI();
-  } else {
-    addLogEntry("SYSTEM", `Evolution fehlgeschlagen: Nicht genügend Ressourcen (${mut.bioCost} Bio | ${mut.siliconCost} Silizium benötigt)!`);
-  }
-}
-function updateMutationUI() {
-  const bioEl = document.getElementById("res-bio-count");
-  const silEl = document.getElementById("res-silicon-count");
-  if (bioEl)
-    bioEl.innerText = `${Math.floor(STATE.bioRes)}`;
-  if (silEl)
-    silEl.innerText = `${Math.floor(STATE.siliconRes)}`;
-  Object.keys(STATE.mutations).forEach((key) => {
-    const mut = STATE.mutations[key];
-    const btn = document.querySelector(`.mut-btn[data-mutation="${key}"]`);
-    if (btn) {
-      if (mut.purchased) {
-        btn.disabled = true;
-        btn.classList.add("purchased");
-        btn.innerText = "Aktiviert ✓";
-      } else {
-        const canAfford = STATE.bioRes >= mut.bioCost && STATE.siliconRes >= mut.siliconCost;
-        btn.disabled = !canAfford;
-      }
-    }
-  });
-  const ibadCard = document.getElementById("mut-ibad");
-  if (ibadCard) {
-    ibadCard.style.display = STATE.mutations.ibad && STATE.mutations.ibad.purchased ? "flex" : "none";
-  }
-  updateEvolutionTreeUI();
+function lcg(seed) {
+  let s = Math.abs(seed) % 2147483647;
+  if (s === 0)
+    s = 1;
+  return () => {
+    s = s * 16807 % 2147483647;
+    return (s - 1) / 2147483646;
+  };
 }
 
-// src/ui/hud.ts
-var minimapCanvas = null;
-var minimapCtx = null;
-var currentRadarRange = 220;
-var sonarWaveMesh = null;
-var sonarTimer = 0;
-function initHUD() {
-  minimapCanvas = document.getElementById("minimap-canvas");
-  if (minimapCanvas) {
-    minimapCtx = minimapCanvas.getContext("2d");
+class QpuSimulator {
+  state;
+  numQubits = 8;
+  numStates = 256;
+  constructor(random) {
+    this.state = new Array(this.numStates).fill(null).map(() => ({ r: 0, i: 0 }));
+    this.state[0] = { r: 1, i: 0 };
+    for (let q = 0;q < this.numQubits; q++) {
+      this.applyHadamard(q);
+    }
+    this.applyCNOT(0, 1);
+    this.applyCNOT(2, 3);
+    this.applyCNOT(4, 5);
+    this.applyCNOT(6, 7);
+    for (let q = 0;q < this.numQubits; q++) {
+      const angle = random() * Math.PI * 2;
+      this.applyPhaseShift(q, angle);
+    }
   }
-  const sonarBtn = document.getElementById("psionic-sonar-btn") || document.getElementById("dock-sonar-btn");
-  if (sonarBtn) {
-    sonarBtn.addEventListener("click", triggerPsionicSonar);
+  applyHadamard(targetQubit) {
+    const bit = 1 << targetQubit;
+    const invSqrt2 = 1 / Math.SQRT2;
+    const newState = new Array(this.numStates);
+    for (let i = 0;i < this.numStates; i++) {
+      if ((i & bit) === 0) {
+        const i0 = i;
+        const i1 = i | bit;
+        const a = this.state[i0];
+        const b = this.state[i1];
+        newState[i0] = {
+          r: (a.r + b.r) * invSqrt2,
+          i: (a.i + b.i) * invSqrt2
+        };
+        newState[i1] = {
+          r: (a.r - b.r) * invSqrt2,
+          i: (a.i - b.i) * invSqrt2
+        };
+      }
+    }
+    this.state = newState;
   }
-  const dockDeckBtn = document.getElementById("dock-deck-btn");
-  if (dockDeckBtn) {
-    dockDeckBtn.addEventListener("click", () => toggleDeckModal());
+  applyCNOT(controlQubit, targetQubit) {
+    const controlBit = 1 << controlQubit;
+    const targetBit = 1 << targetQubit;
+    const newState = [...this.state];
+    for (let i = 0;i < this.numStates; i++) {
+      if ((i & controlBit) !== 0 && (i & targetBit) === 0) {
+        const i0 = i;
+        const i1 = i | targetBit;
+        const temp = newState[i0];
+        newState[i0] = newState[i1];
+        newState[i1] = temp;
+      }
+    }
+    this.state = newState;
   }
-  const closeDeckBtn = document.getElementById("close-deck-modal-btn");
-  if (closeDeckBtn) {
-    closeDeckBtn.addEventListener("click", () => toggleDeckModal(false));
+  applyPhaseShift(qubit, theta) {
+    const bit = 1 << qubit;
+    const phase = { r: Math.cos(theta), i: Math.sin(theta) };
+    for (let i = 0;i < this.numStates; i++) {
+      if ((i & bit) !== 0) {
+        this.state[i] = cMul(this.state[i], phase);
+      }
+    }
   }
-  const dockMapBtn = document.getElementById("dock-map-btn");
-  if (dockMapBtn) {
-    dockMapBtn.addEventListener("click", () => toggleGalaxyMap());
+  measureWavefunction(random) {
+    const probabilities = this.state.map(cNormSq);
+    const r = random();
+    let cumulative = 0;
+    let selectedState = 0;
+    for (let i = 0;i < probabilities.length; i++) {
+      cumulative += probabilities[i];
+      if (r <= cumulative) {
+        selectedState = i;
+        break;
+      }
+    }
+    const bits = [];
+    for (let q = 0;q < this.numQubits; q++) {
+      bits.push(selectedState >> q & 1);
+    }
+    return { stateIndex: selectedState, bits };
   }
-  const dockAssistBtn = document.getElementById("dock-assist-btn");
-  if (dockAssistBtn) {
-    dockAssistBtn.addEventListener("click", () => toggleFlightAssist());
-  }
-  const compassEl = document.getElementById("psionic-compass-hud");
-  if (compassEl) {
-    compassEl.addEventListener("click", () => {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" }));
+}
+function generateQuantumWalkHistory(systemSeed, bits) {
+  const random = lcg(systemSeed + 999);
+  const eraPool = [
+    {
+      name: "Epoche des Ersten Flüsterns",
+      events: [
+        "Erste biologische Synthese primitiver Nervenbündel im Ammoniak-Ozean.",
+        "Entdeckung eines pulsierenden Monolithen aus gefrorenem Quanten-Licht.",
+        "Spontane telepathische Resonanz der Ur-Sippen während einer planetaren Sonnenfinsternis."
+      ],
+      paradoxes: [
+        "Ihre ältesten Schriften existieren in zwei diametral entgegengesetzten Bedeutungen gleichzeitig.",
+        "Stammesriten basieren auf Gesängen, die vor der Entstehung ihrer Sprache aufgezeichnet wurden."
+      ],
+      shifts: "Kollektive Meditation etablierte sich als primäres Kommunikationsmittel."
+    },
+    {
+      name: "Das Zeitalter der Dekohärenz",
+      events: [
+        "Bürgerkrieg zwischen Mechanisten und den Priestern der organischen Leere.",
+        "Spaltung des Heimatplaneten durch planetare Gravitations-Kerne.",
+        "Plötzlicher Stillstand aller siliziumbasierten Verbrennungsmotoren durch einen psionischen Puls."
+      ],
+      paradoxes: [
+        "Historiker fanden Denkmäler für Siege in Schlachten, die laut Sternenkarten nie stattfanden.",
+        "Die gesamte Kriegsflotte löste sich bei der Friedensunterzeichnung in bio-elektrischen Nebel auf."
+      ],
+      shifts: "Die Gesellschaft verbot isolierte Individualität und bildete telepathische Synapsen-Räte."
+    },
+    {
+      name: "Die Ära des Faltungs-Tors",
+      events: [
+        "Durchbruch in der Raumzeit-Krümmung ohne mechanischen Fusionsantrieb.",
+        "Erster physischer Kontakt mit einer Nomaden-Karawane des Konsortiums.",
+        "Errichtung eines 400 Kilometer weiten Orbital-Habitats aus lebendem Chitin."
+      ],
+      paradoxes: [
+        "Ihre Forscherschiffe kehrten 200 Jahre vor ihrem Starttermin unversehrt zurück.",
+        "Ihre Navigatoren sehen die Zukunft der Galaxie als eine flüssige, organische Wand."
+      ],
+      shifts: "Verankerung der Lehre vom 'Kosmischen Wanderer' im planetaren Gesetz."
+    }
+  ];
+  const eras = [];
+  eraPool.forEach((pool) => {
+    const evIdx = Math.floor(random() * pool.events.length);
+    const parIdx = Math.floor(random() * pool.paradoxes.length);
+    eras.push({
+      eraName: pool.name,
+      event: pool.events[evIdx],
+      paradoxDetail: pool.paradoxes[parIdx],
+      culturalShift: pool.shifts
     });
-  }
-  const markersContainer = document.getElementById("screen-edge-gravity-markers");
-  if (markersContainer) {
-    markersContainer.addEventListener("click", (e) => {
-      const marker = e.target.closest(".edge-planet-marker");
-      if (marker && marker.dataset.planetName) {
-        const targetName = marker.dataset.planetName;
-        const planet = activePlanets.find((p) => p.name === targetName);
-        if (planet) {
-          STATE.lockedTarget = planet;
-          const badge = document.getElementById("target-lock-badge");
-          const label = document.getElementById("target-label-text");
-          if (badge)
-            badge.style.display = "flex";
-          if (label)
-            label.innerText = "Fixiertes Ziel:";
-          addLogEntry("NAV", `\uD83C\uDFAF Zielerfassung fixiert auf: ${planet.name}`);
-        }
-      }
-    });
-  }
-}
-function addLogEntry(category, message) {
-  const list = document.getElementById("log-list");
-  const toastStream = document.getElementById("hud-fading-log-stream");
-  const now = new Date;
-  const timeStr = `${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-  let catClass = "sys";
-  let catText = "SYSTEM";
-  if (category === "TELEPATHY") {
-    catClass = "telepathy";
-    catText = "TELEPATHIE";
-  } else if (category === "CREW") {
-    catClass = "crew";
-    catText = "CREW-FUNK";
-  } else if (category === "EVOLUTION") {
-    catClass = "evolution";
-    catText = "EVOLUTION";
-  }
-  if (list) {
-    const li = document.createElement("li");
-    li.className = "log-item";
-    li.innerHTML = `
-            <span class="log-time">[${timeStr}]</span>
-            <span class="log-cat ${catClass}">[${catText}]</span>
-            <span class="log-msg">${message}</span>
-        `;
-    list.prepend(li);
-    while (list.children.length > 50) {
-      list.removeChild(list.lastChild);
-    }
-  }
-  if (toastStream) {
-    const toast = document.createElement("div");
-    toast.className = `fading-toast ${catClass}`;
-    toast.innerHTML = `<span style="font-weight: bold; margin-right: 4px;">[${catText}]</span> ${message}`;
-    toastStream.appendChild(toast);
-    while (toastStream.children.length > 4) {
-      toastStream.removeChild(toastStream.firstChild);
-    }
-    setTimeout(() => {
-      if (toast.parentNode === toastStream) {
-        toastStream.removeChild(toast);
-      }
-    }, 5000);
-  }
-}
-function updateHUDStats(isHarmony = false) {
-  const hpBar = document.getElementById("core-health-bar") || document.getElementById("health-bar");
-  const hpTxt = document.getElementById("core-health-text") || document.getElementById("health-text");
-  const bioBar = document.getElementById("bio-energy-bar") || document.getElementById("energy-bar");
-  const bioTxt = document.getElementById("bio-energy-text") || document.getElementById("energy-text");
-  const mentalBar = document.getElementById("telepathy-energy-bar") || document.getElementById("mental-bar");
-  const mentalTxt = document.getElementById("telepathy-energy-text") || document.getElementById("mental-text");
-  const loneBar = document.getElementById("loneliness-bar");
-  const loneTxt = document.getElementById("loneliness-text");
-  if (hpBar) {
-    hpBar.style.width = `${STATE.health / STATE.maxHealth * 100}%`;
-    if (STATE.health < 30) {
-      hpBar.className = "progress-bar health danger";
-    } else {
-      hpBar.className = "progress-bar health";
-    }
-  }
-  if (hpTxt)
-    hpTxt.innerText = `${Math.round(STATE.health)}%`;
-  if (bioBar)
-    bioBar.style.width = `${STATE.bioEnergy / STATE.maxBioEnergy * 100}%`;
-  if (bioTxt)
-    bioTxt.innerText = `${Math.round(STATE.bioEnergy)}%`;
-  if (mentalBar)
-    mentalBar.style.width = `${STATE.mentalEnergy / STATE.maxMentalEnergy * 100}%`;
-  if (mentalTxt)
-    mentalTxt.innerText = `${Math.round(STATE.mentalEnergy)}/${STATE.maxMentalEnergy}`;
-  if (loneBar) {
-    loneBar.style.width = `${STATE.loneliness}%`;
-    if (isHarmony) {
-      loneBar.style.background = "linear-gradient(90deg, #10b981, #38bdf8)";
-    } else {
-      loneBar.style.background = STATE.loneliness > 60 ? "linear-gradient(90deg, #d946ef, #ef4444)" : "linear-gradient(90deg, #38bdf8, #a855f7)";
-    }
-  }
-  if (loneTxt) {
-    let loneState = "Verzweiflung";
-    if (isHarmony)
-      loneState = "\uD83D\uDCAB Kosmische Harmonie";
-    else if (STATE.loneliness < 30)
-      loneState = "Duale Resonanz";
-    else if (STATE.loneliness < 60)
-      loneState = "Erste Bindung";
-    else if (STATE.loneliness < 70)
-      loneState = "Geistige Sättigung";
-    loneTxt.innerText = `${Math.round(STATE.loneliness)}% (${loneState})`;
-  }
-  const currentSys = STATE.universe?.systems?.find((s) => s.id === STATE.currentSystemId);
-  const sysNameEl = document.getElementById("hud-current-system-name");
-  if (sysNameEl) {
-    sysNameEl.innerText = `\uD83E\uDE90 ${currentSys ? currentSys.name : "Sol Invictus"}`;
-  }
-  const bioCountEl = document.getElementById("res-bio-count");
-  if (bioCountEl) {
-    bioCountEl.innerText = `${Math.floor(STATE.bioRes || 0)}`;
-  }
-  const silCountEl = document.getElementById("res-silicon-count");
-  if (silCountEl) {
-    silCountEl.innerText = `${Math.floor(STATE.siliconRes || 0)}`;
-  }
-  const chronosCountEl = document.getElementById("chronos-count");
-  if (chronosCountEl) {
-    const visited = STATE.visitedSystemIds ? STATE.visitedSystemIds.length : STATE.systemsVisited || 1;
-    chronosCountEl.innerText = `${visited}`;
-  }
-  const radMeter = document.getElementById("hud-radiation-meter");
-  const radLabel = document.getElementById("rad-label");
-  const radBar = document.getElementById("rad-level-bar");
-  const radBadge = document.getElementById("rad-shield-badge");
-  const radStatus = document.getElementById("rad-status-text");
-  const ambient = STATE.ambientRadiation || 0;
-  const effective = STATE.effectiveRadiation || 0;
-  const resistance = STATE.radiationResistance || 0;
-  const source = STATE.radiationSource || "Kosmische Strahlung";
-  if (radMeter) {
-    if (ambient > 0.05) {
-      radMeter.style.display = "flex";
-      const ambPercent = Math.round(ambient * 100);
-      const shieldPercent = Math.round(resistance * 100);
-      if (radLabel)
-        radLabel.innerText = `STRAHLUNG: ${ambPercent}%`;
-      if (radBadge)
-        radBadge.innerText = `\uD83D\uDEE1️ ${shieldPercent}%`;
-      if (radBar) {
-        radBar.style.width = `${ambPercent}%`;
-      }
-      if (effective > 0.15) {
-        const dmgPerSec = ((effective - 0.15) * 4.5).toFixed(1);
-        radMeter.className = "hud-radiation-meter glass-capsule hazard";
-        if (radStatus) {
-          radStatus.innerHTML = `<span class="rad-alert-icon">⚠️</span> STRAHLUNGSALARM: -${dmgPerSec} HP/s (${source})`;
-        }
-      } else if (resistance >= 0.5 && ambient > 0.2) {
-        radMeter.className = "hud-radiation-meter glass-capsule shielded";
-        if (radStatus) {
-          radStatus.innerHTML = `<span class="rad-shield-icon">\uD83D\uDEE1️</span> ABGESCHIRMT: ${shieldPercent}% Filterung ✓`;
-        }
-      } else {
-        radMeter.className = "hud-radiation-meter glass-capsule caution";
-        if (radStatus) {
-          radStatus.innerHTML = `<span>⚡</span> Strahlungsfeld aktiv (${source})`;
-        }
-      }
-    } else {
-      radMeter.style.display = "none";
-    }
-  }
-}
-function updateMinimap() {
-  if (!minimapCanvas || !minimapCtx)
-    return;
-  const width = minimapCanvas.width;
-  const height = minimapCanvas.height;
-  const cx = width / 2;
-  const cy = height / 2;
-  const approach = STATE.orbitTransitionProgress || 0;
-  const isMoon = STATE.orbitLevel === "moon";
-  const baseTargetRange = isMoon ? 24 : 220 - 175 * approach;
-  currentRadarRange = MathUtils.lerp(currentRadarRange, Math.max(24, baseTargetRange), 0.08);
-  const range = currentRadarRange;
-  minimapCtx.fillStyle = "rgba(3, 7, 18, 0.85)";
-  minimapCtx.fillRect(0, 0, width, height);
-  const radius = width / 2 - 4;
-  minimapCtx.strokeStyle = "rgba(56, 189, 248, 0.15)";
-  minimapCtx.lineWidth = 1;
-  minimapCtx.beginPath();
-  minimapCtx.arc(cx, cy, radius * 0.33, 0, Math.PI * 2);
-  minimapCtx.stroke();
-  minimapCtx.beginPath();
-  minimapCtx.arc(cx, cy, radius * 0.66, 0, Math.PI * 2);
-  minimapCtx.stroke();
-  minimapCtx.beginPath();
-  minimapCtx.arc(cx, cy, radius, 0, Math.PI * 2);
-  minimapCtx.stroke();
-  minimapCtx.strokeStyle = "rgba(56, 189, 248, 0.08)";
-  minimapCtx.beginPath();
-  minimapCtx.moveTo(cx, cy - radius);
-  minimapCtx.lineTo(cx, cy + radius);
-  minimapCtx.moveTo(cx - radius, cy);
-  minimapCtx.lineTo(cx + radius, cy);
-  minimapCtx.stroke();
-  const invRangeRadius = radius / range;
-  STATE.gravitySources.forEach((source) => {
-    if (source.isAbsorbed)
-      return;
-    const dx = source.position.x - STATE.playerPosition.x;
-    const dz = source.position.z - STATE.playerPosition.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    if (dist < range) {
-      const sx = cx + dx * invRangeRadius;
-      const sy = cy + dz * invRangeRadius;
-      if (source.type === "star") {
-        minimapCtx.fillStyle = "#f59e0b";
-        minimapCtx.beginPath();
-        minimapCtx.arc(sx, sy, 5, 0, Math.PI * 2);
-        minimapCtx.fill();
-      } else if (source.type === "planet") {
-        const planetEntry = activePlanets.find((p) => p.source === source);
-        const hasSentient = planetEntry && planetEntry.attributes.species && planetEntry.attributes.species.population > 0;
-        if (hasSentient) {
-          minimapCtx.fillStyle = "#d946ef";
-          minimapCtx.beginPath();
-          minimapCtx.arc(sx, sy, 4.5, 0, Math.PI * 2);
-          minimapCtx.fill();
-          minimapCtx.strokeStyle = "rgba(217, 70, 239, 0.8)";
-          minimapCtx.beginPath();
-          minimapCtx.arc(sx, sy, 6.5 + Math.sin(Date.now() * 0.008) * 1.5, 0, Math.PI * 2);
-          minimapCtx.stroke();
-        } else {
-          minimapCtx.fillStyle = planetEntry && planetEntry.isMoon ? "#94a3b8" : "#38bdf8";
-          minimapCtx.beginPath();
-          minimapCtx.arc(sx, sy, planetEntry && planetEntry.isMoon ? 2 : 3.5, 0, Math.PI * 2);
-          minimapCtx.fill();
-        }
-      } else if ((source.type === "voyager_probe" || source.isVoyager) && STATE.voyagerSignalDetected) {
-        minimapCtx.fillStyle = "#fbbf24";
-        minimapCtx.beginPath();
-        minimapCtx.arc(sx, sy, 4, 0, Math.PI * 2);
-        minimapCtx.fill();
-        const wavePulse = 5 + Math.sin(Date.now() * 0.007) * 3;
-        minimapCtx.strokeStyle = "rgba(251, 191, 36, 0.75)";
-        minimapCtx.lineWidth = 1.2;
-        minimapCtx.beginPath();
-        minimapCtx.arc(sx, sy, wavePulse, 0, Math.PI * 2);
-        minimapCtx.stroke();
-        minimapCtx.fillStyle = "#fbbf24";
-        minimapCtx.font = "8px Orbitron, sans-serif";
-        const probeLabel = STATE.voyagerScanned ? "\uD83D\uDCE1 VOYAGER 2" : "\uD83D\uDCE1 UNBEKANNTES SIGNAL";
-        minimapCtx.fillText(probeLabel, sx + 7, sy + 3);
-      } else if (source.type === "asteroid") {
-        minimapCtx.fillStyle = source.resourceType === "bio" ? "#00ff88" : "#38bdf8";
-        minimapCtx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
-      }
-    } else if (source.type === "planet" || source.type === "star") {
-      const angle = Math.atan2(dz, dx);
-      const edgeRadius = radius - 3.5;
-      const ex = cx + Math.cos(angle) * edgeRadius;
-      const ey = cy + Math.sin(angle) * edgeRadius;
-      const planetEntry = activePlanets.find((p) => p.source === source);
-      const isLocked = STATE.lockedTarget && (STATE.lockedTarget === planetEntry || STATE.lockedTarget === source);
-      const hasSentient = planetEntry && planetEntry.attributes && planetEntry.attributes.species && planetEntry.attributes.species.population > 0;
-      if (isLocked) {
-        minimapCtx.fillStyle = "#38bdf8";
-        minimapCtx.beginPath();
-        minimapCtx.arc(ex, ey, 4, 0, Math.PI * 2);
-        minimapCtx.fill();
-        minimapCtx.strokeStyle = "rgba(56, 189, 248, 0.9)";
-        minimapCtx.lineWidth = 1.5;
-        minimapCtx.beginPath();
-        minimapCtx.arc(ex, ey, 6.5, 0, Math.PI * 2);
-        minimapCtx.stroke();
-      } else if (hasSentient) {
-        minimapCtx.fillStyle = "#d946ef";
-        minimapCtx.beginPath();
-        minimapCtx.arc(ex, ey, 3.2, 0, Math.PI * 2);
-        minimapCtx.fill();
-        minimapCtx.strokeStyle = "rgba(217, 70, 239, 0.8)";
-        minimapCtx.lineWidth = 1;
-        minimapCtx.beginPath();
-        minimapCtx.arc(ex, ey, 5.2, 0, Math.PI * 2);
-        minimapCtx.stroke();
-      } else if (source.type === "star") {
-        minimapCtx.fillStyle = "#f59e0b";
-        minimapCtx.beginPath();
-        minimapCtx.arc(ex, ey, 3.5, 0, Math.PI * 2);
-        minimapCtx.fill();
-      } else if (planetEntry && !planetEntry.isMoon) {
-        const isHab = planetEntry.type === "Habitable";
-        const isGas = planetEntry.type === "Gas Giant";
-        minimapCtx.fillStyle = isHab ? "#10b981" : isGas ? "#f59e0b" : "#64748b";
-        minimapCtx.beginPath();
-        minimapCtx.arc(ex, ey, 2.5, 0, Math.PI * 2);
-        minimapCtx.fill();
-      }
-    }
   });
-  if (STATE.voyagerSignalDetected && !STATE.voyagerScanned && STATE.voyagerProbe && STATE.voyagerProbe.position) {
-    const vx = STATE.voyagerProbe.position.x - STATE.playerPosition.x;
-    const vz = STATE.voyagerProbe.position.z - STATE.playerPosition.z;
-    const vDist = Math.hypot(vx, vz);
-    if (vDist >= range) {
-      const angle = Math.atan2(vz, vx);
-      const edgeRadius = radius - 3;
-      const ex = cx + Math.cos(angle) * edgeRadius;
-      const ey = cy + Math.sin(angle) * edgeRadius;
-      minimapCtx.fillStyle = "#fbbf24";
-      minimapCtx.beginPath();
-      minimapCtx.arc(ex, ey, 3.5, 0, Math.PI * 2);
-      minimapCtx.fill();
-      minimapCtx.strokeStyle = "rgba(251, 191, 36, 0.8)";
-      minimapCtx.lineWidth = 1;
-      minimapCtx.beginPath();
-      minimapCtx.arc(ex, ey, 5.5, 0, Math.PI * 2);
-      minimapCtx.stroke();
-    }
-  }
-  const lockedTargetPos = STATE.lockedTarget ? STATE.lockedTarget.position || (STATE.lockedTarget.source ? STATE.lockedTarget.source.position : null) : null;
-  if (lockedTargetPos) {
-    const dx = lockedTargetPos.x - STATE.playerPosition.x;
-    const dz = lockedTargetPos.z - STATE.playerPosition.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    if (dist < range) {
-      const sx = cx + dx * invRangeRadius;
-      const sy = cy + dz * invRangeRadius;
-      minimapCtx.strokeStyle = "#38bdf8";
-      minimapCtx.lineWidth = 1.5;
-      minimapCtx.beginPath();
-      minimapCtx.arc(sx, sy, 8, 0, Math.PI * 2);
-      minimapCtx.stroke();
-    } else {
-      const angle = Math.atan2(dz, dx);
-      const edgeRadius = radius - 3.5;
-      const ex = cx + Math.cos(angle) * edgeRadius;
-      const ey = cy + Math.sin(angle) * edgeRadius;
-      minimapCtx.strokeStyle = "#38bdf8";
-      minimapCtx.lineWidth = 1.8;
-      minimapCtx.beginPath();
-      minimapCtx.arc(ex, ey, 7.5, 0, Math.PI * 2);
-      minimapCtx.stroke();
-    }
-  }
-  STATE.fleetShips.forEach((ship) => {
-    const dx = ship.position.x - STATE.playerPosition.x;
-    const dz = ship.position.z - STATE.playerPosition.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    if (dist < range) {
-      const sx = cx + dx * invRangeRadius;
-      const sy = cy + dz * invRangeRadius;
-      if (ship.state === "disabled") {
-        minimapCtx.fillStyle = "#64748b";
-        minimapCtx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
-      } else if (ship.state === "intercept") {
-        minimapCtx.fillStyle = "#f43f5e";
-        minimapCtx.beginPath();
-        minimapCtx.arc(sx, sy, 3.5, 0, Math.PI * 2);
-        minimapCtx.fill();
-        minimapCtx.strokeStyle = "rgba(244, 63, 94, 0.8)";
-        minimapCtx.beginPath();
-        minimapCtx.arc(sx, sy, 5.5 + Math.sin(Date.now() * 0.015) * 1.5, 0, Math.PI * 2);
-        minimapCtx.stroke();
-      } else {
-        minimapCtx.fillStyle = "#f59e0b";
-        minimapCtx.beginPath();
-        minimapCtx.arc(sx, sy, 2.5, 0, Math.PI * 2);
-        minimapCtx.fill();
-      }
-    }
-  });
-  STATE.fleetProjectiles.forEach((proj) => {
-    const dx = proj.position.x - STATE.playerPosition.x;
-    const dz = proj.position.z - STATE.playerPosition.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    if (dist < range) {
-      const sx = cx + dx * invRangeRadius;
-      const sy = cy + dz * invRangeRadius;
-      minimapCtx.fillStyle = proj.type === "emp" ? "#a855f7" : "#38bdf8";
-      minimapCtx.fillRect(sx - 1, sy - 1, 2, 2);
-    }
-  });
-  if (projectedTrajectoryPoints && projectedTrajectoryPoints.length > 1) {
-    minimapCtx.save();
-    minimapCtx.lineWidth = 1.5;
-    for (let i = 0;i < projectedTrajectoryPoints.length - 1; i++) {
-      const p0 = projectedTrajectoryPoints[i];
-      const p1 = projectedTrajectoryPoints[i + 1];
-      const dx0 = p0.x - STATE.playerPosition.x;
-      const dz0 = p0.z - STATE.playerPosition.z;
-      const dx1 = p1.x - STATE.playerPosition.x;
-      const dz1 = p1.z - STATE.playerPosition.z;
-      const dist0 = Math.hypot(dx0, dz0);
-      const dist1 = Math.hypot(dx1, dz1);
-      if (dist0 > range && dist1 > range)
-        continue;
-      const sx0 = cx + dx0 * invRangeRadius;
-      const sy0 = cy + dz0 * invRangeRadius;
-      const sx1 = cx + dx1 * invRangeRadius;
-      const sy1 = cy + dz1 * invRangeRadius;
-      const r0 = Math.hypot(sx0 - cx, sy0 - cy);
-      const r1 = Math.hypot(sx1 - cx, sy1 - cy);
-      if (r0 <= radius && r1 <= radius) {
-        minimapCtx.strokeStyle = p0.isGravityArc ? "rgba(217, 70, 239, 0.85)" : "rgba(56, 189, 248, 0.55)";
-        minimapCtx.beginPath();
-        minimapCtx.moveTo(sx0, sy0);
-        minimapCtx.lineTo(sx1, sy1);
-        minimapCtx.stroke();
-      }
-    }
-    minimapCtx.restore();
-  }
-  const heading = STATE.playerGroup ? STATE.playerGroup.rotation.y : 0;
-  minimapCtx.save();
-  minimapCtx.translate(cx, cy);
-  minimapCtx.rotate(-heading);
-  minimapCtx.fillStyle = "#10b981";
-  minimapCtx.shadowColor = "#10b981";
-  minimapCtx.shadowBlur = 8;
-  minimapCtx.beginPath();
-  minimapCtx.moveTo(0, -7);
-  minimapCtx.lineTo(5, 5);
-  minimapCtx.lineTo(0, 2.5);
-  minimapCtx.lineTo(-5, 5);
-  minimapCtx.closePath();
-  minimapCtx.fill();
-  minimapCtx.restore();
-  minimapCtx.fillStyle = "rgba(56, 189, 248, 0.85)";
-  minimapCtx.font = "9px monospace";
-  minimapCtx.textAlign = "center";
-  const modeLabel = STATE.orbitLevel === "moon" ? `\uD83C\uDF15 MOND: ${STATE.activeMoonOrbit?.name || "Orbit"}` : STATE.orbitLevel === "planet" ? `\uD83E\uDE90 SUB-SYS: ${STATE.orbitPlanet?.name || "Orbit"}` : `RADAR: ${Math.round(range)} LJ`;
-  minimapCtx.fillText(modeLabel, cx, height - 6);
+  return eras;
 }
-function triggerPsionicSonar() {
-  if (!STATE.gameStarted)
-    return;
-  if (STATE.mentalEnergy < 15) {
-    addLogEntry("SYSTEM", "Zu wenig Mentalkraft für psionischen Sonar-Ruf (15% benötigt)!");
-    return;
+function collapseQuantumCivilization(systemId, planetIndex, seed) {
+  const random = lcg(seed * 7331 + systemId * 137 + planetIndex * 43);
+  const qpu = new QpuSimulator(random);
+  const { stateIndex, bits } = qpu.measureWavefunction(random);
+  const techCode = bits[1] << 1 | bits[0];
+  let techLevel = "Primitive";
+  let psionicAffinity = 25;
+  if (techCode === 1) {
+    techLevel = "Industrial";
+    psionicAffinity = 45;
+  } else if (techCode === 2) {
+    techLevel = "Spacefaring";
+    psionicAffinity = 75;
+  } else if (techCode === 3) {
+    techLevel = "Hyper-Advanced";
+    psionicAffinity = 95;
   }
-  STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - 15);
-  if (sonarWaveMesh) {
-    scene.remove(sonarWaveMesh);
-    if (sonarWaveMesh.geometry)
-      sonarWaveMesh.geometry.dispose();
-    if (sonarWaveMesh.material)
-      sonarWaveMesh.material.dispose();
-  }
-  const ringGeo = new RingGeometry(1, 4, 64);
-  ringGeo.rotateX(Math.PI / 2);
-  const ringMat = new MeshBasicMaterial({
-    color: 14239471,
-    transparent: true,
-    opacity: 0.9,
-    side: DoubleSide,
-    blending: AdditiveBlending
-  });
-  sonarWaveMesh = new Mesh(ringGeo, ringMat);
-  sonarWaveMesh.position.copy(STATE.playerPosition);
-  scene.add(sonarWaveMesh);
-  sonarTimer = 1;
-  playSonarChime();
-  const sentientPlanets = activePlanets.filter((p) => p.attributes && p.attributes.species && p.attributes.species.population > 0);
-  if (sentientPlanets.length > 0) {
-    const names = sentientPlanets.map((p) => `${p.name} (${p.attributes.species.name})`).join(", ");
-    addLogEntry("SYSTEM", `PSIONISCHER RUF: Mentales Resonanz-Echo empfangen von: ${names}! Kompass aktiv.`);
+  const socialCode = bits[3] << 1 | bits[2];
+  let archetype = "Symbiotische Bio-Kommune";
+  let doctrine = "Defensive";
+  let factionId = "free_traders";
+  if (socialCode === 0) {
+    archetype = "Telepathischer Synapsen-Schwarm";
+    doctrine = "Pacifist";
+    factionId = "olyndar_psion";
+  } else if (socialCode === 1) {
+    archetype = "Kybernetisches Nullpunkt-Kollektiv";
+    doctrine = "Defensive";
+    factionId = "vega_collective";
+  } else if (socialCode === 2) {
+    archetype = "Merkantile Gilden-Konföderation";
+    doctrine = "Pacifist";
+    factionId = "free_traders";
   } else {
-    addLogEntry("SYSTEM", "PSIONISCHER RUF: Keine Gedanken-Signaturen in diesem System (Kosmische Stille).");
+    archetype = "Xenomilitärischer Kreuzzug";
+    doctrine = "Militaristic";
+    factionId = "xenomilitary_ash";
   }
+  if (techLevel === "Hyper-Advanced" && bits[6] === 1) {
+    archetype = "Ewige Vorläufer-Wächter";
+    doctrine = "Defensive";
+    factionId = "aethelgard_guardians";
+  }
+  const worshipCode = bits[5] << 1 | bits[4];
+  const worshipsPlayer = worshipCode === 0 || factionId === "olyndar_psion";
+  const historyEras = generateQuantumWalkHistory(seed, bits);
+  const entanglementIndex = Math.round(55 + stateIndex % 45);
+  const paradoxFactor = Number(((bits[0] * 0.3 + bits[3] * 0.4 + bits[7] * 0.3) * 1.8 + 0.2).toFixed(2));
+  const collapseLog = `|Ψ⟩ kollabiert zu Zustand #${stateIndex.toString(16).toUpperCase()} (${bits.join("")}₂) | Verschränkungsgrad: ${entanglementIndex}%`;
+  return {
+    qubitStateVector: bits,
+    entanglementIndex,
+    societalArchetype: archetype,
+    paradoxFactor,
+    historyEras,
+    factionId,
+    worshipsPlayer,
+    quantumTechLevel: techLevel,
+    psionicAffinityScore: psionicAffinity,
+    militaryDoctrine: doctrine,
+    quantumCollapseLog: collapseLog
+  };
 }
-function updateSonarWave(dt) {
-  if (!sonarWaveMesh)
-    return;
-  sonarTimer -= dt;
-  const progress = 1 - sonarTimer;
-  const scale = 1 + progress * 60;
-  sonarWaveMesh.scale.set(scale, 1, scale);
-  sonarWaveMesh.material.opacity = Math.max(0, sonarTimer * 0.9);
-  if (sonarTimer <= 0) {
-    scene.remove(sonarWaveMesh);
-    if (sonarWaveMesh.geometry)
-      sonarWaveMesh.geometry.dispose();
-    if (sonarWaveMesh.material)
-      sonarWaveMesh.material.dispose();
-    sonarWaveMesh = null;
+
+// src/systems/diplomacy.ts
+var ALIEN_GLYPHS = ["⍝", "⏁", "⍀", "⏃", "⋏", "⌇", "⌰", "⏃", "⏁", "⟟", "⍜", "⋏", "⍾", "⎍", "⏃", "⋏", "⏁", "⎍", "⋔", "Ψ", "Ω", "Δ", "Ξ", "Φ", "λ", "θ", "π", "Σ"];
+function generateAlienGlyphs(length = 120) {
+  let s = "";
+  for (let i = 0;i < length; i++) {
+    s += ALIEN_GLYPHS[Math.floor(Math.random() * ALIEN_GLYPHS.length)];
+    if (i % 8 === 0 && i > 0)
+      s += " ";
   }
+  return s;
 }
-var arrivalBannerTimeout = null;
-function triggerSystemArrivalBanner(system, factionName) {
-  const banner = document.getElementById("system-arrival-banner");
-  if (!banner)
+function openDiplomacyComms(planet) {
+  if (!planet || !planet.attributes?.species)
     return;
-  if (arrivalBannerTimeout) {
-    clearTimeout(arrivalBannerTimeout);
-    arrivalBannerTimeout = null;
+  STATE.activeDiplomacyPlanet = planet;
+  const spec = planet.attributes.species;
+  const factionId = spec.factionId || (spec.quantumCiv ? spec.quantumCiv.factionId : "free_traders");
+  const faction = getFaction(factionId);
+  const repScore = STATE.reputation[factionId] || 0;
+  const repInfo = getReputationTitle(repScore);
+  const hasTranslator = STATE.mutations.translator && STATE.mutations.translator.purchased;
+  const overlay = document.getElementById("diplomacy-overlay");
+  if (!overlay)
+    return;
+  overlay.style.display = "flex";
+  const headerTitle = document.getElementById("diplomacy-planet-name");
+  const factionEmblem = document.getElementById("diplomacy-faction-emblem");
+  const factionName = document.getElementById("diplomacy-faction-name");
+  const repBadge = document.getElementById("diplomacy-rep-badge");
+  if (headerTitle)
+    headerTitle.innerText = `${planet.name} – ${spec.name}`;
+  if (factionEmblem)
+    factionEmblem.innerText = faction.emblem;
+  if (factionName) {
+    factionName.innerText = faction.name;
+    factionName.style.color = faction.colorCss;
   }
-  const titleEl = document.getElementById("arrival-system-title");
-  const sectorEl = document.getElementById("arrival-sector-label");
-  const starEl = document.getElementById("arrival-star-badge");
-  const planetsEl = document.getElementById("arrival-planets-badge");
-  const factionEl = document.getElementById("arrival-faction-badge");
-  if (titleEl)
-    titleEl.innerText = (system.name || "UNBEKANNT").toUpperCase();
-  if (sectorEl)
-    sectorEl.innerText = system.sectorName ? `${system.sectorName.toUpperCase()} • TRANSIT` : "SYSTEM-TRANSIT ABGESCHLOSSEN";
-  if (starEl && system.star) {
-    starEl.innerText = `⭐ ${system.star.type || "Zentralgestirn"}`;
+  if (repBadge) {
+    repBadge.innerText = `${repInfo.label} (${repScore > 0 ? "+" : ""}${repScore})`;
+    repBadge.style.color = repInfo.color;
   }
-  const planetCount = system.planets ? system.planets.length : 0;
-  let moonCount = 0;
-  if (system.planets) {
-    system.planets.forEach((p) => {
-      if (p.moons)
-        moonCount += p.moons.length;
-    });
-  }
-  if (planetsEl) {
-    planetsEl.innerText = moonCount > 0 ? `\uD83E\uDE90 ${planetCount} Planeten | ${moonCount} Monde` : `\uD83E\uDE90 ${planetCount} Himmelskörper`;
-  }
-  if (factionEl) {
-    if (factionName) {
-      factionEl.innerText = `\uD83D\uDEE1️ ${factionName}`;
-      factionEl.style.display = "inline-flex";
+  const dialogueBox = document.getElementById("diplomacy-dialogue-text");
+  const historyBox = document.getElementById("diplomacy-history-chronicle");
+  if (dialogueBox) {
+    if (!hasTranslator) {
+      dialogueBox.innerHTML = `
+                <div class="untranslated-warning">⚠️ KEIN DSCHINN-ÜBERSETZER AKTIV: Übertragungsfrequenz stark verschlüsselt.</div>
+                <div class="alien-glyph-stream">${generateAlienGlyphs(160)}</div>
+                <div class="translator-hint">Kaufe die Mutation 'Dschinn-Übersetzer' im Evolutions-Deck, um Sprache, Absichten und Quests zu verstehen.</div>
+            `;
     } else {
-      factionEl.innerText = `\uD83C\uDF0C Unerschlossener Raum`;
-      factionEl.style.display = "inline-flex";
+      let greeting = "";
+      if (spec.quantumCiv && spec.quantumCiv.worshipsPlayer) {
+        greeting = `„O Reisende aus dem gefalteten Raum! Unsere Synapsen-Priester haben dein Erscheinen im Quanten-Rauschen vorhergesagt. Dein lebendiger Leib trägt das Erbe der Ur-Schöpfer. Wie dürfen wir deinem Glanz dienen?“`;
+      } else if (repScore < -40) {
+        greeting = `„Achtung, bio-organische Anomalie! Deine Entführungen und Grenzverletzungen sind im gesamten Sektor registriert. Drehe sofort ab, oder unsere planetaren Railguns eröffnen das Feuer!“`;
+      } else if (factionId === "vega_collective") {
+        greeting = `„Logische Grußsequenz initiiert. Wir registrieren eine 99.4% nicht-mechanische Entropie-Signatur in deinem Kern. Wir schlagen einen Datenaustausch von Silizium-Ressourcen gegen Hyperraum-Telemetrie vor.“`;
+      } else if (factionId === "xenomilitary_ash") {
+        greeting = `„Hier spricht die Grenzkontrolle der Asche-Gilde. Halte deine Tentakel in neutraler Position. Wir tolerieren keine psionischen Übergriffe in diesem System.“`;
+      } else {
+        greeting = `„Willkommen im Orbit von ${planet.name}, fremder Wanderer! Unsere Handelsgilden sind bereit, Rohstoffe auszutauschen und deine Hülle zu versorgen.“`;
+      }
+      dialogueBox.innerHTML = `
+                <p class="translated-speech">${greeting}</p>
+                <div class="quantum-entanglement-tag">
+                    ⚛️ ${spec.quantumCiv ? spec.quantumCiv.quantumCollapseLog : "Quanten-Resonanz stabil"}
+                </div>
+            `;
     }
   }
-  banner.classList.remove("banner-exit");
-  banner.style.display = "flex";
-  arrivalBannerTimeout = setTimeout(() => {
-    banner.classList.add("banner-exit");
-    setTimeout(() => {
-      banner.style.display = "none";
-      banner.classList.remove("banner-exit");
-    }, 800);
-  }, 4500);
+  if (historyBox) {
+    if (spec.quantumCiv && spec.quantumCiv.historyEras) {
+      historyBox.innerHTML = spec.quantumCiv.historyEras.map((era) => `
+                <div class="era-chronicle-item">
+                    <span class="era-title">\uD83D\uDCDC ${era.eraName}</span>
+                    <p class="era-desc">${era.event}</p>
+                    <span class="era-paradox">\uD83C\uDF00 Quanten-Paradoxon: ${era.paradoxDetail}</span>
+                </div>
+            `).join("");
+    } else {
+      historyBox.innerHTML = `<p style="color: #64748b;">Keine historischen Aufzeichnungen im aktuellen Sektor gefunden.</p>`;
+    }
+  }
+  renderDiplomacyActions(planet, factionId);
 }
-var cachedEdgeMarkers = new Map;
+function renderDiplomacyActions(planet, factionId) {
+  const actionsContainer = document.getElementById("diplomacy-actions-container");
+  if (!actionsContainer)
+    return;
+  actionsContainer.innerHTML = "";
+  const tradeBtn = document.createElement("button");
+  tradeBtn.className = "diplo-action-btn trade";
+  tradeBtn.innerHTML = `<span>\uD83D\uDD04 Ressourcen-Tausch (40 Silizium ➔ 45 Bio)</span><span class="diplo-badge">+8 Rep</span>`;
+  tradeBtn.onclick = () => {
+    if (STATE.siliconRes >= 40) {
+      STATE.siliconRes -= 40;
+      STATE.bioRes += 45;
+      playBioCollectSound();
+      modifyReputation(factionId, 8, `Erfolgreicher Handelsvertrag mit ${planet.name}.`);
+      openDiplomacyComms(planet);
+    } else {
+      addLogEntry("SYSTEM", "Zu wenig Silizium für diesen Handel (40 benötigt)!");
+    }
+  };
+  actionsContainer.appendChild(tradeBtn);
+  const tributeBtn = document.createElement("button");
+  tributeBtn.className = "diplo-action-btn tribute";
+  tributeBtn.innerHTML = `<span>\uD83C\uDF81 Friedens-Tribut darbringen (30 Bio opfern)</span><span class="diplo-badge">+15 Rep</span>`;
+  tributeBtn.onclick = () => {
+    if (STATE.bioRes >= 30) {
+      STATE.bioRes -= 30;
+      STATE.health = Math.min(STATE.maxHealth, STATE.health + 25);
+      playSiliconCollectSound();
+      modifyReputation(factionId, 15, `Großzügiger Tribut an ${planet.name} übergeben (+25 HP Hüllenreparatur).`);
+      openDiplomacyComms(planet);
+    } else {
+      addLogEntry("SYSTEM", "Zu wenig Biomasse für Tribut (30 benötigt)!");
+    }
+  };
+  actionsContainer.appendChild(tributeBtn);
+  const blessingBtn = document.createElement("button");
+  blessingBtn.className = "diplo-action-btn psionic";
+  blessingBtn.innerHTML = `<span>\uD83E\uDDE0 Telepathischer Segen (25 Mentalkraft)</span><span class="diplo-badge">+20 Rep</span>`;
+  blessingBtn.onclick = () => {
+    if (STATE.mentalEnergy >= 25) {
+      STATE.mentalEnergy -= 25;
+      STATE.crew.forEach((c) => c.stress = Math.max(0, c.stress - 20));
+      modifyReputation(factionId, 20, `Telepathischer Segen harmonisiert planetare Geister (-20 Crew-Stress).`);
+      openDiplomacyComms(planet);
+    } else {
+      addLogEntry("SYSTEM", "Zu wenig Mentalkraft für telepathischen Segen (25% benötigt)!");
+    }
+  };
+  actionsContainer.appendChild(blessingBtn);
+  const threatBtn = document.createElement("button");
+  threatBtn.className = "diplo-action-btn threat";
+  threatBtn.innerHTML = `<span>⚔️ Drohung & Unterwerfung fordern</span><span class="diplo-badge danger">-30 Rep</span>`;
+  threatBtn.onclick = () => {
+    modifyReputation(factionId, -30, `Kriegerische Drohung gegen ${planet.name} ausgesprochen! Alarmstufe erhöht.`);
+    closeDiplomacyComms();
+  };
+  actionsContainer.appendChild(threatBtn);
+}
+function closeDiplomacyComms() {
+  const overlay = document.getElementById("diplomacy-overlay");
+  if (overlay)
+    overlay.style.display = "none";
+  STATE.activeDiplomacyPlanet = null;
+}
+function isDiplomacyCommsOpen() {
+  const overlay = document.getElementById("diplomacy-overlay");
+  return overlay ? overlay.style.display === "flex" : false;
+}
+
+// src/systems/crew-generation.ts
+var SPECIES_ARCHETYPES = [
+  {
+    speciesName: "Myzel-Symbiont",
+    speciesType: "ephemeral",
+    disposition: "empathic",
+    avatarIcon: "\uD83C\uDF44",
+    speciesColor: "#10b981",
+    firstNames: ["Thal", "Zhirr", "Oona", "Vael", "Kael", "Myco-9", "Sula", "Spore-7", "Phael", "Nyra", "Hypha-4", "Xylos", "Chitin-V", "Mycorrh", "Biolux-3", "Sporan-Rho", "Calyx", "Rhizo-2"],
+    titles: ["Bio-Architekt", "Sporen-Priester", "Membran-Wächter", "Kokon-Flechter", "Xenobotaniker", "Symbiose-Lotse", "Fungus-Resonator"],
+    origins: ["den Phosphor-Höhlen", "dem Myzel-Gürtel", "den Flechten-Ozeanen", "den Sporen-Nebeln", "den Bio-Kavernen", "den Nährstoff-Sümpfen"],
+    preferredRoles: ["biologist", "engineer"],
+    traits: [
+      { name: "Biolumineszent", desc: "+25% Biomasse-Metabolismus im Kokon", type: "bio" },
+      { name: "Sporen-Empathie", desc: "Beruhigt benachbarte Gefangene im Raumschiff", type: "stress" },
+      { name: "Schnell-Zellerneuerung", desc: "Hohe Regeneration, jedoch rascher Alterungsprozess", type: "quirk" }
+    ]
+  },
+  {
+    speciesName: "Cyborg-Synthet",
+    speciesType: "longlived",
+    disposition: "synthetic",
+    avatarIcon: "\uD83E\uDD16",
+    speciesColor: "#38bdf8",
+    firstNames: ["Dax-04", "Rex-Sigma", "Cipher-9", "Unit-77", "Nexus-V", "Kinet-8", "Proxy-Zero", "Vectis-9", "Null-1", "Synapse-X", "Core-42", "Aegis-7", "Proton-11", "Chronos-3", "Optic-88", "Echo-101"],
+    titles: ["Naniten-Meister", "Kybernetiker", "Subraum-Logiker", "Quanten-Mechaniker", "Reaktor-Pfleger", "Kinetik-Adept", "System-Architekt", "Gleichstrom-Lotse"],
+    origins: ["der Silizium-Schmiede", "dem Schaltkreis-Archipel", "den Titan-Minen", "den Daten-Gürteln", "den Quanten-Gießereien"],
+    preferredRoles: ["engineer", "pilot"],
+    traits: [
+      { name: "Maschinen-Synästhesie", desc: "+0.4 HP/s Naniten-Schiffshüllenreparatur", type: "repair" },
+      { name: "Emotionsloser Stoizismus", desc: "Immun gegen leichten Panikstress bei Hüllenschäden", type: "stress" },
+      { name: "Optische Übertaktung", desc: "+15% Manövrierbarkeit beim Flug", type: "speed" }
+    ]
+  },
+  {
+    speciesName: "Olyndar-Empath",
+    speciesType: "ancient",
+    disposition: "empathic",
+    avatarIcon: "\uD83E\uDDDD",
+    speciesColor: "#a855f7",
+    firstNames: ["Astraea", "Maya-Sol", "Solas", "Elyon", "Kaelen", "Lyra", "Seraph", "Zephyra", "Olynn", "Val-Marek", "Isolde", "Thalor-Sol", "Caelum", "Elysia", "Auriel", "Vesper", "Lumin"],
+    titles: ["Gedanken-Diplomat", "Astromant", "Resonanz-Weber", "Seelen-Navigator", "Traum-Hüter", "Äther-Sänger", "Sphären-Wächter", "Harmonie-Lotse"],
+    origins: ["den schwebenden Kristallsphären", "dem Äther-Konsens", "den Saphir-Tempeln", "den Ringwäldern", "den Astralen Säulen"],
+    preferredRoles: ["psychologist", "pilot"],
+    traits: [
+      { name: "Resonanz-Träumer", desc: "Senkt kosmische Einsamkeit des Schiffs um weitere 15%", type: "psionic" },
+      { name: "Telepathischer Anker", desc: "Verlangsamt Illusion-Decay aller Kokon-Wirte", type: "stress" },
+      { name: "Zeitloser Geist", desc: "Enorme biologische Langlebigkeit (über 20 Minuten)", type: "quirk" }
+    ]
+  },
+  {
+    speciesName: "Tiefsee-Oktanoide",
+    speciesType: "mortal",
+    disposition: "martial",
+    avatarIcon: "\uD83D\uDC19",
+    speciesColor: "#06b6d4",
+    firstNames: ["Nautis", "Triton", "Pelagos", "Hydros", "Moros", "Cala", "Mael", "Vell", "Thalass", "Gorgon", "Nerios", "Glaukos", "Benthos", "Proteus", "Abysso", "Thalor", "Karkin", "Ozean-8", "Kraal-Zeth", "Scylla-Mor", "Dagon-7", "Pontos"],
+    titles: ["Abyssal-Lotse", "Druckwellen-Architekt", "Kiemen-Navigator", "Tiefen-Echoforscher", "Hydro-Ingenieur", "Strömungs-Meister", "Thermen-Taucher", "Benthos-Führer"],
+    origins: ["den Methan-Gräben", "den Abyssal-Schloten", "den Salzwasser-Kernen", "den Gezeiten-Riffen", "den Tiefsee-Vulkanen", "den Schwefel-Quellen"],
+    preferredRoles: ["pilot", "biologist"],
+    traits: [
+      { name: "Druckresistenz", desc: "+20% Hüllendämpfung bei Gravitations-Stößen", type: "repair" },
+      { name: "Fluid-Schub", desc: "+20% Beschleunigung bei interstellarem Flug", type: "speed" },
+      { name: "Hydro-Synthese", desc: "Wandelt kinetische Energie langsam in Bio-Ressourcen um", type: "bio" }
+    ]
+  },
+  {
+    speciesName: "Kristalliner Lithoid",
+    speciesType: "longlived",
+    disposition: "lithoid",
+    avatarIcon: "\uD83D\uDCA0",
+    speciesColor: "#f59e0b",
+    firstNames: ["Pyrit-7", "Obsid-Prime", "Beryll-Rho", "Quarz-Matrix", "Granat-V", "Zirkon-9", "Silikat-Omega", "Basalt-K", "Andalus-3", "Topas-Delta", "Geod-12", "Monolith-4"],
+    titles: ["Prismen-Harmoniker", "Kristall-Geologe", "Kern-Resonator", "Seismologe", "Gesteins-Adept", "Feldspat-Meister", "Tektonik-Lotse"],
+    origins: ["den Obsidian-Stollen", "den Geoden-Schluchten", "den tektonischen Falten", "den Basalt-Hochebenen", "den Quarz-Kernen"],
+    preferredRoles: ["engineer", "psychologist"],
+    traits: [
+      { name: "Silizium-Katalysator", desc: "Reduziert Silizium-Verbrauch bei Naniten-Reparaturen", type: "repair" },
+      { name: "Refraktions-Matrix", desc: "+35 psionische Reichweite für Schiffssensoren", type: "psionic" },
+      { name: "Träge Zellteilung", desc: "Sehr langsame Alterung, benötigt selten Verjüngung", type: "quirk" }
+    ]
+  },
+  {
+    speciesName: "Terranischer Pionier",
+    speciesType: "mortal",
+    disposition: "scholarly",
+    avatarIcon: "\uD83E\uDDD1‍\uD83D\uDE80",
+    speciesColor: "#3b82f6",
+    firstNames: ["Aiden", "Cassian", "Elena", "Tarek", "Marcus", "Kira", "Nora", "Lin", "Youssef", "Darius", "Sora", "Mateo", "Leona", "Silas", "Amara", "Viktor", "Zoe", "Felix", "Selene", "Ronan", "Chloe", "Kenji", "Talia", "Ezekiel", "Mira", "Anton", "Maya", "Julian", "Liam", "Iris", "Jonas", "Freja"],
+    lastNames: ["Vance", "Thorne", "Kovacs", "Reyes", "Dubois", "Hansen", "Lindqvist", "Zhang", "Tanaka", "Moreau", "Al-Mansoor", "Petrov", "Becker", "Rossi", "Sterling", "Kowalski", "O'Neill", "Navarro", "Sinclair", "Vargas", "Hawthorne", "Castillo", "Müller", "Novak", "Richter", "Fontaine"],
+    titles: ["Cmdr.", "Dr.", "Bio-Pionier", "Astro-Ingenieur", "Exobiologe", "Kolonie-Scout", "System-Navigator", "Feldarzt", "Sensoren-Offizier", "Orbit-Lotse"],
+    origins: ["der Orbital-Station Alpha", "dem Kolonieschiff Exodus", "den Mars-Glaskuppeln", "den Mond-Außenposten", "der Venus-Wolkenstadt", "der Titan-Forschungsbasis"],
+    preferredRoles: ["pilot", "engineer", "biologist"],
+    traits: [
+      { name: "Unbeugsamer Wille", desc: "+25% Triebwerkschub bei kritischer Schiffs-Energie", type: "speed" },
+      { name: "Wissenschaftlicher Eifer", desc: "+30% Forschungs- & Telemetriegewinn beim Scannen", type: "psionic" },
+      { name: "Kollaborations-Drang", desc: "Verstärkt die Synergieeffekte anderer Crew-Mitglieder", type: "quirk" }
+    ]
+  },
+  {
+    speciesName: "Ash-Krieger (Xenomilitär)",
+    speciesType: "mortal",
+    disposition: "martial",
+    avatarIcon: "⚔️",
+    speciesColor: "#ef4444",
+    firstNames: ["Kragh", "Vorg", "Thok", "Xerath", "Brak", "Gorgash", "Malik-V", "Torgh", "Riktor", "Grom"],
+    titles: ["Kriegs-Kommandant", "Legionär", "Nahkampf-Adept", "Front-Offizier", "Taktiker"],
+    origins: ["den Obsidian-Kasernen", "den Schlacke-Gießereien", "den Orbital-Festungen", "den Asche-Wüsten"],
+    preferredRoles: ["pilot", "engineer"],
+    traits: [
+      { name: "Krieger-Ehrenkodex", desc: "Respektiert Stärke; rebelliert wild gegen schlaffe Unterwerfung", type: "quirk" },
+      { name: "Blut-Adrenalin", desc: "+35% Triebwerksschub bei Feindkontakt", type: "speed" },
+      { name: "Chitin-Knochen", desc: "+30% Resistenz gegen Schiffserschütterungen", type: "repair" }
+    ]
+  }
+];
+var ROLE_DEFINITIONS = {
+  pilot: {
+    roleName: "\uD83D\uDEF8 Astral-Pilot",
+    roleIcon: "\uD83D\uDEF8",
+    station: "flight_synapse",
+    stationName: "Flug-Synapse",
+    buffDesc: "+30% Schubkraft & Manövrierbarkeit",
+    baseStressRate: 0.18
+  },
+  biologist: {
+    roleName: "\uD83C\uDF31 Bio-Architekt",
+    roleIcon: "\uD83C\uDF31",
+    station: "bio_incubator",
+    stationName: "Bio-Inkubator",
+    buffDesc: "+45% Biomasse-Ertrag beim Ernten",
+    baseStressRate: 0.15
+  },
+  engineer: {
+    roleName: "\uD83D\uDD27 Naniten-Meister",
+    roleIcon: "\uD83D\uDD27",
+    station: "chitin_gland",
+    stationName: "Chitin-Drüse",
+    buffDesc: "+0.6 HP/s Naniten-Reparatur",
+    baseStressRate: 0.2
+  },
+  psychologist: {
+    roleName: "\uD83E\uDDD8 Gedanken-Diplomat",
+    roleIcon: "\uD83E\uDDD8",
+    station: "dream_core",
+    stationName: "Traum-Kern",
+    buffDesc: "-40% Crew-Stressaufbau & Psi-Fokus",
+    baseStressRate: 0.12
+  }
+};
+var LIFESPAN_PRESETS = {
+  ephemeral: { base: 280, variance: 80 },
+  mortal: { base: 560, variance: 120 },
+  longlived: { base: 950, variance: 200 },
+  ancient: { base: 1400, variance: 300 }
+};
+function generateProceduralCandidates(seedHash, count = 2, bannedNames) {
+  const candidates = [];
+  const roles = ["pilot", "biologist", "engineer", "psychologist"];
+  const usedNames = new Set(bannedNames || []);
+  if (typeof STATE !== "undefined" && STATE.crew) {
+    STATE.crew.forEach((c) => usedNames.add(c.name));
+  }
+  for (let i = 0;i < count; i++) {
+    let itemHash = seedHash * 31 + i * 179 + 42 >>> 0;
+    let chosenName = "";
+    let chosenArch = SPECIES_ARCHETYPES[itemHash % SPECIES_ARCHETYPES.length];
+    let origin = "";
+    for (let attempt = 0;attempt < 30; attempt++) {
+      const currentHash = itemHash + attempt * 7919 >>> 0;
+      const arch = SPECIES_ARCHETYPES[(itemHash + attempt) % SPECIES_ARCHETYPES.length];
+      chosenArch = arch;
+      const firstName = arch.firstNames[(currentHash + i * 3) % arch.firstNames.length];
+      const title = arch.titles[(currentHash + i * 5) % arch.titles.length];
+      origin = arch.origins[(currentHash + i * 7) % arch.origins.length];
+      let candidateName = "";
+      if (arch.lastNames && arch.lastNames.length > 0) {
+        const lastName = arch.lastNames[(currentHash + i * 11 + attempt * 17) % arch.lastNames.length];
+        candidateName = `${title} ${firstName} ${lastName}`;
+      } else {
+        candidateName = `${title} ${firstName}`;
+      }
+      if (!usedNames.has(candidateName)) {
+        chosenName = candidateName;
+        itemHash = currentHash;
+        break;
+      }
+    }
+    if (!chosenName || usedNames.has(chosenName)) {
+      const fallbackSuffix = ["II", "III", "IV", "V", "Prime", "Secundus"][i % 6];
+      chosenName = `${chosenName || "Pionier"} ${fallbackSuffix}`;
+    }
+    usedNames.add(chosenName);
+    let role = roles[(itemHash + i) % roles.length];
+    if (chosenArch.preferredRoles && chosenArch.preferredRoles.length > 0 && itemHash % 3 !== 0) {
+      role = chosenArch.preferredRoles[itemHash % chosenArch.preferredRoles.length];
+    }
+    const roleDef = ROLE_DEFINITIONS[role];
+    const trait = chosenArch.traits[(itemHash + i) % chosenArch.traits.length];
+    const preset = LIFESPAN_PRESETS[chosenArch.speciesType];
+    const lifespan = preset.base + itemHash % 100 / 100 * preset.variance;
+    const initialAge = lifespan * (0.05 + itemHash % 20 / 100);
+    candidates.push({
+      id: Date.now() + Math.floor(Math.random() * 1e6) + i * 1000 + itemHash % 999,
+      name: chosenName,
+      species: `${chosenArch.speciesName} (${origin})`,
+      speciesArchetypeName: chosenArch.speciesName,
+      speciesType: chosenArch.speciesType,
+      disposition: chosenArch.disposition,
+      role,
+      roleName: roleDef.roleName,
+      roleIcon: roleDef.roleIcon,
+      station: roleDef.station,
+      stationName: roleDef.stationName,
+      buffDesc: roleDef.buffDesc,
+      perk: trait.desc,
+      trait,
+      avatarIcon: chosenArch.avatarIcon,
+      speciesColor: chosenArch.speciesColor,
+      stress: 15 + itemHash % 15,
+      baseStressRate: roleDef.baseStressRate,
+      illusionStability: 100,
+      status: "Harmonisch",
+      thought: `Wartet im Kokon... Träumt von ${origin}.`,
+      age: initialAge,
+      maxLifespan: Math.round(lifespan),
+      ageCategory: "vital",
+      rejuvenationCount: 0,
+      criticalAlertTriggered: false
+    });
+  }
+  return candidates;
+}
+
+// src/ui/directives.ts
+var FTUE_DIRECTIVES = [
+  {
+    id: 0,
+    badge: "PHASE 1",
+    title: "Lebensfunke",
+    instruction: "Bewege die Najmafar mit [W/A/S/D] oder [Maus-Lenkung]",
+    hint: "Aktiviere den Bio-Schub und richte deine Sinnesorgane aus."
+  },
+  {
+    id: 1,
+    badge: "PHASE 2",
+    title: "System-Erkundung",
+    instruction: "Erkunde das Sternensystem: Fliege zu einem Planeten & scanne ihn mit [F]",
+    hint: "Halte Orbit-Abstand (< 25 AE) zu einem Himmelskörper und prüfe ihn auf Biosignaturen."
+  },
+  {
+    id: 2,
+    badge: "PHASE 3",
+    title: "Archaisches Signal",
+    instruction: "Folge dem goldenen Radar-Signal & Scanne das unbekannte Signal mit [F] oder [Klick]",
+    hint: "Eine künstliche metallische Anomalie treibt am Systemrand. Halte Abstand < 22 AE."
+  },
+  {
+    id: 3,
+    badge: "PHASE 4",
+    title: "Funke der Hoffnung",
+    instruction: "Öffne die Golden Record im Dialog & höre die Botschaft der Erde",
+    hint: "Die Klänge der Menschheit vertreiben die Depression (+50% Mentalkraft)."
+  },
+  {
+    id: 4,
+    badge: "PHASE 5",
+    title: "Aufbruch ins Leben",
+    instruction: "Öffne die Sternenkarte [M] – Kurs auf System mit Biosphäre",
+    hint: "Im Startsystem gibt es kein Leben. Finde eine bewohnbare Welt im Nachbarsystem!"
+  },
+  {
+    id: 5,
+    badge: "PHASE 6",
+    title: "Der erste Wirt",
+    instruction: "Scanne eine bewohnte Welt & führe eine Entführung [F] durch",
+    hint: "Übernehme ein intelligentes Wesen in deine Kokon-Matrix gegen die Einsamkeit."
+  }
+];
+var isCollapsed = false;
+function initDirectivesHUD() {
+  const toggleBtn = document.getElementById("toggle-directives-btn");
+  const container = document.getElementById("hud-directives");
+  if (toggleBtn && container) {
+    toggleBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      isCollapsed = !isCollapsed;
+      container.classList.toggle("collapsed", isCollapsed);
+      toggleBtn.innerText = isCollapsed ? "\uD83D\uDCCB" : "➖";
+    });
+  }
+  renderDirectives();
+}
+function renderDirectives() {
+  const container = document.getElementById("directives-list");
+  if (!container)
+    return;
+  const currentStep = STATE.ftueStep || 0;
+  let html = "";
+  FTUE_DIRECTIVES.forEach((d) => {
+    const isDone = d.id < currentStep;
+    const isActive = d.id === currentStep;
+    const isLocked = d.id > currentStep;
+    const statusClass = isDone ? "done" : isActive ? "active" : "locked";
+    const checkmark = isDone ? "✔" : isActive ? "◉" : "○";
+    html += `
+            <div class="directive-card ${statusClass}" data-step="${d.id}">
+                <div class="directive-status-icon">${checkmark}</div>
+                <div class="directive-body">
+                    <div class="directive-header">
+                        <span class="directive-badge">${d.badge}</span>
+                        <span class="directive-title">${d.title}</span>
+                    </div>
+                    <div class="directive-instruction">${d.instruction}</div>
+                    ${isActive ? `<div class="directive-hint">${d.hint}</div>` : ""}
+                </div>
+            </div>
+        `;
+  });
+  container.innerHTML = html;
+}
+function advanceFtueStep(targetStep) {
+  const current = STATE.ftueStep || 0;
+  if (targetStep > current) {
+    STATE.ftueStep = targetStep;
+    const completedDirective = FTUE_DIRECTIVES[current];
+    if (completedDirective) {
+      addLogEntry("SYSTEM", `Direktive erfüllt: [${completedDirective.title}] ✔`);
+    }
+    if (targetStep >= FTUE_DIRECTIVES.length) {
+      STATE.ftueCompleted = true;
+      addLogEntry("SYSTEM", "Alle Einführungs-Direktiven abgeschlossen. Das Schicksal der Galaxie liegt in deinen Händen.");
+    }
+    renderDirectives();
+  }
+}
+function triggerVoyagerSignalDetection() {
+  if (STATE.voyagerSignalDetected)
+    return;
+  STATE.voyagerSignalDetected = true;
+  try {
+    playVoyagerBeaconPing();
+  } catch (e) {}
+  addLogEntry("NAJMAFAR", "„Dieses System ist erstarrt... Niemand ist hier. Nur die Kälte der Leere.“");
+  addLogEntry("SENSOR", "ANOMALIE DETEKTIERT: Schwache elektromagnetische Trägerwelle (1420 MHz) empfangen!");
+  addLogEntry("SYSTEM", "Archaische Signalquelle am Systemrand geortet. UNBEKANNTES SIGNAL auf Radar und Nav-Tracker aufgeschaltet!");
+  advanceFtueStep(2);
+}
+function updateVoyagerHUDTracker() {
+  const trackerEl = document.getElementById("voyager-nav-tracker");
+  if (!trackerEl)
+    return;
+  if (!STATE.voyagerProbe || !STATE.voyagerSignalDetected || STATE.voyagerScanned) {
+    trackerEl.style.display = "none";
+    return;
+  }
+  const titleEl = trackerEl.querySelector(".voyager-tracker-title");
+  if (titleEl) {
+    titleEl.innerText = STATE.voyagerScanned ? "VOYAGER 2 SIGNAL" : "UNBEKANNTES SIGNAL";
+  }
+  const playerPos = STATE.playerPosition;
+  const probePos = STATE.voyagerProbe.position;
+  if (!playerPos || !probePos)
+    return;
+  const dx = probePos.x - playerPos.x;
+  const dz = probePos.z - playerPos.z;
+  const dist = Math.hypot(dx, dz);
+  trackerEl.style.display = "flex";
+  const distEl = document.getElementById("voyager-nav-dist");
+  const angleEl = document.getElementById("voyager-nav-arrow");
+  if (distEl) {
+    distEl.innerText = `${dist.toFixed(1)} AE`;
+  }
+  if (angleEl) {
+    const targetAngle = Math.atan2(dz, dx);
+    const heading = STATE.shipHeading || 0;
+    const relativeAngleDeg = (targetAngle - heading) * 180 / Math.PI;
+    angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
+  }
+}
+
+// src/systems/scanner.ts
+function generatePlanetAttributes(p) {
+  const sysId = STATE.currentSystemId || 0;
+  const nameHash = (p.name || "").split("").reduce((acc, char) => acc * 31 + char.charCodeAt(0) >>> 0, 0);
+  const distFactor = Math.floor((p.distance || 1) * 73);
+  const hash = (sysId * 7919 ^ nameHash * 17 ^ distFactor) >>> 0;
+  const tidalLock = typeof p.tidalLock === "boolean" ? p.tidalLock : (p.distance || 50) < 28 || p.type === "Rocky" && hash % 4 === 0;
+  const magnetosphere = p.magnetosphere || (p.type === "Gas Giant" ? hash % 3 === 0 ? "Hyper-Magnetic" : "Strong" : p.type === "Habitable" ? hash % 3 === 0 ? "Weak" : "Strong" : p.type === "Rocky" ? hash % 3 === 0 ? "None" : hash % 3 === 1 ? "Weak" : "Strong" : "Weak");
+  const geothermal = p.geothermal || (p.type === "Gas Giant" ? hash % 2 === 0 ? "Dead" : "Dormant" : p.type === "Habitable" ? hash % 2 === 0 ? "Dormant" : "Active Geysers" : p.type === "Rocky" ? hash % 3 === 0 ? "Hyper-Volcanic" : hash % 3 === 1 ? "Active Geysers" : "Dead" : "Active Geysers");
+  const radiationLevel = p.radiationLevel || (hash % 4 === 0 ? "Extreme" : hash % 4 === 1 ? "High" : hash % 4 === 2 ? "Moderate" : "Low");
+  const entangledTwinId = p.entangledTwinId ?? null;
+  const quantumResonance = p.quantumResonance ?? (entangledTwinId ? 0.85 : 0);
+  if (p.atmos && p.temp && p.bio && p.res && (p.type !== "Habitable" || p.species && p.species.candidates && p.species.candidates.length > 0)) {
+    return {
+      atmos: p.atmos,
+      temp: p.temp,
+      bio: p.bio,
+      res: p.res,
+      species: p.species || null,
+      tidalLock,
+      magnetosphere,
+      geothermal,
+      radiationLevel,
+      entangledTwinId,
+      quantumResonance
+    };
+  }
+  let atmos, temp, bio, res, species;
+  if (p.type === "Habitable") {
+    atmos = hash % 2 === 0 ? "Stickstoff & Sauerstoff (Klasse M)" : "Dichte Aerosole & Wasserdampf";
+    temp = 15 + hash % 15 + "°C";
+    bio = hash % 3 === 0 ? "Biolumineszierende Flora" : hash % 3 === 1 ? "Mikrobielle Kolonien" : "Komplexes Ökosystem";
+    res = "Reich an Biomasse, Kohlenstoff & O2";
+    const pool = generateProceduralCandidates(hash, hash % 2 === 0 ? 2 : 1);
+    const qCiv = collapseQuantumCivilization(STATE.currentSystemId, hash % 8, hash);
+    const faction = getFaction(qCiv.factionId);
+    species = {
+      hasSentient: true,
+      name: `${qCiv.societalArchetype} (${faction.shortName})`,
+      population: pool.length * 1000 + hash % 500,
+      candidates: pool,
+      techLevel: qCiv.quantumTechLevel,
+      defenseRating: qCiv.quantumTechLevel === "Primitive" ? 0 : qCiv.quantumTechLevel === "Industrial" ? 20 : qCiv.quantumTechLevel === "Spacefaring" ? 65 : 95,
+      fleetDisposition: qCiv.militaryDoctrine === "Militaristic" ? "Militaristic" : qCiv.militaryDoctrine === "Pacifist" ? "Pacifist" : "Defensive",
+      factionId: qCiv.factionId,
+      quantumCiv: qCiv
+    };
+  } else if (p.type === "Gas Giant") {
+    atmos = hash % 2 === 0 ? "Flüssiges Helium & Wasserstoff" : "Superdichtes Ammoniak & Methan";
+    temp = -120 - hash % 60 + "°C";
+    bio = hash % 5 === 0 ? "Schwebende Plankton-Analoge" : "Keine Signaturen erfasst";
+    res = "Extrem hoher Druck, Deuterium-Vorkommen";
+    species = null;
+  } else {
+    atmos = hash % 3 === 0 ? "Dünnes CO2-Vakuum" : hash % 3 === 1 ? "Schwefeldioxid & Argon" : "Keine Atmosphäre (Vakuum)";
+    temp = (hash % 2 === 0 ? "+" : "-") + hash % 250 + "°C";
+    bio = hash % 8 === 0 ? "Extremophile Flechten" : "Steril";
+    res = "Reich an Silizium-Kristallen, Eisen & Schwermetallen";
+    species = null;
+  }
+  return {
+    atmos,
+    temp,
+    bio,
+    res,
+    species,
+    tidalLock,
+    magnetosphere,
+    geothermal,
+    radiationLevel,
+    entangledTwinId,
+    quantumResonance
+  };
+}
+function triggerScanStart() {
+  const target = STATE.orbitLevel === "moon" && STATE.activeMoonOrbit ? STATE.activeMoonOrbit : STATE.nearestPlanet;
+  if (!STATE.gameStarted || STATE.scanningPlanet || STATE.extractingPlanet || !target)
+    return;
+  const planet = target;
+  const isAlreadyScanned = planet.scanned || STATE.scannedPlanets && STATE.scannedPlanets[planet.name];
+  if (isAlreadyScanned) {
+    addLogEntry("SYSTEM", `${planet.isMoon ? "Mond" : "Planet"} ${planet.name} ist bereits vollständig kartografiert & gescannt.`);
+    return;
+  }
+  const meshScale = planet.mesh ? planet.mesh.scale.x : 1;
+  const maxScanDist = Math.max(25, (planet.size || 2.5) * meshScale * 3.8);
+  const dx = STATE.playerPosition.x - planet.mesh.position.x;
+  const dz = STATE.playerPosition.z - planet.mesh.position.z;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  if (dist >= maxScanDist)
+    return;
+  STATE.scanningPlanet = planet;
+  STATE.scanProgress = 0;
+  const progContainer = document.getElementById("scan-progress-container");
+  if (progContainer)
+    progContainer.style.display = "block";
+  const scanBtn = document.getElementById("start-scan-btn");
+  if (scanBtn)
+    scanBtn.setAttribute("disabled", "true");
+  const visualRadius = (planet.size || 3) * meshScale;
+  createScanVisuals(STATE.playerPosition, planet.mesh.position, visualRadius);
+  startQuantumScanSound();
+  addLogEntry("SYSTEM", `Spektral-Scan initiiert für: ${STATE.scanningPlanet.name}. Halte Orbit-Position...`);
+}
+function updateScanning(dt) {
+  if (!STATE.scanningPlanet)
+    return;
+  const meshScale = STATE.scanningPlanet.mesh ? STATE.scanningPlanet.mesh.scale.x : 1;
+  const maxHoldDist = Math.max(32, (STATE.scanningPlanet.size || 2.5) * meshScale * 4.4);
+  const dx = STATE.playerPosition.x - STATE.scanningPlanet.mesh.position.x;
+  const dz = STATE.playerPosition.z - STATE.scanningPlanet.mesh.position.z;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  if (dist > maxHoldDist) {
+    cancelScanning("Signalverlust. Abstand überschritt Sicherheitsradius.");
+    return;
+  }
+  updateScanVisuals(STATE.playerPosition, STATE.scanningPlanet.mesh.position);
+  const scanSpeedMult = STATE.crewBuffs ? STATE.crewBuffs.scanSpeed : 1;
+  STATE.scanProgress += dt * 35 * scanSpeedMult;
+  updateQuantumScanSound(STATE.scanProgress);
+  const bar = document.getElementById("scan-progress-bar");
+  const text = document.getElementById("scan-progress-text");
+  if (bar)
+    bar.style.width = `${STATE.scanProgress}%`;
+  if (text)
+    text.innerText = `${Math.round(STATE.scanProgress)}%`;
+  if (STATE.scanProgress >= 100) {
+    completeScanning();
+  }
+}
+function cancelScanning(reason) {
+  stopQuantumScanSound(false);
+  removeScanVisuals();
+  addLogEntry("SYSTEM", `Scan abgebrochen: ${reason}`);
+  STATE.scanningPlanet = null;
+  STATE.scanProgress = 0;
+  const progContainer = document.getElementById("scan-progress-container");
+  if (progContainer)
+    progContainer.style.display = "none";
+}
+function completeScanning() {
+  stopQuantumScanSound(true);
+  removeScanVisuals();
+  const progContainer = document.getElementById("scan-progress-container");
+  if (progContainer)
+    progContainer.style.display = "none";
+  const planet = STATE.scanningPlanet;
+  try {
+    if (planet) {
+      if (!planet.attributes) {
+        planet.attributes = generatePlanetAttributes(planet);
+      }
+      planet.scanned = true;
+      STATE.scannedPlanets[planet.name] = true;
+      STATE.bioRes += 15;
+      STATE.siliconRes += 10;
+      STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 15);
+      addLogEntry("SYSTEM", `Spektral-Scan von ${planet.name} abgeschlossen! Atmosphärendatenbank aktualisiert (+15 Bio | +10 Silizium).`);
+      if (planet.attributes?.entangledTwinId) {
+        addLogEntry("SYSTEM", `QUANTEN-KOPPLUNG: ${planet.name} ist resonant verschränkt mit ${planet.attributes.entangledTwinId} (${Math.round((planet.attributes.quantumResonance || 0.85) * 100)}% Resonanz)!`);
+      }
+      if (planet.attributes?.species && planet.attributes.species.population > 0) {
+        addLogEntry("SYSTEM", `PSIO-DETEKTION: Intelligentes Leben (${planet.attributes.species.name}) auf ${planet.name} entdeckt! Psionischer Transfer [F] bereit.`);
+      } else {
+        addLogEntry("SENSOR", `Atmosphärendaten: ${planet.attributes?.atmos || "Vakuum"} | Bio: ${planet.attributes?.bio || "Steril"}. Keine Lebensformen detektiert.`);
+      }
+      if ((STATE.ftueStep || 0) <= 1 && !STATE.voyagerSignalDetected) {
+        triggerVoyagerSignalDetection();
+      } else if ((STATE.ftueStep || 0) === 1) {
+        advanceFtueStep(2);
+      }
+      updateScannerUI(planet, 10);
+    }
+  } catch (err) {
+    console.error("Scanner completion error:", err);
+  } finally {
+    STATE.scanningPlanet = null;
+    STATE.scanProgress = 0;
+  }
+}
+var manuallyDismissedTarget = null;
+function resetDismissedScanner() {
+  manuallyDismissedTarget = null;
+}
+function updateScannerUI(planet, dist) {
+  const nameEl = document.getElementById("scan-planet-name");
+  const distEl = document.getElementById("scan-planet-dist");
+  const scanBtn = document.getElementById("start-scan-btn");
+  const placeholderBox = document.getElementById("scan-placeholder-box");
+  const resultsBox = document.getElementById("scan-results-box");
+  const harvestBtn = document.getElementById("start-harvest-btn");
+  const abductBtn = document.getElementById("start-abduct-btn");
+  const scannerPanel = document.getElementById("left-deck-panel");
+  if (!planet) {
+    if (scannerPanel)
+      scannerPanel.classList.remove("visible");
+    return;
+  }
+  if (manuallyDismissedTarget && manuallyDismissedTarget !== planet.name) {
+    manuallyDismissedTarget = null;
+  }
+  const isLocked = STATE.lockedTarget && STATE.lockedTarget.name === planet.name;
+  const isInOrbit = STATE.orbitPlanet && STATE.orbitPlanet.name === planet.name || STATE.activeMoonOrbit && STATE.activeMoonOrbit.name === planet.name;
+  const isCurrentlyVisible = scannerPanel ? scannerPanel.classList.contains("visible") : false;
+  const isDismissed = manuallyDismissedTarget === planet.name;
+  let shouldShow = false;
+  if (!isDismissed) {
+    if (isInOrbit || isLocked) {
+      shouldShow = true;
+    } else if (isCurrentlyVisible) {
+      shouldShow = dist <= 30;
+    } else {
+      shouldShow = dist <= 25;
+    }
+  }
+  if (scannerPanel) {
+    if (shouldShow) {
+      scannerPanel.classList.add("visible");
+    } else {
+      scannerPanel.classList.remove("visible");
+    }
+  }
+  if (nameEl)
+    nameEl.innerText = `${planet.name} (${planet.isMoon ? "Mond" : planet.type})`;
+  if (distEl) {
+    distEl.innerText = `${dist.toFixed(1)} ${dist < 20 ? "(In Sensorreichweite)" : "(Zu weit entfernt)"}`;
+    distEl.style.color = dist < 20 ? "#10b981" : "#f59e0b";
+  }
+  const orbitBadge = document.getElementById("orbit-subsystem-badge");
+  const orbitBadgeTitle = document.getElementById("orbit-badge-title");
+  const orbitBadgeSub = document.getElementById("orbit-badge-sub");
+  if (orbitBadge) {
+    if (STATE.orbitLevel === "moon" && STATE.activeMoonOrbit) {
+      orbitBadge.style.display = "flex";
+      if (orbitBadgeTitle) {
+        orbitBadgeTitle.innerText = `\uD83C\uDF15 MOND-ORBIT: ${STATE.activeMoonOrbit.name.toUpperCase()}`;
+      }
+      if (orbitBadgeSub) {
+        const parentName = STATE.activeMoonOrbit.parentPlanet ? STATE.activeMoonOrbit.parentPlanet.name : STATE.orbitPlanet ? STATE.orbitPlanet.name : "Zentralkörper";
+        const curRadius = STATE.activeMoonOrbit.source ? STATE.activeMoonOrbit.source.radius : STATE.activeMoonOrbit.size || 1;
+        const alt = Math.max(0.1, dist - curRadius).toFixed(1);
+        orbitBadgeSub.innerText = `Mutterplanet: ${parentName} • Höhe: ${alt} LJ`;
+      }
+    } else if (STATE.orbitLevel === "planet" && STATE.orbitPlanet) {
+      orbitBadge.style.display = "flex";
+      if (orbitBadgeTitle) {
+        orbitBadgeTitle.innerText = `\uD83E\uDE90 SUB-SYSTEM: ${STATE.orbitPlanet.name.toUpperCase()}`;
+      }
+      if (orbitBadgeSub) {
+        const moons = activePlanets.filter((m) => m.isMoon && m.parentPlanet === STATE.orbitPlanet);
+        const curRadius = STATE.orbitPlanet.source ? STATE.orbitPlanet.source.radius : STATE.orbitPlanet.size || 2.5;
+        const alt = Math.max(0.2, dist - curRadius).toFixed(1);
+        orbitBadgeSub.innerText = `Höhe: ${alt} LJ • ${moons.length} Monde im Orbit`;
+      }
+    } else {
+      orbitBadge.style.display = "none";
+    }
+  }
+  const meshScale = planet.mesh ? planet.mesh.scale.x : 1;
+  const maxScanDist = Math.max(25, (planet.size || 2.5) * meshScale * 3.8);
+  const inRange = dist < maxScanDist;
+  const isScanned = planet.scanned || STATE.scannedPlanets[planet.name];
+  if (distEl) {
+    distEl.innerText = `${dist.toFixed(1)} ${inRange ? "(In Sensorreichweite)" : "(Zu weit entfernt)"}`;
+    distEl.style.color = inRange ? "#10b981" : "#f59e0b";
+  }
+  if (scanBtn) {
+    scanBtn.disabled = !inRange || isScanned || STATE.scanningPlanet !== null;
+    if (isScanned) {
+      scanBtn.innerText = "Oberflächenscan Abgeschlossen ✓";
+    } else {
+      scanBtn.innerText = inRange ? "Scan initiieren [F]" : `Zu weit entfernt (< ${Math.round(maxScanDist)} nötig)`;
+    }
+  }
+  if (isScanned) {
+    if (!planet.attributes) {
+      planet.attributes = generatePlanetAttributes(planet);
+    }
+    const attrs = planet.attributes;
+    if (placeholderBox)
+      placeholderBox.style.display = "none";
+    if (resultsBox)
+      resultsBox.style.display = "block";
+    const titleEl = document.getElementById("scan-planet-title");
+    if (titleEl)
+      titleEl.innerText = `Analyse: ${planet.name}`;
+    const typeEl = document.getElementById("scan-planet-type");
+    if (typeEl)
+      typeEl.innerText = `${planet.type} (${planet.size}x)`;
+    const tempEl = document.getElementById("scan-planet-temp");
+    if (tempEl)
+      tempEl.innerText = attrs.temp || "-";
+    const bioEl = document.getElementById("scan-planet-bio");
+    if (bioEl)
+      bioEl.innerText = attrs.bio || "-";
+    const atmosEl = document.getElementById("scan-planet-atmos");
+    if (atmosEl)
+      atmosEl.innerText = attrs.atmos || "-";
+    const quantumRow = document.getElementById("scan-planet-quantum-row");
+    const quantumEl = document.getElementById("scan-planet-quantum");
+    if (quantumRow && quantumEl) {
+      if (attrs.entangledTwinId) {
+        quantumRow.style.display = "flex";
+        const resPct = Math.round((attrs.quantumResonance || 0.85) * 100);
+        quantumEl.innerHTML = `\uD83D\uDD17 Verschränkt mit <span style="color: #c084fc; font-weight: bold;">${attrs.entangledTwinId}</span> (${resPct}% Resonanz)`;
+      } else {
+        quantumRow.style.display = "none";
+      }
+    }
+    const physicsRow = document.getElementById("scan-planet-physics-row");
+    const physicsEl = document.getElementById("scan-planet-physics");
+    if (physicsRow && physicsEl) {
+      physicsRow.style.display = "flex";
+      const rotText = attrs.tidalLock ? "Gebundene Rotation (1:1)" : "Freie Rotation";
+      const geoText = attrs.geothermal ? ` • ${attrs.geothermal}` : "";
+      physicsEl.innerText = `${rotText}${geoText}`;
+    }
+    const radiationRow = document.getElementById("scan-planet-radiation-row");
+    const radiationEl = document.getElementById("scan-planet-radiation");
+    if (radiationRow && radiationEl) {
+      radiationRow.style.display = "flex";
+      const radLevel = attrs.radiationLevel || "Normal";
+      const magLevel = attrs.magnetosphere ? ` • \uD83E\uDDF2 ${attrs.magnetosphere}` : "";
+      radiationEl.innerText = `${radLevel}${magLevel}`;
+      if (radLevel === "Extreme") {
+        radiationEl.style.color = "#f43f5e";
+      } else if (radLevel === "High") {
+        radiationEl.style.color = "#fb923c";
+      } else {
+        radiationEl.style.color = "#facc15";
+      }
+    }
+    const resEl = document.getElementById("scan-planet-resources");
+    if (resEl)
+      resEl.innerText = attrs.res || "-";
+    const speciesRow = document.getElementById("scan-planet-species-row");
+    const speciesEl = document.getElementById("scan-planet-species");
+    const techRow = document.getElementById("scan-planet-tech-row");
+    const techEl = document.getElementById("scan-planet-tech");
+    const fleetRow = document.getElementById("scan-planet-fleet-row");
+    const fleetEl = document.getElementById("scan-planet-fleet");
+    const spec = attrs.species;
+    const hasSentient = spec && spec.population > 0;
+    if (speciesRow && speciesEl) {
+      if (hasSentient) {
+        speciesRow.style.display = "flex";
+        let candidateTag = "";
+        if (spec.candidates && spec.candidates.length > 0) {
+          const topCand = spec.candidates[0];
+          const hasRole = STATE.crew.some((c) => c.role === topCand.role);
+          candidateTag = hasRole ? `<br><span class="candidate-role-synergy-tag duplicate-role">\uD83D\uDC65 Ziel: ${topCand.roleName || topCand.role} (Verstärkt Buffs)</span>` : `<br><span class="candidate-role-synergy-tag new-role">✨ Ziel: ${topCand.roleName || topCand.role} (Neue Rolle: Synergie!)</span>`;
+        }
+        speciesEl.innerHTML = `<span style="color: #38bdf8; font-weight: bold;">${spec.name}</span> (Pop: ${spec.population})${candidateTag}`;
+      } else {
+        speciesRow.style.display = "none";
+      }
+    }
+    if (techRow && techEl) {
+      if (hasSentient && spec.techLevel) {
+        techRow.style.display = "flex";
+        let icon = "\uD83C\uDFDB️";
+        if (spec.techLevel === "Industrial")
+          icon = "\uD83C\uDFED";
+        if (spec.techLevel === "Spacefaring")
+          icon = "\uD83D\uDE80";
+        if (spec.techLevel === "Hyper-Advanced")
+          icon = "\uD83C\uDF0C";
+        techEl.innerText = `${icon} ${spec.techLevel} (${spec.fleetDisposition || "Defensiv"})`;
+      } else {
+        techRow.style.display = "none";
+      }
+    }
+    if (fleetRow && fleetEl) {
+      if (hasSentient && (spec.techLevel === "Spacefaring" || spec.techLevel === "Hyper-Advanced")) {
+        fleetRow.style.display = "flex";
+        const activeShips = STATE.fleetShips.filter((s) => s.homePlanet.name === planet.name);
+        const alertText = activeShips.some((s) => s.state === "intercept") ? "\uD83D\uDEA8 ALARM: Abfangkurs!" : "\uD83D\uDEE1️ Patrouille aktiv";
+        fleetEl.innerText = `${activeShips.length} Einheiten | ${alertText}`;
+        fleetEl.style.color = activeShips.some((s) => s.state === "intercept") ? "#f43f5e" : "#38bdf8";
+      } else {
+        fleetRow.style.display = "none";
+      }
+    }
+    const commsBtn = document.getElementById("start-comms-btn");
+    if (commsBtn) {
+      commsBtn.style.display = inRange && hasSentient ? "block" : "none";
+      commsBtn.onclick = () => openDiplomacyComms(planet);
+    }
+    if (harvestBtn) {
+      const isDepleted = planet.depleted || planet.harvested || STATE.depletedPlanets && STATE.depletedPlanets[planet.name];
+      harvestBtn.style.display = inRange && !STATE.extractingPlanet && !STATE.abductActive ? "block" : "none";
+      if (isDepleted) {
+        harvestBtn.disabled = true;
+        harvestBtn.innerText = "Ressourcen erschöpft ✕";
+        harvestBtn.style.opacity = "0.5";
+      } else {
+        harvestBtn.disabled = false;
+        harvestBtn.innerText = "Bio-Siphon aktivieren [E]";
+        harvestBtn.style.opacity = "1.0";
+      }
+    }
+    if (abductBtn) {
+      abductBtn.style.display = inRange && hasSentient && !STATE.abductActive && !STATE.extractingPlanet ? "block" : "none";
+    }
+  } else {
+    if (resultsBox)
+      resultsBox.style.display = "none";
+    if (placeholderBox)
+      placeholderBox.style.display = "block";
+    if (harvestBtn)
+      harvestBtn.style.display = "none";
+    if (abductBtn)
+      abductBtn.style.display = "none";
+    const commsBtn = document.getElementById("start-comms-btn");
+    if (commsBtn)
+      commsBtn.style.display = "none";
+  }
+}
 
 // src/systems/fleet.ts
 var shockwaveMesh = null;
@@ -40408,7 +39631,1272 @@ function initiateSystemArrival(fromSys, targetSys) {
   }
   playWarpDropoutSound();
   triggerSystemArrivalBanner(targetSys, dominantFactionName);
+  triggerAutoSave(`Ankunft in ${targetSys.name}`);
 }
+
+// src/systems/save-manager.ts
+var SAVE_STORAGE_PREFIX = "najmafar_save_";
+var SAVE_INDEX_KEY = "najmafar_saves_index";
+var lastAutoSaveTime = 0;
+var AUTO_SAVE_THROTTLE_MS = 4000;
+function formatTimestamp(ts) {
+  const d = new Date(ts);
+  return `${d.toLocaleDateString("de-DE")} ${d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`;
+}
+function getSystemName(sysId) {
+  if (STATE.universe && STATE.universe.systems) {
+    const s = STATE.universe.systems.find((sys) => sys.id === sysId);
+    if (s)
+      return s.name;
+  }
+  return sysId === 1 ? "Sol Invictus" : `Sektor ${sysId}`;
+}
+function serializeCurrentState(slotId, customName) {
+  const now = Date.now();
+  const sysName = getSystemName(STATE.currentSystemId);
+  const paradigm = STATE.primaryParadigm || "neutral";
+  const doctrine = STATE.activeSubCodex || "none";
+  const serializedMutations = {};
+  if (STATE.mutations) {
+    Object.keys(STATE.mutations).forEach((k) => {
+      const m = STATE.mutations[k];
+      if (m) {
+        serializedMutations[k] = {
+          purchased: Boolean(m.purchased),
+          bioCost: m.bioCost,
+          siliconCost: m.siliconCost
+        };
+      }
+    });
+  }
+  const meta = {
+    slotId,
+    name: customName || (slotId === "autosave" ? `Auto-Save: ${sysName}` : `Spielstand (${sysName})`),
+    timestamp: now,
+    dateFormatted: formatTimestamp(now),
+    systemName: sysName,
+    systemId: STATE.currentSystemId,
+    crewCount: STATE.crew ? STATE.crew.length : 0,
+    maxCrewCapacity: STATE.maxCrewCapacity || 4,
+    bioRes: Math.floor(STATE.bioRes || 0),
+    siliconRes: Math.floor(STATE.siliconRes || 0),
+    primaryParadigm: paradigm,
+    activeDoctrine: doctrine,
+    health: Math.round(STATE.health || 100),
+    playTimeFormatted: "00:00",
+    version: 1
+  };
+  return {
+    version: 1,
+    timestamp: now,
+    meta,
+    vitals: {
+      health: STATE.health,
+      maxHealth: STATE.maxHealth,
+      bioEnergy: STATE.bioEnergy,
+      maxBioEnergy: STATE.maxBioEnergy,
+      mentalEnergy: STATE.mentalEnergy,
+      maxMentalEnergy: STATE.maxMentalEnergy,
+      loneliness: STATE.loneliness,
+      bioRes: STATE.bioRes,
+      siliconRes: STATE.siliconRes
+    },
+    navigation: {
+      currentSystemId: STATE.currentSystemId,
+      visitedSystemIds: STATE.visitedSystemIds ? [...STATE.visitedSystemIds] : [STATE.currentSystemId],
+      systemsVisited: STATE.systemsVisited || 1,
+      playerPosition: {
+        x: STATE.playerPosition ? STATE.playerPosition.x : 0,
+        y: STATE.playerPosition ? STATE.playerPosition.y : 0,
+        z: STATE.playerPosition ? STATE.playerPosition.z : 95
+      },
+      playerVelocity: {
+        x: STATE.playerVelocity ? STATE.playerVelocity.x : 0,
+        y: STATE.playerVelocity ? STATE.playerVelocity.y : 0,
+        z: STATE.playerVelocity ? STATE.playerVelocity.z : 0
+      },
+      shipHeading: STATE.shipHeading || 0
+    },
+    paradigms: {
+      primaryParadigm: paradigm,
+      activeSubCodex: doctrine,
+      firstContactResolved: STATE.firstContactResolved || false,
+      paradigmModifiers: STATE.paradigmModifiers ? { ...STATE.paradigmModifiers } : {}
+    },
+    mutations: serializedMutations,
+    maxCrewCapacity: STATE.maxCrewCapacity || 4,
+    crew: STATE.crew ? JSON.parse(JSON.stringify(STATE.crew)) : [],
+    scannedPlanets: STATE.scannedPlanets ? JSON.parse(JSON.stringify(STATE.scannedPlanets)) : {},
+    depletedPlanets: STATE.depletedPlanets ? JSON.parse(JSON.stringify(STATE.depletedPlanets)) : {},
+    voyager: {
+      detected: Boolean(STATE.voyagerSignalDetected),
+      scanned: Boolean(STATE.voyagerScanned),
+      dialogSeen: Boolean(STATE.voyagerDialogSeen)
+    },
+    ftue: {
+      step: STATE.ftueStep || 0,
+      completed: Boolean(STATE.ftueCompleted)
+    },
+    reputation: STATE.reputation ? { ...STATE.reputation } : {}
+  };
+}
+async function saveToSlot(slotId, customName) {
+  try {
+    const data = serializeCurrentState(slotId, customName);
+    const jsonStr = JSON.stringify(data);
+    const api = window.api;
+    if (api && typeof api.saveGame === "function") {
+      await api.saveGame(slotId, jsonStr);
+    }
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(SAVE_STORAGE_PREFIX + slotId, jsonStr);
+      updateLocalSaveIndex(data.meta);
+    }
+    showSaveToast(`\uD83D\uDCBE Spielstand gesichert: ${data.meta.name}`);
+    return { success: true, meta: data.meta };
+  } catch (e) {
+    console.error("Save error:", e);
+    return { success: false, error: e.message || String(e) };
+  }
+}
+async function loadFromSlot(slotId) {
+  try {
+    let jsonStr = null;
+    const api = window.api;
+    if (api && typeof api.loadGame === "function") {
+      const res = await api.loadGame(slotId);
+      if (res && res.success && res.data) {
+        jsonStr = res.data;
+      }
+    }
+    if (!jsonStr && typeof localStorage !== "undefined") {
+      jsonStr = localStorage.getItem(SAVE_STORAGE_PREFIX + slotId);
+    }
+    if (!jsonStr) {
+      return { success: false, error: `Speicher-Slot "${slotId}" nicht gefunden.` };
+    }
+    const data = JSON.parse(jsonStr);
+    await applyLoadedState(data);
+    showSaveToast(`\uD83E\uDDEC Spielstand geladen: ${data.meta?.name || slotId}`);
+    return { success: true };
+  } catch (e) {
+    console.error("Load error:", e);
+    return { success: false, error: e.message || String(e) };
+  }
+}
+async function applyLoadedState(data) {
+  if (!data || !data.vitals) {
+    throw new Error("Ungültiges Speicherdaten-Format.");
+  }
+  STATE.health = data.vitals.health;
+  STATE.maxHealth = data.vitals.maxHealth || 100;
+  STATE.bioEnergy = data.vitals.bioEnergy;
+  STATE.maxBioEnergy = data.vitals.maxBioEnergy || 100;
+  STATE.mentalEnergy = data.vitals.mentalEnergy;
+  STATE.maxMentalEnergy = data.vitals.maxMentalEnergy || 100;
+  STATE.loneliness = data.vitals.loneliness;
+  STATE.bioRes = data.vitals.bioRes;
+  STATE.siliconRes = data.vitals.siliconRes;
+  if (data.mutations) {
+    Object.keys(data.mutations).forEach((k) => {
+      if (STATE.mutations[k]) {
+        STATE.mutations[k].purchased = data.mutations[k].purchased;
+      }
+    });
+  }
+  STATE.maxCrewCapacity = data.maxCrewCapacity || 4;
+  STATE.crew = Array.isArray(data.crew) ? data.crew : [];
+  calculateCrewBuffs();
+  if (data.paradigms) {
+    STATE.primaryParadigm = data.paradigms.primaryParadigm || "neutral";
+    STATE.activeSubCodex = data.paradigms.activeSubCodex || "none";
+    if (data.paradigms.firstContactResolved !== undefined) {
+      STATE.firstContactResolved = data.paradigms.firstContactResolved;
+    }
+    if (data.paradigms.paradigmModifiers) {
+      STATE.paradigmModifiers = { ...data.paradigms.paradigmModifiers };
+    }
+  }
+  if (data.scannedPlanets)
+    STATE.scannedPlanets = data.scannedPlanets;
+  if (data.depletedPlanets)
+    STATE.depletedPlanets = data.depletedPlanets;
+  if (data.voyager) {
+    STATE.voyagerSignalDetected = data.voyager.detected;
+    STATE.voyagerScanned = data.voyager.scanned;
+    STATE.voyagerDialogSeen = data.voyager.dialogSeen;
+  }
+  if (data.ftue) {
+    STATE.ftueStep = data.ftue.step;
+    STATE.ftueCompleted = data.ftue.completed;
+  }
+  if (data.reputation) {
+    STATE.reputation = { ...data.reputation };
+  }
+  const targetSysId = data.navigation ? data.navigation.currentSystemId : 1;
+  STATE.visitedSystemIds = data.navigation && data.navigation.visitedSystemIds ? data.navigation.visitedSystemIds : [targetSysId];
+  STATE.systemsVisited = data.navigation ? data.navigation.systemsVisited : 1;
+  if (data.navigation && data.navigation.playerPosition) {
+    STATE.playerPosition.set(data.navigation.playerPosition.x, data.navigation.playerPosition.y, data.navigation.playerPosition.z);
+  }
+  if (data.navigation && data.navigation.playerVelocity) {
+    STATE.playerVelocity.set(data.navigation.playerVelocity.x, data.navigation.playerVelocity.y, data.navigation.playerVelocity.z);
+  }
+  STATE.shipHeading = data.navigation ? data.navigation.shipHeading || 0 : 0;
+  if (STATE.playerGroup) {
+    STATE.playerGroup.position.copy(STATE.playerPosition);
+    STATE.playerGroup.rotation.y = STATE.shipHeading;
+  }
+  if (STATE.currentSystemId !== targetSysId) {
+    STATE.currentSystemId = targetSysId;
+    clearActiveSystem();
+    spawnPlanetsAndAsteroids();
+  }
+  reapplyAllMutations();
+  updatePartyGrid();
+  renderCrewUI(true);
+  updateHUDStats();
+  addLogEntry("SYSTEM", `Reise fortgesetzt: ${data.meta?.name || "Spielstand geladen"}`);
+}
+async function listAllSaves() {
+  const savesMap = new Map;
+  const api = window.api;
+  if (api && typeof api.listSaves === "function") {
+    try {
+      const res = await api.listSaves();
+      if (res && res.success && Array.isArray(res.saves)) {
+        res.saves.forEach((s) => {
+          if (s.meta && s.slotId) {
+            savesMap.set(s.slotId, {
+              ...s.meta,
+              slotId: s.slotId
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("Electron listSaves failed, falling back to localStorage", e);
+    }
+  }
+  if (typeof localStorage !== "undefined") {
+    try {
+      const rawIdx = localStorage.getItem(SAVE_INDEX_KEY);
+      if (rawIdx) {
+        const list = JSON.parse(rawIdx);
+        list.forEach((item) => {
+          if (item.slotId && !savesMap.has(item.slotId)) {
+            savesMap.set(item.slotId, item);
+          }
+        });
+      }
+    } catch (err) {}
+  }
+  const result = Array.from(savesMap.values());
+  result.sort((a, b) => b.timestamp - a.timestamp);
+  return result;
+}
+async function getLatestSave() {
+  const all = await listAllSaves();
+  return all.length > 0 ? all[0] : null;
+}
+async function deleteSaveSlot(slotId) {
+  const api = window.api;
+  if (api && typeof api.deleteSave === "function") {
+    await api.deleteSave(slotId);
+  }
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem(SAVE_STORAGE_PREFIX + slotId);
+    removeLocalSaveIndex(slotId);
+  }
+  return true;
+}
+function updateLocalSaveIndex(meta) {
+  if (typeof localStorage === "undefined")
+    return;
+  try {
+    let index = [];
+    const raw = localStorage.getItem(SAVE_INDEX_KEY);
+    if (raw)
+      index = JSON.parse(raw);
+    index = index.filter((m) => m.slotId !== meta.slotId);
+    index.unshift(meta);
+    localStorage.setItem(SAVE_INDEX_KEY, JSON.stringify(index));
+  } catch (e) {}
+}
+function removeLocalSaveIndex(slotId) {
+  if (typeof localStorage === "undefined")
+    return;
+  try {
+    const raw = localStorage.getItem(SAVE_INDEX_KEY);
+    if (raw) {
+      const index = JSON.parse(raw).filter((m) => m.slotId !== slotId);
+      localStorage.setItem(SAVE_INDEX_KEY, JSON.stringify(index));
+    }
+  } catch (e) {}
+}
+async function triggerAutoSave(reason = "Hyperraum-Transit") {
+  const now = Date.now();
+  if (now - lastAutoSaveTime < AUTO_SAVE_THROTTLE_MS)
+    return;
+  lastAutoSaveTime = now;
+  await saveToSlot("autosave", `Auto-Save: ${reason}`);
+}
+function showSaveToast(text) {
+  const container = document.getElementById("crew-death-toast-container");
+  if (!container)
+    return;
+  const toast = document.createElement("div");
+  toast.className = "save-toast";
+  toast.innerHTML = `
+        <span class="save-toast-icon">\uD83D\uDCBE</span>
+        <div class="save-toast-info">
+            <div class="save-toast-title">SYNAPSE GESICHERT</div>
+            <div class="save-toast-desc">${text}</div>
+        </div>
+    `;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add("fade-out");
+    setTimeout(() => toast.remove(), 400);
+  }, 2800);
+}
+var PLAYTEST_PRESETS = {
+  starter: {
+    id: "starter",
+    name: "\uD83C\uDF31 Neugeborener Organismus",
+    badge: "FRÜHPHASE (2 CREW)",
+    description: "Startzustand in Sol Invictus. Basiskokon mit 2 Entführten, minimale Ressourcen zum Ausprobieren der Grundlagen.",
+    targetCrew: 2,
+    capacity: 4,
+    resources: { bio: 120, silicon: 80 },
+    paradigm: "neutral",
+    subCodex: "none",
+    mutations: ["nucleus", "cocoon"]
+  },
+  collective: {
+    id: "collective",
+    name: "\uD83E\uDDEC Schwarm-Verbund",
+    badge: "MITTELPHASE (10 CREW)",
+    description: "Neuronale Waben-Kammer mit 10 Spezialisten verteilt auf alle 4 Stationen. Symbiose-Doktrin & Chitin-Strahlenschutz.",
+    targetCrew: 10,
+    capacity: 10,
+    resources: { bio: 750, silicon: 480 },
+    paradigm: "symbiosis",
+    subCodex: "none",
+    mutations: ["nucleus", "organic_siphon", "chitin_armor", "cocoon", "hivemind", "neural_cluster", "telepathic_focus"]
+  },
+  leviathan: {
+    id: "leviathan",
+    name: "\uD83C\uDF0C Kosmisches Leviathan",
+    badge: "ENDPHASE (30 CREW • MAX MUTATIONEN)",
+    description: "Voll besetztes Schwarm-Zerebrum mit 30 Crew-Mitgliedern, allen Mutationen (Klingen-Panzer, Resonanz-Schrei, Augen des Ibad) und reichhaltigen Ressourcen.",
+    targetCrew: 30,
+    capacity: 30,
+    resources: { bio: 2500, silicon: 1800 },
+    paradigm: "domination",
+    subCodex: "none",
+    mutations: [
+      "nucleus",
+      "organic_siphon",
+      "chitin_armor",
+      "vector_tentacles",
+      "blade_armor",
+      "cocoon",
+      "hivemind",
+      "neural_cluster",
+      "cryo_matrix",
+      "hive_cerebrum",
+      "telepathic_focus",
+      "psionic_pulse",
+      "chimera_veil",
+      "resonance_screech",
+      "ibad"
+    ]
+  }
+};
+async function loadPlaytestPreset(presetId) {
+  const preset = PLAYTEST_PRESETS[presetId];
+  if (!preset)
+    return false;
+  if (STATE.mutations) {
+    Object.keys(STATE.mutations).forEach((k) => {
+      STATE.mutations[k].purchased = preset.mutations.includes(k);
+    });
+  }
+  STATE.bioRes = preset.resources.bio;
+  STATE.siliconRes = preset.resources.silicon;
+  STATE.maxCrewCapacity = preset.capacity;
+  STATE.health = 100;
+  STATE.maxHealth = 100;
+  STATE.bioEnergy = 100;
+  STATE.mentalEnergy = 100;
+  STATE.loneliness = preset.targetCrew > 5 ? 20 : 75;
+  STATE.primaryParadigm = preset.paradigm;
+  STATE.activeSubCodex = preset.subCodex;
+  STATE.firstContactResolved = preset.targetCrew > 2;
+  const roles = [
+    "pilot",
+    "engineer",
+    "biologist",
+    "psychologist",
+    "cryptologist"
+  ];
+  const stations = [
+    "flight_synapse",
+    "chitin_gland",
+    "bio_incubator",
+    "dream_core"
+  ];
+  const speciesNames = ["Sol-Terrestrer", "Aethelgardianer", "Olyndar-Psioniker", "Vulkanier", "Zerg-Larve"];
+  const mockCrew = [];
+  for (let i = 0;i < preset.targetCrew; i++) {
+    const role = roles[i % roles.length];
+    const station = stations[i % stations.length];
+    const species = speciesNames[i % speciesNames.length];
+    const id = `preset_${preset.id}_c${i + 1}`;
+    mockCrew.push({
+      id,
+      name: `${species} #${i + 1}`,
+      species,
+      role,
+      roleName: role.toUpperCase(),
+      station,
+      status: "nominal",
+      age: 25 + i * 2,
+      lifespan: 90,
+      stress: 15,
+      synergyLevel: 1 + i % 3,
+      efficiency: 1 + i * 0.05,
+      traits: ["resilient"],
+      isSpecialist: i % 2 === 0
+    });
+  }
+  STATE.crew = mockCrew;
+  reapplyAllMutations();
+  calculateCrewBuffs();
+  updatePartyGrid();
+  renderCrewUI(true);
+  updateHUDStats();
+  addLogEntry("SYSTEM", `Test-Profil aktiviert: ${preset.name} (${preset.targetCrew} Besatzung)`);
+  showSaveToast(`\uD83E\uDDEA Test-Profil aktiv: ${preset.name}`);
+  return true;
+}
+
+// src/ui/deck.ts
+function isDeckOpen() {
+  const modal = document.getElementById("deck-modal");
+  return modal ? modal.style.display === "flex" : false;
+}
+function toggleDeckModal(force) {
+  const modal = document.getElementById("deck-modal");
+  if (!modal)
+    return;
+  const isVisible = modal.style.display === "flex";
+  const nextState = force !== undefined ? force : !isVisible;
+  modal.style.display = nextState ? "flex" : "none";
+  if (nextState) {
+    renderCrewUI(true);
+    updateMutationUI();
+    renderFactionReputationUI();
+    startNeuralCanvasLoop();
+  } else {
+    stopNeuralCanvasLoop();
+  }
+}
+function initDeckUI() {
+  const leftCollapseBtn = document.getElementById("left-collapse-btn");
+  if (leftCollapseBtn) {
+    leftCollapseBtn.addEventListener("click", () => {
+      dismissScannerPanel();
+    });
+  }
+  const tabButtons = document.querySelectorAll("#right-deck-tabs .tab-btn");
+  tabButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetTab = btn.getAttribute("data-tab");
+      tabButtons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const crewContent = document.getElementById("tab-content-crew");
+      const evoContent = document.getElementById("tab-content-evolution");
+      const facContent = document.getElementById("tab-content-factions");
+      const logContent = document.getElementById("tab-content-log");
+      if (crewContent) {
+        crewContent.classList.toggle("active", targetTab === "crew");
+        if (targetTab === "crew") {
+          renderCrewUI(true);
+        }
+      }
+      if (evoContent) {
+        evoContent.classList.toggle("active", targetTab === "evolution");
+        if (targetTab === "evolution") {
+          startNeuralCanvasLoop();
+          updateEvolutionTreeUI();
+        } else {
+          stopNeuralCanvasLoop();
+        }
+      }
+      if (logContent)
+        logContent.classList.toggle("active", targetTab === "log");
+      if (facContent) {
+        facContent.classList.toggle("active", targetTab === "factions");
+        if (targetTab === "factions") {
+          renderFactionReputationUI();
+        }
+      }
+    });
+  });
+  renderFactionReputationUI();
+  initEvolutionTree();
+  const mutButtons = document.querySelectorAll(".mut-btn");
+  mutButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mutType = btn.getAttribute("data-mutation");
+      if (mutType) {
+        buyMutation(mutType);
+      }
+    });
+  });
+}
+function buyMutation(type) {
+  const mut = STATE.mutations[type];
+  if (!mut || mut.purchased)
+    return;
+  if (STATE.bioRes >= mut.bioCost && STATE.siliconRes >= mut.siliconCost) {
+    STATE.bioRes -= mut.bioCost;
+    STATE.siliconRes -= mut.siliconCost;
+    mut.purchased = true;
+    playSiliconCollectSound();
+    const btn = document.querySelector(`.mut-btn[data-mutation="${type}"]`);
+    if (btn) {
+      btn.classList.add("purchased");
+      btn.innerHTML = "Aktiviert ✓";
+    }
+    if (type === "armor" || type === "chitin_armor") {
+      if (STATE.mutations.armor)
+        STATE.mutations.armor.purchased = true;
+      if (STATE.mutations.chitin_armor)
+        STATE.mutations.chitin_armor.purchased = true;
+      addLogEntry("EVOLUTION", "Organischer Chitin-Panzer gehärtet. Kollisionsschaden um 50% reduziert & Besatzung vor kosmischer Strahlung geschützt.");
+      const hull = document.getElementById("schematic-hull");
+      if (hull)
+        hull.setAttribute("stroke-width", "4");
+    } else if (type === "organic_siphon") {
+      addLogEntry("EVOLUTION", "Organischer Siphon ausgebildet! Ernte-Geschwindigkeit +35% & Strahlungs-Bio-Filter aktiv (-25% Strahlungsschaden).");
+    } else if (type === "vector_tentacles") {
+      STATE.thrustStrength = 20.6;
+      STATE.turnSpeed = 3.2;
+      addLogEntry("EVOLUTION", "Vektor-Tentakel erwacht! +25% Schub, +35% Wendigkeit & hydrodynamische Bio-Bremse online.");
+    } else if (type === "blade_armor") {
+      addLogEntry("EVOLUTION", "Klingen-Panzerung assimiliert! Dornen-Chitin reflektiert Schaden & bildet dichte magnetische Barriere (-80% Strahlung).");
+    } else if (type === "o2") {
+      addLogEntry("EVOLUTION", "Metabolische O2-Synthese aktiviert. Stress-Zuwachs halbiert.");
+    } else if (type === "synapses" || type === "psionic_pulse") {
+      if (STATE.mutations.synapses)
+        STATE.mutations.synapses.purchased = true;
+      if (STATE.mutations.psionic_pulse)
+        STATE.mutations.psionic_pulse.purchased = true;
+      STATE.psionicRange = 140;
+      STATE.maxMentalEnergy = 150;
+      calculateCrewBuffs();
+      addLogEntry("EVOLUTION", "Psionischer Impuls entfesselt! Gedanken-Echo Reichweite auf 140 LJ vergrößert & Mentalkraft auf 150.");
+    } else if (type === "chimera_veil") {
+      if (!STATE.paradigmModifiers)
+        STATE.paradigmModifiers = { thrustBonus: 0, stealthBonus: 0, mentalDrainMult: 1, bioRegenBonus: 0, harmonyBonus: 0, stressModifier: 0 };
+      STATE.paradigmModifiers.stealthBonus += 0.4;
+      addLogEntry("EVOLUTION", "Schimären-Schleier aktiv! Psionische Lichtbrechung gewährt +40% Tarnung (Stealth) & Schutz vor Sensor-Stress.");
+    } else if (type === "resonance_screech") {
+      addLogEntry("EVOLUTION", "Resonanz-Schrei assimiliert! Bio-EMP Schockwelle lähmt Drohnen 50% länger und sendet panikbrechende Wellen.");
+    } else if (type === "cocoon") {
+      STATE.maxCrewCapacity = 4;
+      addLogEntry("EVOLUTION", "Neuronales Kokon-Gewebe mutiert! Maximale Crew-Kapazität auf 4 erweitert.");
+      renderCrewUI();
+    } else if (type === "hivemind") {
+      STATE.maxCrewCapacity = 6;
+      calculateCrewBuffs();
+      addLogEntry("EVOLUTION", "Symbiotische Synapsen-Kammer erwacht! Kapazität auf 6 erhöht & alle Spezialisten-Buffs um +20% verstärkt!");
+      renderCrewUI();
+    } else if (type === "neural_cluster") {
+      STATE.maxCrewCapacity = 10;
+      calculateCrewBuffs();
+      addLogEntry("EVOLUTION", "Neuronale Waben-Kammer expandiert! Max 10 Crew-Mitglieder & Dissonanz-Dämpfung aktiv.");
+      renderCrewUI();
+    } else if (type === "cryo_matrix") {
+      STATE.maxCrewCapacity = 20;
+      calculateCrewBuffs();
+      addLogEntry("EVOLUTION", "Bio-Kryo-Kaverne herangewachsen! Max 20 Crew-Mitglieder & Zelltod um 25% verlangsamt.");
+      renderCrewUI();
+    } else if (type === "hive_cerebrum") {
+      STATE.maxCrewCapacity = 30;
+      calculateCrewBuffs();
+      addLogEntry("EVOLUTION", "Schwarm-Zerebrum erwacht! Max 30 Crew-Mitglieder • Volle telepathische Schwarm-Resonanz aktiv!");
+      renderCrewUI();
+    } else if (type === "folddrive") {
+      STATE.warpRange = 160;
+      addLogEntry("EVOLUTION", "Raumfaltungs-Membran mutiert! Warp-Reichweite auf 160 LJ erweitert, Faltungskosten um 30% gesenkt.");
+    } else if (type === "translator" || type === "telepathic_focus") {
+      if (STATE.mutations.translator)
+        STATE.mutations.translator.purchased = true;
+      if (STATE.mutations.telepathic_focus)
+        STATE.mutations.telepathic_focus.purchased = true;
+      addLogEntry("EVOLUTION", "Telepathischer Fokus synchronisiert! Alien-Funksignale & Crew-Dialoge werden dechiffriert.");
+    }
+    updateMutationUI();
+    triggerAutoSave(`Mutation: ${mut.name || type}`);
+  } else {
+    addLogEntry("SYSTEM", `Evolution fehlgeschlagen: Nicht genügend Ressourcen (${mut.bioCost} Bio | ${mut.siliconCost} Silizium benötigt)!`);
+  }
+}
+function updateMutationUI() {
+  const bioEl = document.getElementById("res-bio-count");
+  const silEl = document.getElementById("res-silicon-count");
+  if (bioEl)
+    bioEl.innerText = `${Math.floor(STATE.bioRes)}`;
+  if (silEl)
+    silEl.innerText = `${Math.floor(STATE.siliconRes)}`;
+  Object.keys(STATE.mutations).forEach((key) => {
+    const mut = STATE.mutations[key];
+    const btn = document.querySelector(`.mut-btn[data-mutation="${key}"]`);
+    if (btn) {
+      if (mut.purchased) {
+        btn.disabled = true;
+        btn.classList.add("purchased");
+        btn.innerText = "Aktiviert ✓";
+      } else {
+        const canAfford = STATE.bioRes >= mut.bioCost && STATE.siliconRes >= mut.siliconCost;
+        btn.disabled = !canAfford;
+      }
+    }
+  });
+  const ibadCard = document.getElementById("mut-ibad");
+  if (ibadCard) {
+    ibadCard.style.display = STATE.mutations.ibad && STATE.mutations.ibad.purchased ? "flex" : "none";
+  }
+  updateEvolutionTreeUI();
+}
+function reapplyAllMutations() {
+  let capacity = 4;
+  let thrust = 16.5;
+  let turn = 2.85;
+  let psionicRange = 75;
+  let maxMental = 100;
+  let stealthBonus = 0;
+  const m = STATE.mutations;
+  if (m) {
+    if (m.hive_cerebrum?.purchased)
+      capacity = 30;
+    else if (m.cryo_matrix?.purchased)
+      capacity = 20;
+    else if (m.neural_cluster?.purchased)
+      capacity = 10;
+    else if (m.hivemind?.purchased)
+      capacity = 6;
+    else if (m.cocoon?.purchased)
+      capacity = 4;
+    if (m.vector_tentacles?.purchased) {
+      thrust = 20.6;
+      turn = 3.2;
+    }
+    if (m.psionic_pulse?.purchased || m.synapses?.purchased) {
+      psionicRange = 140;
+      maxMental = 150;
+    }
+    if (m.chimera_veil?.purchased) {
+      stealthBonus = 0.4;
+    }
+  }
+  STATE.maxCrewCapacity = capacity;
+  STATE.thrustStrength = thrust;
+  STATE.turnSpeed = turn;
+  STATE.psionicRange = psionicRange;
+  STATE.maxMentalEnergy = maxMental;
+  if (!STATE.paradigmModifiers) {
+    STATE.paradigmModifiers = { thrustBonus: 0, stealthBonus: 0, mentalDrainMult: 1, bioRegenBonus: 0, harmonyBonus: 0, stressModifier: 0 };
+  }
+  STATE.paradigmModifiers.stealthBonus = stealthBonus;
+  calculateCrewBuffs();
+  updateMutationUI();
+  updateEvolutionTreeUI();
+}
+
+// src/ui/hud.ts
+var minimapCanvas = null;
+var minimapCtx = null;
+var currentRadarRange = 220;
+var sonarWaveMesh = null;
+var sonarTimer = 0;
+function initHUD() {
+  minimapCanvas = document.getElementById("minimap-canvas");
+  if (minimapCanvas) {
+    minimapCtx = minimapCanvas.getContext("2d");
+  }
+  const sonarBtn = document.getElementById("psionic-sonar-btn") || document.getElementById("dock-sonar-btn");
+  if (sonarBtn) {
+    sonarBtn.addEventListener("click", triggerPsionicSonar);
+  }
+  const dockDeckBtn = document.getElementById("dock-deck-btn");
+  if (dockDeckBtn) {
+    dockDeckBtn.addEventListener("click", () => toggleDeckModal());
+  }
+  const closeDeckBtn = document.getElementById("close-deck-modal-btn");
+  if (closeDeckBtn) {
+    closeDeckBtn.addEventListener("click", () => toggleDeckModal(false));
+  }
+  const dockMapBtn = document.getElementById("dock-map-btn");
+  if (dockMapBtn) {
+    dockMapBtn.addEventListener("click", () => toggleGalaxyMap());
+  }
+  const dockAssistBtn = document.getElementById("dock-assist-btn");
+  if (dockAssistBtn) {
+    dockAssistBtn.addEventListener("click", () => toggleFlightAssist());
+  }
+  const compassEl = document.getElementById("psionic-compass-hud");
+  if (compassEl) {
+    compassEl.addEventListener("click", () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" }));
+    });
+  }
+  const markersContainer = document.getElementById("screen-edge-gravity-markers");
+  if (markersContainer) {
+    markersContainer.addEventListener("click", (e) => {
+      const marker = e.target.closest(".edge-planet-marker");
+      if (marker && marker.dataset.planetName) {
+        const targetName = marker.dataset.planetName;
+        const planet = activePlanets.find((p) => p.name === targetName);
+        if (planet) {
+          STATE.lockedTarget = planet;
+          const badge = document.getElementById("target-lock-badge");
+          const label = document.getElementById("target-label-text");
+          if (badge)
+            badge.style.display = "flex";
+          if (label)
+            label.innerText = "Fixiertes Ziel:";
+          addLogEntry("NAV", `\uD83C\uDFAF Zielerfassung fixiert auf: ${planet.name}`);
+        }
+      }
+    });
+  }
+}
+function addLogEntry(category, message) {
+  const list = document.getElementById("log-list");
+  const toastStream = document.getElementById("hud-fading-log-stream");
+  const now = new Date;
+  const timeStr = `${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+  let catClass = "sys";
+  let catText = "SYSTEM";
+  if (category === "TELEPATHY") {
+    catClass = "telepathy";
+    catText = "TELEPATHIE";
+  } else if (category === "CREW") {
+    catClass = "crew";
+    catText = "CREW-FUNK";
+  } else if (category === "EVOLUTION") {
+    catClass = "evolution";
+    catText = "EVOLUTION";
+  }
+  if (list) {
+    const li = document.createElement("li");
+    li.className = "log-item";
+    li.innerHTML = `
+            <span class="log-time">[${timeStr}]</span>
+            <span class="log-cat ${catClass}">[${catText}]</span>
+            <span class="log-msg">${message}</span>
+        `;
+    list.prepend(li);
+    while (list.children.length > 50) {
+      list.removeChild(list.lastChild);
+    }
+  }
+  if (toastStream) {
+    const toast = document.createElement("div");
+    toast.className = `fading-toast ${catClass}`;
+    toast.innerHTML = `<span style="font-weight: bold; margin-right: 4px;">[${catText}]</span> ${message}`;
+    toastStream.appendChild(toast);
+    while (toastStream.children.length > 4) {
+      toastStream.removeChild(toastStream.firstChild);
+    }
+    setTimeout(() => {
+      if (toast.parentNode === toastStream) {
+        toastStream.removeChild(toast);
+      }
+    }, 5000);
+  }
+}
+function updateHUDStats(isHarmony = false) {
+  const hpBar = document.getElementById("core-health-bar") || document.getElementById("health-bar");
+  const hpTxt = document.getElementById("core-health-text") || document.getElementById("health-text");
+  const bioBar = document.getElementById("bio-energy-bar") || document.getElementById("energy-bar");
+  const bioTxt = document.getElementById("bio-energy-text") || document.getElementById("energy-text");
+  const mentalBar = document.getElementById("telepathy-energy-bar") || document.getElementById("mental-bar");
+  const mentalTxt = document.getElementById("telepathy-energy-text") || document.getElementById("mental-text");
+  const loneBar = document.getElementById("loneliness-bar");
+  const loneTxt = document.getElementById("loneliness-text");
+  if (hpBar) {
+    hpBar.style.width = `${STATE.health / STATE.maxHealth * 100}%`;
+    if (STATE.health < 30) {
+      hpBar.className = "progress-bar health danger";
+    } else {
+      hpBar.className = "progress-bar health";
+    }
+  }
+  if (hpTxt)
+    hpTxt.innerText = `${Math.round(STATE.health)}%`;
+  if (bioBar)
+    bioBar.style.width = `${STATE.bioEnergy / STATE.maxBioEnergy * 100}%`;
+  if (bioTxt)
+    bioTxt.innerText = `${Math.round(STATE.bioEnergy)}%`;
+  if (mentalBar)
+    mentalBar.style.width = `${STATE.mentalEnergy / STATE.maxMentalEnergy * 100}%`;
+  if (mentalTxt)
+    mentalTxt.innerText = `${Math.round(STATE.mentalEnergy)}/${STATE.maxMentalEnergy}`;
+  if (loneBar) {
+    loneBar.style.width = `${STATE.loneliness}%`;
+    if (isHarmony) {
+      loneBar.style.background = "linear-gradient(90deg, #10b981, #38bdf8)";
+    } else {
+      loneBar.style.background = STATE.loneliness > 60 ? "linear-gradient(90deg, #d946ef, #ef4444)" : "linear-gradient(90deg, #38bdf8, #a855f7)";
+    }
+  }
+  if (loneTxt) {
+    let loneState = "Verzweiflung";
+    if (isHarmony)
+      loneState = "\uD83D\uDCAB Kosmische Harmonie";
+    else if (STATE.loneliness < 30)
+      loneState = "Duale Resonanz";
+    else if (STATE.loneliness < 60)
+      loneState = "Erste Bindung";
+    else if (STATE.loneliness < 70)
+      loneState = "Geistige Sättigung";
+    loneTxt.innerText = `${Math.round(STATE.loneliness)}% (${loneState})`;
+  }
+  const currentSys = STATE.universe?.systems?.find((s) => s.id === STATE.currentSystemId);
+  const sysNameEl = document.getElementById("hud-current-system-name");
+  if (sysNameEl) {
+    sysNameEl.innerText = `\uD83E\uDE90 ${currentSys ? currentSys.name : "Sol Invictus"}`;
+  }
+  const bioCountEl = document.getElementById("res-bio-count");
+  if (bioCountEl) {
+    bioCountEl.innerText = `${Math.floor(STATE.bioRes || 0)}`;
+  }
+  const silCountEl = document.getElementById("res-silicon-count");
+  if (silCountEl) {
+    silCountEl.innerText = `${Math.floor(STATE.siliconRes || 0)}`;
+  }
+  const chronosCountEl = document.getElementById("chronos-count");
+  if (chronosCountEl) {
+    const visited = STATE.visitedSystemIds ? STATE.visitedSystemIds.length : STATE.systemsVisited || 1;
+    chronosCountEl.innerText = `${visited}`;
+  }
+  const radMeter = document.getElementById("hud-radiation-meter");
+  const radLabel = document.getElementById("rad-label");
+  const radBar = document.getElementById("rad-level-bar");
+  const radBadge = document.getElementById("rad-shield-badge");
+  const radStatus = document.getElementById("rad-status-text");
+  const ambient = STATE.ambientRadiation || 0;
+  const effective = STATE.effectiveRadiation || 0;
+  const resistance = STATE.radiationResistance || 0;
+  const source = STATE.radiationSource || "Kosmische Strahlung";
+  if (radMeter) {
+    if (ambient > 0.05) {
+      radMeter.style.display = "flex";
+      const ambPercent = Math.round(ambient * 100);
+      const shieldPercent = Math.round(resistance * 100);
+      if (radLabel)
+        radLabel.innerText = `STRAHLUNG: ${ambPercent}%`;
+      if (radBadge)
+        radBadge.innerText = `\uD83D\uDEE1️ ${shieldPercent}%`;
+      if (radBar) {
+        radBar.style.width = `${ambPercent}%`;
+      }
+      if (effective > 0.15) {
+        const dmgPerSec = ((effective - 0.15) * 4.5).toFixed(1);
+        radMeter.className = "hud-radiation-meter glass-capsule hazard";
+        if (radStatus) {
+          radStatus.innerHTML = `<span class="rad-alert-icon">⚠️</span> STRAHLUNGSALARM: -${dmgPerSec} HP/s (${source})`;
+        }
+      } else if (resistance >= 0.5 && ambient > 0.2) {
+        radMeter.className = "hud-radiation-meter glass-capsule shielded";
+        if (radStatus) {
+          radStatus.innerHTML = `<span class="rad-shield-icon">\uD83D\uDEE1️</span> ABGESCHIRMT: ${shieldPercent}% Filterung ✓`;
+        }
+      } else {
+        radMeter.className = "hud-radiation-meter glass-capsule caution";
+        if (radStatus) {
+          radStatus.innerHTML = `<span>⚡</span> Strahlungsfeld aktiv (${source})`;
+        }
+      }
+    } else {
+      radMeter.style.display = "none";
+    }
+  }
+}
+function updateMinimap() {
+  if (!minimapCanvas || !minimapCtx)
+    return;
+  const width = minimapCanvas.width;
+  const height = minimapCanvas.height;
+  const cx = width / 2;
+  const cy = height / 2;
+  const approach = STATE.orbitTransitionProgress || 0;
+  const isMoon = STATE.orbitLevel === "moon";
+  const baseTargetRange = isMoon ? 24 : 220 - 175 * approach;
+  currentRadarRange = MathUtils.lerp(currentRadarRange, Math.max(24, baseTargetRange), 0.08);
+  const range = currentRadarRange;
+  minimapCtx.fillStyle = "rgba(3, 7, 18, 0.85)";
+  minimapCtx.fillRect(0, 0, width, height);
+  const radius = width / 2 - 4;
+  minimapCtx.strokeStyle = "rgba(56, 189, 248, 0.15)";
+  minimapCtx.lineWidth = 1;
+  minimapCtx.beginPath();
+  minimapCtx.arc(cx, cy, radius * 0.33, 0, Math.PI * 2);
+  minimapCtx.stroke();
+  minimapCtx.beginPath();
+  minimapCtx.arc(cx, cy, radius * 0.66, 0, Math.PI * 2);
+  minimapCtx.stroke();
+  minimapCtx.beginPath();
+  minimapCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+  minimapCtx.stroke();
+  minimapCtx.strokeStyle = "rgba(56, 189, 248, 0.08)";
+  minimapCtx.beginPath();
+  minimapCtx.moveTo(cx, cy - radius);
+  minimapCtx.lineTo(cx, cy + radius);
+  minimapCtx.moveTo(cx - radius, cy);
+  minimapCtx.lineTo(cx + radius, cy);
+  minimapCtx.stroke();
+  const invRangeRadius = radius / range;
+  STATE.gravitySources.forEach((source) => {
+    if (source.isAbsorbed)
+      return;
+    const dx = source.position.x - STATE.playerPosition.x;
+    const dz = source.position.z - STATE.playerPosition.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < range) {
+      const sx = cx + dx * invRangeRadius;
+      const sy = cy + dz * invRangeRadius;
+      if (source.type === "star") {
+        minimapCtx.fillStyle = "#f59e0b";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 5, 0, Math.PI * 2);
+        minimapCtx.fill();
+      } else if (source.type === "planet") {
+        const planetEntry = activePlanets.find((p) => p.source === source);
+        const hasSentient = planetEntry && planetEntry.attributes.species && planetEntry.attributes.species.population > 0;
+        if (hasSentient) {
+          minimapCtx.fillStyle = "#d946ef";
+          minimapCtx.beginPath();
+          minimapCtx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+          minimapCtx.fill();
+          minimapCtx.strokeStyle = "rgba(217, 70, 239, 0.8)";
+          minimapCtx.beginPath();
+          minimapCtx.arc(sx, sy, 6.5 + Math.sin(Date.now() * 0.008) * 1.5, 0, Math.PI * 2);
+          minimapCtx.stroke();
+        } else {
+          minimapCtx.fillStyle = planetEntry && planetEntry.isMoon ? "#94a3b8" : "#38bdf8";
+          minimapCtx.beginPath();
+          minimapCtx.arc(sx, sy, planetEntry && planetEntry.isMoon ? 2 : 3.5, 0, Math.PI * 2);
+          minimapCtx.fill();
+        }
+      } else if ((source.type === "voyager_probe" || source.isVoyager) && STATE.voyagerSignalDetected) {
+        minimapCtx.fillStyle = "#fbbf24";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 4, 0, Math.PI * 2);
+        minimapCtx.fill();
+        const wavePulse = 5 + Math.sin(Date.now() * 0.007) * 3;
+        minimapCtx.strokeStyle = "rgba(251, 191, 36, 0.75)";
+        minimapCtx.lineWidth = 1.2;
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, wavePulse, 0, Math.PI * 2);
+        minimapCtx.stroke();
+        minimapCtx.fillStyle = "#fbbf24";
+        minimapCtx.font = "8px Orbitron, sans-serif";
+        const probeLabel = STATE.voyagerScanned ? "\uD83D\uDCE1 VOYAGER 2" : "\uD83D\uDCE1 UNBEKANNTES SIGNAL";
+        minimapCtx.fillText(probeLabel, sx + 7, sy + 3);
+      } else if (source.type === "asteroid") {
+        minimapCtx.fillStyle = source.resourceType === "bio" ? "#00ff88" : "#38bdf8";
+        minimapCtx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
+      }
+    } else if (source.type === "planet" || source.type === "star") {
+      const angle = Math.atan2(dz, dx);
+      const edgeRadius = radius - 3.5;
+      const ex = cx + Math.cos(angle) * edgeRadius;
+      const ey = cy + Math.sin(angle) * edgeRadius;
+      const planetEntry = activePlanets.find((p) => p.source === source);
+      const isLocked = STATE.lockedTarget && (STATE.lockedTarget === planetEntry || STATE.lockedTarget === source);
+      const hasSentient = planetEntry && planetEntry.attributes && planetEntry.attributes.species && planetEntry.attributes.species.population > 0;
+      if (isLocked) {
+        minimapCtx.fillStyle = "#38bdf8";
+        minimapCtx.beginPath();
+        minimapCtx.arc(ex, ey, 4, 0, Math.PI * 2);
+        minimapCtx.fill();
+        minimapCtx.strokeStyle = "rgba(56, 189, 248, 0.9)";
+        minimapCtx.lineWidth = 1.5;
+        minimapCtx.beginPath();
+        minimapCtx.arc(ex, ey, 6.5, 0, Math.PI * 2);
+        minimapCtx.stroke();
+      } else if (hasSentient) {
+        minimapCtx.fillStyle = "#d946ef";
+        minimapCtx.beginPath();
+        minimapCtx.arc(ex, ey, 3.2, 0, Math.PI * 2);
+        minimapCtx.fill();
+        minimapCtx.strokeStyle = "rgba(217, 70, 239, 0.8)";
+        minimapCtx.lineWidth = 1;
+        minimapCtx.beginPath();
+        minimapCtx.arc(ex, ey, 5.2, 0, Math.PI * 2);
+        minimapCtx.stroke();
+      } else if (source.type === "star") {
+        minimapCtx.fillStyle = "#f59e0b";
+        minimapCtx.beginPath();
+        minimapCtx.arc(ex, ey, 3.5, 0, Math.PI * 2);
+        minimapCtx.fill();
+      } else if (planetEntry && !planetEntry.isMoon) {
+        const isHab = planetEntry.type === "Habitable";
+        const isGas = planetEntry.type === "Gas Giant";
+        minimapCtx.fillStyle = isHab ? "#10b981" : isGas ? "#f59e0b" : "#64748b";
+        minimapCtx.beginPath();
+        minimapCtx.arc(ex, ey, 2.5, 0, Math.PI * 2);
+        minimapCtx.fill();
+      }
+    }
+  });
+  if (STATE.voyagerSignalDetected && !STATE.voyagerScanned && STATE.voyagerProbe && STATE.voyagerProbe.position) {
+    const vx = STATE.voyagerProbe.position.x - STATE.playerPosition.x;
+    const vz = STATE.voyagerProbe.position.z - STATE.playerPosition.z;
+    const vDist = Math.hypot(vx, vz);
+    if (vDist >= range) {
+      const angle = Math.atan2(vz, vx);
+      const edgeRadius = radius - 3;
+      const ex = cx + Math.cos(angle) * edgeRadius;
+      const ey = cy + Math.sin(angle) * edgeRadius;
+      minimapCtx.fillStyle = "#fbbf24";
+      minimapCtx.beginPath();
+      minimapCtx.arc(ex, ey, 3.5, 0, Math.PI * 2);
+      minimapCtx.fill();
+      minimapCtx.strokeStyle = "rgba(251, 191, 36, 0.8)";
+      minimapCtx.lineWidth = 1;
+      minimapCtx.beginPath();
+      minimapCtx.arc(ex, ey, 5.5, 0, Math.PI * 2);
+      minimapCtx.stroke();
+    }
+  }
+  const lockedTargetPos = STATE.lockedTarget ? STATE.lockedTarget.position || (STATE.lockedTarget.source ? STATE.lockedTarget.source.position : null) : null;
+  if (lockedTargetPos) {
+    const dx = lockedTargetPos.x - STATE.playerPosition.x;
+    const dz = lockedTargetPos.z - STATE.playerPosition.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < range) {
+      const sx = cx + dx * invRangeRadius;
+      const sy = cy + dz * invRangeRadius;
+      minimapCtx.strokeStyle = "#38bdf8";
+      minimapCtx.lineWidth = 1.5;
+      minimapCtx.beginPath();
+      minimapCtx.arc(sx, sy, 8, 0, Math.PI * 2);
+      minimapCtx.stroke();
+    } else {
+      const angle = Math.atan2(dz, dx);
+      const edgeRadius = radius - 3.5;
+      const ex = cx + Math.cos(angle) * edgeRadius;
+      const ey = cy + Math.sin(angle) * edgeRadius;
+      minimapCtx.strokeStyle = "#38bdf8";
+      minimapCtx.lineWidth = 1.8;
+      minimapCtx.beginPath();
+      minimapCtx.arc(ex, ey, 7.5, 0, Math.PI * 2);
+      minimapCtx.stroke();
+    }
+  }
+  STATE.fleetShips.forEach((ship) => {
+    const dx = ship.position.x - STATE.playerPosition.x;
+    const dz = ship.position.z - STATE.playerPosition.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < range) {
+      const sx = cx + dx * invRangeRadius;
+      const sy = cy + dz * invRangeRadius;
+      if (ship.state === "disabled") {
+        minimapCtx.fillStyle = "#64748b";
+        minimapCtx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
+      } else if (ship.state === "intercept") {
+        minimapCtx.fillStyle = "#f43f5e";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 3.5, 0, Math.PI * 2);
+        minimapCtx.fill();
+        minimapCtx.strokeStyle = "rgba(244, 63, 94, 0.8)";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 5.5 + Math.sin(Date.now() * 0.015) * 1.5, 0, Math.PI * 2);
+        minimapCtx.stroke();
+      } else {
+        minimapCtx.fillStyle = "#f59e0b";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+        minimapCtx.fill();
+      }
+    }
+  });
+  STATE.fleetProjectiles.forEach((proj) => {
+    const dx = proj.position.x - STATE.playerPosition.x;
+    const dz = proj.position.z - STATE.playerPosition.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < range) {
+      const sx = cx + dx * invRangeRadius;
+      const sy = cy + dz * invRangeRadius;
+      minimapCtx.fillStyle = proj.type === "emp" ? "#a855f7" : "#38bdf8";
+      minimapCtx.fillRect(sx - 1, sy - 1, 2, 2);
+    }
+  });
+  if (projectedTrajectoryPoints && projectedTrajectoryPoints.length > 1) {
+    minimapCtx.save();
+    minimapCtx.lineWidth = 1.5;
+    for (let i = 0;i < projectedTrajectoryPoints.length - 1; i++) {
+      const p0 = projectedTrajectoryPoints[i];
+      const p1 = projectedTrajectoryPoints[i + 1];
+      const dx0 = p0.x - STATE.playerPosition.x;
+      const dz0 = p0.z - STATE.playerPosition.z;
+      const dx1 = p1.x - STATE.playerPosition.x;
+      const dz1 = p1.z - STATE.playerPosition.z;
+      const dist0 = Math.hypot(dx0, dz0);
+      const dist1 = Math.hypot(dx1, dz1);
+      if (dist0 > range && dist1 > range)
+        continue;
+      const sx0 = cx + dx0 * invRangeRadius;
+      const sy0 = cy + dz0 * invRangeRadius;
+      const sx1 = cx + dx1 * invRangeRadius;
+      const sy1 = cy + dz1 * invRangeRadius;
+      const r0 = Math.hypot(sx0 - cx, sy0 - cy);
+      const r1 = Math.hypot(sx1 - cx, sy1 - cy);
+      if (r0 <= radius && r1 <= radius) {
+        minimapCtx.strokeStyle = p0.isGravityArc ? "rgba(217, 70, 239, 0.85)" : "rgba(56, 189, 248, 0.55)";
+        minimapCtx.beginPath();
+        minimapCtx.moveTo(sx0, sy0);
+        minimapCtx.lineTo(sx1, sy1);
+        minimapCtx.stroke();
+      }
+    }
+    minimapCtx.restore();
+  }
+  const heading = STATE.playerGroup ? STATE.playerGroup.rotation.y : 0;
+  minimapCtx.save();
+  minimapCtx.translate(cx, cy);
+  minimapCtx.rotate(-heading);
+  minimapCtx.fillStyle = "#10b981";
+  minimapCtx.shadowColor = "#10b981";
+  minimapCtx.shadowBlur = 8;
+  minimapCtx.beginPath();
+  minimapCtx.moveTo(0, -7);
+  minimapCtx.lineTo(5, 5);
+  minimapCtx.lineTo(0, 2.5);
+  minimapCtx.lineTo(-5, 5);
+  minimapCtx.closePath();
+  minimapCtx.fill();
+  minimapCtx.restore();
+  minimapCtx.fillStyle = "rgba(56, 189, 248, 0.85)";
+  minimapCtx.font = "9px monospace";
+  minimapCtx.textAlign = "center";
+  const modeLabel = STATE.orbitLevel === "moon" ? `\uD83C\uDF15 MOND: ${STATE.activeMoonOrbit?.name || "Orbit"}` : STATE.orbitLevel === "planet" ? `\uD83E\uDE90 SUB-SYS: ${STATE.orbitPlanet?.name || "Orbit"}` : `RADAR: ${Math.round(range)} LJ`;
+  minimapCtx.fillText(modeLabel, cx, height - 6);
+}
+function triggerPsionicSonar() {
+  if (!STATE.gameStarted)
+    return;
+  if (STATE.mentalEnergy < 15) {
+    addLogEntry("SYSTEM", "Zu wenig Mentalkraft für psionischen Sonar-Ruf (15% benötigt)!");
+    return;
+  }
+  STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - 15);
+  if (sonarWaveMesh) {
+    scene.remove(sonarWaveMesh);
+    if (sonarWaveMesh.geometry)
+      sonarWaveMesh.geometry.dispose();
+    if (sonarWaveMesh.material)
+      sonarWaveMesh.material.dispose();
+  }
+  const ringGeo = new RingGeometry(1, 4, 64);
+  ringGeo.rotateX(Math.PI / 2);
+  const ringMat = new MeshBasicMaterial({
+    color: 14239471,
+    transparent: true,
+    opacity: 0.9,
+    side: DoubleSide,
+    blending: AdditiveBlending
+  });
+  sonarWaveMesh = new Mesh(ringGeo, ringMat);
+  sonarWaveMesh.position.copy(STATE.playerPosition);
+  scene.add(sonarWaveMesh);
+  sonarTimer = 1;
+  playSonarChime();
+  const sentientPlanets = activePlanets.filter((p) => p.attributes && p.attributes.species && p.attributes.species.population > 0);
+  if (sentientPlanets.length > 0) {
+    const names = sentientPlanets.map((p) => `${p.name} (${p.attributes.species.name})`).join(", ");
+    addLogEntry("SYSTEM", `PSIONISCHER RUF: Mentales Resonanz-Echo empfangen von: ${names}! Kompass aktiv.`);
+  } else {
+    addLogEntry("SYSTEM", "PSIONISCHER RUF: Keine Gedanken-Signaturen in diesem System (Kosmische Stille).");
+  }
+}
+function updateSonarWave(dt) {
+  if (!sonarWaveMesh)
+    return;
+  sonarTimer -= dt;
+  const progress = 1 - sonarTimer;
+  const scale = 1 + progress * 60;
+  sonarWaveMesh.scale.set(scale, 1, scale);
+  sonarWaveMesh.material.opacity = Math.max(0, sonarTimer * 0.9);
+  if (sonarTimer <= 0) {
+    scene.remove(sonarWaveMesh);
+    if (sonarWaveMesh.geometry)
+      sonarWaveMesh.geometry.dispose();
+    if (sonarWaveMesh.material)
+      sonarWaveMesh.material.dispose();
+    sonarWaveMesh = null;
+  }
+}
+var arrivalBannerTimeout = null;
+function triggerSystemArrivalBanner(system, factionName) {
+  const banner = document.getElementById("system-arrival-banner");
+  if (!banner)
+    return;
+  if (arrivalBannerTimeout) {
+    clearTimeout(arrivalBannerTimeout);
+    arrivalBannerTimeout = null;
+  }
+  const titleEl = document.getElementById("arrival-system-title");
+  const sectorEl = document.getElementById("arrival-sector-label");
+  const starEl = document.getElementById("arrival-star-badge");
+  const planetsEl = document.getElementById("arrival-planets-badge");
+  const factionEl = document.getElementById("arrival-faction-badge");
+  if (titleEl)
+    titleEl.innerText = (system.name || "UNBEKANNT").toUpperCase();
+  if (sectorEl)
+    sectorEl.innerText = system.sectorName ? `${system.sectorName.toUpperCase()} • TRANSIT` : "SYSTEM-TRANSIT ABGESCHLOSSEN";
+  if (starEl && system.star) {
+    starEl.innerText = `⭐ ${system.star.type || "Zentralgestirn"}`;
+  }
+  const planetCount = system.planets ? system.planets.length : 0;
+  let moonCount = 0;
+  if (system.planets) {
+    system.planets.forEach((p) => {
+      if (p.moons)
+        moonCount += p.moons.length;
+    });
+  }
+  if (planetsEl) {
+    planetsEl.innerText = moonCount > 0 ? `\uD83E\uDE90 ${planetCount} Planeten | ${moonCount} Monde` : `\uD83E\uDE90 ${planetCount} Himmelskörper`;
+  }
+  if (factionEl) {
+    if (factionName) {
+      factionEl.innerText = `\uD83D\uDEE1️ ${factionName}`;
+      factionEl.style.display = "inline-flex";
+    } else {
+      factionEl.innerText = `\uD83C\uDF0C Unerschlossener Raum`;
+      factionEl.style.display = "inline-flex";
+    }
+  }
+  banner.classList.remove("banner-exit");
+  banner.style.display = "flex";
+  arrivalBannerTimeout = setTimeout(() => {
+    banner.classList.add("banner-exit");
+    setTimeout(() => {
+      banner.style.display = "none";
+      banner.classList.remove("banner-exit");
+    }, 800);
+  }, 4500);
+}
+var cachedEdgeMarkers = new Map;
 
 // src/systems/galaxy-map.ts
 var mapOpen = false;
@@ -41494,6 +41982,7 @@ function chooseFirstContactDoctrine(paradigm) {
   calculateCrewBuffs();
   renderCrewUI(true);
   updatePartyGrid();
+  triggerAutoSave(`Doktrin gewählt: ${titles[paradigm]}`);
 }
 function initFirstContactModalListeners() {
   const modal = document.getElementById("first-contact-modal");
@@ -41933,6 +42422,316 @@ function initVoyagerDialogListeners() {
   });
 }
 
+// src/ui/menu-controller.ts
+function showMainMenu() {
+  const mainMenu = document.getElementById("main-menu");
+  if (!mainMenu)
+    return;
+  mainMenu.style.display = "flex";
+  mainMenu.classList.remove("menu-hidden");
+  const resumeBtn = document.getElementById("resume-game-btn");
+  if (resumeBtn) {
+    resumeBtn.style.display = STATE.gameStarted ? "flex" : "none";
+  }
+  const startBtn = document.getElementById("start-game-btn");
+  if (startBtn) {
+    startBtn.innerText = STATE.gameStarted ? "\uD83D\uDD04 Neue Reise beginnen (Reset)" : "\uD83E\uDDEC Bewusstsein entfalten";
+  }
+  checkAndUpdateContinueButton();
+}
+function hideMainMenu() {
+  const mainMenu = document.getElementById("main-menu");
+  if (!mainMenu)
+    return;
+  mainMenu.classList.add("menu-hidden");
+  mainMenu.style.display = "none";
+}
+function toggleMainMenu() {
+  const mainMenu = document.getElementById("main-menu");
+  if (!mainMenu)
+    return;
+  const isHidden = mainMenu.classList.contains("menu-hidden") || mainMenu.style.display === "none";
+  if (isHidden) {
+    showMainMenu();
+  } else {
+    hideMainMenu();
+  }
+}
+
+// src/ui/save-modal.ts
+var isSaveModalActive = false;
+function isSaveModalOpen() {
+  const modal = document.getElementById("save-load-modal");
+  return modal ? modal.style.display === "flex" : false;
+}
+function initSaveModal(onStartGameCallback) {
+  const continueBtn = document.getElementById("continue-game-btn");
+  const saveProfilesBtn = document.getElementById("save-profiles-btn");
+  const closeBtn = document.getElementById("close-save-modal-btn");
+  const tabSlotsBtn = document.getElementById("save-tab-slots-btn");
+  const tabPresetsBtn = document.getElementById("save-tab-presets-btn");
+  const optQuickSaveBtn = document.getElementById("opt-quick-save-btn");
+  const optOpenSavesBtn = document.getElementById("opt-open-saves-btn");
+  if (continueBtn) {
+    continueBtn.addEventListener("click", async () => {
+      const latest = await getLatestSave();
+      if (latest) {
+        const res = await loadFromSlot(latest.slotId);
+        if (res.success) {
+          hideMainMenu();
+          STATE.gameStarted = true;
+          if (onStartGameCallback)
+            onStartGameCallback();
+        }
+      }
+    });
+  }
+  if (saveProfilesBtn) {
+    saveProfilesBtn.addEventListener("click", () => {
+      openSaveModal("slots");
+    });
+  }
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      closeSaveModal();
+    });
+  }
+  if (tabSlotsBtn && tabPresetsBtn) {
+    tabSlotsBtn.addEventListener("click", () => {
+      switchSaveTab("slots");
+    });
+    tabPresetsBtn.addEventListener("click", () => {
+      switchSaveTab("presets");
+    });
+  }
+  if (optQuickSaveBtn) {
+    optQuickSaveBtn.addEventListener("click", async () => {
+      await saveToSlot("slot_1", `Schnellspeicherstand (${STATE.currentSystemId === 1 ? "Sol Invictus" : "Sektor " + STATE.currentSystemId})`);
+      checkAndUpdateContinueButton();
+      renderSaveSlotsUI();
+    });
+  }
+  if (optOpenSavesBtn) {
+    optOpenSavesBtn.addEventListener("click", () => {
+      const optModal = document.getElementById("options-modal");
+      if (optModal)
+        optModal.style.display = "none";
+      openSaveModal("slots");
+    });
+  }
+  checkAndUpdateContinueButton();
+}
+async function checkAndUpdateContinueButton() {
+  const continueBtn = document.getElementById("continue-game-btn");
+  const continueText = document.getElementById("continue-game-text");
+  if (!continueBtn)
+    return;
+  try {
+    const latest = await getLatestSave();
+    if (latest) {
+      continueBtn.style.display = "flex";
+      if (continueText) {
+        continueText.innerHTML = `✨ <strong>Reise fortsetzen</strong> <span class="continue-meta">(${latest.systemName} • ${latest.crewCount}/${latest.maxCrewCapacity} Besatzung)</span>`;
+      }
+    } else {
+      continueBtn.style.display = "none";
+    }
+  } catch (e) {
+    continueBtn.style.display = "none";
+  }
+}
+function openSaveModal(initialTab = "slots") {
+  const modal = document.getElementById("save-load-modal");
+  if (!modal)
+    return;
+  isSaveModalActive = true;
+  modal.style.display = "flex";
+  switchSaveTab(initialTab);
+  renderSaveSlotsUI();
+  renderPresetsUI();
+}
+function closeSaveModal() {
+  const modal = document.getElementById("save-load-modal");
+  if (!modal)
+    return;
+  isSaveModalActive = false;
+  modal.style.display = "none";
+}
+function switchSaveTab(tab) {
+  const tabSlotsBtn = document.getElementById("save-tab-slots-btn");
+  const tabPresetsBtn = document.getElementById("save-tab-presets-btn");
+  const contentSlots = document.getElementById("save-tab-slots-content");
+  const contentPresets = document.getElementById("save-tab-presets-content");
+  if (tabSlotsBtn)
+    tabSlotsBtn.classList.toggle("active", tab === "slots");
+  if (tabPresetsBtn)
+    tabPresetsBtn.classList.toggle("active", tab === "presets");
+  if (contentSlots)
+    contentSlots.classList.toggle("active", tab === "slots");
+  if (contentPresets)
+    contentPresets.classList.toggle("active", tab === "presets");
+}
+async function renderSaveSlotsUI() {
+  const container = document.getElementById("save-slots-container");
+  if (!container)
+    return;
+  const allSaves = await listAllSaves();
+  const savesBySlot = {};
+  allSaves.forEach((s) => {
+    savesBySlot[s.slotId] = s;
+  });
+  const slotConfigs = [
+    { id: "autosave", title: "⚡ Automatischer Speicherstand", desc: "Sichert automatisch bei Hyperraum-Sprung & Evolutionen" },
+    { id: "slot_1", title: "\uD83D\uDCBE Speicherstand Slot 1", desc: "Manueller Speicherplatz" },
+    { id: "slot_2", title: "\uD83D\uDCBE Speicherstand Slot 2", desc: "Manueller Speicherplatz" },
+    { id: "slot_3", title: "\uD83D\uDCBE Speicherstand Slot 3", desc: "Manueller Speicherplatz" }
+  ];
+  container.innerHTML = "";
+  slotConfigs.forEach((slot) => {
+    const save = savesBySlot[slot.id];
+    const card = document.createElement("div");
+    card.className = `save-slot-card ${save ? "has-data" : "empty"}`;
+    if (save) {
+      const doctrineLabel = save.primaryParadigm === "symbiosis" ? "\uD83C\uDF31 Symbiose" : save.primaryParadigm === "domination" ? "⚡ Herrschaft" : save.primaryParadigm === "deception" ? "\uD83D\uDD2E Täuschung" : "\uD83D\uDCAB Neutral";
+      card.innerHTML = `
+                <div class="save-slot-main">
+                    <div class="slot-header-row">
+                        <span class="slot-title">${slot.title}</span>
+                        <span class="slot-date">\uD83D\uDCC5 ${save.dateFormatted}</span>
+                    </div>
+                    <div class="slot-name-highlight">${save.name}</div>
+                    <div class="slot-stats-row">
+                        <span class="slot-stat-chip">\uD83E\uDE90 ${save.systemName}</span>
+                        <span class="slot-stat-chip">\uD83D\uDC65 ${save.crewCount}/${save.maxCrewCapacity} Besatzung</span>
+                        <span class="slot-stat-chip">\uD83E\uDDEC ${save.bioRes} Bio &bull; \uD83D\uDC8E ${save.siliconRes} Sil</span>
+                        <span class="slot-stat-chip doctrine">${doctrineLabel}</span>
+                        <span class="slot-stat-chip health">❤️ ${save.health}% HP</span>
+                    </div>
+                </div>
+                <div class="save-slot-actions">
+                    <button class="slot-action-btn load-btn" data-slot="${slot.id}">
+                        <span>▶</span> Laden
+                    </button>
+                    ${STATE.gameStarted ? `
+                    <button class="slot-action-btn overwrite-btn" data-slot="${slot.id}">
+                        <span>\uD83D\uDCBE</span> Überschreiben
+                    </button>` : ""}
+                    <button class="slot-action-btn delete-btn" data-slot="${slot.id}" title="Löschen">
+                        ✕
+                    </button>
+                </div>
+            `;
+    } else {
+      card.innerHTML = `
+                <div class="save-slot-main">
+                    <div class="slot-header-row">
+                        <span class="slot-title">${slot.title}</span>
+                        <span class="slot-empty-badge">LEER</span>
+                    </div>
+                    <div class="slot-desc-sub">${slot.desc}</div>
+                </div>
+                <div class="save-slot-actions">
+                    ${STATE.gameStarted ? `
+                    <button class="slot-action-btn save-btn" data-slot="${slot.id}">
+                        <span>\uD83D\uDCBE</span> Jetzt Speichern
+                    </button>` : `
+                    <span class="slot-hint-text">Im Spiel speicherbar</span>`}
+                </div>
+            `;
+    }
+    container.appendChild(card);
+  });
+  container.querySelectorAll(".load-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const slotId = e.currentTarget.getAttribute("data-slot");
+      if (slotId) {
+        const res = await loadFromSlot(slotId);
+        if (res.success) {
+          closeSaveModal();
+          hideMainMenu();
+          STATE.gameStarted = true;
+        }
+      }
+    });
+  });
+  container.querySelectorAll(".save-btn, .overwrite-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const slotId = e.currentTarget.getAttribute("data-slot");
+      if (slotId) {
+        await saveToSlot(slotId);
+        checkAndUpdateContinueButton();
+        renderSaveSlotsUI();
+      }
+    });
+  });
+  container.querySelectorAll(".delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const slotId = e.currentTarget.getAttribute("data-slot");
+      if (slotId) {
+        await deleteSaveSlot(slotId);
+        checkAndUpdateContinueButton();
+        renderSaveSlotsUI();
+      }
+    });
+  });
+}
+function renderPresetsUI() {
+  const container = document.getElementById("presets-container");
+  if (!container)
+    return;
+  container.innerHTML = "";
+  Object.keys(PLAYTEST_PRESETS).forEach((key) => {
+    const preset = PLAYTEST_PRESETS[key];
+    const card = document.createElement("div");
+    card.className = `preset-card preset-${preset.id}`;
+    card.innerHTML = `
+            <div class="preset-card-top">
+                <div class="preset-badge">${preset.badge}</div>
+                <h3 class="preset-title">${preset.name}</h3>
+                <p class="preset-desc">${preset.description}</p>
+            </div>
+
+            <div class="preset-specs-list">
+                <div class="preset-spec-item">
+                    <span class="spec-label">\uD83D\uDC65 Besatzungs-Größe:</span>
+                    <span class="spec-val highlight">${preset.targetCrew} / ${preset.capacity} Individuen</span>
+                </div>
+                <div class="preset-spec-item">
+                    <span class="spec-label">\uD83E\uDDEA Ressourcen-Vorrat:</span>
+                    <span class="spec-val">${preset.resources.bio} Bio &bull; ${preset.resources.silicon} Silizium</span>
+                </div>
+                <div class="preset-spec-item">
+                    <span class="spec-label">\uD83E\uDDEC Mutationen freigeschaltet:</span>
+                    <span class="spec-val">${preset.mutations.length} Synapsen-Knoten</span>
+                </div>
+                <div class="preset-spec-item">
+                    <span class="spec-label">⚡ Paradigma:</span>
+                    <span class="spec-val">${preset.paradigm.toUpperCase()}</span>
+                </div>
+            </div>
+
+            <button class="preset-launch-btn" data-preset="${preset.id}">
+                <span>\uD83D\uDE80</span> Profil laden &amp; starten
+            </button>
+        `;
+    container.appendChild(card);
+  });
+  container.querySelectorAll(".preset-launch-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const presetId = e.currentTarget.getAttribute("data-preset");
+      if (presetId) {
+        const ok = await loadPlaytestPreset(presetId);
+        if (ok) {
+          closeSaveModal();
+          hideMainMenu();
+          STATE.gameStarted = true;
+          addLogEntry("SYSTEM", `Playtest-Preset "${presetId}" initialisiert. Flugbereit!`);
+        }
+      }
+    });
+  });
+}
+
 // src/input/controls.ts
 var raycaster = new Raycaster;
 var mouseVec = new Vector2;
@@ -41976,15 +42775,41 @@ function setupControls() {
       toggleOptionsModal();
     }
     if (key === "escape") {
-      closeDiplomacyComms();
-      if (isVoyagerDialogOpen())
-        closeVoyagerDialog();
-      if (isOptionsModalOpen())
+      e.preventDefault();
+      if (isSaveModalOpen()) {
+        closeSaveModal();
+        return;
+      }
+      if (isOptionsModalOpen()) {
         closeOptionsModal();
-      if (isMapOpen())
+        return;
+      }
+      const howToModal = document.getElementById("how-to-play-modal");
+      if (howToModal && howToModal.style.display === "flex") {
+        howToModal.style.display = "none";
+        return;
+      }
+      if (isDiplomacyCommsOpen()) {
+        closeDiplomacyComms();
+        return;
+      }
+      if (isVoyagerDialogOpen()) {
+        closeVoyagerDialog();
+        return;
+      }
+      if (isMapOpen()) {
         toggleGalaxyMap();
-      if (isDeckOpen())
+        return;
+      }
+      if (isDeckOpen()) {
         toggleDeckModal(false);
+        return;
+      }
+      if (STATE.gameStarted) {
+        toggleMainMenu();
+      } else if (typeof window.api !== "undefined" && typeof window.api.closeApp === "function") {
+        window.api.closeApp();
+      }
     }
     if (key === "f") {
       if (STATE.voyagerProbe && STATE.voyagerProbe.position) {
@@ -42393,9 +43218,8 @@ function processInput(dt) {
     if (isPressedEdge(10))
       toggleFlightAssist();
     if (isPressedEdge(9)) {
-      const mainMenu = document.getElementById("main-menu");
-      if (mainMenu && STATE.gameStarted) {
-        mainMenu.classList.toggle("menu-hidden");
+      if (STATE.gameStarted) {
+        toggleMainMenu();
       }
     }
     prevGpButtons = gp.buttons.map((b) => b ? b.pressed || b.value > 0.5 : false);
@@ -43340,13 +44164,23 @@ function setupMenuListeners() {
   const startBtn = document.getElementById("start-game-btn");
   const mainMenu = document.getElementById("main-menu");
   const resumeBtn = document.getElementById("resume-game-btn");
-  if (startBtn && mainMenu) {
+  initSaveModal(() => {
+    hideMainMenu();
+    document.body.classList.add("game-started");
+    if (resumeBtn)
+      resumeBtn.style.display = "flex";
+    if (!isMusicPlaying() && !isMusicUserMuted()) {
+      toggleMusic(true);
+    }
+    renderDirectives();
+  });
+  if (startBtn) {
     startBtn.addEventListener("click", () => {
-      mainMenu.classList.add("menu-hidden");
+      hideMainMenu();
       STATE.gameStarted = true;
       document.body.classList.add("game-started");
       if (resumeBtn)
-        resumeBtn.style.display = "block";
+        resumeBtn.style.display = "flex";
       if (STATE.universe) {
         clearActiveSystem();
         spawnPlanetsAndAsteroids();
@@ -43369,32 +44203,11 @@ function setupMenuListeners() {
       });
     });
   }
-  if (resumeBtn && mainMenu) {
+  if (resumeBtn) {
     resumeBtn.addEventListener("click", () => {
-      mainMenu.classList.add("menu-hidden");
+      hideMainMenu();
     });
   }
-  window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      const howToModal2 = document.getElementById("how-to-play-modal");
-      if (howToModal2 && howToModal2.style.display === "flex") {
-        howToModal2.style.display = "none";
-        return;
-      }
-      if (isMapOpen()) {
-        toggleGalaxyMap();
-        return;
-      }
-      if (!mainMenu)
-        return;
-      const runningInElectron2 = typeof window.api !== "undefined";
-      if (STATE.gameStarted) {
-        mainMenu.classList.toggle("menu-hidden");
-      } else if (runningInElectron2) {
-        window.api.closeApp();
-      }
-    }
-  });
   const howToBtn = document.getElementById("how-to-play-btn");
   const howToModal = document.getElementById("how-to-play-modal");
   const closeModalBtn = document.getElementById("close-modal-btn");

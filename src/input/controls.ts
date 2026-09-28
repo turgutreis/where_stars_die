@@ -9,11 +9,13 @@ import { triggerAbductStart } from '../systems/abduction';
 import { triggerBioDischarge, salvageNearestWreck } from '../systems/fleet';
 import { triggerPsionicSonar, addLogEntry } from '../ui/hud';
 import { buyMutation } from '../ui/deck';
-import { openDiplomacyComms, closeDiplomacyComms } from '../systems/diplomacy';
+import { openDiplomacyComms, closeDiplomacyComms, isDiplomacyCommsOpen } from '../systems/diplomacy';
 import { toggleDeckModal, isDeckOpen } from '../ui/deck';
 import { toggleOptionsModal, isOptionsModalOpen, closeOptionsModal } from '../ui/options';
 import { advanceFtueStep } from '../ui/directives';
 import { openVoyagerDialog, closeVoyagerDialog, isVoyagerDialogOpen } from '../ui/voyager-dialog';
+import { isSaveModalOpen, closeSaveModal } from '../ui/save-modal';
+import { toggleMainMenu } from '../ui/menu-controller';
 
 const raycaster = new THREE.Raycaster();
 const mouseVec = new THREE.Vector2();
@@ -59,11 +61,57 @@ export function setupControls() {
             toggleOptionsModal();
         }
         if (key === 'escape') {
-            closeDiplomacyComms();
-            if (isVoyagerDialogOpen()) closeVoyagerDialog();
-            if (isOptionsModalOpen()) closeOptionsModal();
-            if (isMapOpen()) toggleGalaxyMap();
-            if (isDeckOpen()) toggleDeckModal(false);
+            e.preventDefault();
+
+            // 1. Close Save & Load Modal if open
+            if (isSaveModalOpen()) {
+                closeSaveModal();
+                return;
+            }
+
+            // 2. Close Options Modal if open
+            if (isOptionsModalOpen()) {
+                closeOptionsModal();
+                return;
+            }
+
+            // 3. Close How-To-Play Modal if open
+            const howToModal = document.getElementById('how-to-play-modal');
+            if (howToModal && howToModal.style.display === 'flex') {
+                howToModal.style.display = 'none';
+                return;
+            }
+
+            // 4. Close Diplomacy Comms if open
+            if (isDiplomacyCommsOpen()) {
+                closeDiplomacyComms();
+                return;
+            }
+
+            // 5. Close Voyager Dialog if open
+            if (isVoyagerDialogOpen()) {
+                closeVoyagerDialog();
+                return;
+            }
+
+            // 6. Close Galaxy Map if open
+            if (isMapOpen()) {
+                toggleGalaxyMap();
+                return;
+            }
+
+            // 7. Close Bio-Deck if open
+            if (isDeckOpen()) {
+                toggleDeckModal(false);
+                return;
+            }
+
+            // 8. If NO modal was open: Toggle Main Pause Menu!
+            if (STATE.gameStarted) {
+                toggleMainMenu();
+            } else if (typeof (window as any).api !== 'undefined' && typeof (window as any).api.closeApp === 'function') {
+                (window as any).api.closeApp();
+            }
         }
         if (key === 'f') {
             // 1. Proximity interaction with Voyager 2 Space Probe (< 22 AE)
@@ -496,9 +544,8 @@ export function processInput(dt: number) {
         if (isPressedEdge(10)) toggleFlightAssist(); // L3
 
         if (isPressedEdge(9)) { // Start / Menu
-            const mainMenu = document.getElementById('main-menu');
-            if (mainMenu && STATE.gameStarted) {
-                mainMenu.classList.toggle('menu-hidden');
+            if (STATE.gameStarted) {
+                toggleMainMenu();
             }
         }
 

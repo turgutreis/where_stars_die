@@ -4,6 +4,7 @@ import { addLogEntry, updateHUDStats } from './hud';
 import { playBioHarvestSound, playLockOnSound } from '../engine/audio';
 import { setPrimaryParadigm, renderCrewUI, calculateCrewBuffs } from '../systems/crew';
 import { updatePartyGrid } from './party-grid';
+import { triggerAutoSave } from '../systems/save-manager';
 
 let isModalOpen = false;
 
@@ -84,6 +85,7 @@ export function chooseFirstContactDoctrine(paradigm: PrimaryParadigm): void {
     calculateCrewBuffs();
     renderCrewUI(true);
     updatePartyGrid();
+    triggerAutoSave(`Doktrin gewählt: ${titles[paradigm]}`);
 }
 
 export function initFirstContactModalListeners(): void {
