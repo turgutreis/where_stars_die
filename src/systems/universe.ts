@@ -209,14 +209,14 @@ export function spawnPlanetsAndAsteroids() {
         return;
     }
 
-    const activeSystem = STATE.universe.systems[STATE.currentSystemId];
+    const activeSystem = STATE.universe.systems.find(s => s.id === STATE.currentSystemId) || STATE.universe.systems[STATE.currentSystemId];
     if (!activeSystem) return;
 
     // Apply system-specific cinematic color grading and lighting profile
-    const starData = activeSystem.star;
+    const starData = activeSystem.star || { type: 'Yellow Sun', size: 12, mass: 100, color: '0xffd700', colorCss: '#ffd700' };
     applySystemLighting(starData?.type, activeSystem.anomalyType);
 
-    // 1. Central Star or Supermassive Black Hole
+    // 1. Central Star, Supermassive Black Hole, or Deep Void
     if (starData.type === "Black Hole") {
         const blackHole = createBlackHoleMesh(starData.size);
         scene.add(blackHole.group);
@@ -244,6 +244,28 @@ export function spawnPlanetsAndAsteroids() {
         };
         STATE.gravitySources.push(starSource);
         starSource.ringMesh = createGravityRing(0, 0, starRange, 0x7c3aed, 0.14);
+    } else if (starData.type === "Void") {
+        // Deep Void: Starless vacuum with dim ambient violet illumination from the Subspace Rift
+        const riftLightColor = new THREE.Color(0xa78bfa);
+        const riftLight = new THREE.PointLight(riftLightColor, 1.8, 180, 1.2);
+        riftLight.position.set(0, 2, 0);
+        scene.add(riftLight);
+        activeStarLights.push(riftLight);
+
+        starData.colorCss = "#a78bfa";
+
+        const riftRange = 36.0;
+        const riftSource: any = {
+            mesh: null,
+            type: 'star',
+            name: `${activeSystem.name} (Subraum-Gravitation)`,
+            mass: 0.15,
+            radius: 4.0,
+            gravityRange: riftRange,
+            position: new THREE.Vector3(0, 0, 0)
+        };
+        STATE.gravitySources.push(riftSource);
+        riftSource.ringMesh = createGravityRing(0, 0, riftRange, 0xa78bfa, 0.08);
     } else {
         let starMap: THREE.Texture;
         let starEmissiveMap: THREE.Texture | null = null;
@@ -309,7 +331,8 @@ export function spawnPlanetsAndAsteroids() {
     }
 
     // 2. Celestial Bodies (Planets, Constructs, Vortices, Captured Stars)
-    activeSystem.planets.forEach((p, idx) => {
+    const planetsList = activeSystem.planets || [];
+    planetsList.forEach((p, idx) => {
         const scaledDist = 110.0 + (p.distance * 3.8) + (idx * 55.0);
         const angle = (idx * 1.8) + (STATE.currentSystemId * 0.5);
         const px = scaledDist * Math.cos(angle);
@@ -926,7 +949,11 @@ export function initiateSystemArrival(fromSys: any, targetSys: any, resolution?:
         addLogEntry("NAV", `📡 SPRUNGTOR-SIGNAL ERFASST: Navigations-Vektor autorisiert durch ${dominantFactionName}. Willkommen im System ${targetSys.name}.`);
     } else {
         STATE.incomingJumpGate = null;
-        if (resolution && resolution.hazardType === 'solar_corona') {
+        if (resolution && resolution.hazardType === 'deep_void') {
+            addLogEntry("NAV", `🌌 SUBRAUM-KOLLAPS: Faltungsfeld vorzeitig zusammengebrochen! Du bist im interstellaren Leerraum gestrandet!`);
+            addLogEntry("NAV", `💡 Überlebens-Direktive: Schöpfe Bio-Energie am Subraum-Riss ab und öffne die Sternenkarte [M], um einen Rettungssprung zu wagen!`);
+            playMisfoldWarningSound();
+        } else if (resolution && resolution.hazardType === 'solar_corona') {
             addLogEntry("NAV", `🔥 PERIHEL-NOTFALL-DROPOUT: Faltungsfeld kollabiert direkt vor der glühenden Sonnenkorona! Extreme Strahlung! Kurs abdrehen!`);
             playMisfoldWarningSound();
         } else if (resolution && resolution.hazardType === 'asteroid_belt') {

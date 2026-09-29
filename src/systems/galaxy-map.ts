@@ -392,6 +392,7 @@ export function renderGalaxyMap() {
             if (sys.star.type === 'Red Dwarf') starColor = '#ef4444';
             if (sys.star.type === 'White Dwarf') starColor = '#cbd5e1';
             if (sys.star.type === 'Black Hole') starColor = '#8b5cf6';
+            if (sys.star.type === 'Void' || sys.isDeepVoid) starColor = '#c084fc';
 
             if (sys.isCoreAnchor) {
                 ctx.strokeStyle = '#eab308';
@@ -399,6 +400,14 @@ export function renderGalaxyMap() {
                 ctx.beginPath();
                 ctx.arc(screenX, screenY, baseSize + 5 + Math.sin(Date.now() * 0.005) * 2, 0, Math.PI * 2);
                 ctx.stroke();
+            } else if (sys.isDeepVoid) {
+                ctx.strokeStyle = '#c084fc';
+                ctx.lineWidth = 1.2;
+                ctx.setLineDash([2, 4]);
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, baseSize + 4 + Math.sin(Date.now() * 0.007) * 2, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
             }
 
             if (isSelected) {
@@ -857,8 +866,8 @@ export function updateSystemDetails(sys: StarSystem | null) {
 
     if (coordXEl) coordXEl.innerText = String(sys.x);
     if (coordZEl) coordZEl.innerText = String(sys.z);
-    if (starTypeEl) starTypeEl.innerText = sys.star.type;
-    if (starMassEl) starMassEl.innerText = sys.star.mass + " SM";
+    if (starTypeEl) starTypeEl.innerText = sys.isDeepVoid ? "Kein Stern (Subraum-Singularität)" : sys.star.type;
+    if (starMassEl) starMassEl.innerText = sys.isDeepVoid ? "0.05 SM" : sys.star.mass + " SM";
     if (planetCountEl) planetCountEl.innerText = String(sys.planets.length);
 
     // Update Psionic Resonance details

@@ -20,8 +20,11 @@ export function spawnSystemFleet(planetsInput?: any) {
         planets = planetsInput;
     } else if (activePlanets && activePlanets.length > 0) {
         planets = activePlanets;
-    } else if (STATE.universe && STATE.universe.systems && STATE.universe.systems[STATE.currentSystemId]?.planets) {
-        planets = STATE.universe.systems[STATE.currentSystemId].planets;
+    } else if (STATE.universe && STATE.universe.systems) {
+        const activeSys = STATE.universe.systems.find(s => s.id === STATE.currentSystemId) || STATE.universe.systems[STATE.currentSystemId];
+        if (activeSys && activeSys.planets) {
+            planets = activeSys.planets;
+        }
     }
 
     if (!planets || planets.length === 0) return;

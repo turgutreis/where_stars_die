@@ -31735,9 +31735,25 @@ var LIGHTING_PROFILES = {
     starLightMultiplier: 1.15,
     bloomThreshold: 0.82,
     bloomStrength: 0.75
+  },
+  Void: {
+    name: "Interstellarer Leerraum (Deep Void)",
+    exposure: 0.8,
+    contrast: 1.38,
+    saturation: 0.65,
+    colorFilter: new Color(10980346),
+    shadowTint: new Color(132106),
+    vignette: 0.55,
+    ambientColor: 525332,
+    ambientIntensity: 0.05,
+    starLightMultiplier: 0.35,
+    bloomThreshold: 0.72,
+    bloomStrength: 0.85
   }
 };
 function getLightingProfileForSystem(starType, anomalyType) {
+  if (starType === "Void" || anomalyType === "deep_void")
+    return LIGHTING_PROFILES["Void"];
   if (anomalyType === "pulsar")
     return LIGHTING_PROFILES["Pulsar"];
   if (anomalyType === "dark_energy_rift")
@@ -37375,8 +37391,11 @@ function spawnSystemFleet(planetsInput) {
     planets = planetsInput;
   } else if (activePlanets && activePlanets.length > 0) {
     planets = activePlanets;
-  } else if (STATE.universe && STATE.universe.systems && STATE.universe.systems[STATE.currentSystemId]?.planets) {
-    planets = STATE.universe.systems[STATE.currentSystemId].planets;
+  } else if (STATE.universe && STATE.universe.systems) {
+    const activeSys = STATE.universe.systems.find((s) => s.id === STATE.currentSystemId) || STATE.universe.systems[STATE.currentSystemId];
+    if (activeSys && activeSys.planets) {
+      planets = activeSys.planets;
+    }
   }
   if (!planets || planets.length === 0)
     return;
@@ -39090,10 +39109,10 @@ function spawnPlanetsAndAsteroids() {
   if (!STATE.universe || !STATE.universe.systems) {
     return;
   }
-  const activeSystem = STATE.universe.systems[STATE.currentSystemId];
+  const activeSystem = STATE.universe.systems.find((s) => s.id === STATE.currentSystemId) || STATE.universe.systems[STATE.currentSystemId];
   if (!activeSystem)
     return;
-  const starData = activeSystem.star;
+  const starData = activeSystem.star || { type: "Yellow Sun", size: 12, mass: 100, color: "0xffd700", colorCss: "#ffd700" };
   applySystemLighting(starData?.type, activeSystem.anomalyType);
   if (starData.type === "Black Hole") {
     const blackHole = createBlackHoleMesh(starData.size);
@@ -39119,6 +39138,25 @@ function spawnPlanetsAndAsteroids() {
     };
     STATE.gravitySources.push(starSource);
     starSource.ringMesh = createGravityRing(0, 0, starRange, 8141549, 0.14);
+  } else if (starData.type === "Void") {
+    const riftLightColor = new Color(10980346);
+    const riftLight = new PointLight(riftLightColor, 1.8, 180, 1.2);
+    riftLight.position.set(0, 2, 0);
+    scene.add(riftLight);
+    activeStarLights.push(riftLight);
+    starData.colorCss = "#a78bfa";
+    const riftRange = 36;
+    const riftSource = {
+      mesh: null,
+      type: "star",
+      name: `${activeSystem.name} (Subraum-Gravitation)`,
+      mass: 0.15,
+      radius: 4,
+      gravityRange: riftRange,
+      position: new Vector3(0, 0, 0)
+    };
+    STATE.gravitySources.push(riftSource);
+    riftSource.ringMesh = createGravityRing(0, 0, riftRange, 10980346, 0.08);
   } else {
     let starMap;
     let starEmissiveMap = null;
@@ -39171,7 +39209,8 @@ function spawnPlanetsAndAsteroids() {
     STATE.gravitySources.push(starSource);
     starSource.ringMesh = createGravityRing(0, 0, starRange, parseInt(starData.color), 0.06);
   }
-  activeSystem.planets.forEach((p, idx) => {
+  const planetsList = activeSystem.planets || [];
+  planetsList.forEach((p, idx) => {
     const scaledDist = 110 + p.distance * 3.8 + idx * 55;
     const angle = idx * 1.8 + STATE.currentSystemId * 0.5;
     const px2 = scaledDist * Math.cos(angle);
@@ -39676,7 +39715,11 @@ function initiateSystemArrival(fromSys, targetSys, resolution) {
     addLogEntry("NAV", `\uD83D\uDCE1 SPRUNGTOR-SIGNAL ERFASST: Navigations-Vektor autorisiert durch ${dominantFactionName}. Willkommen im System ${targetSys.name}.`);
   } else {
     STATE.incomingJumpGate = null;
-    if (resolution && resolution.hazardType === "solar_corona") {
+    if (resolution && resolution.hazardType === "deep_void") {
+      addLogEntry("NAV", `\uD83C\uDF0C SUBRAUM-KOLLAPS: Faltungsfeld vorzeitig zusammengebrochen! Du bist im interstellaren Leerraum gestrandet!`);
+      addLogEntry("NAV", `\uD83D\uDCA1 Überlebens-Direktive: Schöpfe Bio-Energie am Subraum-Riss ab und öffne die Sternenkarte [M], um einen Rettungssprung zu wagen!`);
+      playMisfoldWarningSound();
+    } else if (resolution && resolution.hazardType === "solar_corona") {
       addLogEntry("NAV", `\uD83D\uDD25 PERIHEL-NOTFALL-DROPOUT: Faltungsfeld kollabiert direkt vor der glühenden Sonnenkorona! Extreme Strahlung! Kurs abdrehen!`);
       playMisfoldWarningSound();
     } else if (resolution && resolution.hazardType === "asteroid_belt") {
@@ -40922,7 +40965,10 @@ function triggerSystemArrivalBanner(system, factionName, resolution) {
   if (titleEl)
     titleEl.innerText = (system.name || "UNBEKANNT").toUpperCase();
   if (sectorEl) {
-    if (resolution && resolution.isDrift) {
+    if (resolution && resolution.hazardType === "deep_void") {
+      sectorEl.innerText = `\uD83C\uDF0C SUBRAUM-KOLLAPS: INTERSTELLARER LEERRAUM!`;
+      sectorEl.style.color = "#c084fc";
+    } else if (resolution && resolution.isDrift) {
       sectorEl.innerText = `⚠️ PSIONISCHE ABWEICHUNG: DRIFT NACH ${system.name.toUpperCase()}!`;
       sectorEl.style.color = "#f87171";
     } else if (resolution && resolution.hazardType === "solar_corona") {
@@ -40937,7 +40983,11 @@ function triggerSystemArrivalBanner(system, factionName, resolution) {
     }
   }
   if (starEl && system.star) {
-    starEl.innerText = `⭐ ${system.star.type || "Zentralgestirn"}`;
+    if (system.star.type === "Void") {
+      starEl.innerText = `\uD83C\uDF0C Sternenloses Vakuum`;
+    } else {
+      starEl.innerText = `⭐ ${system.star.type || "Zentralgestirn"}`;
+    }
   }
   const planetCount = system.planets ? system.planets.length : 0;
   let moonCount = 0;
@@ -41079,10 +41129,94 @@ function calculateJumpPrecision(fromSys, targetSys) {
     mutationBonus
   };
 }
+function createDeepVoidSystem(originSys, targetSys, universe) {
+  const midX = Math.round((originSys.x + targetSys.x) / 2 + Math.sin(originSys.id * 17) * 12);
+  const midZ = Math.round((originSys.z + targetSys.z) / 2 + Math.cos(targetSys.id * 19) * 12);
+  const systemsList = universe?.systems || [];
+  let voidSys = systemsList.find((s) => s.isDeepVoid);
+  const voidId = voidSys ? voidSys.id : systemsList.length > 0 ? Math.max(...systemsList.map((s) => s.id)) + 1 : 9999;
+  const voidSystem = {
+    id: voidId,
+    name: "Interstellarer Leerraum (Abyssal Void)",
+    x: midX,
+    z: midZ,
+    sectorId: "deep_void",
+    sectorName: "Leerraum zwischen den Sternen",
+    anomalyType: "dark_energy_rift",
+    isDeepVoid: true,
+    star: {
+      name: "Subraum-Singularität (Kein Stern)",
+      type: "Void",
+      size: 0.1,
+      mass: 0.05,
+      color: "0x2e1065",
+      colorCss: "#2e1065"
+    },
+    planets: [
+      {
+        name: "Subraum-Riss (Dunkle-Energie-Wirbel)",
+        type: "Plasma-Wirbel",
+        size: 9,
+        distance: 24,
+        color: "0x8b5cf6",
+        bio: 240,
+        silicon: 90,
+        archetype: {
+          name: "Subspace Rift",
+          glowColor: "#8b5cf6",
+          description: "Instabiler Raumzeit-Riss im sternenlosen Vakuum. Pulsiert mit roher kosmischer Bio-Resonanz."
+        }
+      },
+      {
+        name: "Gefrorener Ur-Komet (Methan & Eis)",
+        type: "Ice",
+        size: 4.5,
+        distance: 58,
+        color: "0x38bdf8",
+        bio: 160,
+        silicon: 120,
+        archetype: {
+          name: "Deep Void Comet",
+          description: "Uralter Kometenkern aus den Tiefen des interstellaren Raums. Reich an flüchtigen Gasen."
+        }
+      },
+      {
+        name: "Archaisches Vorläufer-Wrack",
+        type: "Vorläufer-Konstrukt",
+        size: 5.5,
+        distance: 95,
+        color: "0x06b6d4",
+        bio: 60,
+        silicon: 260,
+        archetype: {
+          name: "Ancient Derelict",
+          description: "Jahrtausende altes technologisches Relikt, das ewig durch die Finsternis treibt."
+        }
+      }
+    ],
+    asteroids: [
+      { x: -35, z: 20, type: "bio" },
+      { x: 40, z: -25, type: "bio" },
+      { x: -50, z: -40, type: "silicon" },
+      { x: 30, z: 45, type: "silicon" },
+      { x: -20, z: -55, type: "silicon" },
+      { x: 60, z: 15, type: "bio" }
+    ]
+  };
+  if (voidSys) {
+    Object.assign(voidSys, voidSystem);
+    return voidSys;
+  } else {
+    if (universe?.systems) {
+      universe.systems.push(voidSystem);
+    }
+    return voidSystem;
+  }
+}
 function findDriftCandidateSystems(targetSys, originSys, universe) {
   if (!universe || !universe.systems)
     return [];
-  return universe.systems.filter((s) => s.id !== targetSys.id && s.id !== originSys.id).map((s) => {
+  return universe.systems.filter((s) => !s.isDeepVoid && s.id !== targetSys.id && s.id !== originSys.id).map((s) => {
     const dx = s.x - targetSys.x;
     const dz = s.z - targetSys.z;
     const distToTarget = Math.sqrt(dx * dx + dz * dz);
@@ -41099,6 +41233,7 @@ function resolveJumpOutcome(telemetry, targetSys, originSys, universe, forceRoll
       actualSystem: targetSys,
       isDrift: false,
       driftSystem: null,
+      isVoid: false,
       hazardType: "none",
       arrivalDistance: 150,
       message: `Raumzeit-Faltung stabil: Zielsystem ${targetSys.name} präzise erreicht.`,
@@ -41106,10 +41241,28 @@ function resolveJumpOutcome(telemetry, targetSys, originSys, universe, forceRoll
     };
   }
   const candidates = findDriftCandidateSystems(targetSys, originSys, universe);
-  const isDrift = candidates.length > 0 && Math.floor(roll) % 2 === 0;
+  const rollInt = Math.floor(roll);
+  const isDeepVoid = rollInt % 3 === 1 || candidates.length === 0 && rollInt % 2 === 1;
+  if (isDeepVoid) {
+    const voidSys = createDeepVoidSystem(originSys, targetSys, universe);
+    return {
+      success: false,
+      targetSystem: targetSys,
+      originSystem: originSys,
+      actualSystem: voidSys,
+      isDrift: true,
+      driftSystem: voidSys,
+      isVoid: true,
+      hazardType: "deep_void",
+      arrivalDistance: 110,
+      message: `⚠️ HYPERRAUM-ABBRUCH: Raumzeit-Faltung vorzeitig kollabiert! Du bist im interstellaren Leerraum zwischen den Sternen gestrandet!`,
+      roll: Number(roll.toFixed(1))
+    };
+  }
+  const isDrift = candidates.length > 0 && rollInt % 2 === 0;
   if (isDrift) {
     const driftSys = candidates[0];
-    const isCorona2 = Math.floor(roll) % 3 === 0;
+    const isCorona2 = rollInt % 4 === 0;
     const hazardType2 = isCorona2 ? "solar_corona" : "none";
     const arrivalDistance2 = isCorona2 ? 34 : 150;
     const hazardMsg = isCorona2 ? ` Notfall-Perihel-Dropout nahe der Korona!` : ` Stabilisierung am Außenrand gelungen.`;
@@ -41120,13 +41273,14 @@ function resolveJumpOutcome(telemetry, targetSys, originSys, universe, forceRoll
       actualSystem: driftSys,
       isDrift: true,
       driftSystem: driftSys,
+      isVoid: false,
       hazardType: hazardType2,
       arrivalDistance: arrivalDistance2,
       message: `⚠️ PSIONISCHE ABWEICHUNG: Attraktion von ${driftSys.name} hat das kollabierende Faltungsfeld abgelenkt!${hazardMsg}`,
       roll: Number(roll.toFixed(1))
     };
   }
-  const isCorona = Math.floor(roll) % 2 === 0;
+  const isCorona = rollInt % 2 === 0;
   const hazardType = isCorona ? "solar_corona" : "asteroid_belt";
   const arrivalDistance = isCorona ? 34 : 76;
   const message = isCorona ? `\uD83D\uDD25 PERIHEL-DROPOUT: Faltungsfeld kollabiert direkt vor der glühenden Sonnenkorona von ${targetSys.name}! Extreme Strahlung!` : `\uD83D\uDCA5 WARP-FEHLKOLLAPS: Austritt inmitten eines dichten Asteroidengürtels von ${targetSys.name}! Kollisionsalarm!`;
@@ -41137,6 +41291,7 @@ function resolveJumpOutcome(telemetry, targetSys, originSys, universe, forceRoll
     actualSystem: targetSys,
     isDrift: false,
     driftSystem: null,
+    isVoid: false,
     hazardType,
     arrivalDistance,
     message,
@@ -41470,12 +41625,22 @@ function renderGalaxyMap() {
         starColor = "#cbd5e1";
       if (sys.star.type === "Black Hole")
         starColor = "#8b5cf6";
+      if (sys.star.type === "Void" || sys.isDeepVoid)
+        starColor = "#c084fc";
       if (sys.isCoreAnchor) {
         ctx.strokeStyle = "#eab308";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(screenX, screenY, baseSize + 5 + Math.sin(Date.now() * 0.005) * 2, 0, Math.PI * 2);
         ctx.stroke();
+      } else if (sys.isDeepVoid) {
+        ctx.strokeStyle = "#c084fc";
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([2, 4]);
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, baseSize + 4 + Math.sin(Date.now() * 0.007) * 2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
       if (isSelected) {
         ctx.fillStyle = inWarpRange ? "rgba(168, 85, 247, 0.4)" : "rgba(239, 68, 68, 0.3)";
@@ -41897,9 +42062,9 @@ function updateSystemDetails(sys) {
   if (coordZEl)
     coordZEl.innerText = String(sys.z);
   if (starTypeEl)
-    starTypeEl.innerText = sys.star.type;
+    starTypeEl.innerText = sys.isDeepVoid ? "Kein Stern (Subraum-Singularität)" : sys.star.type;
   if (starMassEl)
-    starMassEl.innerText = sys.star.mass + " SM";
+    starMassEl.innerText = sys.isDeepVoid ? "0.05 SM" : sys.star.mass + " SM";
   if (planetCountEl)
     planetCountEl.innerText = String(sys.planets.length);
   const hasSentient = sys.planets.some((p) => p.type === "Habitable" || p.species && p.species.hasSentient);

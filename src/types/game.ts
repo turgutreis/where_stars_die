@@ -229,6 +229,7 @@ export interface StarSystem {
     star: StarData;
     planets: PlanetData[];
     asteroids?: any[];
+    isDeepVoid?: boolean;
 }
 
 export interface UniverseMetadata {
@@ -548,7 +549,7 @@ export interface GameState {
 export type OrbitLevel = 'solar' | 'planet' | 'moon';
 
 export type JumpStability = 'stable' | 'moderate' | 'critical' | 'unreachable';
-export type JumpHazard = 'none' | 'solar_corona' | 'asteroid_belt';
+export type JumpHazard = 'none' | 'solar_corona' | 'asteroid_belt' | 'deep_void';
 
 export interface JumpTelemetry {
     dist: number;
@@ -573,6 +574,7 @@ export interface JumpResolution {
     actualSystem: StarSystem;
     isDrift: boolean;
     driftSystem?: StarSystem | null;
+    isVoid?: boolean;
     hazardType: JumpHazard;
     arrivalDistance: number;
     message: string;

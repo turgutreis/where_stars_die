@@ -136,7 +136,7 @@ import { triggerScanStart, updateScanning, completeScanning, generatePlanetAttri
 import { completeAbduction } from '../src/systems/abduction';
 import { getLoreSolSystem, getLoreArrakisSystem, getLoreSolarisSystem, ensureLoreSystems } from '../src/procedural/lore-systems';
 import { AUDIO_SETTINGS } from '../src/engine/audio';
-import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets, spawnPlanetsAndAsteroids } from '../src/systems/universe';
+import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets, spawnPlanetsAndAsteroids, clearActiveSystem } from '../src/systems/universe';
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
 import { updatePhysics } from '../src/engine/physics';
 import { generateProceduralCandidates, getCrewReactiveThought } from '../src/systems/crew-generation';
@@ -175,7 +175,8 @@ import {
     getEffectiveSafeWarpRange, 
     getEffectiveMaxWarpRange, 
     resolveJumpOutcome, 
-    findDriftCandidateSystems 
+    findDriftCandidateSystems,
+    createDeepVoidSystem 
 } from '../src/systems/warp-calculator';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
@@ -2397,6 +2398,77 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         const distFromCenter = Math.sqrt(STATE.playerPosition.x ** 2 + STATE.playerPosition.z ** 2);
         expect(distFromCenter).toBeCloseTo(34.0, 1);
+        expect(STATE.systemArrivalActive).toBe(true);
+    });
+
+    test("39. Interstellar Deep Void (Leerraum): Catastrophic spacetime fold collapse spawns midpoint void pseudo-system with Subspace Rift and survival entities", () => {
+        const originSys = { id: 1, name: "Sol", x: 0, z: 0, star: { type: 'Yellow Sun', size: 12, mass: 100, color: '0xffd700' }, planets: [] } as any;
+        const targetSys = { id: 2, name: "Rigel", x: 150, z: 80, star: { type: 'Blue Giant', size: 18, mass: 220, color: '0x38bdf8' }, planets: [] } as any;
+
+        const universe = {
+            systems: [originSys, targetSys]
+        } as any;
+        STATE.universe = universe;
+
+        // 1. Verify Deep Void system creation & deterministic placement
+        const voidSys = createDeepVoidSystem(originSys, targetSys, universe);
+        expect(voidSys.isDeepVoid).toBe(true);
+        expect(voidSys.star.type).toBe('Void');
+        expect(voidSys.sectorId).toBe('deep_void');
+        expect(voidSys.planets.length).toBe(3);
+
+        // Midpoint coordinates between (0, 0) and (150, 80) should be approx (75, 40)
+        expect(voidSys.x).toBeGreaterThan(50);
+        expect(voidSys.x).toBeLessThan(100);
+        expect(voidSys.z).toBeGreaterThan(25);
+        expect(voidSys.z).toBeLessThan(65);
+
+        // Verify entities: Subspace Rift, Frozen Comet, Precursor Derelict
+        const rift = voidSys.planets.find(p => p.type === 'Plasma-Wirbel');
+        const comet = voidSys.planets.find(p => p.type === 'Ice');
+        const derelict = voidSys.planets.find(p => p.type === 'Vorläufer-Konstrukt');
+        expect(rift).toBeDefined();
+        expect(comet).toBeDefined();
+        expect(derelict).toBeDefined();
+        expect(rift?.bio).toBeGreaterThan(100); // Provides bio-energy replenishment
+
+        // 2. Deterministic Deep Void Misfold Resolution (rollInt % 3 === 1, e.g. 94)
+        STATE.warpRange = 90;
+        STATE.mentalEnergy = 50;
+        STATE.crew = [];
+        STATE.crewBuffs = { thrust: 1, bioGain: 1, scanSpeed: 1, repairRate: 0, stressDampening: 1, psionicBonus: 0 };
+        STATE.mutations.psionic_pulse.purchased = false;
+        STATE.mutations.ibad.purchased = false;
+
+        const telemetry = calculateJumpPrecision(originSys, targetSys);
+        // Roll 94 is > precision (~55%) and 94 % 3 === 1 -> Deep Void collapse!
+        const voidRes = resolveJumpOutcome(telemetry, targetSys, originSys, universe, 94.0);
+        expect(voidRes.success).toBe(false);
+        expect(voidRes.isVoid).toBe(true);
+        expect(voidRes.hazardType).toBe('deep_void');
+        expect(voidRes.actualSystem.isDeepVoid).toBe(true);
+        expect(voidRes.arrivalDistance).toBe(110.0);
+
+        // 3. Spawning the Deep Void Environment
+        STATE.currentSystemId = voidSys.id;
+        clearActiveSystem();
+        activePlanets.length = 0;
+        spawnPlanetsAndAsteroids();
+
+        // Must spawn Void celestial entities into activePlanets
+        expect(activePlanets.length).toBe(3);
+        const activeRift = activePlanets.find(p => p.type === 'Plasma-Wirbel');
+        expect(activeRift).toBeDefined();
+
+        // Must register center gravity source (Subspace Singularity)
+        const centerGrav = STATE.gravitySources.find(s => s.type === 'star');
+        expect(centerGrav).toBeDefined();
+        expect(centerGrav?.name).toContain("Subraum");
+
+        // 4. Interstellar Arrival into Deep Void
+        initiateSystemArrival(originSys, voidSys, voidRes);
+        const distFromCenter = Math.sqrt(STATE.playerPosition.x ** 2 + STATE.playerPosition.z ** 2);
+        expect(distFromCenter).toBeCloseTo(110.0, 1);
         expect(STATE.systemArrivalActive).toBe(true);
     });
 });

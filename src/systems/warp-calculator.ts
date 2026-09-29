@@ -150,6 +150,102 @@ export function calculateJumpPrecision(fromSys: StarSystem, targetSys: StarSyste
 }
 
 /**
+ * Creates or updates an Interstellar Deep Void pseudo-system positioned in the pitch-black
+ * vacuum between the origin and target systems.
+ */
+export function createDeepVoidSystem(
+    originSys: StarSystem,
+    targetSys: StarSystem,
+    universe: UniverseData | null
+): StarSystem {
+    const midX = Math.round((originSys.x + targetSys.x) / 2 + (Math.sin(originSys.id * 17) * 12));
+    const midZ = Math.round((originSys.z + targetSys.z) / 2 + (Math.cos(targetSys.id * 19) * 12));
+
+    const systemsList = universe?.systems || [];
+    let voidSys = systemsList.find(s => s.isDeepVoid);
+    const voidId = voidSys ? voidSys.id : (systemsList.length > 0 ? Math.max(...systemsList.map(s => s.id)) + 1 : 9999);
+
+    const voidSystem: StarSystem = {
+        id: voidId,
+        name: "Interstellarer Leerraum (Abyssal Void)",
+        x: midX,
+        z: midZ,
+        sectorId: "deep_void",
+        sectorName: "Leerraum zwischen den Sternen",
+        anomalyType: "dark_energy_rift",
+        isDeepVoid: true,
+        star: {
+            name: "Subraum-Singularität (Kein Stern)",
+            type: "Void",
+            size: 0.1,
+            mass: 0.05,
+            color: "0x2e1065",
+            colorCss: "#2e1065"
+        },
+        planets: [
+            {
+                name: "Subraum-Riss (Dunkle-Energie-Wirbel)",
+                type: "Plasma-Wirbel",
+                size: 9.0,
+                distance: 24.0,
+                color: "0x8b5cf6",
+                bio: 240,
+                silicon: 90,
+                archetype: {
+                    name: "Subspace Rift",
+                    glowColor: "#8b5cf6",
+                    description: "Instabiler Raumzeit-Riss im sternenlosen Vakuum. Pulsiert mit roher kosmischer Bio-Resonanz."
+                } as any
+            },
+            {
+                name: "Gefrorener Ur-Komet (Methan & Eis)",
+                type: "Ice",
+                size: 4.5,
+                distance: 58.0,
+                color: "0x38bdf8",
+                bio: 160,
+                silicon: 120,
+                archetype: {
+                    name: "Deep Void Comet",
+                    description: "Uralter Kometenkern aus den Tiefen des interstellaren Raums. Reich an flüchtigen Gasen."
+                } as any
+            },
+            {
+                name: "Archaisches Vorläufer-Wrack",
+                type: "Vorläufer-Konstrukt",
+                size: 5.5,
+                distance: 95.0,
+                color: "0x06b6d4",
+                bio: 60,
+                silicon: 260,
+                archetype: {
+                    name: "Ancient Derelict",
+                    description: "Jahrtausende altes technologisches Relikt, das ewig durch die Finsternis treibt."
+                } as any
+            }
+        ],
+        asteroids: [
+            { x: -35, z: 20, type: 'bio' },
+            { x: 40, z: -25, type: 'bio' },
+            { x: -50, z: -40, type: 'silicon' },
+            { x: 30, z: 45, type: 'silicon' },
+            { x: -20, z: -55, type: 'silicon' },
+            { x: 60, z: 15, type: 'bio' }
+        ]
+    };
+
+    if (voidSys) {
+        Object.assign(voidSys, voidSystem);
+        return voidSys;
+    } else {
+        if (universe?.systems) {
+            universe.systems.push(voidSystem);
+        }
+        return voidSystem;
+    }
+}
+
+/**
  * Searches for neighbor star systems around the target system that could attract
  * Najmafar's collapsing spacetime fold during a misfold event.
  */
@@ -161,7 +257,7 @@ export function findDriftCandidateSystems(
     if (!universe || !universe.systems) return [];
 
     return universe.systems
-        .filter(s => s.id !== targetSys.id && s.id !== originSys.id)
+        .filter(s => !s.isDeepVoid && s.id !== targetSys.id && s.id !== originSys.id)
         .map(s => {
             const dx = s.x - targetSys.x;
             const dz = s.z - targetSys.z;
@@ -175,7 +271,8 @@ export function findDriftCandidateSystems(
 
 /**
  * Resolves a warp jump attempt based on telemetry precision and dice roll.
- * Handles successful arrivals, neighbor gravitational drifts, and dangerous perihelion/asteroid dropouts.
+ * Handles successful arrivals, neighbor gravitational drifts, the deep interstellar void,
+ * and dangerous perihelion/asteroid dropouts.
  */
 export function resolveJumpOutcome(
     telemetry: JumpTelemetry,
@@ -195,6 +292,7 @@ export function resolveJumpOutcome(
             actualSystem: targetSys,
             isDrift: false,
             driftSystem: null,
+            isVoid: false,
             hazardType: 'none',
             arrivalDistance: 150.0,
             message: `Raumzeit-Faltung stabil: Zielsystem ${targetSys.name} präzise erreicht.`,
@@ -205,13 +303,35 @@ export function resolveJumpOutcome(
     // Instability / Misfold occurred!
     const candidates = findDriftCandidateSystems(targetSys, originSys, universe);
 
-    // 50% chance of gravitational deflection into an adjacent star system if candidates exist
-    const isDrift = candidates.length > 0 && ((Math.floor(roll) % 2) === 0);
+    // 1. Interstellar Deep Void Collapse (Roll in critical failure bracket or forced)
+    // Roughly 33% chance among misfolds, or when no nearby star candidates exist to capture the fold
+    const rollInt = Math.floor(roll);
+    const isDeepVoid = (rollInt % 3 === 1) || (candidates.length === 0 && (rollInt % 2 === 1));
+
+    if (isDeepVoid) {
+        const voidSys = createDeepVoidSystem(originSys, targetSys, universe);
+        return {
+            success: false,
+            targetSystem: targetSys,
+            originSystem: originSys,
+            actualSystem: voidSys,
+            isDrift: true,
+            driftSystem: voidSys,
+            isVoid: true,
+            hazardType: 'deep_void',
+            arrivalDistance: 110.0,
+            message: `⚠️ HYPERRAUM-ABBRUCH: Raumzeit-Faltung vorzeitig kollabiert! Du bist im interstellaren Leerraum zwischen den Sternen gestrandet!`,
+            roll: Number(roll.toFixed(1))
+        };
+    }
+
+    // 2. Gravitational deflection into an adjacent star system
+    const isDrift = candidates.length > 0 && (rollInt % 2 === 0);
 
     if (isDrift) {
         const driftSys = candidates[0];
         // 35% chance that the drift also causes a severe corona dropout
-        const isCorona = (Math.floor(roll) % 3) === 0;
+        const isCorona = (rollInt % 4 === 0);
         const hazardType: JumpHazard = isCorona ? 'solar_corona' : 'none';
         const arrivalDistance = isCorona ? 34.0 : 150.0;
 
@@ -226,6 +346,7 @@ export function resolveJumpOutcome(
             actualSystem: driftSys,
             isDrift: true,
             driftSystem: driftSys,
+            isVoid: false,
             hazardType,
             arrivalDistance,
             message: `⚠️ PSIONISCHE ABWEICHUNG: Attraktion von ${driftSys.name} hat das kollabierende Faltungsfeld abgelenkt!${hazardMsg}`,
@@ -233,8 +354,8 @@ export function resolveJumpOutcome(
         };
     }
 
-    // In-System Misfold: Arrives in target system but dangerously close (Solar Corona or Asteroid Belt)
-    const isCorona = (Math.floor(roll) % 2) === 0;
+    // 3. In-System Misfold: Arrives in target system but dangerously close (Solar Corona or Asteroid Belt)
+    const isCorona = (rollInt % 2 === 0);
     const hazardType: JumpHazard = isCorona ? 'solar_corona' : 'asteroid_belt';
     const arrivalDistance = isCorona ? 34.0 : 76.0;
 
@@ -249,6 +370,7 @@ export function resolveJumpOutcome(
         actualSystem: targetSys,
         isDrift: false,
         driftSystem: null,
+        isVoid: false,
         hazardType,
         arrivalDistance,
         message,

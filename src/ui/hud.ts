@@ -643,7 +643,10 @@ export function triggerSystemArrivalBanner(system: any, factionName?: string, re
     if (titleEl) titleEl.innerText = (system.name || 'UNBEKANNT').toUpperCase();
     
     if (sectorEl) {
-        if (resolution && resolution.isDrift) {
+        if (resolution && resolution.hazardType === 'deep_void') {
+            sectorEl.innerText = `🌌 SUBRAUM-KOLLAPS: INTERSTELLARER LEERRAUM!`;
+            sectorEl.style.color = '#c084fc';
+        } else if (resolution && resolution.isDrift) {
             sectorEl.innerText = `⚠️ PSIONISCHE ABWEICHUNG: DRIFT NACH ${system.name.toUpperCase()}!`;
             sectorEl.style.color = '#f87171';
         } else if (resolution && resolution.hazardType === 'solar_corona') {
@@ -659,7 +662,11 @@ export function triggerSystemArrivalBanner(system: any, factionName?: string, re
     }
 
     if (starEl && system.star) {
-        starEl.innerText = `⭐ ${system.star.type || 'Zentralgestirn'}`;
+        if (system.star.type === 'Void') {
+            starEl.innerText = `🌌 Sternenloses Vakuum`;
+        } else {
+            starEl.innerText = `⭐ ${system.star.type || 'Zentralgestirn'}`;
+        }
     }
 
     const planetCount = system.planets ? system.planets.length : 0;
