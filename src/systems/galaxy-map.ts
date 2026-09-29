@@ -3,6 +3,7 @@ import { StarSystem } from '../types/game';
 import { playSiliconCollectSound, playCrashSound, setThrusterSound } from '../engine/audio';
 import { addLogEntry } from '../ui/hud';
 import { clearActiveSystem, spawnPlanetsAndAsteroids, initiateSystemArrival, initiateSystemDeparture } from './universe';
+import { calculateJumpPrecision, getEffectiveSafeWarpRange, getEffectiveMaxWarpRange, resolveJumpOutcome } from './warp-calculator';
 
 let mapOpen = false;
 let selectedSystem: StarSystem | null = null;
@@ -199,16 +200,28 @@ export function renderGalaxyMap() {
         const curScreenY = centerY + currentSys.z * currentScale;
 
         if (currentSys) {
-            // Draw Warp Range Circle (Cyan dashed)
-            const warpRadiusScreen = STATE.warpRange * currentScale;
-            ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+            const safeRange = getEffectiveSafeWarpRange();
+            const maxRange = getEffectiveMaxWarpRange();
+
+            // 1. Draw Safe Harmonic Warp Range Circle (Cyan dashed - 100% Precision)
+            const safeRadiusScreen = safeRange * currentScale;
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
             ctx.lineWidth = 1.4;
             ctx.setLineDash([6, 6]);
             ctx.beginPath();
-            ctx.arc(curScreenX, curScreenY, warpRadiusScreen, 0, Math.PI * 2);
+            ctx.arc(curScreenX, curScreenY, safeRadiusScreen, 0, Math.PI * 2);
             ctx.stroke();
 
-            // Draw Psionic Detection Circle (Magenta dotted)
+            // 2. Draw Extended Psionic Horizon Circle (Amber dashed - Overreach & Instability Zone)
+            const maxRadiusScreen = maxRange * currentScale;
+            ctx.strokeStyle = 'rgba(245, 158, 11, 0.32)';
+            ctx.lineWidth = 1.2;
+            ctx.setLineDash([4, 8]);
+            ctx.beginPath();
+            ctx.arc(curScreenX, curScreenY, maxRadiusScreen, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 3. Draw Psionic Detection Circle (Magenta dotted)
             const psioRadiusScreen = STATE.psionicRange * currentScale;
             ctx.strokeStyle = 'rgba(217, 70, 239, 0.35)';
             ctx.lineWidth = 1.4;
@@ -231,13 +244,27 @@ export function renderGalaxyMap() {
             const targetScreenX = centerX + selectedSystem.x * currentScale;
             const targetScreenY = centerY + selectedSystem.z * currentScale;
 
-            const dx = selectedSystem.x - currentSys.x;
-            const dz = selectedSystem.z - currentSys.z;
-            const dist = Math.sqrt(dx * dx + dz * dz);
-            const inWarp = dist <= STATE.warpRange;
+            const telemetry = calculateJumpPrecision(currentSys, selectedSystem);
+
+            let strokeColor = 'rgba(56, 189, 248, 0.65)';
+            let pulseColor = '#38bdf8';
+            let badgeTextColor = '#38bdf8';
+            let badgeText = `${telemetry.dist} LJ • 100% Stabil • -${telemetry.mentalCost} Psi`;
+
+            if (!telemetry.inSafeRange && telemetry.canReach) {
+                strokeColor = telemetry.stability === 'moderate' ? 'rgba(245, 158, 11, 0.75)' : 'rgba(239, 68, 68, 0.8)';
+                pulseColor = telemetry.stability === 'moderate' ? '#f59e0b' : '#ef4444';
+                badgeTextColor = telemetry.stability === 'moderate' ? '#fbbf24' : '#f87171';
+                badgeText = `${telemetry.dist} LJ • ${telemetry.precision}% Präzision • -${telemetry.mentalCost} Psi`;
+            } else if (!telemetry.canReach) {
+                strokeColor = 'rgba(239, 68, 68, 0.45)';
+                pulseColor = '#ef4444';
+                badgeTextColor = '#f87171';
+                badgeText = `${telemetry.dist} LJ • Unerreichbar (> ${telemetry.maxRange} LJ)`;
+            }
 
             // Trajectory Dash Line
-            ctx.strokeStyle = inWarp ? 'rgba(56, 189, 248, 0.6)' : 'rgba(239, 68, 68, 0.5)';
+            ctx.strokeStyle = strokeColor;
             ctx.lineWidth = 1.6;
             ctx.setLineDash([8, 8]);
             ctx.lineDashOffset = -(Date.now() * 0.02) % 16;
@@ -252,7 +279,7 @@ export function renderGalaxyMap() {
             const pulseX = curScreenX + (targetScreenX - curScreenX) * pulseT;
             const pulseY = curScreenY + (targetScreenY - curScreenY) * pulseT;
 
-            ctx.fillStyle = inWarp ? '#38bdf8' : '#ef4444';
+            ctx.fillStyle = pulseColor;
             ctx.beginPath();
             ctx.arc(pulseX, pulseY, 3.5, 0, Math.PI * 2);
             ctx.fill();
@@ -261,13 +288,10 @@ export function renderGalaxyMap() {
             if (mapZoom > 0.8) {
                 const midX = (curScreenX + targetScreenX) / 2;
                 const midY = (curScreenY + targetScreenY) / 2;
-                const costMult = STATE.mutations.folddrive && STATE.mutations.folddrive.purchased ? 0.7 : 1.0;
-                const warpCost = Math.round((15 + dist * 0.15) * costMult);
 
                 ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-                ctx.strokeStyle = inWarp ? 'rgba(56, 189, 248, 0.6)' : 'rgba(239, 68, 68, 0.6)';
+                ctx.strokeStyle = strokeColor;
                 ctx.lineWidth = 1;
-                const badgeText = `${dist.toFixed(0)} LJ • -${warpCost}% Bio`;
                 ctx.font = '8px Orbitron, sans-serif';
                 const bWidth = ctx.measureText(badgeText).width;
 
@@ -277,7 +301,7 @@ export function renderGalaxyMap() {
                 ctx.fill();
                 ctx.stroke();
 
-                ctx.fillStyle = inWarp ? '#38bdf8' : '#f87171';
+                ctx.fillStyle = badgeTextColor;
                 ctx.textAlign = 'center';
                 ctx.fillText(badgeText, midX, midY + 3);
             }
@@ -368,6 +392,7 @@ export function renderGalaxyMap() {
             if (sys.star.type === 'Red Dwarf') starColor = '#ef4444';
             if (sys.star.type === 'White Dwarf') starColor = '#cbd5e1';
             if (sys.star.type === 'Black Hole') starColor = '#8b5cf6';
+            if (sys.star.type === 'Void' || sys.isDeepVoid) starColor = '#c084fc';
 
             if (sys.isCoreAnchor) {
                 ctx.strokeStyle = '#eab308';
@@ -375,6 +400,14 @@ export function renderGalaxyMap() {
                 ctx.beginPath();
                 ctx.arc(screenX, screenY, baseSize + 5 + Math.sin(Date.now() * 0.005) * 2, 0, Math.PI * 2);
                 ctx.stroke();
+            } else if (sys.isDeepVoid) {
+                ctx.strokeStyle = '#c084fc';
+                ctx.lineWidth = 1.2;
+                ctx.setLineDash([2, 4]);
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, baseSize + 4 + Math.sin(Date.now() * 0.007) * 2, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
             }
 
             if (isSelected) {
@@ -833,8 +866,8 @@ export function updateSystemDetails(sys: StarSystem | null) {
 
     if (coordXEl) coordXEl.innerText = String(sys.x);
     if (coordZEl) coordZEl.innerText = String(sys.z);
-    if (starTypeEl) starTypeEl.innerText = sys.star.type;
-    if (starMassEl) starMassEl.innerText = sys.star.mass + " SM";
+    if (starTypeEl) starTypeEl.innerText = sys.isDeepVoid ? "Kein Stern (Subraum-Singularität)" : sys.star.type;
+    if (starMassEl) starMassEl.innerText = sys.isDeepVoid ? "0.05 SM" : sys.star.mass + " SM";
     if (planetCountEl) planetCountEl.innerText = String(sys.planets.length);
 
     // Update Psionic Resonance details
@@ -874,29 +907,72 @@ export function updateSystemDetails(sys: StarSystem | null) {
         });
     }
 
-    const costMult = STATE.mutations.folddrive && STATE.mutations.folddrive.purchased ? 0.7 : 1.0;
-    const warpCost = Math.round((15 + distFromCur * 0.15) * costMult);
+    const telemetry = calculateJumpPrecision(currentSys, sys);
+
+    // Update Distance Telemetry
+    const distEl = document.getElementById('val-jump-dist');
+    if (distEl) {
+        distEl.innerText = `${telemetry.dist} LJ` + (telemetry.overreachLY > 0 ? ` (+${telemetry.overreachLY} LJ Überdehnung)` : '');
+    }
+
+    // Update Psionic Precision Telemetry
+    const precEl = document.getElementById('val-jump-precision');
+    if (precEl) {
+        if (telemetry.inSafeRange) {
+            precEl.innerHTML = `<span style="color: #38bdf8; font-weight: bold;">🎯 100%</span> <span style="color: #94a3b8; font-size: 0.65rem;">(Harmonisch & Stabil)</span>`;
+        } else if (telemetry.canReach) {
+            const col = telemetry.precision >= 75 ? '#f59e0b' : '#ef4444';
+            const label = telemetry.precision >= 75 ? 'Instabil' : 'Kritisch instabil!';
+            const bonuses: string[] = [];
+            if (telemetry.telepathyBonus > 0) bonuses.push(`+${telemetry.telepathyBonus}% Telepathie`);
+            if (telemetry.mentalClarityBonus !== 0) bonuses.push(`${telemetry.mentalClarityBonus > 0 ? '+' : ''}${telemetry.mentalClarityBonus}% Psyche`);
+            if (telemetry.mutationBonus > 0) bonuses.push(`+${telemetry.mutationBonus}% Synapsen`);
+            const bonusTxt = bonuses.length > 0 ? ` (${bonuses.join(', ')})` : '';
+            precEl.innerHTML = `<span style="color: ${col}; font-weight: bold;">⚠️ ${telemetry.precision}%</span> <span style="color: #cbd5e1; font-size: 0.65rem;">(${label})${bonusTxt}</span>`;
+        } else {
+            precEl.innerHTML = `<span style="color: #ef4444; font-weight: bold;">❌ 0%</span> <span style="color: #94a3b8; font-size: 0.65rem;">(Außerhalb mentaler Reichweite)</span>`;
+        }
+    }
+
+    // Update Hazard Warning Row
+    const hazardRow = document.getElementById('row-jump-hazard');
+    const hazardEl = document.getElementById('val-jump-hazard');
+    if (hazardRow && hazardEl) {
+        if (!telemetry.inSafeRange && telemetry.canReach) {
+            hazardRow.style.display = 'flex';
+            hazardEl.innerText = '⚠️ Gravitations-Abdrift in Nachbarsystem oder Not-Dropout an Sonnenkorona möglich!';
+        } else {
+            hazardRow.style.display = 'none';
+        }
+    }
 
     const warpBtn = document.getElementById('warp-btn') as HTMLButtonElement;
     if (warpBtn) {
+        warpBtn.classList.remove('risky-warp', 'critical-warp');
         if (sys.id === STATE.currentSystemId) {
             warpBtn.disabled = true;
             warpBtn.innerText = "Etablierter Standort";
             warpBtn.style.opacity = "0.5";
             warpBtn.style.pointerEvents = "none";
-        } else if (!inWarpRange) {
+        } else if (!telemetry.canReach) {
             warpBtn.disabled = true;
-            warpBtn.innerText = `❌ Zu weit entfernt (${distFromCur.toFixed(0)} / Max ${STATE.warpRange} LJ)`;
+            warpBtn.innerText = `❌ Zu weit entfernt (${telemetry.dist} / Max ${telemetry.maxRange} LJ)`;
             warpBtn.style.opacity = "0.5";
             warpBtn.style.pointerEvents = "none";
-        } else if (STATE.bioEnergy < warpCost) {
+        } else if (STATE.mentalEnergy < telemetry.mentalCost) {
             warpBtn.disabled = true;
-            warpBtn.innerText = `⚡ Zu wenig Bio-Energie (${warpCost}% nötig)`;
+            warpBtn.innerText = `🧠 Zu wenig Mentalkraft (${telemetry.mentalCost} nötig)`;
             warpBtn.style.opacity = "0.5";
             warpBtn.style.pointerEvents = "none";
+        } else if (telemetry.inSafeRange) {
+            warpBtn.disabled = false;
+            warpBtn.innerText = `🌀 Quantenfeld falten (${telemetry.dist} LJ | -${telemetry.mentalCost} Mentalkraft)`;
+            warpBtn.style.opacity = "1";
+            warpBtn.style.pointerEvents = "auto";
         } else {
             warpBtn.disabled = false;
-            warpBtn.innerText = `🌀 Quantenfeld falten (${distFromCur.toFixed(0)} LJ | -${warpCost}% Energie)`;
+            warpBtn.classList.add(telemetry.stability === 'moderate' ? 'risky-warp' : 'critical-warp');
+            warpBtn.innerText = `⚡ Instabiler Sprung (${telemetry.dist} LJ | ${telemetry.precision}% Präzision | -${telemetry.mentalCost} Mentalkraft)`;
             warpBtn.style.opacity = "1";
             warpBtn.style.pointerEvents = "auto";
         }
@@ -909,35 +985,31 @@ export function warpToSystem(systemId: number) {
     const targetSys = STATE.universe.systems.find(s => s.id === systemId);
     if (!targetSys) return;
 
-    const dx = targetSys.x - currentSys.x;
-    const dz = targetSys.z - currentSys.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
+    const telemetry = calculateJumpPrecision(currentSys, targetSys);
 
-    const costMult = STATE.mutations.folddrive && STATE.mutations.folddrive.purchased ? 0.7 : 1.0;
-    const warpCost = Math.round((15 + dist * 0.15) * costMult);
-
-    if (dist > STATE.warpRange || STATE.bioEnergy < warpCost) {
+    if (!telemetry.canReach || STATE.mentalEnergy < telemetry.mentalCost) {
         playCrashSound();
-        addLogEntry("SYSTEM", `Warp-Fehlschlag: Ziel außerhalb der Faltungsreichweite oder unzureichende Bio-Energie!`);
+        addLogEntry("SYSTEM", `Warp-Fehlschlag: Ziel außerhalb der Reichweite oder unzureichende Mentalkraft!`);
         return;
     }
 
-    STATE.bioEnergy -= warpCost;
-    STATE.currentSystemId = targetSys.id;
-    STATE.systemsVisited++;
-    if (!STATE.visitedSystemIds) STATE.visitedSystemIds = [];
-    if (!STATE.visitedSystemIds.includes(targetSys.id)) {
-        STATE.visitedSystemIds.push(targetSys.id);
-    }
+    STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - telemetry.mentalCost);
 
     // Close Galaxy Map immediately so player enters full 3D space in current system
     if (mapOpen) {
         toggleGalaxyMap();
     }
 
+    // Resolve jump outcome (precision check vs dice roll)
+    const resolution = resolveJumpOutcome(telemetry, targetSys, currentSys, STATE.universe);
+
     // Log departure in HUD
-    addLogEntry("SYSTEM", `🌌 RAUMZEIT-FALTUNG INITIIERT: Kurs gesetzt auf ${targetSys.name} (${targetSys.sectorName || 'Sektor'}). -${warpCost}% Bio-Energie.`);
+    if (telemetry.inSafeRange) {
+        addLogEntry("SYSTEM", `🌌 RAUMZEIT-FALTUNG INITIIERT: Kurs gesetzt auf ${targetSys.name} (${targetSys.sectorName || 'Sektor'}). -${telemetry.mentalCost} Mentalkraft.`);
+    } else {
+        addLogEntry("SYSTEM", `⚡ ÜBERDEHNTE PSIONISCHE FALTUNG: Kurs auf ${targetSys.name} (${telemetry.dist} LJ). Präzision: ${telemetry.precision}%. -${telemetry.mentalCost} Mentalkraft.`);
+    }
 
     // Initiate Departure Sequence in the starting/current system!
-    initiateSystemDeparture(currentSys, targetSys);
+    initiateSystemDeparture(currentSys, targetSys, resolution);
 }

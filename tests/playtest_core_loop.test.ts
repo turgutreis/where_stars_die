@@ -136,7 +136,7 @@ import { triggerScanStart, updateScanning, completeScanning, generatePlanetAttri
 import { completeAbduction } from '../src/systems/abduction';
 import { getLoreSolSystem, getLoreArrakisSystem, getLoreSolarisSystem, ensureLoreSystems } from '../src/procedural/lore-systems';
 import { AUDIO_SETTINGS } from '../src/engine/audio';
-import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets, spawnPlanetsAndAsteroids } from '../src/systems/universe';
+import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets, spawnPlanetsAndAsteroids, clearActiveSystem } from '../src/systems/universe';
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
 import { updatePhysics } from '../src/engine/physics';
 import { generateProceduralCandidates, getCrewReactiveThought } from '../src/systems/crew-generation';
@@ -170,6 +170,15 @@ import {
     loadPlaytestPreset, 
     triggerAutoSave 
 } from '../src/systems/save-manager';
+import { 
+    calculateJumpPrecision, 
+    getEffectiveSafeWarpRange, 
+    getEffectiveMaxWarpRange, 
+    resolveJumpOutcome, 
+    findDriftCandidateSystems,
+    createDeepVoidSystem 
+} from '../src/systems/warp-calculator';
+import { warpToSystem } from '../src/systems/galaxy-map';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -2266,6 +2275,254 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.mutations.ibad.purchased).toBe(true);
         expect(STATE.bioRes).toBe(2500);
         expect(STATE.siliconRes).toBe(1800);
+    });
+
+    test("37. Psionic Warp Precision & Overreach Mechanics: Distance-scaled precision, mental fatigue penalties, and psionic crew synergies", () => {
+        const originSys = { id: 1, name: "Alpha", x: 0, z: 0 } as any;
+        const safeTargetSys = { id: 2, name: "Beta", x: 70, z: 0 } as any; // 70 LY (Safe, <= 90)
+        const overreachSys = { id: 3, name: "Gamma", x: 140, z: 0 } as any; // 140 LY (Overreach, 90 < d <= 193)
+        const unreachableSys = { id: 4, name: "Omega", x: 260, z: 0 } as any; // 260 LY (> 193)
+
+        STATE.warpRange = 90;
+        STATE.mentalEnergy = 100;
+        STATE.maxMentalEnergy = 100;
+        STATE.crew = [];
+        STATE.crewBuffs = { thrust: 1, bioGain: 1, scanSpeed: 1, repairRate: 0, stressDampening: 1, psionicBonus: 0 };
+        STATE.mutations.psionic_pulse.purchased = false;
+        STATE.mutations.telepathic_focus.purchased = false;
+        STATE.mutations.ibad.purchased = false;
+
+        // 1. Safe Harmonic Jump
+        const safeTelemetry = calculateJumpPrecision(originSys, safeTargetSys);
+        expect(safeTelemetry.inSafeRange).toBe(true);
+        expect(safeTelemetry.canReach).toBe(true);
+        expect(safeTelemetry.precision).toBe(100);
+        expect(safeTelemetry.mentalCost).toBeGreaterThan(0);
+        expect(safeTelemetry.bioCost).toBe(0);
+        expect(safeTelemetry.stability).toBe('stable');
+
+        // 2. Overreach Jump (Natural decay without buffs)
+        STATE.mentalEnergy = 50; // Neutral mental energy
+        const baseOverreach = calculateJumpPrecision(originSys, overreachSys);
+        expect(baseOverreach.inSafeRange).toBe(false);
+        expect(baseOverreach.canReach).toBe(true);
+        expect(baseOverreach.precision).toBeLessThan(100);
+        expect(baseOverreach.precision).toBeGreaterThanOrEqual(10);
+        expect(baseOverreach.mentalCost).toBeGreaterThan(safeTelemetry.mentalCost);
+        expect(baseOverreach.bioCost).toBe(0);
+        expect(baseOverreach.overreachLY).toBe(50);
+
+        // 3. High Mental Clarity Bonus (+10%)
+        STATE.mentalEnergy = 95;
+        const clarityOverreach = calculateJumpPrecision(originSys, overreachSys);
+        expect(clarityOverreach.precision).toBeGreaterThan(baseOverreach.precision);
+
+        // 4. Neural Fatigue Penalty (-15% when mental energy is critically depleted)
+        STATE.mentalEnergy = 15; // 15% < 25% threshold
+        const fatiguedOverreach = calculateJumpPrecision(originSys, overreachSys);
+        expect(fatiguedOverreach.precision).toBeLessThan(baseOverreach.precision);
+
+        // 5. Psionic Crew Synergy & Synaptic Mutation Bonuses
+        STATE.mentalEnergy = 100;
+        STATE.crew = [
+            { id: 101, name: "Elara", role: "psychologist", trait: { type: 'psionic', name: 'Telepath', desc: '' } } as any,
+            { id: 102, name: "Thorne", role: "biologist", station: 'dream_weaver' } as any
+        ];
+        STATE.mutations.psionic_pulse.purchased = true;
+        STATE.mutations.ibad.purchased = true;
+
+        const augmentedOverreach = calculateJumpPrecision(originSys, overreachSys);
+        expect(augmentedOverreach.telepathyBonus).toBeGreaterThan(0);
+        expect(augmentedOverreach.mutationBonus).toBeGreaterThanOrEqual(24);
+        expect(augmentedOverreach.precision).toBeGreaterThan(baseOverreach.precision);
+
+        // 6. Beyond Extended Psionic Horizon (> 193 LY)
+        const unreachableTelemetry = calculateJumpPrecision(originSys, unreachableSys);
+        expect(unreachableTelemetry.inSafeRange).toBe(false);
+        expect(unreachableTelemetry.canReach).toBe(false);
+        expect(unreachableTelemetry.precision).toBe(0);
+        expect(unreachableTelemetry.stability).toBe('unreachable');
+    });
+
+    test("38. Misfold Outcomes & Hazardous Dropouts: Gravitational drift to neighbor stars and solar corona perihelion dropouts", () => {
+        const originSys = { id: 1, name: "Sol", x: 0, z: 0 } as any;
+        const targetSys = { id: 2, name: "Vega", x: 120, z: 0 } as any;
+        const neighborSys = { id: 3, name: "Epsilon", x: 135, z: 25 } as any; // 29 LY from Vega
+
+        STATE.warpRange = 90;
+        STATE.mentalEnergy = 50;
+        STATE.crew = [];
+        STATE.crewBuffs = { thrust: 1, bioGain: 1, scanSpeed: 1, repairRate: 0, stressDampening: 1, psionicBonus: 0 };
+        STATE.mutations.psionic_pulse.purchased = false;
+        STATE.mutations.telepathic_focus.purchased = false;
+        STATE.mutations.ibad.purchased = false;
+
+        const universe = {
+            systems: [originSys, targetSys, neighborSys]
+        } as any;
+
+        // Verify neighbor candidate detection
+        const candidates = findDriftCandidateSystems(targetSys, originSys, universe);
+        expect(candidates.length).toBe(1);
+        expect(candidates[0].id).toBe(neighborSys.id);
+
+        const telemetry = calculateJumpPrecision(originSys, targetSys);
+        expect(telemetry.precision).toBeLessThanOrEqual(90);
+
+        // 1. Deterministic Successful Jump (roll = 10 <= precision)
+        const successRes = resolveJumpOutcome(telemetry, targetSys, originSys, universe, 10.0);
+        expect(successRes.success).toBe(true);
+        expect(successRes.isDrift).toBe(false);
+        expect(successRes.actualSystem.id).toBe(targetSys.id);
+        expect(successRes.hazardType).toBe('none');
+        expect(successRes.arrivalDistance).toBe(150.0);
+
+        // 2. Deterministic Neighbor Gravitational Drift (forced roll = 96 > precision, roll % 2 == 0)
+        const driftRes = resolveJumpOutcome(telemetry, targetSys, originSys, universe, 96.0);
+        expect(driftRes.success).toBe(false);
+        expect(driftRes.isDrift).toBe(true);
+        expect(driftRes.actualSystem.id).toBe(neighborSys.id);
+        expect(driftRes.driftSystem?.name).toBe("Epsilon");
+
+        // 3. Deterministic In-System Hazardous Dropout (forced roll with corona outcome)
+        // An odd roll with no candidate or when drift is bypassed triggers in-system hazard
+        const singleUniverse = { systems: [originSys, targetSys] } as any;
+        const hazardRes = resolveJumpOutcome(telemetry, targetSys, originSys, singleUniverse, 96.0); // 96 % 2 === 0 -> solar_corona
+        expect(hazardRes.success).toBe(false);
+        expect(hazardRes.isDrift).toBe(false);
+        expect(hazardRes.actualSystem.id).toBe(targetSys.id);
+        expect(hazardRes.hazardType).toBe('solar_corona');
+        expect(hazardRes.arrivalDistance).toBe(34.0); // Dangerously close to solar corona
+
+        // 4. Verify arrival integration with hazard dropout
+        activePlanets.length = 0;
+        clearJumpGates();
+        initiateSystemArrival(originSys, targetSys, hazardRes);
+
+        const distFromCenter = Math.sqrt(STATE.playerPosition.x ** 2 + STATE.playerPosition.z ** 2);
+        expect(distFromCenter).toBeCloseTo(34.0, 1);
+        expect(STATE.systemArrivalActive).toBe(true);
+    });
+
+    test("39. Interstellar Deep Void (Leerraum): Catastrophic spacetime fold collapse spawns midpoint void pseudo-system with Subspace Rift and survival entities", () => {
+        const originSys = { id: 1, name: "Sol", x: 0, z: 0, star: { type: 'Yellow Sun', size: 12, mass: 100, color: '0xffd700' }, planets: [] } as any;
+        const targetSys = { id: 2, name: "Rigel", x: 150, z: 80, star: { type: 'Blue Giant', size: 18, mass: 220, color: '0x38bdf8' }, planets: [] } as any;
+
+        const universe = {
+            systems: [originSys, targetSys]
+        } as any;
+        STATE.universe = universe;
+
+        // 1. Verify Deep Void system creation & deterministic placement
+        const voidSys = createDeepVoidSystem(originSys, targetSys, universe);
+        expect(voidSys.isDeepVoid).toBe(true);
+        expect(voidSys.star.type).toBe('Void');
+        expect(voidSys.sectorId).toBe('deep_void');
+        expect(voidSys.planets.length).toBe(3);
+
+        // Midpoint coordinates between (0, 0) and (150, 80) should be approx (75, 40)
+        expect(voidSys.x).toBeGreaterThan(50);
+        expect(voidSys.x).toBeLessThan(100);
+        expect(voidSys.z).toBeGreaterThan(25);
+        expect(voidSys.z).toBeLessThan(65);
+
+        // Verify entities: Subspace Rift, Frozen Comet, Precursor Derelict
+        const rift = voidSys.planets.find(p => p.type === 'Plasma-Wirbel');
+        const comet = voidSys.planets.find(p => p.type === 'Ice');
+        const derelict = voidSys.planets.find(p => p.type === 'Vorläufer-Konstrukt');
+        expect(rift).toBeDefined();
+        expect(comet).toBeDefined();
+        expect(derelict).toBeDefined();
+        expect(rift?.bio).toBeGreaterThan(100); // Provides bio-energy replenishment
+
+        // 2. Deterministic Deep Void Misfold Resolution (rollInt % 3 === 1, e.g. 94)
+        STATE.warpRange = 90;
+        STATE.mentalEnergy = 50;
+        STATE.crew = [];
+        STATE.crewBuffs = { thrust: 1, bioGain: 1, scanSpeed: 1, repairRate: 0, stressDampening: 1, psionicBonus: 0 };
+        STATE.mutations.psionic_pulse.purchased = false;
+        STATE.mutations.ibad.purchased = false;
+
+        const telemetry = calculateJumpPrecision(originSys, targetSys);
+        // Roll 94 is > precision (~55%) and 94 % 3 === 1 -> Deep Void collapse!
+        const voidRes = resolveJumpOutcome(telemetry, targetSys, originSys, universe, 94.0);
+        expect(voidRes.success).toBe(false);
+        expect(voidRes.isVoid).toBe(true);
+        expect(voidRes.hazardType).toBe('deep_void');
+        expect(voidRes.actualSystem.isDeepVoid).toBe(true);
+        expect(voidRes.arrivalDistance).toBe(110.0);
+
+        // 3. Spawning the Deep Void Environment
+        STATE.currentSystemId = voidSys.id;
+        clearActiveSystem();
+        activePlanets.length = 0;
+        spawnPlanetsAndAsteroids();
+
+        // Must spawn Void celestial entities into activePlanets
+        expect(activePlanets.length).toBe(3);
+        const activeRift = activePlanets.find(p => p.type === 'Plasma-Wirbel');
+        expect(activeRift).toBeDefined();
+
+        // Must register center gravity source (Subspace Singularity)
+        const centerGrav = STATE.gravitySources.find(s => s.type === 'star');
+        expect(centerGrav).toBeDefined();
+        expect(centerGrav?.name).toContain("Subraum");
+
+        // 4. Interstellar Arrival into Deep Void
+        initiateSystemArrival(originSys, voidSys, voidRes);
+        const distFromCenter = Math.sqrt(STATE.playerPosition.x ** 2 + STATE.playerPosition.z ** 2);
+        expect(distFromCenter).toBeCloseTo(110.0, 1);
+        expect(STATE.systemArrivalActive).toBe(true);
+    });
+
+    test("40. Psionic Space-Folding Resource Economy: Star jumps consume Mentalkraft, preserve Bio-Energy for locomotion, and Subspace Rifts siphon mental energy", () => {
+        const originSys = { id: 1, name: "Sol", x: 0, z: 0, star: { type: 'Yellow Sun', size: 12, mass: 100, color: '0xffd700' }, planets: [] } as any;
+        const targetSys = { id: 2, name: "Alpha Centauri", x: 40, z: 0, star: { type: 'Yellow Sun', size: 12, mass: 100, color: '0xffd700' }, planets: [] } as any;
+
+        STATE.universe = { systems: [originSys, targetSys] } as any;
+        STATE.currentSystemId = 1;
+        STATE.warpRange = 90;
+        STATE.bioEnergy = 80;
+        STATE.mentalEnergy = 100;
+        STATE.maxMentalEnergy = 100;
+
+        const telemetry = calculateJumpPrecision(originSys, targetSys);
+        expect(telemetry.inSafeRange).toBe(true);
+        expect(telemetry.mentalCost).toBeGreaterThan(20);
+        expect(telemetry.bioCost).toBe(0);
+
+        // 1. Successful Warp consumes Mentalkraft while Bio-Energy remains intact
+        const initialBio = STATE.bioEnergy;
+        const expectedMental = STATE.mentalEnergy - telemetry.mentalCost;
+
+        warpToSystem(targetSys.id);
+
+        expect(STATE.mentalEnergy).toBe(expectedMental);
+        expect(STATE.bioEnergy).toBe(initialBio); // Bio-energy strictly untouched!
+
+        // 2. Insufficient Mentalkraft blocks space-folding
+        STATE.mentalEnergy = 5; // Far below required mentalCost (~25)
+        const blockedMental = STATE.mentalEnergy;
+        warpToSystem(targetSys.id);
+        expect(STATE.mentalEnergy).toBe(blockedMental); // No warp occurred, energy untouched
+
+        // 3. Subspace Rift (Plasma-Wirbel) assimilation restores Mentalkraft
+        const subspaceRiftPlanet: any = {
+            name: "Subraum-Wirbel Epsilon",
+            type: "Plasma-Wirbel",
+            size: 3.5,
+            scanned: true,
+            harvested: false,
+            mesh: { position: new THREE.Vector3(0, 0, 0), scale: { x: 1 } },
+            attributes: { atmos: "Subraum-Plasma", bio: "Hochenergetisch", res: "Exotische Materie" }
+        };
+
+        STATE.extractingPlanet = subspaceRiftPlanet;
+        STATE.harvestProgress = 100;
+        completeHarvesting();
+
+        expect(subspaceRiftPlanet.harvested).toBe(true);
+        expect(STATE.mentalEnergy).toBe(blockedMental + 35); // Recharged +35 Mentalkraft
     });
 });
 

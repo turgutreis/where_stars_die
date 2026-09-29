@@ -229,6 +229,7 @@ export interface StarSystem {
     star: StarData;
     planets: PlanetData[];
     asteroids?: any[];
+    isDeepVoid?: boolean;
 }
 
 export interface UniverseMetadata {
@@ -533,6 +534,8 @@ export interface GameState {
     systemDepartureMaxTime?: number;
     systemDepartureDirection?: THREE.Vector3;
     systemDepartureTarget?: StarSystem | null;
+    systemDepartureOrigin?: StarSystem | null;
+    systemDepartureResolution?: JumpResolution | null;
 
     // Voyager 2 & First-Time User Experience (FTUE)
     voyagerProbe?: any | null;
@@ -544,3 +547,36 @@ export interface GameState {
 }
 
 export type OrbitLevel = 'solar' | 'planet' | 'moon';
+
+export type JumpStability = 'stable' | 'moderate' | 'critical' | 'unreachable';
+export type JumpHazard = 'none' | 'solar_corona' | 'asteroid_belt' | 'deep_void';
+
+export interface JumpTelemetry {
+    dist: number;
+    safeRange: number;
+    maxRange: number;
+    inSafeRange: boolean;
+    canReach: boolean;
+    precision: number; // 0 - 100 percentage
+    bioCost: number;
+    mentalCost: number;
+    overreachLY: number;
+    stability: JumpStability;
+    telepathyBonus: number;
+    mentalClarityBonus: number;
+    mutationBonus: number;
+}
+
+export interface JumpResolution {
+    success: boolean;
+    targetSystem: StarSystem;
+    originSystem: StarSystem;
+    actualSystem: StarSystem;
+    isDrift: boolean;
+    driftSystem?: StarSystem | null;
+    isVoid?: boolean;
+    hazardType: JumpHazard;
+    arrivalDistance: number;
+    message: string;
+    roll: number;
+}

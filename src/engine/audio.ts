@@ -949,6 +949,61 @@ export function playWarpSnapSound() {
     impactOsc.stop(time + 0.4);
 }
 
+export function playMisfoldWarningSound() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const time = ctx.currentTime;
+
+    // 1. Dissonant Psionic Alarm Drone (Tritone frequency beating)
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const droneGain = ctx.createGain();
+
+    osc1.type = 'sawtooth';
+    osc2.type = 'sawtooth';
+
+    // Dissonant interval (185 Hz & 260 Hz with rapid LFO warble)
+    osc1.frequency.setValueAtTime(185, time);
+    osc2.frequency.setValueAtTime(261.6, time);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(320, time);
+    filter.Q.setValueAtTime(3.0, time);
+
+    droneGain.gain.setValueAtTime(0, time);
+    droneGain.gain.linearRampToValueAtTime(0.18, time + 0.05);
+    droneGain.gain.linearRampToValueAtTime(0.04, time + 0.35);
+    droneGain.gain.linearRampToValueAtTime(0.16, time + 0.65);
+    droneGain.gain.exponentialRampToValueAtTime(0.001, time + 1.2);
+
+    osc1.connect(filter);
+    osc2.connect(filter);
+    filter.connect(droneGain);
+    droneGain.connect(ctx.destination);
+
+    osc1.start(time);
+    osc1.stop(time + 1.25);
+    osc2.start(time);
+    osc2.stop(time + 1.25);
+
+    // 2. Sub-Bass Cavitation Shock
+    const subOsc = ctx.createOscillator();
+    const subGain = ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(95, time);
+    if (subOsc.frequency.exponentialRampToValueAtTime) {
+        subOsc.frequency.exponentialRampToValueAtTime(22, time + 0.8);
+    }
+    subGain.gain.setValueAtTime(0.25, time);
+    subGain.gain.exponentialRampToValueAtTime(0.001, time + 0.85);
+
+    subOsc.connect(subGain);
+    subGain.connect(ctx.destination);
+    subOsc.start(time);
+    subOsc.stop(time + 0.9);
+}
+
 // ----------------------------------------------------------------------------
 // PROLOGUE & VOYAGER 2 SFX (ANALOG CARRIER, GOLDEN RECORD & BIO-HEARTBEAT)
 // ----------------------------------------------------------------------------

@@ -621,9 +621,11 @@ export function updateSonarWave(dt: number) {
 // INTERSTELLAR SYSTEM ARRIVAL HUD BANNER
 // ----------------------------------------------------------------------------
 
+import { JumpResolution } from '../types/game';
+
 let arrivalBannerTimeout: any = null;
 
-export function triggerSystemArrivalBanner(system: any, factionName?: string) {
+export function triggerSystemArrivalBanner(system: any, factionName?: string, resolution?: JumpResolution | null) {
     const banner = document.getElementById('system-arrival-banner');
     if (!banner) return;
 
@@ -639,10 +641,32 @@ export function triggerSystemArrivalBanner(system: any, factionName?: string) {
     const factionEl = document.getElementById('arrival-faction-badge');
 
     if (titleEl) titleEl.innerText = (system.name || 'UNBEKANNT').toUpperCase();
-    if (sectorEl) sectorEl.innerText = system.sectorName ? `${system.sectorName.toUpperCase()} • TRANSIT` : 'SYSTEM-TRANSIT ABGESCHLOSSEN';
+    
+    if (sectorEl) {
+        if (resolution && resolution.hazardType === 'deep_void') {
+            sectorEl.innerText = `🌌 SUBRAUM-KOLLAPS: INTERSTELLARER LEERRAUM!`;
+            sectorEl.style.color = '#c084fc';
+        } else if (resolution && resolution.isDrift) {
+            sectorEl.innerText = `⚠️ PSIONISCHE ABWEICHUNG: DRIFT NACH ${system.name.toUpperCase()}!`;
+            sectorEl.style.color = '#f87171';
+        } else if (resolution && resolution.hazardType === 'solar_corona') {
+            sectorEl.innerText = `🔥 PERIHEL-NOTFALL-DROPOUT: NÄHE DER SONNENKORONA!`;
+            sectorEl.style.color = '#ef4444';
+        } else if (resolution && resolution.hazardType === 'asteroid_belt') {
+            sectorEl.innerText = `💥 WARP-FEHLKOLLAPS: ASTEROIDENGÜRTEL-INVASION!`;
+            sectorEl.style.color = '#f97316';
+        } else {
+            sectorEl.innerText = system.sectorName ? `${system.sectorName.toUpperCase()} • TRANSIT` : 'SYSTEM-TRANSIT ABGESCHLOSSEN';
+            sectorEl.style.color = '#38bdf8';
+        }
+    }
 
     if (starEl && system.star) {
-        starEl.innerText = `⭐ ${system.star.type || 'Zentralgestirn'}`;
+        if (system.star.type === 'Void') {
+            starEl.innerText = `🌌 Sternenloses Vakuum`;
+        } else {
+            starEl.innerText = `⭐ ${system.star.type || 'Zentralgestirn'}`;
+        }
     }
 
     const planetCount = system.planets ? system.planets.length : 0;

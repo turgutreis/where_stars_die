@@ -127,6 +127,20 @@ export const LIGHTING_PROFILES: Record<string, ColorGradingProfile> = {
         starLightMultiplier: 1.15,
         bloomThreshold: 0.82,
         bloomStrength: 0.75
+    },
+    'Void': {
+        name: 'Interstellarer Leerraum (Deep Void)',
+        exposure: 0.80,
+        contrast: 1.38,
+        saturation: 0.65,
+        colorFilter: new THREE.Color(0xa78bfa), // Cold spectral violet
+        shadowTint: new THREE.Color(0x02040a),  // Pitch void black
+        vignette: 0.55,                         // Heavy peripheral darkness
+        ambientColor: 0x080414,
+        ambientIntensity: 0.05,
+        starLightMultiplier: 0.35,
+        bloomThreshold: 0.72,
+        bloomStrength: 0.85
     }
 };
 
@@ -134,6 +148,7 @@ export const LIGHTING_PROFILES: Record<string, ColorGradingProfile> = {
  * Resolves the appropriate lighting profile based on star type and anomaly.
  */
 export function getLightingProfileForSystem(starType?: string, anomalyType?: string): ColorGradingProfile {
+    if (starType === 'Void' || anomalyType === 'deep_void') return LIGHTING_PROFILES['Void'];
     if (anomalyType === 'pulsar') return LIGHTING_PROFILES['Pulsar'];
     if (anomalyType === 'dark_energy_rift') return LIGHTING_PROFILES['Dark Energy Rift'];
     if (anomalyType === 'flare_star') return LIGHTING_PROFILES['Flare Star'];

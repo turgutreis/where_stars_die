@@ -7,7 +7,7 @@ import { createHabitableTextures, createGasGiantTextures, createRockyTextures, c
 import { generatePlanetAttributes, generateFallbackMoons, updateScannerUI } from './scanner';
 import { initPlanetDefenseFleets, clearFleet } from './fleet';
 import { addLogEntry, triggerSystemArrivalBanner } from '../ui/hud';
-import { playWarpDropoutSound, playWarpSpoolSound, playWarpSnapSound } from '../engine/audio';
+import { playWarpDropoutSound, playWarpSpoolSound, playWarpSnapSound, playMisfoldWarningSound } from '../engine/audio';
 import { getFaction } from './factions';
 import { createSunCoronaMesh } from '../procedural/sun-shader';
 import { createAtmosphereMesh } from '../procedural/atmosphere-shader';
@@ -17,6 +17,7 @@ import { ensureLoreSystems } from '../procedural/lore-systems';
 import { loadPlanetTexture, getTemplateForBody, resolveArchetypeTemplate, PLANET_ARCHETYPE_TEMPLATES } from '../procedural/planet-textures';
 import { applySystemLighting } from '../engine/postprocessing';
 import { triggerAutoSave } from './save-manager';
+import { JumpResolution } from '../types/game';
 
 export const activeCoronaMeshes: THREE.Object3D[] = [];
 export const activeCoronaUpdaters: ((dt: number) => void)[] = [];
@@ -208,14 +209,14 @@ export function spawnPlanetsAndAsteroids() {
         return;
     }
 
-    const activeSystem = STATE.universe.systems[STATE.currentSystemId];
+    const activeSystem = STATE.universe.systems.find(s => s.id === STATE.currentSystemId) || STATE.universe.systems[STATE.currentSystemId];
     if (!activeSystem) return;
 
     // Apply system-specific cinematic color grading and lighting profile
-    const starData = activeSystem.star;
+    const starData = activeSystem.star || { type: 'Yellow Sun', size: 12, mass: 100, color: '0xffd700', colorCss: '#ffd700' };
     applySystemLighting(starData?.type, activeSystem.anomalyType);
 
-    // 1. Central Star or Supermassive Black Hole
+    // 1. Central Star, Supermassive Black Hole, or Deep Void
     if (starData.type === "Black Hole") {
         const blackHole = createBlackHoleMesh(starData.size);
         scene.add(blackHole.group);
@@ -243,6 +244,28 @@ export function spawnPlanetsAndAsteroids() {
         };
         STATE.gravitySources.push(starSource);
         starSource.ringMesh = createGravityRing(0, 0, starRange, 0x7c3aed, 0.14);
+    } else if (starData.type === "Void") {
+        // Deep Void: Starless vacuum with dim ambient violet illumination from the Subspace Rift
+        const riftLightColor = new THREE.Color(0xa78bfa);
+        const riftLight = new THREE.PointLight(riftLightColor, 1.8, 180, 1.2);
+        riftLight.position.set(0, 2, 0);
+        scene.add(riftLight);
+        activeStarLights.push(riftLight);
+
+        starData.colorCss = "#a78bfa";
+
+        const riftRange = 36.0;
+        const riftSource: any = {
+            mesh: null,
+            type: 'star',
+            name: `${activeSystem.name} (Subraum-Gravitation)`,
+            mass: 0.15,
+            radius: 4.0,
+            gravityRange: riftRange,
+            position: new THREE.Vector3(0, 0, 0)
+        };
+        STATE.gravitySources.push(riftSource);
+        riftSource.ringMesh = createGravityRing(0, 0, riftRange, 0xa78bfa, 0.08);
     } else {
         let starMap: THREE.Texture;
         let starEmissiveMap: THREE.Texture | null = null;
@@ -308,7 +331,8 @@ export function spawnPlanetsAndAsteroids() {
     }
 
     // 2. Celestial Bodies (Planets, Constructs, Vortices, Captured Stars)
-    activeSystem.planets.forEach((p, idx) => {
+    const planetsList = activeSystem.planets || [];
+    planetsList.forEach((p, idx) => {
         const scaledDist = 110.0 + (p.distance * 3.8) + (idx * 55.0);
         const angle = (idx * 1.8) + (STATE.currentSystemId * 0.5);
         const px = scaledDist * Math.cos(angle);
@@ -818,7 +842,7 @@ export function spawnVoyagerProbe() {
 // INTERSTELLAR SYSTEM DEPARTURE (SPOOLING & FOLD PUNCH)
 // ----------------------------------------------------------------------------
 
-export function initiateSystemDeparture(fromSys: any, targetSys: any) {
+export function initiateSystemDeparture(fromSys: any, targetSys: any, resolution?: JumpResolution | null) {
     if (!targetSys) return;
 
     // 1. Calculate departure vector pointing towards target system
@@ -843,9 +867,15 @@ export function initiateSystemDeparture(fromSys: any, targetSys: any) {
     STATE.systemDepartureMaxTime = 1.6;
     STATE.systemDepartureDirection.copy(departureDir);
     STATE.systemDepartureTarget = targetSys;
+    STATE.systemDepartureOrigin = fromSys;
+    STATE.systemDepartureResolution = resolution || null;
 
     // 4. Log & Spool-up Audio
-    addLogEntry("NAV", `🌀 FALTUNGS-SEQUENZ INITIIERT: Vektor nach ${targetSys.name} (${targetSys.sectorName || 'Sektor'}) arretiert. Raumzeit-Krümmung lädt...`);
+    if (resolution && !resolution.success) {
+        addLogEntry("NAV", `⚠️ INSTABILE FALTUNG INITIIERT: Vektor nach ${targetSys.name} forciert. Psionische Raumzeit-Interferenzen festgestellt!`);
+    } else {
+        addLogEntry("NAV", `🌀 FALTUNGS-SEQUENZ INITIIERT: Vektor nach ${targetSys.name} (${targetSys.sectorName || 'Sektor'}) arretiert. Raumzeit-Krümmung lädt...`);
+    }
     playWarpSpoolSound();
 }
 
@@ -853,7 +883,7 @@ export function initiateSystemDeparture(fromSys: any, targetSys: any) {
 // INTERSTELLAR SYSTEM ARRIVAL & WARP-DROPOUT CONTROLLER
 // ----------------------------------------------------------------------------
 
-export function initiateSystemArrival(fromSys: any, targetSys: any) {
+export function initiateSystemArrival(fromSys: any, targetSys: any, resolution?: JumpResolution | null) {
     if (!targetSys) return;
 
     // 1. Calculate directional arrival vector from Galaxy Map transit
@@ -864,7 +894,8 @@ export function initiateSystemArrival(fromSys: any, targetSys: any) {
         inboundAngle = Math.atan2(-dz, -dx);
     }
 
-    const entryDist = 150.0; // Outer rim perimeter (safe from inner solar orbits)
+    // Dynamic arrival distance based on precision resolution (Safe Outer Rim: 150; Corona: 34; Belt: 76)
+    const entryDist = (resolution && resolution.arrivalDistance) ? resolution.arrivalDistance : 150.0;
     const entryX = Math.cos(inboundAngle) * entryDist;
     const entryZ = Math.sin(inboundAngle) * entryDist;
 
@@ -918,14 +949,29 @@ export function initiateSystemArrival(fromSys: any, targetSys: any) {
         addLogEntry("NAV", `📡 SPRUNGTOR-SIGNAL ERFASST: Navigations-Vektor autorisiert durch ${dominantFactionName}. Willkommen im System ${targetSys.name}.`);
     } else {
         STATE.incomingJumpGate = null;
-        addLogEntry("NAV", `🌌 WARP-AUSTRITT: Unkartierter Raumsektor erreicht. Faltungsfeld kollabiert. Eintrittsvektor stabil.`);
+        if (resolution && resolution.hazardType === 'deep_void') {
+            addLogEntry("NAV", `🌌 SUBRAUM-KOLLAPS: Faltungsfeld vorzeitig zusammengebrochen! Du bist im interstellaren Leerraum gestrandet!`);
+            addLogEntry("NAV", `💡 Überlebens-Direktive: Schöpfe Bio-Energie am Subraum-Riss ab und öffne die Sternenkarte [M], um einen Rettungssprung zu wagen!`);
+            playMisfoldWarningSound();
+        } else if (resolution && resolution.hazardType === 'solar_corona') {
+            addLogEntry("NAV", `🔥 PERIHEL-NOTFALL-DROPOUT: Faltungsfeld kollabiert direkt vor der glühenden Sonnenkorona! Extreme Strahlung! Kurs abdrehen!`);
+            playMisfoldWarningSound();
+        } else if (resolution && resolution.hazardType === 'asteroid_belt') {
+            addLogEntry("NAV", `💥 WARP-FEHLKOLLAPS: Austritt inmitten eines dichten Asteroidengürtels! Kollisionsalarm!`);
+            playMisfoldWarningSound();
+        } else if (resolution && resolution.isDrift) {
+            addLogEntry("NAV", resolution.message);
+            playMisfoldWarningSound();
+        } else {
+            addLogEntry("NAV", `🌌 WARP-AUSTRITT: Unkartierter Raumsektor erreicht. Faltungsfeld kollabiert. Eintrittsvektor stabil.`);
+        }
     }
 
     // 4. Acoustic Warp Exit Soundscape (Deep Sub-Bass & Vacuum Whoosh)
     playWarpDropoutSound();
 
     // 5. Trigger Cinematic System Arrival Banner
-    triggerSystemArrivalBanner(targetSys, dominantFactionName);
+    triggerSystemArrivalBanner(targetSys, dominantFactionName, resolution);
 
     // 6. Auto-Save on System Arrival
     triggerAutoSave(`Ankunft in ${targetSys.name}`);
