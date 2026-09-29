@@ -178,6 +178,7 @@ import {
     findDriftCandidateSystems,
     createDeepVoidSystem 
 } from '../src/systems/warp-calculator';
+import { warpToSystem } from '../src/systems/galaxy-map';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -2296,7 +2297,8 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(safeTelemetry.inSafeRange).toBe(true);
         expect(safeTelemetry.canReach).toBe(true);
         expect(safeTelemetry.precision).toBe(100);
-        expect(safeTelemetry.mentalCost).toBe(0);
+        expect(safeTelemetry.mentalCost).toBeGreaterThan(0);
+        expect(safeTelemetry.bioCost).toBe(0);
         expect(safeTelemetry.stability).toBe('stable');
 
         // 2. Overreach Jump (Natural decay without buffs)
@@ -2306,7 +2308,8 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(baseOverreach.canReach).toBe(true);
         expect(baseOverreach.precision).toBeLessThan(100);
         expect(baseOverreach.precision).toBeGreaterThanOrEqual(10);
-        expect(baseOverreach.mentalCost).toBeGreaterThan(0);
+        expect(baseOverreach.mentalCost).toBeGreaterThan(safeTelemetry.mentalCost);
+        expect(baseOverreach.bioCost).toBe(0);
         expect(baseOverreach.overreachLY).toBe(50);
 
         // 3. High Mental Clarity Bonus (+10%)
@@ -2470,6 +2473,56 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         const distFromCenter = Math.sqrt(STATE.playerPosition.x ** 2 + STATE.playerPosition.z ** 2);
         expect(distFromCenter).toBeCloseTo(110.0, 1);
         expect(STATE.systemArrivalActive).toBe(true);
+    });
+
+    test("40. Psionic Space-Folding Resource Economy: Star jumps consume Mentalkraft, preserve Bio-Energy for locomotion, and Subspace Rifts siphon mental energy", () => {
+        const originSys = { id: 1, name: "Sol", x: 0, z: 0, star: { type: 'Yellow Sun', size: 12, mass: 100, color: '0xffd700' }, planets: [] } as any;
+        const targetSys = { id: 2, name: "Alpha Centauri", x: 40, z: 0, star: { type: 'Yellow Sun', size: 12, mass: 100, color: '0xffd700' }, planets: [] } as any;
+
+        STATE.universe = { systems: [originSys, targetSys] } as any;
+        STATE.currentSystemId = 1;
+        STATE.warpRange = 90;
+        STATE.bioEnergy = 80;
+        STATE.mentalEnergy = 100;
+        STATE.maxMentalEnergy = 100;
+
+        const telemetry = calculateJumpPrecision(originSys, targetSys);
+        expect(telemetry.inSafeRange).toBe(true);
+        expect(telemetry.mentalCost).toBeGreaterThan(20);
+        expect(telemetry.bioCost).toBe(0);
+
+        // 1. Successful Warp consumes Mentalkraft while Bio-Energy remains intact
+        const initialBio = STATE.bioEnergy;
+        const expectedMental = STATE.mentalEnergy - telemetry.mentalCost;
+
+        warpToSystem(targetSys.id);
+
+        expect(STATE.mentalEnergy).toBe(expectedMental);
+        expect(STATE.bioEnergy).toBe(initialBio); // Bio-energy strictly untouched!
+
+        // 2. Insufficient Mentalkraft blocks space-folding
+        STATE.mentalEnergy = 5; // Far below required mentalCost (~25)
+        const blockedMental = STATE.mentalEnergy;
+        warpToSystem(targetSys.id);
+        expect(STATE.mentalEnergy).toBe(blockedMental); // No warp occurred, energy untouched
+
+        // 3. Subspace Rift (Plasma-Wirbel) assimilation restores Mentalkraft
+        const subspaceRiftPlanet: any = {
+            name: "Subraum-Wirbel Epsilon",
+            type: "Plasma-Wirbel",
+            size: 3.5,
+            scanned: true,
+            harvested: false,
+            mesh: { position: new THREE.Vector3(0, 0, 0), scale: { x: 1 } },
+            attributes: { atmos: "Subraum-Plasma", bio: "Hochenergetisch", res: "Exotische Materie" }
+        };
+
+        STATE.extractingPlanet = subspaceRiftPlanet;
+        STATE.harvestProgress = 100;
+        completeHarvesting();
+
+        expect(subspaceRiftPlanet.harvested).toBe(true);
+        expect(STATE.mentalEnergy).toBe(blockedMental + 35); // Recharged +35 Mentalkraft
     });
 });
 

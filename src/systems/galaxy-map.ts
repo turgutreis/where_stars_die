@@ -249,13 +249,13 @@ export function renderGalaxyMap() {
             let strokeColor = 'rgba(56, 189, 248, 0.65)';
             let pulseColor = '#38bdf8';
             let badgeTextColor = '#38bdf8';
-            let badgeText = `${telemetry.dist} LJ • 100% Stabil • -${telemetry.bioCost}% Bio`;
+            let badgeText = `${telemetry.dist} LJ • 100% Stabil • -${telemetry.mentalCost} Psi`;
 
             if (!telemetry.inSafeRange && telemetry.canReach) {
                 strokeColor = telemetry.stability === 'moderate' ? 'rgba(245, 158, 11, 0.75)' : 'rgba(239, 68, 68, 0.8)';
                 pulseColor = telemetry.stability === 'moderate' ? '#f59e0b' : '#ef4444';
                 badgeTextColor = telemetry.stability === 'moderate' ? '#fbbf24' : '#f87171';
-                badgeText = `${telemetry.dist} LJ • ${telemetry.precision}% Präzision • -${telemetry.bioCost}% Bio`;
+                badgeText = `${telemetry.dist} LJ • ${telemetry.precision}% Präzision • -${telemetry.mentalCost} Psi`;
             } else if (!telemetry.canReach) {
                 strokeColor = 'rgba(239, 68, 68, 0.45)';
                 pulseColor = '#ef4444';
@@ -959,26 +959,20 @@ export function updateSystemDetails(sys: StarSystem | null) {
             warpBtn.innerText = `❌ Zu weit entfernt (${telemetry.dist} / Max ${telemetry.maxRange} LJ)`;
             warpBtn.style.opacity = "0.5";
             warpBtn.style.pointerEvents = "none";
-        } else if (STATE.bioEnergy < telemetry.bioCost) {
-            warpBtn.disabled = true;
-            warpBtn.innerText = `⚡ Zu wenig Bio-Energie (${telemetry.bioCost}% nötig)`;
-            warpBtn.style.opacity = "0.5";
-            warpBtn.style.pointerEvents = "none";
-        } else if (telemetry.mentalCost > 0 && STATE.mentalEnergy < telemetry.mentalCost) {
+        } else if (STATE.mentalEnergy < telemetry.mentalCost) {
             warpBtn.disabled = true;
             warpBtn.innerText = `🧠 Zu wenig Mentalkraft (${telemetry.mentalCost} nötig)`;
             warpBtn.style.opacity = "0.5";
             warpBtn.style.pointerEvents = "none";
         } else if (telemetry.inSafeRange) {
             warpBtn.disabled = false;
-            warpBtn.innerText = `🌀 Quantenfeld falten (${telemetry.dist} LJ | -${telemetry.bioCost}% Energie)`;
+            warpBtn.innerText = `🌀 Quantenfeld falten (${telemetry.dist} LJ | -${telemetry.mentalCost} Mentalkraft)`;
             warpBtn.style.opacity = "1";
             warpBtn.style.pointerEvents = "auto";
         } else {
             warpBtn.disabled = false;
             warpBtn.classList.add(telemetry.stability === 'moderate' ? 'risky-warp' : 'critical-warp');
-            const psiStr = telemetry.mentalCost > 0 ? ` / -${telemetry.mentalCost} Psi` : '';
-            warpBtn.innerText = `⚡ Instabiler Sprung (${telemetry.dist} LJ | ${telemetry.precision}% Präzision | -${telemetry.bioCost}% Bio${psiStr})`;
+            warpBtn.innerText = `⚡ Instabiler Sprung (${telemetry.dist} LJ | ${telemetry.precision}% Präzision | -${telemetry.mentalCost} Mentalkraft)`;
             warpBtn.style.opacity = "1";
             warpBtn.style.pointerEvents = "auto";
         }
@@ -993,16 +987,13 @@ export function warpToSystem(systemId: number) {
 
     const telemetry = calculateJumpPrecision(currentSys, targetSys);
 
-    if (!telemetry.canReach || STATE.bioEnergy < telemetry.bioCost || (telemetry.mentalCost > 0 && STATE.mentalEnergy < telemetry.mentalCost)) {
+    if (!telemetry.canReach || STATE.mentalEnergy < telemetry.mentalCost) {
         playCrashSound();
-        addLogEntry("SYSTEM", `Warp-Fehlschlag: Ziel außerhalb der Reichweite oder unzureichende Bio-/Mentalenergie!`);
+        addLogEntry("SYSTEM", `Warp-Fehlschlag: Ziel außerhalb der Reichweite oder unzureichende Mentalkraft!`);
         return;
     }
 
-    STATE.bioEnergy = Math.max(0, STATE.bioEnergy - telemetry.bioCost);
-    if (telemetry.mentalCost > 0) {
-        STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - telemetry.mentalCost);
-    }
+    STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - telemetry.mentalCost);
 
     // Close Galaxy Map immediately so player enters full 3D space in current system
     if (mapOpen) {
@@ -1014,9 +1005,9 @@ export function warpToSystem(systemId: number) {
 
     // Log departure in HUD
     if (telemetry.inSafeRange) {
-        addLogEntry("SYSTEM", `🌌 RAUMZEIT-FALTUNG INITIIERT: Kurs gesetzt auf ${targetSys.name} (${targetSys.sectorName || 'Sektor'}). -${telemetry.bioCost}% Bio-Energie.`);
+        addLogEntry("SYSTEM", `🌌 RAUMZEIT-FALTUNG INITIIERT: Kurs gesetzt auf ${targetSys.name} (${targetSys.sectorName || 'Sektor'}). -${telemetry.mentalCost} Mentalkraft.`);
     } else {
-        addLogEntry("SYSTEM", `⚡ ÜBERDEHNTE PSIONISCHE FALTUNG: Kurs auf ${targetSys.name} (${telemetry.dist} LJ). Präzision: ${telemetry.precision}%. -${telemetry.bioCost}% Bio | -${telemetry.mentalCost} Mentalkraft.`);
+        addLogEntry("SYSTEM", `⚡ ÜBERDEHNTE PSIONISCHE FALTUNG: Kurs auf ${targetSys.name} (${telemetry.dist} LJ). Präzision: ${telemetry.precision}%. -${telemetry.mentalCost} Mentalkraft.`);
     }
 
     // Initiate Departure Sequence in the starting/current system!

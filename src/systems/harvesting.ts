@@ -152,6 +152,13 @@ export function completeHarvesting() {
             addLogEntry("SYSTEM", `✨ MELANGE-EXTRAKTION: Das heilige Gewürz von Arrakis durchströmt Najmafars Zellkerne! (+${spiceBioBonus} Melange-Biomasse | +${spicePsiBonus} Psionik).`);
         }
 
+        // Subspace Rift (Plasma-Wirbel) in Deep Void: Siphoning reality tears recharges mental/psionic energy
+        if (planet.type === 'Plasma-Wirbel') {
+            const psiGain = 35;
+            STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + psiGain);
+            addLogEntry("SYSTEM", `🌀 SUBRAUM-SIPHON: Raumzeit-Fluktuation aus ${planet.name} absorbiert! +${psiGain} Mentalkraft (Raumzeit-Faltung wieder möglich).`);
+        }
+
         addLogEntry("SYSTEM", `Assimilation von ${planet.name} abgeschlossen! +${bioGain} Biomasse | +${silGain} Silizium absorbiert. Vorkommen erschöpft.`);
         updateMutationUI();
     }

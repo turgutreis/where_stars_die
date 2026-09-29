@@ -41039,7 +41039,7 @@ function calculateJumpPrecision(fromSys, targetSys) {
   const canReach = dist <= maxRange;
   const costMult = STATE.mutations.folddrive && STATE.mutations.folddrive.purchased ? 0.7 : 1;
   if (inSafeRange) {
-    const bioCost2 = Math.round((15 + dist * 0.15) * costMult);
+    const mentalCost2 = Math.round((18 + dist * 0.18) * costMult);
     return {
       dist: Number(dist.toFixed(1)),
       safeRange,
@@ -41047,8 +41047,8 @@ function calculateJumpPrecision(fromSys, targetSys) {
       inSafeRange: true,
       canReach: true,
       precision: 100,
-      bioCost: bioCost2,
-      mentalCost: 0,
+      bioCost: 0,
+      mentalCost: mentalCost2,
       overreachLY: 0,
       stability: "stable",
       telepathyBonus: 0,
@@ -41058,7 +41058,6 @@ function calculateJumpPrecision(fromSys, targetSys) {
   }
   const overreachLY = dist - safeRange;
   if (!canReach) {
-    const bioCost2 = Math.round((15 + dist * 0.15) * costMult);
     return {
       dist: Number(dist.toFixed(1)),
       safeRange,
@@ -41066,8 +41065,8 @@ function calculateJumpPrecision(fromSys, targetSys) {
       inSafeRange: false,
       canReach: false,
       precision: 0,
-      bioCost: bioCost2,
-      mentalCost: 40,
+      bioCost: 0,
+      mentalCost: 50,
       overreachLY: Number(overreachLY.toFixed(1)),
       stability: "unreachable",
       telepathyBonus: 0,
@@ -41109,9 +41108,8 @@ function calculateJumpPrecision(fromSys, targetSys) {
   }
   const rawPrecision = basePrec + telepathyBonus + mentalClarityBonus + mutationBonus;
   const finalPrecision = Math.round(Math.max(8, Math.min(99, rawPrecision)));
-  const extraBioEnergy = Math.pow(k, 1.35) * 32;
-  const bioCost = Math.round((15 + dist * 0.15 + extraBioEnergy) * costMult);
-  const mentalCost = Math.round(12 + k * 28);
+  const mentalCost = Math.round((18 + dist * 0.18 + Math.pow(k, 1.35) * 36) * costMult);
+  const bioCost = 0;
   const stability = finalPrecision >= 75 ? "moderate" : "critical";
   return {
     dist: Number(dist.toFixed(1)),
@@ -41504,12 +41502,12 @@ function renderGalaxyMap() {
       let strokeColor = "rgba(56, 189, 248, 0.65)";
       let pulseColor = "#38bdf8";
       let badgeTextColor = "#38bdf8";
-      let badgeText = `${telemetry.dist} LJ • 100% Stabil • -${telemetry.bioCost}% Bio`;
+      let badgeText = `${telemetry.dist} LJ • 100% Stabil • -${telemetry.mentalCost} Psi`;
       if (!telemetry.inSafeRange && telemetry.canReach) {
         strokeColor = telemetry.stability === "moderate" ? "rgba(245, 158, 11, 0.75)" : "rgba(239, 68, 68, 0.8)";
         pulseColor = telemetry.stability === "moderate" ? "#f59e0b" : "#ef4444";
         badgeTextColor = telemetry.stability === "moderate" ? "#fbbf24" : "#f87171";
-        badgeText = `${telemetry.dist} LJ • ${telemetry.precision}% Präzision • -${telemetry.bioCost}% Bio`;
+        badgeText = `${telemetry.dist} LJ • ${telemetry.precision}% Präzision • -${telemetry.mentalCost} Psi`;
       } else if (!telemetry.canReach) {
         strokeColor = "rgba(239, 68, 68, 0.45)";
         pulseColor = "#ef4444";
@@ -42152,26 +42150,20 @@ function updateSystemDetails(sys) {
       warpBtn.innerText = `❌ Zu weit entfernt (${telemetry.dist} / Max ${telemetry.maxRange} LJ)`;
       warpBtn.style.opacity = "0.5";
       warpBtn.style.pointerEvents = "none";
-    } else if (STATE.bioEnergy < telemetry.bioCost) {
-      warpBtn.disabled = true;
-      warpBtn.innerText = `⚡ Zu wenig Bio-Energie (${telemetry.bioCost}% nötig)`;
-      warpBtn.style.opacity = "0.5";
-      warpBtn.style.pointerEvents = "none";
-    } else if (telemetry.mentalCost > 0 && STATE.mentalEnergy < telemetry.mentalCost) {
+    } else if (STATE.mentalEnergy < telemetry.mentalCost) {
       warpBtn.disabled = true;
       warpBtn.innerText = `\uD83E\uDDE0 Zu wenig Mentalkraft (${telemetry.mentalCost} nötig)`;
       warpBtn.style.opacity = "0.5";
       warpBtn.style.pointerEvents = "none";
     } else if (telemetry.inSafeRange) {
       warpBtn.disabled = false;
-      warpBtn.innerText = `\uD83C\uDF00 Quantenfeld falten (${telemetry.dist} LJ | -${telemetry.bioCost}% Energie)`;
+      warpBtn.innerText = `\uD83C\uDF00 Quantenfeld falten (${telemetry.dist} LJ | -${telemetry.mentalCost} Mentalkraft)`;
       warpBtn.style.opacity = "1";
       warpBtn.style.pointerEvents = "auto";
     } else {
       warpBtn.disabled = false;
       warpBtn.classList.add(telemetry.stability === "moderate" ? "risky-warp" : "critical-warp");
-      const psiStr = telemetry.mentalCost > 0 ? ` / -${telemetry.mentalCost} Psi` : "";
-      warpBtn.innerText = `⚡ Instabiler Sprung (${telemetry.dist} LJ | ${telemetry.precision}% Präzision | -${telemetry.bioCost}% Bio${psiStr})`;
+      warpBtn.innerText = `⚡ Instabiler Sprung (${telemetry.dist} LJ | ${telemetry.precision}% Präzision | -${telemetry.mentalCost} Mentalkraft)`;
       warpBtn.style.opacity = "1";
       warpBtn.style.pointerEvents = "auto";
     }
@@ -42185,23 +42177,20 @@ function warpToSystem(systemId) {
   if (!targetSys)
     return;
   const telemetry = calculateJumpPrecision(currentSys, targetSys);
-  if (!telemetry.canReach || STATE.bioEnergy < telemetry.bioCost || telemetry.mentalCost > 0 && STATE.mentalEnergy < telemetry.mentalCost) {
+  if (!telemetry.canReach || STATE.mentalEnergy < telemetry.mentalCost) {
     playCrashSound();
-    addLogEntry("SYSTEM", `Warp-Fehlschlag: Ziel außerhalb der Reichweite oder unzureichende Bio-/Mentalenergie!`);
+    addLogEntry("SYSTEM", `Warp-Fehlschlag: Ziel außerhalb der Reichweite oder unzureichende Mentalkraft!`);
     return;
   }
-  STATE.bioEnergy = Math.max(0, STATE.bioEnergy - telemetry.bioCost);
-  if (telemetry.mentalCost > 0) {
-    STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - telemetry.mentalCost);
-  }
+  STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - telemetry.mentalCost);
   if (mapOpen) {
     toggleGalaxyMap();
   }
   const resolution = resolveJumpOutcome(telemetry, targetSys, currentSys, STATE.universe);
   if (telemetry.inSafeRange) {
-    addLogEntry("SYSTEM", `\uD83C\uDF0C RAUMZEIT-FALTUNG INITIIERT: Kurs gesetzt auf ${targetSys.name} (${targetSys.sectorName || "Sektor"}). -${telemetry.bioCost}% Bio-Energie.`);
+    addLogEntry("SYSTEM", `\uD83C\uDF0C RAUMZEIT-FALTUNG INITIIERT: Kurs gesetzt auf ${targetSys.name} (${targetSys.sectorName || "Sektor"}). -${telemetry.mentalCost} Mentalkraft.`);
   } else {
-    addLogEntry("SYSTEM", `⚡ ÜBERDEHNTE PSIONISCHE FALTUNG: Kurs auf ${targetSys.name} (${telemetry.dist} LJ). Präzision: ${telemetry.precision}%. -${telemetry.bioCost}% Bio | -${telemetry.mentalCost} Mentalkraft.`);
+    addLogEntry("SYSTEM", `⚡ ÜBERDEHNTE PSIONISCHE FALTUNG: Kurs auf ${targetSys.name} (${telemetry.dist} LJ). Präzision: ${telemetry.precision}%. -${telemetry.mentalCost} Mentalkraft.`);
   }
   initiateSystemDeparture(currentSys, targetSys, resolution);
 }
@@ -42325,6 +42314,11 @@ function completeHarvesting() {
       STATE.bioRes += spiceBioBonus;
       STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + spicePsiBonus);
       addLogEntry("SYSTEM", `✨ MELANGE-EXTRAKTION: Das heilige Gewürz von Arrakis durchströmt Najmafars Zellkerne! (+${spiceBioBonus} Melange-Biomasse | +${spicePsiBonus} Psionik).`);
+    }
+    if (planet.type === "Plasma-Wirbel") {
+      const psiGain = 35;
+      STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + psiGain);
+      addLogEntry("SYSTEM", `\uD83C\uDF00 SUBRAUM-SIPHON: Raumzeit-Fluktuation aus ${planet.name} absorbiert! +${psiGain} Mentalkraft (Raumzeit-Faltung wieder möglich).`);
     }
     addLogEntry("SYSTEM", `Assimilation von ${planet.name} abgeschlossen! +${bioGain} Biomasse | +${silGain} Silizium absorbiert. Vorkommen erschöpft.`);
     updateMutationUI();

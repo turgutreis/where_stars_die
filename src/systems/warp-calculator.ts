@@ -35,7 +35,7 @@ export function calculateJumpPrecision(fromSys: StarSystem, targetSys: StarSyste
     const costMult = STATE.mutations.folddrive && STATE.mutations.folddrive.purchased ? 0.7 : 1.0;
 
     if (inSafeRange) {
-        const bioCost = Math.round((15 + dist * 0.15) * costMult);
+        const mentalCost = Math.round((18 + dist * 0.18) * costMult);
         return {
             dist: Number(dist.toFixed(1)),
             safeRange,
@@ -43,8 +43,8 @@ export function calculateJumpPrecision(fromSys: StarSystem, targetSys: StarSyste
             inSafeRange: true,
             canReach: true,
             precision: 100,
-            bioCost,
-            mentalCost: 0,
+            bioCost: 0,
+            mentalCost,
             overreachLY: 0,
             stability: 'stable',
             telepathyBonus: 0,
@@ -56,7 +56,6 @@ export function calculateJumpPrecision(fromSys: StarSystem, targetSys: StarSyste
     const overreachLY = dist - safeRange;
 
     if (!canReach) {
-        const bioCost = Math.round((15 + dist * 0.15) * costMult);
         return {
             dist: Number(dist.toFixed(1)),
             safeRange,
@@ -64,8 +63,8 @@ export function calculateJumpPrecision(fromSys: StarSystem, targetSys: StarSyste
             inSafeRange: false,
             canReach: false,
             precision: 0,
-            bioCost,
-            mentalCost: 40,
+            bioCost: 0,
+            mentalCost: 50,
             overreachLY: Number(overreachLY.toFixed(1)),
             stability: 'unreachable',
             telepathyBonus: 0,
@@ -125,10 +124,9 @@ export function calculateJumpPrecision(fromSys: StarSystem, targetSys: StarSyste
     const rawPrecision = basePrec + telepathyBonus + mentalClarityBonus + mutationBonus;
     const finalPrecision = Math.round(Math.max(8, Math.min(99, rawPrecision)));
 
-    // Increased Bio-Energy and Mental Energy toll for folding space beyond natural capacity
-    const extraBioEnergy = Math.pow(k, 1.35) * 32.0;
-    const bioCost = Math.round((15 + dist * 0.15 + extraBioEnergy) * costMult);
-    const mentalCost = Math.round(12 + k * 28.0);
+    // Increased Mental Energy toll for folding space beyond natural capacity
+    const mentalCost = Math.round((18 + dist * 0.18 + Math.pow(k, 1.35) * 36) * costMult);
+    const bioCost = 0;
 
     const stability: JumpStability = finalPrecision >= 75 ? 'moderate' : 'critical';
 
