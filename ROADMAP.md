@@ -109,7 +109,8 @@ graph TD
     D --> E["v0.16.0-alpha<br>PBR Planetengrafik, Licht-Dramaturgie & Ringfinsternisse"]
     E --> F["v0.17.0-alpha<br>Bio-Schiff-Evolution, Synapsen-Skilltree & Flotten-Verteidigung"]
     F --> G["v0.18.0-alpha<br>Persistente Speicherstände, Auto-Save & Playtest-Profile"]
-    G --> H["v1.0.0-beta<br>Sol-System, Story-Finale, Settings & Audio-Polish"]
+    G --> H["v0.19.0-alpha<br>Psionische Raumzeit-Faltung, Überdehnungsrisiken & Deep Void"]
+    H --> I["v1.0.0-beta<br>Sol-System, Story-Finale, Settings & Audio-Polish"]
 ```
 
 | Version | Meilenstein | Haupt-Inhalte |
@@ -120,6 +121,7 @@ graph TD
 | **v0.16.0** | **PBR-Grafik & Schatten** | • Procedural High-Res PBR Planeten- & Mond-Shader<br>• Realistische Sternen-Licht-Dramaturgie & Color Grading Profile<br>• Echte Ringfinsternisse & Planetenschattenwurf |
 | **v0.17.0** | **Bio-Schiff-Evolution & Flotten** | • Organischer Synapsen-Skilltree (Zerg/Vorlonen Biomechanik)<br>• Kokon-Kapazitätsskalierung (4 → 30), Spezies-Clustering & Triad-Paradigmen<br>• Raumfahrende Flotten-Verteidigung (Patrouille, EMP-Discharge, Bergung)<br>• Strahlungs-Hazard-Telemetrie & entschlacktes Minimap-Radar-Navigationssystem |
 | **v0.18.0** | **Save/Load & Playtest-Profile** | • Persistentes Speichersystem (Dual Electron fs / LocalStorage)<br>• Auto-Save bei Sternen-Transit & Evolutionen<br>• Playtest-Presets (Starter, Kollektiv 10, Leviathan 30)<br>• Hierarchisches ESC-Pausen- & Speicher-Menü |
+| **v0.19.0** | **Psionische Faltung & Deep Void** | • Trennung von Bio-Energie (Flug) und Mentalkraft (Raumzeit-Faltung)<br>• Präzisionsberechnung, Überdehnungsrisiko & Gravitationsabdrift<br>• Interstellarer Leerraum (Deep Void) mit Subraum-Singularität & Rifts |
 | **v1.0.0-beta**| **Sol-System & Story-Finale** | • Pulsar-Navigationsnetz zur Erde<br>• Finale Boss- / Entscheidungskonfrontation im Sol-System<br>• Vollständige deutsche & englische Lokalisierung |
 
 ---
