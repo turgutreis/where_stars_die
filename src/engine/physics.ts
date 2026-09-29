@@ -313,13 +313,20 @@ export function updatePhysics(dt: number) {
         if (STATE.systemDepartureTimer <= 0) {
             STATE.systemDepartureActive = false;
             const targetSys = STATE.systemDepartureTarget;
-            const fromSys = STATE.universe?.systems.find(s => s.id === STATE.currentSystemId) || STATE.universe?.systems[0];
+            const fromSys = STATE.systemDepartureOrigin || STATE.universe?.systems.find(s => s.id === STATE.currentSystemId) || STATE.universe?.systems[0];
+            const resolution = STATE.systemDepartureResolution;
+            const actualSys = resolution ? resolution.actualSystem : targetSys;
 
             playWarpSnapSound();
 
             const warpFlash = document.getElementById('warp-flash');
             if (warpFlash) {
                 warpFlash.style.display = 'block';
+                if (resolution && !resolution.success) {
+                    warpFlash.style.background = 'radial-gradient(circle, rgba(244, 63, 94, 0.95) 0%, rgba(168, 85, 247, 0.9) 50%, rgba(3, 7, 18, 0.95) 100%)';
+                } else {
+                    warpFlash.style.background = 'radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(56, 189, 248, 0.85) 45%, rgba(3, 7, 18, 0.95) 100%)';
+                }
                 warpFlash.style.opacity = '0.95';
                 setTimeout(() => {
                     warpFlash.style.opacity = '0';
@@ -329,11 +336,16 @@ export function updatePhysics(dt: number) {
                 }, 60);
             }
 
-            if (targetSys) {
-                STATE.currentSystemId = targetSys.id;
+            if (actualSys) {
+                STATE.currentSystemId = actualSys.id;
+                STATE.systemsVisited++;
+                if (!STATE.visitedSystemIds) STATE.visitedSystemIds = [];
+                if (!STATE.visitedSystemIds.includes(actualSys.id)) {
+                    STATE.visitedSystemIds.push(actualSys.id);
+                }
                 clearActiveSystem();
                 spawnPlanetsAndAsteroids();
-                initiateSystemArrival(fromSys, targetSys);
+                initiateSystemArrival(fromSys, actualSys, resolution);
             }
         }
     } else if (STATE.systemArrivalActive) {

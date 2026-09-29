@@ -33404,6 +33404,49 @@ function playWarpSnapSound() {
   impactOsc.start(time);
   impactOsc.stop(time + 0.4);
 }
+function playMisfoldWarningSound() {
+  const ctx = getAudioContext();
+  if (!ctx)
+    return;
+  const time = ctx.currentTime;
+  const osc1 = ctx.createOscillator();
+  const osc2 = ctx.createOscillator();
+  const droneGain = ctx.createGain();
+  osc1.type = "sawtooth";
+  osc2.type = "sawtooth";
+  osc1.frequency.setValueAtTime(185, time);
+  osc2.frequency.setValueAtTime(261.6, time);
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(320, time);
+  filter.Q.setValueAtTime(3, time);
+  droneGain.gain.setValueAtTime(0, time);
+  droneGain.gain.linearRampToValueAtTime(0.18, time + 0.05);
+  droneGain.gain.linearRampToValueAtTime(0.04, time + 0.35);
+  droneGain.gain.linearRampToValueAtTime(0.16, time + 0.65);
+  droneGain.gain.exponentialRampToValueAtTime(0.001, time + 1.2);
+  osc1.connect(filter);
+  osc2.connect(filter);
+  filter.connect(droneGain);
+  droneGain.connect(ctx.destination);
+  osc1.start(time);
+  osc1.stop(time + 1.25);
+  osc2.start(time);
+  osc2.stop(time + 1.25);
+  const subOsc = ctx.createOscillator();
+  const subGain = ctx.createGain();
+  subOsc.type = "sine";
+  subOsc.frequency.setValueAtTime(95, time);
+  if (subOsc.frequency.exponentialRampToValueAtTime) {
+    subOsc.frequency.exponentialRampToValueAtTime(22, time + 0.8);
+  }
+  subGain.gain.setValueAtTime(0.25, time);
+  subGain.gain.exponentialRampToValueAtTime(0.001, time + 0.85);
+  subOsc.connect(subGain);
+  subGain.connect(ctx.destination);
+  subOsc.start(time);
+  subOsc.stop(time + 0.9);
+}
 function playHeartbeatPulse() {
   const ctx = getAudioContext();
   if (!ctx)
@@ -39555,7 +39598,7 @@ function spawnVoyagerProbe() {
   STATE.voyagerProbe = probeObj;
   STATE.gravitySources.push(probeObj);
 }
-function initiateSystemDeparture(fromSys, targetSys) {
+function initiateSystemDeparture(fromSys, targetSys, resolution) {
   if (!targetSys)
     return;
   const departureDir = new Vector3(1, 0, 0);
@@ -39575,10 +39618,16 @@ function initiateSystemDeparture(fromSys, targetSys) {
   STATE.systemDepartureMaxTime = 1.6;
   STATE.systemDepartureDirection.copy(departureDir);
   STATE.systemDepartureTarget = targetSys;
-  addLogEntry("NAV", `\uD83C\uDF00 FALTUNGS-SEQUENZ INITIIERT: Vektor nach ${targetSys.name} (${targetSys.sectorName || "Sektor"}) arretiert. Raumzeit-Krümmung lädt...`);
+  STATE.systemDepartureOrigin = fromSys;
+  STATE.systemDepartureResolution = resolution || null;
+  if (resolution && !resolution.success) {
+    addLogEntry("NAV", `⚠️ INSTABILE FALTUNG INITIIERT: Vektor nach ${targetSys.name} forciert. Psionische Raumzeit-Interferenzen festgestellt!`);
+  } else {
+    addLogEntry("NAV", `\uD83C\uDF00 FALTUNGS-SEQUENZ INITIIERT: Vektor nach ${targetSys.name} (${targetSys.sectorName || "Sektor"}) arretiert. Raumzeit-Krümmung lädt...`);
+  }
   playWarpSpoolSound();
 }
-function initiateSystemArrival(fromSys, targetSys) {
+function initiateSystemArrival(fromSys, targetSys, resolution) {
   if (!targetSys)
     return;
   let inboundAngle = Math.PI * 0.75;
@@ -39587,7 +39636,7 @@ function initiateSystemArrival(fromSys, targetSys) {
     const dz = targetSys.z - fromSys.z;
     inboundAngle = Math.atan2(-dz, -dx);
   }
-  const entryDist = 150;
+  const entryDist = resolution && resolution.arrivalDistance ? resolution.arrivalDistance : 150;
   const entryX = Math.cos(inboundAngle) * entryDist;
   const entryZ = Math.sin(inboundAngle) * entryDist;
   STATE.playerPosition.set(entryX, 0, entryZ);
@@ -39627,10 +39676,21 @@ function initiateSystemArrival(fromSys, targetSys) {
     addLogEntry("NAV", `\uD83D\uDCE1 SPRUNGTOR-SIGNAL ERFASST: Navigations-Vektor autorisiert durch ${dominantFactionName}. Willkommen im System ${targetSys.name}.`);
   } else {
     STATE.incomingJumpGate = null;
-    addLogEntry("NAV", `\uD83C\uDF0C WARP-AUSTRITT: Unkartierter Raumsektor erreicht. Faltungsfeld kollabiert. Eintrittsvektor stabil.`);
+    if (resolution && resolution.hazardType === "solar_corona") {
+      addLogEntry("NAV", `\uD83D\uDD25 PERIHEL-NOTFALL-DROPOUT: Faltungsfeld kollabiert direkt vor der glühenden Sonnenkorona! Extreme Strahlung! Kurs abdrehen!`);
+      playMisfoldWarningSound();
+    } else if (resolution && resolution.hazardType === "asteroid_belt") {
+      addLogEntry("NAV", `\uD83D\uDCA5 WARP-FEHLKOLLAPS: Austritt inmitten eines dichten Asteroidengürtels! Kollisionsalarm!`);
+      playMisfoldWarningSound();
+    } else if (resolution && resolution.isDrift) {
+      addLogEntry("NAV", resolution.message);
+      playMisfoldWarningSound();
+    } else {
+      addLogEntry("NAV", `\uD83C\uDF0C WARP-AUSTRITT: Unkartierter Raumsektor erreicht. Faltungsfeld kollabiert. Eintrittsvektor stabil.`);
+    }
   }
   playWarpDropoutSound();
-  triggerSystemArrivalBanner(targetSys, dominantFactionName);
+  triggerSystemArrivalBanner(targetSys, dominantFactionName, resolution);
   triggerAutoSave(`Ankunft in ${targetSys.name}`);
 }
 
@@ -40846,7 +40906,7 @@ function updateSonarWave(dt) {
   }
 }
 var arrivalBannerTimeout = null;
-function triggerSystemArrivalBanner(system, factionName) {
+function triggerSystemArrivalBanner(system, factionName, resolution) {
   const banner = document.getElementById("system-arrival-banner");
   if (!banner)
     return;
@@ -40861,8 +40921,21 @@ function triggerSystemArrivalBanner(system, factionName) {
   const factionEl = document.getElementById("arrival-faction-badge");
   if (titleEl)
     titleEl.innerText = (system.name || "UNBEKANNT").toUpperCase();
-  if (sectorEl)
-    sectorEl.innerText = system.sectorName ? `${system.sectorName.toUpperCase()} • TRANSIT` : "SYSTEM-TRANSIT ABGESCHLOSSEN";
+  if (sectorEl) {
+    if (resolution && resolution.isDrift) {
+      sectorEl.innerText = `⚠️ PSIONISCHE ABWEICHUNG: DRIFT NACH ${system.name.toUpperCase()}!`;
+      sectorEl.style.color = "#f87171";
+    } else if (resolution && resolution.hazardType === "solar_corona") {
+      sectorEl.innerText = `\uD83D\uDD25 PERIHEL-NOTFALL-DROPOUT: NÄHE DER SONNENKORONA!`;
+      sectorEl.style.color = "#ef4444";
+    } else if (resolution && resolution.hazardType === "asteroid_belt") {
+      sectorEl.innerText = `\uD83D\uDCA5 WARP-FEHLKOLLAPS: ASTEROIDENGÜRTEL-INVASION!`;
+      sectorEl.style.color = "#f97316";
+    } else {
+      sectorEl.innerText = system.sectorName ? `${system.sectorName.toUpperCase()} • TRANSIT` : "SYSTEM-TRANSIT ABGESCHLOSSEN";
+      sectorEl.style.color = "#38bdf8";
+    }
+  }
   if (starEl && system.star) {
     starEl.innerText = `⭐ ${system.star.type || "Zentralgestirn"}`;
   }
@@ -40897,6 +40970,179 @@ function triggerSystemArrivalBanner(system, factionName) {
   }, 4500);
 }
 var cachedEdgeMarkers = new Map;
+
+// src/systems/warp-calculator.ts
+function getEffectiveSafeWarpRange() {
+  return STATE.warpRange || 90;
+}
+function getEffectiveMaxWarpRange() {
+  const safe = getEffectiveSafeWarpRange();
+  return Math.round(safe * 2.15);
+}
+function calculateJumpPrecision(fromSys, targetSys) {
+  const dx = targetSys.x - fromSys.x;
+  const dz = targetSys.z - fromSys.z;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  const safeRange = getEffectiveSafeWarpRange();
+  const maxRange = getEffectiveMaxWarpRange();
+  const inSafeRange = dist <= safeRange;
+  const canReach = dist <= maxRange;
+  const costMult = STATE.mutations.folddrive && STATE.mutations.folddrive.purchased ? 0.7 : 1;
+  if (inSafeRange) {
+    const bioCost2 = Math.round((15 + dist * 0.15) * costMult);
+    return {
+      dist: Number(dist.toFixed(1)),
+      safeRange,
+      maxRange,
+      inSafeRange: true,
+      canReach: true,
+      precision: 100,
+      bioCost: bioCost2,
+      mentalCost: 0,
+      overreachLY: 0,
+      stability: "stable",
+      telepathyBonus: 0,
+      mentalClarityBonus: 0,
+      mutationBonus: 0
+    };
+  }
+  const overreachLY = dist - safeRange;
+  if (!canReach) {
+    const bioCost2 = Math.round((15 + dist * 0.15) * costMult);
+    return {
+      dist: Number(dist.toFixed(1)),
+      safeRange,
+      maxRange,
+      inSafeRange: false,
+      canReach: false,
+      precision: 0,
+      bioCost: bioCost2,
+      mentalCost: 40,
+      overreachLY: Number(overreachLY.toFixed(1)),
+      stability: "unreachable",
+      telepathyBonus: 0,
+      mentalClarityBonus: 0,
+      mutationBonus: 0
+    };
+  }
+  const k = Math.min(1, Math.max(0, overreachLY / Math.max(1, maxRange - safeRange)));
+  let basePrec = 100 - Math.pow(k, 1.2) * 68;
+  let telepathyBonus = 0;
+  const psioBonusVal = STATE.crewBuffs ? STATE.crewBuffs.psionicBonus || 0 : 0;
+  telepathyBonus += Math.min(15, Math.round(psioBonusVal * 0.12));
+  if (STATE.crew && STATE.crew.length > 0) {
+    const telepaths = STATE.crew.filter((c) => c.role === "psychologist" || c.trait?.type === "psionic" || c.station === "dream_weaver");
+    telepathyBonus += Math.min(10, telepaths.length * 3);
+  }
+  telepathyBonus = Math.min(20, telepathyBonus);
+  let mentalClarityBonus = 0;
+  const maxMental = Math.max(1, STATE.maxMentalEnergy || 100);
+  const mentalRatio = (STATE.mentalEnergy || 0) / maxMental;
+  if (mentalRatio >= 0.8) {
+    mentalClarityBonus = 10;
+  } else if (mentalRatio >= 0.5) {
+    mentalClarityBonus = 5;
+  } else if (mentalRatio < 0.25) {
+    mentalClarityBonus = -15;
+  }
+  let mutationBonus = 0;
+  if (STATE.mutations) {
+    if (STATE.mutations.psionic_pulse?.purchased || STATE.mutations.synapses?.purchased) {
+      mutationBonus += 10;
+    }
+    if (STATE.mutations.telepathic_focus?.purchased || STATE.mutations.translator?.purchased) {
+      mutationBonus += 5;
+    }
+    if (STATE.mutations.ibad?.purchased) {
+      mutationBonus += 15;
+    }
+  }
+  const rawPrecision = basePrec + telepathyBonus + mentalClarityBonus + mutationBonus;
+  const finalPrecision = Math.round(Math.max(8, Math.min(99, rawPrecision)));
+  const extraBioEnergy = Math.pow(k, 1.35) * 32;
+  const bioCost = Math.round((15 + dist * 0.15 + extraBioEnergy) * costMult);
+  const mentalCost = Math.round(12 + k * 28);
+  const stability = finalPrecision >= 75 ? "moderate" : "critical";
+  return {
+    dist: Number(dist.toFixed(1)),
+    safeRange,
+    maxRange,
+    inSafeRange: false,
+    canReach: true,
+    precision: finalPrecision,
+    bioCost,
+    mentalCost,
+    overreachLY: Number(overreachLY.toFixed(1)),
+    stability,
+    telepathyBonus,
+    mentalClarityBonus,
+    mutationBonus
+  };
+}
+function findDriftCandidateSystems(targetSys, originSys, universe) {
+  if (!universe || !universe.systems)
+    return [];
+  return universe.systems.filter((s) => s.id !== targetSys.id && s.id !== originSys.id).map((s) => {
+    const dx = s.x - targetSys.x;
+    const dz = s.z - targetSys.z;
+    const distToTarget = Math.sqrt(dx * dx + dz * dz);
+    return { system: s, distToTarget };
+  }).filter((item) => item.distToTarget <= 85).sort((a, b) => a.distToTarget - b.distToTarget).map((item) => item.system);
+}
+function resolveJumpOutcome(telemetry, targetSys, originSys, universe, forceRoll) {
+  const roll = forceRoll !== undefined ? forceRoll : Math.random() * 100;
+  if (roll <= telemetry.precision) {
+    return {
+      success: true,
+      targetSystem: targetSys,
+      originSystem: originSys,
+      actualSystem: targetSys,
+      isDrift: false,
+      driftSystem: null,
+      hazardType: "none",
+      arrivalDistance: 150,
+      message: `Raumzeit-Faltung stabil: Zielsystem ${targetSys.name} präzise erreicht.`,
+      roll: Number(roll.toFixed(1))
+    };
+  }
+  const candidates = findDriftCandidateSystems(targetSys, originSys, universe);
+  const isDrift = candidates.length > 0 && Math.floor(roll) % 2 === 0;
+  if (isDrift) {
+    const driftSys = candidates[0];
+    const isCorona2 = Math.floor(roll) % 3 === 0;
+    const hazardType2 = isCorona2 ? "solar_corona" : "none";
+    const arrivalDistance2 = isCorona2 ? 34 : 150;
+    const hazardMsg = isCorona2 ? ` Notfall-Perihel-Dropout nahe der Korona!` : ` Stabilisierung am Außenrand gelungen.`;
+    return {
+      success: false,
+      targetSystem: targetSys,
+      originSystem: originSys,
+      actualSystem: driftSys,
+      isDrift: true,
+      driftSystem: driftSys,
+      hazardType: hazardType2,
+      arrivalDistance: arrivalDistance2,
+      message: `⚠️ PSIONISCHE ABWEICHUNG: Attraktion von ${driftSys.name} hat das kollabierende Faltungsfeld abgelenkt!${hazardMsg}`,
+      roll: Number(roll.toFixed(1))
+    };
+  }
+  const isCorona = Math.floor(roll) % 2 === 0;
+  const hazardType = isCorona ? "solar_corona" : "asteroid_belt";
+  const arrivalDistance = isCorona ? 34 : 76;
+  const message = isCorona ? `\uD83D\uDD25 PERIHEL-DROPOUT: Faltungsfeld kollabiert direkt vor der glühenden Sonnenkorona von ${targetSys.name}! Extreme Strahlung!` : `\uD83D\uDCA5 WARP-FEHLKOLLAPS: Austritt inmitten eines dichten Asteroidengürtels von ${targetSys.name}! Kollisionsalarm!`;
+  return {
+    success: false,
+    targetSystem: targetSys,
+    originSystem: originSys,
+    actualSystem: targetSys,
+    isDrift: false,
+    driftSystem: null,
+    hazardType,
+    arrivalDistance,
+    message,
+    roll: Number(roll.toFixed(1))
+  };
+}
 
 // src/systems/galaxy-map.ts
 var mapOpen = false;
@@ -41066,12 +41312,21 @@ function renderGalaxyMap() {
     const curScreenX = centerX + currentSys.x * currentScale;
     const curScreenY = centerY + currentSys.z * currentScale;
     if (currentSys) {
-      const warpRadiusScreen = STATE.warpRange * currentScale;
-      ctx.strokeStyle = "rgba(56, 189, 248, 0.4)";
+      const safeRange = getEffectiveSafeWarpRange();
+      const maxRange = getEffectiveMaxWarpRange();
+      const safeRadiusScreen = safeRange * currentScale;
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.45)";
       ctx.lineWidth = 1.4;
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
-      ctx.arc(curScreenX, curScreenY, warpRadiusScreen, 0, Math.PI * 2);
+      ctx.arc(curScreenX, curScreenY, safeRadiusScreen, 0, Math.PI * 2);
+      ctx.stroke();
+      const maxRadiusScreen = maxRange * currentScale;
+      ctx.strokeStyle = "rgba(245, 158, 11, 0.32)";
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([4, 8]);
+      ctx.beginPath();
+      ctx.arc(curScreenX, curScreenY, maxRadiusScreen, 0, Math.PI * 2);
       ctx.stroke();
       const psioRadiusScreen = STATE.psionicRange * currentScale;
       ctx.strokeStyle = "rgba(217, 70, 239, 0.35)";
@@ -41090,11 +41345,23 @@ function renderGalaxyMap() {
     if (selectedSystem && selectedSystem.id !== currentSys.id) {
       const targetScreenX = centerX + selectedSystem.x * currentScale;
       const targetScreenY = centerY + selectedSystem.z * currentScale;
-      const dx = selectedSystem.x - currentSys.x;
-      const dz = selectedSystem.z - currentSys.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-      const inWarp = dist <= STATE.warpRange;
-      ctx.strokeStyle = inWarp ? "rgba(56, 189, 248, 0.6)" : "rgba(239, 68, 68, 0.5)";
+      const telemetry = calculateJumpPrecision(currentSys, selectedSystem);
+      let strokeColor = "rgba(56, 189, 248, 0.65)";
+      let pulseColor = "#38bdf8";
+      let badgeTextColor = "#38bdf8";
+      let badgeText = `${telemetry.dist} LJ • 100% Stabil • -${telemetry.bioCost}% Bio`;
+      if (!telemetry.inSafeRange && telemetry.canReach) {
+        strokeColor = telemetry.stability === "moderate" ? "rgba(245, 158, 11, 0.75)" : "rgba(239, 68, 68, 0.8)";
+        pulseColor = telemetry.stability === "moderate" ? "#f59e0b" : "#ef4444";
+        badgeTextColor = telemetry.stability === "moderate" ? "#fbbf24" : "#f87171";
+        badgeText = `${telemetry.dist} LJ • ${telemetry.precision}% Präzision • -${telemetry.bioCost}% Bio`;
+      } else if (!telemetry.canReach) {
+        strokeColor = "rgba(239, 68, 68, 0.45)";
+        pulseColor = "#ef4444";
+        badgeTextColor = "#f87171";
+        badgeText = `${telemetry.dist} LJ • Unerreichbar (> ${telemetry.maxRange} LJ)`;
+      }
+      ctx.strokeStyle = strokeColor;
       ctx.lineWidth = 1.6;
       ctx.setLineDash([8, 8]);
       ctx.lineDashOffset = -(Date.now() * 0.02) % 16;
@@ -41106,19 +41373,16 @@ function renderGalaxyMap() {
       const pulseT = Date.now() * 0.0008 % 1;
       const pulseX = curScreenX + (targetScreenX - curScreenX) * pulseT;
       const pulseY = curScreenY + (targetScreenY - curScreenY) * pulseT;
-      ctx.fillStyle = inWarp ? "#38bdf8" : "#ef4444";
+      ctx.fillStyle = pulseColor;
       ctx.beginPath();
       ctx.arc(pulseX, pulseY, 3.5, 0, Math.PI * 2);
       ctx.fill();
       if (mapZoom > 0.8) {
         const midX = (curScreenX + targetScreenX) / 2;
         const midY = (curScreenY + targetScreenY) / 2;
-        const costMult = STATE.mutations.folddrive && STATE.mutations.folddrive.purchased ? 0.7 : 1;
-        const warpCost = Math.round((15 + dist * 0.15) * costMult);
         ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
-        ctx.strokeStyle = inWarp ? "rgba(56, 189, 248, 0.6)" : "rgba(239, 68, 68, 0.6)";
+        ctx.strokeStyle = strokeColor;
         ctx.lineWidth = 1;
-        const badgeText = `${dist.toFixed(0)} LJ • -${warpCost}% Bio`;
         ctx.font = "8px Orbitron, sans-serif";
         const bWidth = ctx.measureText(badgeText).width;
         ctx.beginPath();
@@ -41128,7 +41392,7 @@ function renderGalaxyMap() {
           ctx.rect(midX - bWidth / 2 - 6, midY - 9, bWidth + 12, 18);
         ctx.fill();
         ctx.stroke();
-        ctx.fillStyle = inWarp ? "#38bdf8" : "#f87171";
+        ctx.fillStyle = badgeTextColor;
         ctx.textAlign = "center";
         ctx.fillText(badgeText, midX, midY + 3);
       }
@@ -41675,28 +41939,74 @@ function updateSystemDetails(sys) {
       list.appendChild(li);
     });
   }
-  const costMult = STATE.mutations.folddrive && STATE.mutations.folddrive.purchased ? 0.7 : 1;
-  const warpCost = Math.round((15 + distFromCur * 0.15) * costMult);
+  const telemetry = calculateJumpPrecision(currentSys, sys);
+  const distEl = document.getElementById("val-jump-dist");
+  if (distEl) {
+    distEl.innerText = `${telemetry.dist} LJ` + (telemetry.overreachLY > 0 ? ` (+${telemetry.overreachLY} LJ Überdehnung)` : "");
+  }
+  const precEl = document.getElementById("val-jump-precision");
+  if (precEl) {
+    if (telemetry.inSafeRange) {
+      precEl.innerHTML = `<span style="color: #38bdf8; font-weight: bold;">\uD83C\uDFAF 100%</span> <span style="color: #94a3b8; font-size: 0.65rem;">(Harmonisch & Stabil)</span>`;
+    } else if (telemetry.canReach) {
+      const col = telemetry.precision >= 75 ? "#f59e0b" : "#ef4444";
+      const label = telemetry.precision >= 75 ? "Instabil" : "Kritisch instabil!";
+      const bonuses = [];
+      if (telemetry.telepathyBonus > 0)
+        bonuses.push(`+${telemetry.telepathyBonus}% Telepathie`);
+      if (telemetry.mentalClarityBonus !== 0)
+        bonuses.push(`${telemetry.mentalClarityBonus > 0 ? "+" : ""}${telemetry.mentalClarityBonus}% Psyche`);
+      if (telemetry.mutationBonus > 0)
+        bonuses.push(`+${telemetry.mutationBonus}% Synapsen`);
+      const bonusTxt = bonuses.length > 0 ? ` (${bonuses.join(", ")})` : "";
+      precEl.innerHTML = `<span style="color: ${col}; font-weight: bold;">⚠️ ${telemetry.precision}%</span> <span style="color: #cbd5e1; font-size: 0.65rem;">(${label})${bonusTxt}</span>`;
+    } else {
+      precEl.innerHTML = `<span style="color: #ef4444; font-weight: bold;">❌ 0%</span> <span style="color: #94a3b8; font-size: 0.65rem;">(Außerhalb mentaler Reichweite)</span>`;
+    }
+  }
+  const hazardRow = document.getElementById("row-jump-hazard");
+  const hazardEl = document.getElementById("val-jump-hazard");
+  if (hazardRow && hazardEl) {
+    if (!telemetry.inSafeRange && telemetry.canReach) {
+      hazardRow.style.display = "flex";
+      hazardEl.innerText = "⚠️ Gravitations-Abdrift in Nachbarsystem oder Not-Dropout an Sonnenkorona möglich!";
+    } else {
+      hazardRow.style.display = "none";
+    }
+  }
   const warpBtn = document.getElementById("warp-btn");
   if (warpBtn) {
+    warpBtn.classList.remove("risky-warp", "critical-warp");
     if (sys.id === STATE.currentSystemId) {
       warpBtn.disabled = true;
       warpBtn.innerText = "Etablierter Standort";
       warpBtn.style.opacity = "0.5";
       warpBtn.style.pointerEvents = "none";
-    } else if (!inWarpRange) {
+    } else if (!telemetry.canReach) {
       warpBtn.disabled = true;
-      warpBtn.innerText = `❌ Zu weit entfernt (${distFromCur.toFixed(0)} / Max ${STATE.warpRange} LJ)`;
+      warpBtn.innerText = `❌ Zu weit entfernt (${telemetry.dist} / Max ${telemetry.maxRange} LJ)`;
       warpBtn.style.opacity = "0.5";
       warpBtn.style.pointerEvents = "none";
-    } else if (STATE.bioEnergy < warpCost) {
+    } else if (STATE.bioEnergy < telemetry.bioCost) {
       warpBtn.disabled = true;
-      warpBtn.innerText = `⚡ Zu wenig Bio-Energie (${warpCost}% nötig)`;
+      warpBtn.innerText = `⚡ Zu wenig Bio-Energie (${telemetry.bioCost}% nötig)`;
       warpBtn.style.opacity = "0.5";
       warpBtn.style.pointerEvents = "none";
+    } else if (telemetry.mentalCost > 0 && STATE.mentalEnergy < telemetry.mentalCost) {
+      warpBtn.disabled = true;
+      warpBtn.innerText = `\uD83E\uDDE0 Zu wenig Mentalkraft (${telemetry.mentalCost} nötig)`;
+      warpBtn.style.opacity = "0.5";
+      warpBtn.style.pointerEvents = "none";
+    } else if (telemetry.inSafeRange) {
+      warpBtn.disabled = false;
+      warpBtn.innerText = `\uD83C\uDF00 Quantenfeld falten (${telemetry.dist} LJ | -${telemetry.bioCost}% Energie)`;
+      warpBtn.style.opacity = "1";
+      warpBtn.style.pointerEvents = "auto";
     } else {
       warpBtn.disabled = false;
-      warpBtn.innerText = `\uD83C\uDF00 Quantenfeld falten (${distFromCur.toFixed(0)} LJ | -${warpCost}% Energie)`;
+      warpBtn.classList.add(telemetry.stability === "moderate" ? "risky-warp" : "critical-warp");
+      const psiStr = telemetry.mentalCost > 0 ? ` / -${telemetry.mentalCost} Psi` : "";
+      warpBtn.innerText = `⚡ Instabiler Sprung (${telemetry.dist} LJ | ${telemetry.precision}% Präzision | -${telemetry.bioCost}% Bio${psiStr})`;
       warpBtn.style.opacity = "1";
       warpBtn.style.pointerEvents = "auto";
     }
@@ -41709,29 +42019,26 @@ function warpToSystem(systemId) {
   const targetSys = STATE.universe.systems.find((s) => s.id === systemId);
   if (!targetSys)
     return;
-  const dx = targetSys.x - currentSys.x;
-  const dz = targetSys.z - currentSys.z;
-  const dist = Math.sqrt(dx * dx + dz * dz);
-  const costMult = STATE.mutations.folddrive && STATE.mutations.folddrive.purchased ? 0.7 : 1;
-  const warpCost = Math.round((15 + dist * 0.15) * costMult);
-  if (dist > STATE.warpRange || STATE.bioEnergy < warpCost) {
+  const telemetry = calculateJumpPrecision(currentSys, targetSys);
+  if (!telemetry.canReach || STATE.bioEnergy < telemetry.bioCost || telemetry.mentalCost > 0 && STATE.mentalEnergy < telemetry.mentalCost) {
     playCrashSound();
-    addLogEntry("SYSTEM", `Warp-Fehlschlag: Ziel außerhalb der Faltungsreichweite oder unzureichende Bio-Energie!`);
+    addLogEntry("SYSTEM", `Warp-Fehlschlag: Ziel außerhalb der Reichweite oder unzureichende Bio-/Mentalenergie!`);
     return;
   }
-  STATE.bioEnergy -= warpCost;
-  STATE.currentSystemId = targetSys.id;
-  STATE.systemsVisited++;
-  if (!STATE.visitedSystemIds)
-    STATE.visitedSystemIds = [];
-  if (!STATE.visitedSystemIds.includes(targetSys.id)) {
-    STATE.visitedSystemIds.push(targetSys.id);
+  STATE.bioEnergy = Math.max(0, STATE.bioEnergy - telemetry.bioCost);
+  if (telemetry.mentalCost > 0) {
+    STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - telemetry.mentalCost);
   }
   if (mapOpen) {
     toggleGalaxyMap();
   }
-  addLogEntry("SYSTEM", `\uD83C\uDF0C RAUMZEIT-FALTUNG INITIIERT: Kurs gesetzt auf ${targetSys.name} (${targetSys.sectorName || "Sektor"}). -${warpCost}% Bio-Energie.`);
-  initiateSystemDeparture(currentSys, targetSys);
+  const resolution = resolveJumpOutcome(telemetry, targetSys, currentSys, STATE.universe);
+  if (telemetry.inSafeRange) {
+    addLogEntry("SYSTEM", `\uD83C\uDF0C RAUMZEIT-FALTUNG INITIIERT: Kurs gesetzt auf ${targetSys.name} (${targetSys.sectorName || "Sektor"}). -${telemetry.bioCost}% Bio-Energie.`);
+  } else {
+    addLogEntry("SYSTEM", `⚡ ÜBERDEHNTE PSIONISCHE FALTUNG: Kurs auf ${targetSys.name} (${telemetry.dist} LJ). Präzision: ${telemetry.precision}%. -${telemetry.bioCost}% Bio | -${telemetry.mentalCost} Mentalkraft.`);
+  }
+  initiateSystemDeparture(currentSys, targetSys, resolution);
 }
 
 // src/systems/harvesting.ts
@@ -43717,11 +44024,18 @@ function updatePhysics(dt) {
     if (STATE.systemDepartureTimer <= 0) {
       STATE.systemDepartureActive = false;
       const targetSys = STATE.systemDepartureTarget;
-      const fromSys = STATE.universe?.systems.find((s) => s.id === STATE.currentSystemId) || STATE.universe?.systems[0];
+      const fromSys = STATE.systemDepartureOrigin || STATE.universe?.systems.find((s) => s.id === STATE.currentSystemId) || STATE.universe?.systems[0];
+      const resolution = STATE.systemDepartureResolution;
+      const actualSys = resolution ? resolution.actualSystem : targetSys;
       playWarpSnapSound();
       const warpFlash = document.getElementById("warp-flash");
       if (warpFlash) {
         warpFlash.style.display = "block";
+        if (resolution && !resolution.success) {
+          warpFlash.style.background = "radial-gradient(circle, rgba(244, 63, 94, 0.95) 0%, rgba(168, 85, 247, 0.9) 50%, rgba(3, 7, 18, 0.95) 100%)";
+        } else {
+          warpFlash.style.background = "radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(56, 189, 248, 0.85) 45%, rgba(3, 7, 18, 0.95) 100%)";
+        }
         warpFlash.style.opacity = "0.95";
         setTimeout(() => {
           warpFlash.style.opacity = "0";
@@ -43730,11 +44044,17 @@ function updatePhysics(dt) {
           }, 350);
         }, 60);
       }
-      if (targetSys) {
-        STATE.currentSystemId = targetSys.id;
+      if (actualSys) {
+        STATE.currentSystemId = actualSys.id;
+        STATE.systemsVisited++;
+        if (!STATE.visitedSystemIds)
+          STATE.visitedSystemIds = [];
+        if (!STATE.visitedSystemIds.includes(actualSys.id)) {
+          STATE.visitedSystemIds.push(actualSys.id);
+        }
         clearActiveSystem();
         spawnPlanetsAndAsteroids();
-        initiateSystemArrival(fromSys, targetSys);
+        initiateSystemArrival(fromSys, actualSys, resolution);
       }
     }
   } else if (STATE.systemArrivalActive) {

@@ -7,7 +7,7 @@ import { createHabitableTextures, createGasGiantTextures, createRockyTextures, c
 import { generatePlanetAttributes, generateFallbackMoons, updateScannerUI } from './scanner';
 import { initPlanetDefenseFleets, clearFleet } from './fleet';
 import { addLogEntry, triggerSystemArrivalBanner } from '../ui/hud';
-import { playWarpDropoutSound, playWarpSpoolSound, playWarpSnapSound } from '../engine/audio';
+import { playWarpDropoutSound, playWarpSpoolSound, playWarpSnapSound, playMisfoldWarningSound } from '../engine/audio';
 import { getFaction } from './factions';
 import { createSunCoronaMesh } from '../procedural/sun-shader';
 import { createAtmosphereMesh } from '../procedural/atmosphere-shader';
@@ -17,6 +17,7 @@ import { ensureLoreSystems } from '../procedural/lore-systems';
 import { loadPlanetTexture, getTemplateForBody, resolveArchetypeTemplate, PLANET_ARCHETYPE_TEMPLATES } from '../procedural/planet-textures';
 import { applySystemLighting } from '../engine/postprocessing';
 import { triggerAutoSave } from './save-manager';
+import { JumpResolution } from '../types/game';
 
 export const activeCoronaMeshes: THREE.Object3D[] = [];
 export const activeCoronaUpdaters: ((dt: number) => void)[] = [];
@@ -818,7 +819,7 @@ export function spawnVoyagerProbe() {
 // INTERSTELLAR SYSTEM DEPARTURE (SPOOLING & FOLD PUNCH)
 // ----------------------------------------------------------------------------
 
-export function initiateSystemDeparture(fromSys: any, targetSys: any) {
+export function initiateSystemDeparture(fromSys: any, targetSys: any, resolution?: JumpResolution | null) {
     if (!targetSys) return;
 
     // 1. Calculate departure vector pointing towards target system
@@ -843,9 +844,15 @@ export function initiateSystemDeparture(fromSys: any, targetSys: any) {
     STATE.systemDepartureMaxTime = 1.6;
     STATE.systemDepartureDirection.copy(departureDir);
     STATE.systemDepartureTarget = targetSys;
+    STATE.systemDepartureOrigin = fromSys;
+    STATE.systemDepartureResolution = resolution || null;
 
     // 4. Log & Spool-up Audio
-    addLogEntry("NAV", `🌀 FALTUNGS-SEQUENZ INITIIERT: Vektor nach ${targetSys.name} (${targetSys.sectorName || 'Sektor'}) arretiert. Raumzeit-Krümmung lädt...`);
+    if (resolution && !resolution.success) {
+        addLogEntry("NAV", `⚠️ INSTABILE FALTUNG INITIIERT: Vektor nach ${targetSys.name} forciert. Psionische Raumzeit-Interferenzen festgestellt!`);
+    } else {
+        addLogEntry("NAV", `🌀 FALTUNGS-SEQUENZ INITIIERT: Vektor nach ${targetSys.name} (${targetSys.sectorName || 'Sektor'}) arretiert. Raumzeit-Krümmung lädt...`);
+    }
     playWarpSpoolSound();
 }
 
@@ -853,7 +860,7 @@ export function initiateSystemDeparture(fromSys: any, targetSys: any) {
 // INTERSTELLAR SYSTEM ARRIVAL & WARP-DROPOUT CONTROLLER
 // ----------------------------------------------------------------------------
 
-export function initiateSystemArrival(fromSys: any, targetSys: any) {
+export function initiateSystemArrival(fromSys: any, targetSys: any, resolution?: JumpResolution | null) {
     if (!targetSys) return;
 
     // 1. Calculate directional arrival vector from Galaxy Map transit
@@ -864,7 +871,8 @@ export function initiateSystemArrival(fromSys: any, targetSys: any) {
         inboundAngle = Math.atan2(-dz, -dx);
     }
 
-    const entryDist = 150.0; // Outer rim perimeter (safe from inner solar orbits)
+    // Dynamic arrival distance based on precision resolution (Safe Outer Rim: 150; Corona: 34; Belt: 76)
+    const entryDist = (resolution && resolution.arrivalDistance) ? resolution.arrivalDistance : 150.0;
     const entryX = Math.cos(inboundAngle) * entryDist;
     const entryZ = Math.sin(inboundAngle) * entryDist;
 
@@ -918,14 +926,25 @@ export function initiateSystemArrival(fromSys: any, targetSys: any) {
         addLogEntry("NAV", `📡 SPRUNGTOR-SIGNAL ERFASST: Navigations-Vektor autorisiert durch ${dominantFactionName}. Willkommen im System ${targetSys.name}.`);
     } else {
         STATE.incomingJumpGate = null;
-        addLogEntry("NAV", `🌌 WARP-AUSTRITT: Unkartierter Raumsektor erreicht. Faltungsfeld kollabiert. Eintrittsvektor stabil.`);
+        if (resolution && resolution.hazardType === 'solar_corona') {
+            addLogEntry("NAV", `🔥 PERIHEL-NOTFALL-DROPOUT: Faltungsfeld kollabiert direkt vor der glühenden Sonnenkorona! Extreme Strahlung! Kurs abdrehen!`);
+            playMisfoldWarningSound();
+        } else if (resolution && resolution.hazardType === 'asteroid_belt') {
+            addLogEntry("NAV", `💥 WARP-FEHLKOLLAPS: Austritt inmitten eines dichten Asteroidengürtels! Kollisionsalarm!`);
+            playMisfoldWarningSound();
+        } else if (resolution && resolution.isDrift) {
+            addLogEntry("NAV", resolution.message);
+            playMisfoldWarningSound();
+        } else {
+            addLogEntry("NAV", `🌌 WARP-AUSTRITT: Unkartierter Raumsektor erreicht. Faltungsfeld kollabiert. Eintrittsvektor stabil.`);
+        }
     }
 
     // 4. Acoustic Warp Exit Soundscape (Deep Sub-Bass & Vacuum Whoosh)
     playWarpDropoutSound();
 
     // 5. Trigger Cinematic System Arrival Banner
-    triggerSystemArrivalBanner(targetSys, dominantFactionName);
+    triggerSystemArrivalBanner(targetSys, dominantFactionName, resolution);
 
     // 6. Auto-Save on System Arrival
     triggerAutoSave(`Ankunft in ${targetSys.name}`);

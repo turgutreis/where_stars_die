@@ -170,6 +170,13 @@ import {
     loadPlaytestPreset, 
     triggerAutoSave 
 } from '../src/systems/save-manager';
+import { 
+    calculateJumpPrecision, 
+    getEffectiveSafeWarpRange, 
+    getEffectiveMaxWarpRange, 
+    resolveJumpOutcome, 
+    findDriftCandidateSystems 
+} from '../src/systems/warp-calculator';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -2266,6 +2273,131 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.mutations.ibad.purchased).toBe(true);
         expect(STATE.bioRes).toBe(2500);
         expect(STATE.siliconRes).toBe(1800);
+    });
+
+    test("37. Psionic Warp Precision & Overreach Mechanics: Distance-scaled precision, mental fatigue penalties, and psionic crew synergies", () => {
+        const originSys = { id: 1, name: "Alpha", x: 0, z: 0 } as any;
+        const safeTargetSys = { id: 2, name: "Beta", x: 70, z: 0 } as any; // 70 LY (Safe, <= 90)
+        const overreachSys = { id: 3, name: "Gamma", x: 140, z: 0 } as any; // 140 LY (Overreach, 90 < d <= 193)
+        const unreachableSys = { id: 4, name: "Omega", x: 260, z: 0 } as any; // 260 LY (> 193)
+
+        STATE.warpRange = 90;
+        STATE.mentalEnergy = 100;
+        STATE.maxMentalEnergy = 100;
+        STATE.crew = [];
+        STATE.crewBuffs = { thrust: 1, bioGain: 1, scanSpeed: 1, repairRate: 0, stressDampening: 1, psionicBonus: 0 };
+        STATE.mutations.psionic_pulse.purchased = false;
+        STATE.mutations.telepathic_focus.purchased = false;
+        STATE.mutations.ibad.purchased = false;
+
+        // 1. Safe Harmonic Jump
+        const safeTelemetry = calculateJumpPrecision(originSys, safeTargetSys);
+        expect(safeTelemetry.inSafeRange).toBe(true);
+        expect(safeTelemetry.canReach).toBe(true);
+        expect(safeTelemetry.precision).toBe(100);
+        expect(safeTelemetry.mentalCost).toBe(0);
+        expect(safeTelemetry.stability).toBe('stable');
+
+        // 2. Overreach Jump (Natural decay without buffs)
+        STATE.mentalEnergy = 50; // Neutral mental energy
+        const baseOverreach = calculateJumpPrecision(originSys, overreachSys);
+        expect(baseOverreach.inSafeRange).toBe(false);
+        expect(baseOverreach.canReach).toBe(true);
+        expect(baseOverreach.precision).toBeLessThan(100);
+        expect(baseOverreach.precision).toBeGreaterThanOrEqual(10);
+        expect(baseOverreach.mentalCost).toBeGreaterThan(0);
+        expect(baseOverreach.overreachLY).toBe(50);
+
+        // 3. High Mental Clarity Bonus (+10%)
+        STATE.mentalEnergy = 95;
+        const clarityOverreach = calculateJumpPrecision(originSys, overreachSys);
+        expect(clarityOverreach.precision).toBeGreaterThan(baseOverreach.precision);
+
+        // 4. Neural Fatigue Penalty (-15% when mental energy is critically depleted)
+        STATE.mentalEnergy = 15; // 15% < 25% threshold
+        const fatiguedOverreach = calculateJumpPrecision(originSys, overreachSys);
+        expect(fatiguedOverreach.precision).toBeLessThan(baseOverreach.precision);
+
+        // 5. Psionic Crew Synergy & Synaptic Mutation Bonuses
+        STATE.mentalEnergy = 100;
+        STATE.crew = [
+            { id: 101, name: "Elara", role: "psychologist", trait: { type: 'psionic', name: 'Telepath', desc: '' } } as any,
+            { id: 102, name: "Thorne", role: "biologist", station: 'dream_weaver' } as any
+        ];
+        STATE.mutations.psionic_pulse.purchased = true;
+        STATE.mutations.ibad.purchased = true;
+
+        const augmentedOverreach = calculateJumpPrecision(originSys, overreachSys);
+        expect(augmentedOverreach.telepathyBonus).toBeGreaterThan(0);
+        expect(augmentedOverreach.mutationBonus).toBeGreaterThanOrEqual(24);
+        expect(augmentedOverreach.precision).toBeGreaterThan(baseOverreach.precision);
+
+        // 6. Beyond Extended Psionic Horizon (> 193 LY)
+        const unreachableTelemetry = calculateJumpPrecision(originSys, unreachableSys);
+        expect(unreachableTelemetry.inSafeRange).toBe(false);
+        expect(unreachableTelemetry.canReach).toBe(false);
+        expect(unreachableTelemetry.precision).toBe(0);
+        expect(unreachableTelemetry.stability).toBe('unreachable');
+    });
+
+    test("38. Misfold Outcomes & Hazardous Dropouts: Gravitational drift to neighbor stars and solar corona perihelion dropouts", () => {
+        const originSys = { id: 1, name: "Sol", x: 0, z: 0 } as any;
+        const targetSys = { id: 2, name: "Vega", x: 120, z: 0 } as any;
+        const neighborSys = { id: 3, name: "Epsilon", x: 135, z: 25 } as any; // 29 LY from Vega
+
+        STATE.warpRange = 90;
+        STATE.mentalEnergy = 50;
+        STATE.crew = [];
+        STATE.crewBuffs = { thrust: 1, bioGain: 1, scanSpeed: 1, repairRate: 0, stressDampening: 1, psionicBonus: 0 };
+        STATE.mutations.psionic_pulse.purchased = false;
+        STATE.mutations.telepathic_focus.purchased = false;
+        STATE.mutations.ibad.purchased = false;
+
+        const universe = {
+            systems: [originSys, targetSys, neighborSys]
+        } as any;
+
+        // Verify neighbor candidate detection
+        const candidates = findDriftCandidateSystems(targetSys, originSys, universe);
+        expect(candidates.length).toBe(1);
+        expect(candidates[0].id).toBe(neighborSys.id);
+
+        const telemetry = calculateJumpPrecision(originSys, targetSys);
+        expect(telemetry.precision).toBeLessThanOrEqual(90);
+
+        // 1. Deterministic Successful Jump (roll = 10 <= precision)
+        const successRes = resolveJumpOutcome(telemetry, targetSys, originSys, universe, 10.0);
+        expect(successRes.success).toBe(true);
+        expect(successRes.isDrift).toBe(false);
+        expect(successRes.actualSystem.id).toBe(targetSys.id);
+        expect(successRes.hazardType).toBe('none');
+        expect(successRes.arrivalDistance).toBe(150.0);
+
+        // 2. Deterministic Neighbor Gravitational Drift (forced roll = 96 > precision, roll % 2 == 0)
+        const driftRes = resolveJumpOutcome(telemetry, targetSys, originSys, universe, 96.0);
+        expect(driftRes.success).toBe(false);
+        expect(driftRes.isDrift).toBe(true);
+        expect(driftRes.actualSystem.id).toBe(neighborSys.id);
+        expect(driftRes.driftSystem?.name).toBe("Epsilon");
+
+        // 3. Deterministic In-System Hazardous Dropout (forced roll with corona outcome)
+        // An odd roll with no candidate or when drift is bypassed triggers in-system hazard
+        const singleUniverse = { systems: [originSys, targetSys] } as any;
+        const hazardRes = resolveJumpOutcome(telemetry, targetSys, originSys, singleUniverse, 96.0); // 96 % 2 === 0 -> solar_corona
+        expect(hazardRes.success).toBe(false);
+        expect(hazardRes.isDrift).toBe(false);
+        expect(hazardRes.actualSystem.id).toBe(targetSys.id);
+        expect(hazardRes.hazardType).toBe('solar_corona');
+        expect(hazardRes.arrivalDistance).toBe(34.0); // Dangerously close to solar corona
+
+        // 4. Verify arrival integration with hazard dropout
+        activePlanets.length = 0;
+        clearJumpGates();
+        initiateSystemArrival(originSys, targetSys, hazardRes);
+
+        const distFromCenter = Math.sqrt(STATE.playerPosition.x ** 2 + STATE.playerPosition.z ** 2);
+        expect(distFromCenter).toBeCloseTo(34.0, 1);
+        expect(STATE.systemArrivalActive).toBe(true);
     });
 });
 
