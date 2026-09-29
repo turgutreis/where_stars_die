@@ -290,12 +290,36 @@ export interface PlanetEntry {
     attributes: PlanetAttributes;
 }
 
+export type FleetShipType = 'interceptor' | 'corvette' | 'freighter' | 'heavy_freighter';
+export type FleetShipState = 'patrol' | 'intercept' | 'hunt' | 'trade_cruise' | 'trade_docked' | 'flee' | 'disabled' | 'stunned';
+
+export interface SpaceStation {
+    id: number;
+    name: string;
+    factionId?: string;
+    mesh: THREE.Group;
+    bodyMesh: THREE.Mesh;
+    ringMesh?: THREE.Mesh | null;
+    position: THREE.Vector3;
+    parentPlanet?: PlanetEntry | null;
+    orbitRadius: number;
+    orbitAngle: number;
+    orbitSpeed: number;
+    rotationSpeed: number;
+    health: number;
+    maxHealth: number;
+    defenseRating: number;
+    alertLevel: 'peace' | 'alert' | 'hunt';
+    alertTimer: number;
+    type: 'citadel' | 'trade_hub' | 'mining_relay';
+}
+
 export interface FleetShip {
     id: number;
     mesh: THREE.Group;
     bodyMesh: THREE.Mesh;
     trailMesh?: THREE.Line | null;
-    type: 'interceptor' | 'corvette';
+    type: FleetShipType;
     name: string;
     position: THREE.Vector3;
     velocity: THREE.Vector3;
@@ -305,13 +329,18 @@ export interface FleetShip {
     orbitSpeed: number;
     health: number;
     maxHealth: number;
-    state: 'patrol' | 'intercept' | 'disabled' | 'stunned';
+    state: FleetShipState;
     stunTimer?: number;
     stunMaxDuration?: number;
     sparkTimer?: number;
     originalColor?: number;
     attackCooldown: number;
     alertTimer: number;
+    cargo?: { type: 'silicon' | 'bio' | 'alloys'; amount: number };
+    tradeTargetPlanet?: PlanetEntry | null;
+    tradeTargetStation?: SpaceStation | null;
+    tradeProgress?: number;
+    tradeDirection?: 1 | -1;
 }
 
 export interface FleetProjectile {
@@ -544,6 +573,13 @@ export interface GameState {
     voyagerDialogSeen?: boolean;
     ftueStep?: number;
     ftueCompleted?: boolean;
+
+    // Space Stations & Psionic Stealth System
+    spaceStations: SpaceStation[];
+    stealthActive: boolean;
+    stealthDrainRate: number;
+    systemAlertLevel: 'peace' | 'alert' | 'hunt';
+    systemAlertTimer: number;
 }
 
 export type OrbitLevel = 'solar' | 'planet' | 'moon';

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { STATE, activePlanets } from '../core/state';
 import { scene } from '../engine/scene';
 import { addLogEntry } from '../ui/hud';
-import { playCrashSound, playSiliconCollectSound, playEmpChargeSound } from '../engine/audio';
+import { playCrashSound, playSiliconCollectSound, playEmpChargeSound, playFleetAlarmSound } from '../engine/audio';
 import { empLight } from '../procedural/meshes';
 import { collapseQuantumCivilization } from '../procedural/quantum-civ';
 import { FleetShip, FleetProjectile, PlanetEntry } from '../types/game';
@@ -114,11 +114,80 @@ export function spawnSystemFleet(planetsInput?: any) {
 
                 STATE.fleetShips.push(fleetShip);
             }
+
+            // Spawn Civilian Freighters on Active Trade Routes
+            const freighterGroup = new THREE.Group();
+            const hullGeo = new THREE.BoxGeometry(3.0, 1.2, 1.4);
+            const hullMat = new THREE.MeshStandardMaterial({
+                color: 0xd97706,
+                roughness: 0.45,
+                metalness: 0.75,
+                emissive: 0x78350f,
+                emissiveIntensity: 0.3
+            });
+            const freighterMesh = new THREE.Mesh(hullGeo, hullMat);
+            freighterGroup.add(freighterMesh);
+
+            const podGeo = new THREE.BoxGeometry(1.6, 0.7, 1.5);
+            const podMat = new THREE.MeshStandardMaterial({
+                color: 0x0284c7,
+                emissive: 0x0369a1,
+                emissiveIntensity: 0.4,
+                metalness: 0.8
+            });
+            const podMesh = new THREE.Mesh(podGeo, podMat);
+            podMesh.position.set(0, 0.65, 0);
+            freighterGroup.add(podMesh);
+
+            const engGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.6, 8);
+            engGeo.rotateZ(Math.PI / 2);
+            const engMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+            const engMesh = new THREE.Mesh(engGeo, engMat);
+            engMesh.position.set(-1.6, 0, 0);
+            freighterGroup.add(engMesh);
+
+            const pSize = p.size || 5.0;
+            const routeRadius = pSize * 2.2 + 9.0;
+            const routeAngle = Math.random() * Math.PI * 2;
+
+            const planetX = p.mesh ? p.mesh.position.x : 0;
+            const planetZ = p.mesh ? p.mesh.position.z : 0;
+
+            freighterGroup.position.set(
+                planetX + Math.cos(routeAngle) * routeRadius,
+                0,
+                planetZ + Math.sin(routeAngle) * routeRadius
+            );
+
+            scene.add(freighterGroup);
+
+            const freighter: FleetShip = {
+                id: Date.now() + Math.random() + 500,
+                mesh: freighterGroup,
+                bodyMesh: freighterMesh,
+                type: 'freighter',
+                name: `Handels-Frachter ${(p.name || 'Orb').substring(0, 4)}-${Math.floor(Math.random() * 89 + 10)}`,
+                position: freighterGroup.position,
+                velocity: new THREE.Vector3(0, 0, 0),
+                homePlanet: p,
+                orbitRadius: routeRadius,
+                orbitAngle: routeAngle,
+                orbitSpeed: 0.14,
+                health: 45,
+                maxHealth: 45,
+                state: 'trade_cruise',
+                originalColor: 0xd97706,
+                attackCooldown: 999,
+                alertTimer: 0,
+                cargo: { type: 'silicon', amount: 65 }
+            };
+
+            STATE.fleetShips.push(freighter);
         }
     });
 
     if (STATE.fleetShips.length > 0) {
-        addLogEntry("SYSTEM", `Sensoren geortet: ${STATE.fleetShips.length} planetare Abfangjäger & Patrouillenschiffe im Sektor aktiv.`);
+        addLogEntry("SYSTEM", `Sensoren geortet: ${STATE.fleetShips.length} planetare Schiffe (Jäger & Handels-Konvois) im Sektor aktiv.`);
     }
 }
 
@@ -239,7 +308,56 @@ export function updateFleet(dt: number) {
         const distToPlayer = ship.position.distanceTo(playerPos);
         const distPlanetToPlayer = planetPos.distanceTo(playerPos);
 
-        const isPlayerThreatening = (
+        // 1. Freighter Trade Cruise & Flee AI
+        if (ship.type === 'freighter' || ship.type === 'heavy_freighter') {
+            if (ship.state === 'trade_cruise') {
+                ship.orbitAngle += ship.orbitSpeed * dt;
+                const targetX = planetPos.x + Math.cos(ship.orbitAngle) * ship.orbitRadius;
+                const targetZ = planetPos.z + Math.sin(ship.orbitAngle) * ship.orbitRadius;
+
+                ship.position.x = THREE.MathUtils.lerp(ship.position.x, targetX, 0.05);
+                ship.position.z = THREE.MathUtils.lerp(ship.position.z, targetZ, 0.05);
+
+                const tangentX = -Math.sin(ship.orbitAngle);
+                const tangentZ = Math.cos(ship.orbitAngle);
+                ship.mesh.rotation.y = Math.atan2(tangentX, tangentZ);
+
+                // Uncamouflaged proximity panic check
+                if (distToPlayer < 28.0 && !STATE.stealthActive) {
+                    ship.state = 'flee';
+                    playFleetAlarmSound();
+                    addLogEntry("SYSTEM", `🚨 NOTRUF: Ziviler Frachter ${ship.name} meldet ungetarnten Leviathan! Fordert Geleitschutz an!`);
+                    STATE.systemAlertLevel = 'hunt';
+                    STATE.systemAlertTimer = 35.0;
+                }
+            } else if (ship.state === 'flee') {
+                // Accelerate directly away from Najmafar
+                const awayDir = new THREE.Vector3().subVectors(ship.position, playerPos).normalize();
+                ship.velocity.addScaledVector(awayDir, 30.0 * dt);
+                ship.velocity.clampLength(0, 24.0);
+                ship.position.addScaledVector(ship.velocity, dt);
+
+                if (ship.velocity.lengthSq() > 0.1) {
+                    ship.mesh.rotation.y = Math.atan2(ship.velocity.x, ship.velocity.z);
+                }
+
+                if (distToPlayer > 55.0) {
+                    ship.state = 'trade_cruise';
+                }
+            }
+            return;
+        }
+
+        // 2. Military Combat Ships (Interceptors & Corvettes)
+        // System-wide Hunt Response
+        if (STATE.systemAlertLevel === 'hunt' && ship.state === 'patrol') {
+            if (!STATE.stealthActive) {
+                ship.state = 'hunt';
+                ship.alertTimer = 25.0;
+            }
+        }
+
+        const isPlayerThreatening = !STATE.stealthActive && (
             distPlanetToPlayer < 35.0 ||
             (STATE.scanningPlanet && STATE.scanningPlanet.name === ship.homePlanet.name) ||
             (STATE.abductActive && STATE.abductTarget && STATE.abductTarget.name === ship.homePlanet.name)
@@ -251,9 +369,49 @@ export function updateFleet(dt: number) {
             addLogEntry("CREW", `Capt. Miller: 'Militärische Abfangjäger von ${ship.homePlanet.name} formieren Abfangkurs!'`);
         }
 
-        if (ship.state === 'intercept') {
+        if (ship.state === 'hunt') {
             ship.alertTimer -= dt;
-            if (ship.alertTimer <= 0 && distToPlayer > 40.0) {
+
+            // Cloaking breaks radar lock
+            if (STATE.stealthActive) {
+                ship.alertTimer -= dt * 2.0;
+                if (ship.alertTimer <= 0) {
+                    ship.state = 'patrol';
+                    addLogEntry("SYSTEM", `${ship.name}: 'Ziel-Signatur verloren (Sensor-Ghost)... breche Jagd ab.'`);
+                }
+            }
+
+            const toPlayer = new THREE.Vector3().subVectors(playerPos, ship.position);
+            const dist = toPlayer.length();
+            toPlayer.normalize();
+
+            const pursuitSpeed = ship.type === 'corvette' ? 26.0 : 38.0;
+            const desiredDist = 14.0;
+            const distDiff = dist - desiredDist;
+            const tangent = new THREE.Vector3(-toPlayer.z, 0, toPlayer.x);
+            const accel = new THREE.Vector3();
+
+            accel.addScaledVector(toPlayer, Math.min(32, distDiff * 4.0));
+            accel.addScaledVector(tangent, 15.0);
+
+            ship.velocity.addScaledVector(accel, dt);
+            ship.velocity.clampLength(0, pursuitSpeed);
+            ship.velocity.multiplyScalar(Math.exp(-0.35 * dt));
+
+            ship.position.addScaledVector(ship.velocity, dt);
+
+            if (ship.velocity.lengthSq() > 0.1) {
+                ship.mesh.rotation.y = Math.atan2(ship.velocity.x, ship.velocity.z);
+            }
+
+            ship.attackCooldown -= dt;
+            if (ship.attackCooldown <= 0 && dist < 32.0 && !STATE.stealthActive) {
+                ship.attackCooldown = ship.type === 'corvette' ? 1.2 : 1.6;
+                fireFleetProjectile(ship, playerPos);
+            }
+        } else if (ship.state === 'intercept') {
+            ship.alertTimer -= dt;
+            if (STATE.stealthActive || (ship.alertTimer <= 0 && distToPlayer > 40.0)) {
                 ship.state = 'patrol';
                 addLogEntry("SYSTEM", `${ship.name} kehrt in planetaren Patrouillen-Orbit zurück.`);
             }
@@ -282,7 +440,7 @@ export function updateFleet(dt: number) {
             }
 
             ship.attackCooldown -= dt;
-            if (ship.attackCooldown <= 0 && dist < 30.0) {
+            if (ship.attackCooldown <= 0 && dist < 30.0 && !STATE.stealthActive) {
                 ship.attackCooldown = ship.type === 'corvette' ? 1.4 : 1.8;
                 fireFleetProjectile(ship, playerPos);
             }
@@ -449,13 +607,22 @@ export function salvageNearestWreck(): boolean {
 
     for (let i = 0; i < targets.length; i++) {
         const ship = targets[i];
-        if (ship.position.distanceTo(playerPos) <= 7.5) {
+        if (ship.position.distanceTo(playerPos) <= 8.5) {
             // Salvage successful!
             scene.remove(ship.mesh);
 
-            STATE.siliconRes += 35;
-            STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 30);
-            addLogEntry("SYSTEM", `Schiff von ${ship.name} assimiliert: +35 Silizium & +30 Bio-Energie gewonnen!`);
+            const isFreighter = ship.type === 'freighter' || ship.type === 'heavy_freighter';
+            const silBonus = isFreighter ? 65 : 35;
+            const bioBonus = isFreighter ? 45 : 30;
+
+            STATE.siliconRes += silBonus;
+            STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + bioBonus);
+
+            if (isFreighter) {
+                addLogEntry("SYSTEM", `💥 FRACHT-ASSIMILATION: Frachträume von ${ship.name} absorbiert! +${silBonus} Silizium & +${bioBonus} Biomasse erbeutet!`);
+            } else {
+                addLogEntry("SYSTEM", `Schiff von ${ship.name} assimiliert: +${silBonus} Silizium & +${bioBonus} Bio-Energie gewonnen!`);
+            }
             playSiliconCollectSound();
 
             const idx = STATE.fleetShips.findIndex(s => s.id === ship.id);
@@ -481,4 +648,41 @@ export function clearFleet() {
     }
     STATE.fleetShips = [];
     STATE.fleetProjectiles = [];
+}
+
+/**
+ * Triggered on interstellar arrival into a star system:
+ * If the system hosts a Spacefaring or Hyper-Advanced civilization and
+ * Najmafar arrives uncamouflaged, triggers an immediate system-wide red alert
+ * and scrambles planetary defense squadrons to hunt Najmafar!
+ */
+export function handleSystemArrivalStealthCheck() {
+    if (!STATE.universe) return;
+    const activeSys = STATE.universe.systems.find(s => s.id === STATE.currentSystemId) || STATE.universe.systems[STATE.currentSystemId];
+    if (!activeSys || !activeSys.planets) return;
+
+    const hasAdvancedCiv = activeSys.planets.some(p => {
+        const spec = p.species || (p.attributes && p.attributes.species);
+        return spec && (spec.techLevel === 'Spacefaring' || spec.techLevel === 'Hyper-Advanced');
+    });
+
+    if (!hasAdvancedCiv) return;
+
+    if (!STATE.stealthActive) {
+        STATE.systemAlertLevel = 'hunt';
+        STATE.systemAlertTimer = 45.0;
+        playFleetAlarmSound();
+        addLogEntry("SYSTEM", `🚨 SYSTEMWEITER ALARM: Orbital-Zitadelle hat ungetarnte Raumzeit-Faltung geortet! Jagdstaffeln starten!`);
+
+        // Scramble all combat ships immediately into hunt mode
+        STATE.fleetShips.forEach(s => {
+            if (s.type === 'interceptor' || s.type === 'corvette') {
+                s.state = 'hunt';
+                s.alertTimer = 35.0;
+            }
+        });
+    } else {
+        STATE.systemAlertLevel = 'peace';
+        addLogEntry("SYSTEM", `🤫 PSIONISCHER SCHLEIER AKTIV: Sensoren der Orbital-Zitadelle getäuscht. Systemverkehr ahnungslos.`);
+    }
 }

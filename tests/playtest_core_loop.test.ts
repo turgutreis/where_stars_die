@@ -87,7 +87,7 @@ if (typeof globalThis.window === 'undefined') {
             createOscillator() {
                 return {
                     type: 'sine',
-                    frequency: { setValueAtTime: () => {}, exponentialRampToValueAtTime: () => {} },
+                    frequency: { setValueAtTime: () => {}, exponentialRampToValueAtTime: () => {}, linearRampToValueAtTime: () => {} },
                     connect: () => {},
                     start: () => {},
                     stop: () => {}
@@ -158,7 +158,9 @@ import { createPlanetaryRings } from '../src/procedural/planet-rings';
 import { createPlayerMesh } from '../src/procedural/meshes';
 import { chooseFirstContactDoctrine, openFirstContactModal, isFirstContactModalOpen } from '../src/ui/first-contact-modal';
 import { MUTATION_DEFINITIONS, MUTATION_CONNECTIONS, selectMutationNode, getSelectedMutationKey } from '../src/ui/evolution-tree';
-import { spawnSystemFleet, updateFleet, triggerBioDischarge, salvageNearestWreck, clearFleet } from '../src/systems/fleet';
+import { spawnSystemFleet, updateFleet, triggerBioDischarge, salvageNearestWreck, clearFleet, handleSystemArrivalStealthCheck } from '../src/systems/fleet';
+import { toggleStealth, updateStealth } from '../src/systems/stealth';
+import { spawnSystemSpaceStations, clearSpaceStations, updateSpaceStations } from '../src/procedural/space-stations';
 import { updateMinimap, initHUD } from '../src/ui/hud';
 import { 
     serializeCurrentState, 
@@ -2046,7 +2048,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         // 2. Spawn fleets
         spawnSystemFleet();
-        expect(STATE.fleetShips.length).toBe(2); // Spacefaring spawns 2 ships (1 corvette, 1 interceptor)
+        expect(STATE.fleetShips.length).toBeGreaterThanOrEqual(2); // Spacefaring spawns combat ships & freighters
         const corvette = STATE.fleetShips.find(s => s.type === 'corvette');
         const interceptor = STATE.fleetShips.find(s => s.type === 'interceptor');
         expect(corvette).toBeDefined();
@@ -2090,11 +2092,13 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         STATE.playerPosition.copy(corvette!.position);
         STATE.siliconRes = 0;
         STATE.bioEnergy = 10;
+        const shipsBeforeSalvage = STATE.fleetShips.length;
         const salvaged = salvageNearestWreck();
         expect(salvaged).toBe(true);
         expect(STATE.siliconRes).toBe(35);
         expect(STATE.bioEnergy).toBe(40);
-        expect(STATE.fleetShips.length).toBe(1);
+        expect(STATE.fleetShips.length).toBe(shipsBeforeSalvage - 1);
+        expect(STATE.fleetShips.find(s => s.id === corvette!.id)).toBeUndefined();
 
         // 8. Hyperjump Sector Cleanup
         clearFleet();
@@ -2523,6 +2527,111 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         expect(subspaceRiftPlanet.harvested).toBe(true);
         expect(STATE.mentalEnergy).toBe(blockedMental + 35); // Recharged +35 Mentalkraft
+    });
+
+    test("41. Space Stations, Trade Routes & Psionic Stealth: Spawns orbital stations and cargo freighters, toggles psionic camouflage with mental drain, and detects uncamouflaged intrusions", () => {
+        // 1. Spawning Space Stations in a Spacefaring civilization
+        const civPlanet: any = {
+            name: "Aethelgard Prime",
+            size: 6.0,
+            type: "Habitable",
+            mesh: { position: new THREE.Vector3(50, 0, 50), scale: { x: 1 } },
+            attributes: {
+                species: {
+                    name: "Aethelgardians",
+                    population: 4500000,
+                    techLevel: "Spacefaring",
+                    defenseRating: 75,
+                    factionId: "aethelgard_guardians"
+                }
+            }
+        };
+
+        clearSpaceStations();
+        clearFleet();
+        spawnSystemSpaceStations([civPlanet]);
+
+        expect(STATE.spaceStations.length).toBe(1);
+        const station = STATE.spaceStations[0];
+        expect(station.name).toContain("Aethelgard");
+        expect(station.mesh).toBeDefined();
+        expect(station.defenseRating).toBeGreaterThanOrEqual(60);
+        expect(station.alertLevel).toBe('peace');
+
+        // Verify station orbital motion
+        const initialAngle = station.orbitAngle;
+        updateSpaceStations(1.0);
+        expect(station.orbitAngle).toBeGreaterThan(initialAngle);
+
+        // 2. Active Trade Routes & Freighters
+        spawnSystemFleet([civPlanet]);
+        const freighters = STATE.fleetShips.filter(s => s.type === 'freighter');
+        expect(freighters.length).toBeGreaterThanOrEqual(1);
+
+        const freighter = freighters[0];
+        expect(freighter.cargo).toBeDefined();
+        expect(freighter.cargo?.type).toBe('silicon');
+        expect(freighter.state).toBe('trade_cruise');
+
+        // Test freighter panic when uncamouflaged player approaches
+        STATE.stealthActive = false;
+        STATE.playerPosition.set(freighter.position.x + 10, 0, freighter.position.z);
+        updateFleet(0.1);
+        expect(freighter.state).toBe('flee');
+        expect(STATE.systemAlertLevel).toBe('hunt');
+
+        // Test EMP assimilation of disabled freighter yields higher bounty
+        freighter.state = 'stunned';
+        STATE.playerPosition.copy(freighter.position);
+        const initSilicon = STATE.siliconRes;
+        const salvaged = salvageNearestWreck();
+        expect(salvaged).toBe(true);
+        expect(STATE.siliconRes).toBe(initSilicon + 65); // Freighter bounty: +65
+
+        // 3. Psionic Stealth / Camouflage [T]
+        STATE.mentalEnergy = 60;
+        STATE.maxMentalEnergy = 100;
+        STATE.stealthActive = false;
+
+        const toggledOn = toggleStealth();
+        expect(toggledOn).toBe(true);
+        expect(STATE.stealthActive).toBe(true);
+
+        // Mental energy drain over time
+        updateStealth(1.0);
+        expect(STATE.mentalEnergy).toBeLessThan(60);
+
+        // Toggle off
+        const toggledOff = toggleStealth();
+        expect(toggledOff).toBe(false);
+        expect(STATE.stealthActive).toBe(false);
+
+        // 4. Interstellar Arrival Detection & Flotten-Jagd
+        STATE.currentSystemId = 1;
+        STATE.universe = {
+            systems: [{ id: 1, name: "Aethelgard System", planets: [civPlanet] }]
+        } as any;
+
+        // Uncamouflaged arrival -> System Red Alert & Scramble
+        STATE.stealthActive = false;
+        handleSystemArrivalStealthCheck();
+        expect(STATE.systemAlertLevel).toBe('hunt');
+        expect(STATE.systemAlertTimer).toBeGreaterThan(0);
+
+        const hunters = STATE.fleetShips.filter(s => s.type === 'interceptor' || s.type === 'corvette');
+        expect(hunters.some(s => s.state === 'hunt')).toBe(true);
+
+        // Cloaking breaks tracking and calms hunters
+        STATE.stealthActive = true;
+        hunters.forEach(h => h.alertTimer = 0.5);
+        updateFleet(1.0);
+        expect(hunters.every(s => s.state === 'patrol' || s.state === 'disabled')).toBe(true);
+
+        // Cleanup
+        clearSpaceStations();
+        clearFleet();
+        expect(STATE.spaceStations.length).toBe(0);
+        expect(STATE.fleetShips.length).toBe(0);
     });
 });
 

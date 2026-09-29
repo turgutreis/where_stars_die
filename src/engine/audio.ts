@@ -1151,3 +1151,89 @@ export function playGoldenRecordAudio() {
     }
 }
 
+/**
+ * Procedural Psionic Stealth sound effect (veil activation or deactivation).
+ */
+export function playStealthToggleSound(activate: boolean) {
+    try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const time = ctx.currentTime;
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        osc.type = activate ? 'sine' : 'triangle';
+        filter.type = 'lowpass';
+
+        if (activate) {
+            // Ascending resonant shimmer (240Hz -> 680Hz)
+            osc.frequency.setValueAtTime(240, time);
+            osc.frequency.exponentialRampToValueAtTime(680, time + 0.45);
+            filter.frequency.setValueAtTime(400, time);
+            filter.frequency.linearRampToValueAtTime(1400, time + 0.45);
+            gain.gain.setValueAtTime(0.12, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.55);
+        } else {
+            // Descending disclosure fade (540Hz -> 180Hz)
+            osc.frequency.setValueAtTime(540, time);
+            osc.frequency.exponentialRampToValueAtTime(180, time + 0.4);
+            filter.frequency.setValueAtTime(1200, time);
+            filter.frequency.linearRampToValueAtTime(300, time + 0.4);
+            gain.gain.setValueAtTime(0.14, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.45);
+        }
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(time);
+        osc.stop(time + 0.6);
+    } catch (e) {
+        console.warn("Stealth toggle audio playback skipped:", e);
+    }
+}
+
+/**
+ * Procedural Red Alert Klaxon / Fleet Hunting siren.
+ */
+export function playFleetAlarmSound() {
+    try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const time = ctx.currentTime;
+
+        // Two pulsing sci-fi square alarm sirens
+        for (let i = 0; i < 2; i++) {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            const filter = ctx.createBiquadFilter();
+
+            const startTime = time + i * 0.38;
+            osc.type = 'sawtooth';
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(850, startTime);
+            filter.Q.setValueAtTime(2.5, startTime);
+
+            // Pitch rise and drop (440Hz -> 720Hz -> 480Hz)
+            osc.frequency.setValueAtTime(440, startTime);
+            osc.frequency.exponentialRampToValueAtTime(720, startTime + 0.18);
+            osc.frequency.exponentialRampToValueAtTime(480, startTime + 0.32);
+
+            gain.gain.setValueAtTime(0.12, startTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.36);
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start(startTime);
+            osc.stop(startTime + 0.38);
+        }
+    } catch (e) {
+        console.warn("Fleet alarm audio playback skipped:", e);
+    }
+}
+

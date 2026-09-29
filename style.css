@@ -539,6 +539,19 @@ html {
     color: #38bdf8;
 }
 
+.dock-btn.stealth-btn.stealth-active {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.4), rgba(217, 70, 239, 0.4));
+    border-color: #d946ef;
+    color: #f0abfc;
+    box-shadow: 0 0 16px rgba(217, 70, 239, 0.5);
+    animation: stealthPulse 2s infinite ease-in-out;
+}
+
+@keyframes stealthPulse {
+    0%, 100% { box-shadow: 0 0 12px rgba(217, 70, 239, 0.4); }
+    50% { box-shadow: 0 0 22px rgba(217, 70, 239, 0.8); }
+}
+
 .dock-key {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.6rem;

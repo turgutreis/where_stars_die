@@ -16,6 +16,7 @@ import { advanceFtueStep } from '../ui/directives';
 import { openVoyagerDialog, closeVoyagerDialog, isVoyagerDialogOpen } from '../ui/voyager-dialog';
 import { isSaveModalOpen, closeSaveModal } from '../ui/save-modal';
 import { toggleMainMenu } from '../ui/menu-controller';
+import { toggleStealth } from '../systems/stealth';
 
 const raycaster = new THREE.Raycaster();
 const mouseVec = new THREE.Vector2();
@@ -46,6 +47,9 @@ export function setupControls() {
             triggerPsionicSonar();
         }
         if (key === 't') {
+            toggleStealth();
+        }
+        if (key === 'g') {
             cycleTarget(1);
         }
         if (key === 'x') {
@@ -181,6 +185,14 @@ export function setupControls() {
         empBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             triggerBioDischarge();
+        });
+    }
+
+    const stealthBtn = document.getElementById('dock-stealth-btn');
+    if (stealthBtn) {
+        stealthBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleStealth();
         });
     }
 

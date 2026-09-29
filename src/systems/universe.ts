@@ -5,7 +5,8 @@ import { PlanetEntry, StarSystem } from '../types/game';
 import { createGravityRing, createBlackHoleMesh, createPrecursorConstructMesh, createPlasmaVortexMesh, clearJumpGates, createJumpGateMesh, activeJumpGates, createVoyagerProbeMesh } from '../procedural/meshes';
 import { createHabitableTextures, createGasGiantTextures, createRockyTextures, createIceMoonTextures, createVolcanicMoonTextures, createStarTexture, createCloudTexture, createCityLightsTexture } from '../procedural/textures';
 import { generatePlanetAttributes, generateFallbackMoons, updateScannerUI } from './scanner';
-import { initPlanetDefenseFleets, clearFleet } from './fleet';
+import { initPlanetDefenseFleets, clearFleet, handleSystemArrivalStealthCheck } from './fleet';
+import { spawnSystemSpaceStations, clearSpaceStations, updateSpaceStations } from '../procedural/space-stations';
 import { addLogEntry, triggerSystemArrivalBanner } from '../ui/hud';
 import { playWarpDropoutSound, playWarpSpoolSound, playWarpSnapSound, playMisfoldWarningSound } from '../engine/audio';
 import { getFaction } from './factions';
@@ -189,6 +190,7 @@ export function clearActiveSystem() {
 
     clearFleet();
     clearJumpGates();
+    clearSpaceStations();
 
     if (STATE.voyagerProbe && STATE.voyagerProbe.mesh) {
         scene.remove(STATE.voyagerProbe.mesh);
@@ -801,6 +803,7 @@ export function spawnPlanetsAndAsteroids() {
     });
 
     initPlanetDefenseFleets();
+    spawnSystemSpaceStations(activePlanets);
 
     // Spawn Voyager 2 probe in the starting system
     if (STATE.currentSystemId === 1 || STATE.currentSystemId === 0) {
@@ -973,7 +976,10 @@ export function initiateSystemArrival(fromSys: any, targetSys: any, resolution?:
     // 5. Trigger Cinematic System Arrival Banner
     triggerSystemArrivalBanner(targetSys, dominantFactionName, resolution);
 
-    // 6. Auto-Save on System Arrival
+    // 6. Psionic Stealth Check upon arrival into developed systems
+    handleSystemArrivalStealthCheck();
+
+    // 7. Auto-Save on System Arrival
     triggerAutoSave(`Ankunft in ${targetSys.name}`);
 }
 
@@ -1082,4 +1088,6 @@ export function updateActivePlanets(dt: number) {
         a.mesh.rotation.x += 0.005;
         a.mesh.rotation.y += 0.008;
     });
+
+    updateSpaceStations(dt);
 }

@@ -448,7 +448,33 @@ export function updateMinimap() {
         }
     }
 
-    // Draw Fleet Ships (Spacefaring Defense Fleets)
+    // Draw Space Stations on Radar
+    if (STATE.spaceStations && STATE.spaceStations.length > 0) {
+        STATE.spaceStations.forEach(st => {
+            const dx = st.position.x - STATE.playerPosition.x;
+            const dz = st.position.z - STATE.playerPosition.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist < range) {
+                const sx = cx + dx * invRangeRadius;
+                const sy = cy + dz * invRangeRadius;
+
+                minimapCtx.fillStyle = st.alertLevel === 'hunt' ? '#ef4444' : '#38bdf8';
+                minimapCtx.strokeStyle = st.alertLevel === 'hunt' ? 'rgba(239, 68, 68, 0.8)' : 'rgba(56, 189, 248, 0.8)';
+                minimapCtx.lineWidth = 1.2;
+
+                minimapCtx.beginPath();
+                minimapCtx.moveTo(sx, sy - 4.5);
+                minimapCtx.lineTo(sx + 4.5, sy);
+                minimapCtx.lineTo(sx, sy + 4.5);
+                minimapCtx.lineTo(sx - 4.5, sy);
+                minimapCtx.closePath();
+                minimapCtx.fill();
+                minimapCtx.stroke();
+            }
+        });
+    }
+
+    // Draw Fleet Ships (Spacefaring Defense Fleets & Cargo Freighters)
     STATE.fleetShips.forEach(ship => {
         const dx = ship.position.x - STATE.playerPosition.x;
         const dz = ship.position.z - STATE.playerPosition.z;
@@ -458,10 +484,13 @@ export function updateMinimap() {
             const sx = cx + dx * invRangeRadius;
             const sy = cy + dz * invRangeRadius;
 
-            if (ship.state === 'disabled') {
+            if (ship.type === 'freighter' || ship.type === 'heavy_freighter') {
+                minimapCtx.fillStyle = ship.state === 'flee' ? '#ef4444' : '#f59e0b';
+                minimapCtx.fillRect(sx - 2, sy - 2, 4, 4);
+            } else if (ship.state === 'disabled') {
                 minimapCtx.fillStyle = '#64748b';
                 minimapCtx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
-            } else if (ship.state === 'intercept') {
+            } else if (ship.state === 'intercept' || ship.state === 'hunt') {
                 minimapCtx.fillStyle = '#f43f5e';
                 minimapCtx.beginPath();
                 minimapCtx.arc(sx, sy, 3.5, 0, Math.PI * 2);
@@ -473,7 +502,7 @@ export function updateMinimap() {
                 minimapCtx.stroke();
             } else {
                 // Patrol
-                minimapCtx.fillStyle = '#f59e0b';
+                minimapCtx.fillStyle = '#38bdf8';
                 minimapCtx.beginPath();
                 minimapCtx.arc(sx, sy, 2.5, 0, Math.PI * 2);
                 minimapCtx.fill();

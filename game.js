@@ -29608,7 +29608,12 @@ var STATE = {
   voyagerScanned: false,
   voyagerDialogSeen: false,
   ftueStep: 0,
-  ftueCompleted: false
+  ftueCompleted: false,
+  spaceStations: [],
+  stealthActive: false,
+  stealthDrainRate: 2,
+  systemAlertLevel: "peace",
+  systemAlertTimer: 0
 };
 var activePlanets = [];
 
@@ -33579,6 +33584,71 @@ function playGoldenRecordAudio() {
     console.warn("Golden Record audio playback skipped:", e);
   }
 }
+function playStealthToggleSound(activate) {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx)
+      return;
+    const time = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    osc.type = activate ? "sine" : "triangle";
+    filter.type = "lowpass";
+    if (activate) {
+      osc.frequency.setValueAtTime(240, time);
+      osc.frequency.exponentialRampToValueAtTime(680, time + 0.45);
+      filter.frequency.setValueAtTime(400, time);
+      filter.frequency.linearRampToValueAtTime(1400, time + 0.45);
+      gain.gain.setValueAtTime(0.12, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.55);
+    } else {
+      osc.frequency.setValueAtTime(540, time);
+      osc.frequency.exponentialRampToValueAtTime(180, time + 0.4);
+      filter.frequency.setValueAtTime(1200, time);
+      filter.frequency.linearRampToValueAtTime(300, time + 0.4);
+      gain.gain.setValueAtTime(0.14, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.45);
+    }
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(time);
+    osc.stop(time + 0.6);
+  } catch (e) {
+    console.warn("Stealth toggle audio playback skipped:", e);
+  }
+}
+function playFleetAlarmSound() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx)
+      return;
+    const time = ctx.currentTime;
+    for (let i = 0;i < 2; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      const startTime = time + i * 0.38;
+      osc.type = "sawtooth";
+      filter.type = "bandpass";
+      filter.frequency.setValueAtTime(850, startTime);
+      filter.Q.setValueAtTime(2.5, startTime);
+      osc.frequency.setValueAtTime(440, startTime);
+      osc.frequency.exponentialRampToValueAtTime(720, startTime + 0.18);
+      osc.frequency.exponentialRampToValueAtTime(480, startTime + 0.32);
+      gain.gain.setValueAtTime(0.12, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.36);
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(startTime);
+      osc.stop(startTime + 0.38);
+    }
+  } catch (e) {
+    console.warn("Fleet alarm audio playback skipped:", e);
+  }
+}
 
 // src/ui/party-grid.ts
 var lastRenderedCrewIds = "";
@@ -37436,12 +37506,12 @@ function spawnSystemFleet(planetsInput) {
         });
         const bodyMesh = new Mesh(geo, mat);
         shipGroup.add(bodyMesh);
-        const pSize = p.size || 5;
-        const orbitRadius = pSize + 4 + i * 2.5;
+        const pSize2 = p.size || 5;
+        const orbitRadius = pSize2 + 4 + i * 2.5;
         const orbitAngle = i * (Math.PI * 2 / shipCount) + Math.random() * 0.5;
-        const planetX = p.mesh ? p.mesh.position.x : 0;
-        const planetZ = p.mesh ? p.mesh.position.z : 0;
-        shipGroup.position.set(planetX + Math.cos(orbitAngle) * orbitRadius, 0, planetZ + Math.sin(orbitAngle) * orbitRadius);
+        const planetX2 = p.mesh ? p.mesh.position.x : 0;
+        const planetZ2 = p.mesh ? p.mesh.position.z : 0;
+        shipGroup.position.set(planetX2 + Math.cos(orbitAngle) * orbitRadius, 0, planetZ2 + Math.sin(orbitAngle) * orbitRadius);
         scene.add(shipGroup);
         const fleetShip = {
           id: Date.now() + Math.random(),
@@ -37464,10 +37534,65 @@ function spawnSystemFleet(planetsInput) {
         };
         STATE.fleetShips.push(fleetShip);
       }
+      const freighterGroup = new Group;
+      const hullGeo = new BoxGeometry(3, 1.2, 1.4);
+      const hullMat = new MeshStandardMaterial({
+        color: 14251782,
+        roughness: 0.45,
+        metalness: 0.75,
+        emissive: 7877903,
+        emissiveIntensity: 0.3
+      });
+      const freighterMesh = new Mesh(hullGeo, hullMat);
+      freighterGroup.add(freighterMesh);
+      const podGeo = new BoxGeometry(1.6, 0.7, 1.5);
+      const podMat = new MeshStandardMaterial({
+        color: 165063,
+        emissive: 223649,
+        emissiveIntensity: 0.4,
+        metalness: 0.8
+      });
+      const podMesh = new Mesh(podGeo, podMat);
+      podMesh.position.set(0, 0.65, 0);
+      freighterGroup.add(podMesh);
+      const engGeo = new CylinderGeometry(0.35, 0.35, 0.6, 8);
+      engGeo.rotateZ(Math.PI / 2);
+      const engMat = new MeshBasicMaterial({ color: 16096779 });
+      const engMesh = new Mesh(engGeo, engMat);
+      engMesh.position.set(-1.6, 0, 0);
+      freighterGroup.add(engMesh);
+      const pSize = p.size || 5;
+      const routeRadius = pSize * 2.2 + 9;
+      const routeAngle = Math.random() * Math.PI * 2;
+      const planetX = p.mesh ? p.mesh.position.x : 0;
+      const planetZ = p.mesh ? p.mesh.position.z : 0;
+      freighterGroup.position.set(planetX + Math.cos(routeAngle) * routeRadius, 0, planetZ + Math.sin(routeAngle) * routeRadius);
+      scene.add(freighterGroup);
+      const freighter = {
+        id: Date.now() + Math.random() + 500,
+        mesh: freighterGroup,
+        bodyMesh: freighterMesh,
+        type: "freighter",
+        name: `Handels-Frachter ${(p.name || "Orb").substring(0, 4)}-${Math.floor(Math.random() * 89 + 10)}`,
+        position: freighterGroup.position,
+        velocity: new Vector3(0, 0, 0),
+        homePlanet: p,
+        orbitRadius: routeRadius,
+        orbitAngle: routeAngle,
+        orbitSpeed: 0.14,
+        health: 45,
+        maxHealth: 45,
+        state: "trade_cruise",
+        originalColor: 14251782,
+        attackCooldown: 999,
+        alertTimer: 0,
+        cargo: { type: "silicon", amount: 65 }
+      };
+      STATE.fleetShips.push(freighter);
     }
   });
   if (STATE.fleetShips.length > 0) {
-    addLogEntry("SYSTEM", `Sensoren geortet: ${STATE.fleetShips.length} planetare Abfangjäger & Patrouillenschiffe im Sektor aktiv.`);
+    addLogEntry("SYSTEM", `Sensoren geortet: ${STATE.fleetShips.length} planetare Schiffe (Jäger & Handels-Konvois) im Sektor aktiv.`);
   }
 }
 function updateFleet(dt) {
@@ -37562,15 +37687,83 @@ function updateFleet(dt) {
     const planetPos = ship.homePlanet && ship.homePlanet.mesh ? ship.homePlanet.mesh.position : ship.position;
     const distToPlayer = ship.position.distanceTo(playerPos);
     const distPlanetToPlayer = planetPos.distanceTo(playerPos);
-    const isPlayerThreatening = distPlanetToPlayer < 35 || STATE.scanningPlanet && STATE.scanningPlanet.name === ship.homePlanet.name || STATE.abductActive && STATE.abductTarget && STATE.abductTarget.name === ship.homePlanet.name;
+    if (ship.type === "freighter" || ship.type === "heavy_freighter") {
+      if (ship.state === "trade_cruise") {
+        ship.orbitAngle += ship.orbitSpeed * dt;
+        const targetX = planetPos.x + Math.cos(ship.orbitAngle) * ship.orbitRadius;
+        const targetZ = planetPos.z + Math.sin(ship.orbitAngle) * ship.orbitRadius;
+        ship.position.x = MathUtils.lerp(ship.position.x, targetX, 0.05);
+        ship.position.z = MathUtils.lerp(ship.position.z, targetZ, 0.05);
+        const tangentX = -Math.sin(ship.orbitAngle);
+        const tangentZ = Math.cos(ship.orbitAngle);
+        ship.mesh.rotation.y = Math.atan2(tangentX, tangentZ);
+        if (distToPlayer < 28 && !STATE.stealthActive) {
+          ship.state = "flee";
+          playFleetAlarmSound();
+          addLogEntry("SYSTEM", `\uD83D\uDEA8 NOTRUF: Ziviler Frachter ${ship.name} meldet ungetarnten Leviathan! Fordert Geleitschutz an!`);
+          STATE.systemAlertLevel = "hunt";
+          STATE.systemAlertTimer = 35;
+        }
+      } else if (ship.state === "flee") {
+        const awayDir = new Vector3().subVectors(ship.position, playerPos).normalize();
+        ship.velocity.addScaledVector(awayDir, 30 * dt);
+        ship.velocity.clampLength(0, 24);
+        ship.position.addScaledVector(ship.velocity, dt);
+        if (ship.velocity.lengthSq() > 0.1) {
+          ship.mesh.rotation.y = Math.atan2(ship.velocity.x, ship.velocity.z);
+        }
+        if (distToPlayer > 55) {
+          ship.state = "trade_cruise";
+        }
+      }
+      return;
+    }
+    if (STATE.systemAlertLevel === "hunt" && ship.state === "patrol") {
+      if (!STATE.stealthActive) {
+        ship.state = "hunt";
+        ship.alertTimer = 25;
+      }
+    }
+    const isPlayerThreatening = !STATE.stealthActive && (distPlanetToPlayer < 35 || STATE.scanningPlanet && STATE.scanningPlanet.name === ship.homePlanet.name || STATE.abductActive && STATE.abductTarget && STATE.abductTarget.name === ship.homePlanet.name);
     if (isPlayerThreatening && ship.state === "patrol") {
       ship.state = "intercept";
       ship.alertTimer = 15;
       addLogEntry("CREW", `Capt. Miller: 'Militärische Abfangjäger von ${ship.homePlanet.name} formieren Abfangkurs!'`);
     }
-    if (ship.state === "intercept") {
+    if (ship.state === "hunt") {
       ship.alertTimer -= dt;
-      if (ship.alertTimer <= 0 && distToPlayer > 40) {
+      if (STATE.stealthActive) {
+        ship.alertTimer -= dt * 2;
+        if (ship.alertTimer <= 0) {
+          ship.state = "patrol";
+          addLogEntry("SYSTEM", `${ship.name}: 'Ziel-Signatur verloren (Sensor-Ghost)... breche Jagd ab.'`);
+        }
+      }
+      const toPlayer = new Vector3().subVectors(playerPos, ship.position);
+      const dist = toPlayer.length();
+      toPlayer.normalize();
+      const pursuitSpeed = ship.type === "corvette" ? 26 : 38;
+      const desiredDist = 14;
+      const distDiff = dist - desiredDist;
+      const tangent = new Vector3(-toPlayer.z, 0, toPlayer.x);
+      const accel = new Vector3;
+      accel.addScaledVector(toPlayer, Math.min(32, distDiff * 4));
+      accel.addScaledVector(tangent, 15);
+      ship.velocity.addScaledVector(accel, dt);
+      ship.velocity.clampLength(0, pursuitSpeed);
+      ship.velocity.multiplyScalar(Math.exp(-0.35 * dt));
+      ship.position.addScaledVector(ship.velocity, dt);
+      if (ship.velocity.lengthSq() > 0.1) {
+        ship.mesh.rotation.y = Math.atan2(ship.velocity.x, ship.velocity.z);
+      }
+      ship.attackCooldown -= dt;
+      if (ship.attackCooldown <= 0 && dist < 32 && !STATE.stealthActive) {
+        ship.attackCooldown = ship.type === "corvette" ? 1.2 : 1.6;
+        fireFleetProjectile(ship, playerPos);
+      }
+    } else if (ship.state === "intercept") {
+      ship.alertTimer -= dt;
+      if (STATE.stealthActive || ship.alertTimer <= 0 && distToPlayer > 40) {
         ship.state = "patrol";
         addLogEntry("SYSTEM", `${ship.name} kehrt in planetaren Patrouillen-Orbit zurück.`);
       }
@@ -37592,7 +37785,7 @@ function updateFleet(dt) {
         ship.mesh.rotation.y = angle;
       }
       ship.attackCooldown -= dt;
-      if (ship.attackCooldown <= 0 && dist < 30) {
+      if (ship.attackCooldown <= 0 && dist < 30 && !STATE.stealthActive) {
         ship.attackCooldown = ship.type === "corvette" ? 1.4 : 1.8;
         fireFleetProjectile(ship, playerPos);
       }
@@ -37729,11 +37922,18 @@ function salvageNearestWreck() {
   const targets = STATE.fleetShips.filter((s) => s.state === "disabled" || s.state === "stunned");
   for (let i = 0;i < targets.length; i++) {
     const ship = targets[i];
-    if (ship.position.distanceTo(playerPos) <= 7.5) {
+    if (ship.position.distanceTo(playerPos) <= 8.5) {
       scene.remove(ship.mesh);
-      STATE.siliconRes += 35;
-      STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 30);
-      addLogEntry("SYSTEM", `Schiff von ${ship.name} assimiliert: +35 Silizium & +30 Bio-Energie gewonnen!`);
+      const isFreighter = ship.type === "freighter" || ship.type === "heavy_freighter";
+      const silBonus = isFreighter ? 65 : 35;
+      const bioBonus = isFreighter ? 45 : 30;
+      STATE.siliconRes += silBonus;
+      STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + bioBonus);
+      if (isFreighter) {
+        addLogEntry("SYSTEM", `\uD83D\uDCA5 FRACHT-ASSIMILATION: Frachträume von ${ship.name} absorbiert! +${silBonus} Silizium & +${bioBonus} Biomasse erbeutet!`);
+      } else {
+        addLogEntry("SYSTEM", `Schiff von ${ship.name} assimiliert: +${silBonus} Silizium & +${bioBonus} Bio-Energie gewonnen!`);
+      }
       playSiliconCollectSound();
       const idx = STATE.fleetShips.findIndex((s) => s.id === ship.id);
       if (idx !== -1) {
@@ -37759,6 +37959,228 @@ function clearFleet() {
   }
   STATE.fleetShips = [];
   STATE.fleetProjectiles = [];
+}
+function handleSystemArrivalStealthCheck() {
+  if (!STATE.universe)
+    return;
+  const activeSys = STATE.universe.systems.find((s) => s.id === STATE.currentSystemId) || STATE.universe.systems[STATE.currentSystemId];
+  if (!activeSys || !activeSys.planets)
+    return;
+  const hasAdvancedCiv = activeSys.planets.some((p) => {
+    const spec = p.species || p.attributes && p.attributes.species;
+    return spec && (spec.techLevel === "Spacefaring" || spec.techLevel === "Hyper-Advanced");
+  });
+  if (!hasAdvancedCiv)
+    return;
+  if (!STATE.stealthActive) {
+    STATE.systemAlertLevel = "hunt";
+    STATE.systemAlertTimer = 45;
+    playFleetAlarmSound();
+    addLogEntry("SYSTEM", `\uD83D\uDEA8 SYSTEMWEITER ALARM: Orbital-Zitadelle hat ungetarnte Raumzeit-Faltung geortet! Jagdstaffeln starten!`);
+    STATE.fleetShips.forEach((s) => {
+      if (s.type === "interceptor" || s.type === "corvette") {
+        s.state = "hunt";
+        s.alertTimer = 35;
+      }
+    });
+  } else {
+    STATE.systemAlertLevel = "peace";
+    addLogEntry("SYSTEM", `\uD83E\uDD2B PSIONISCHER SCHLEIER AKTIV: Sensoren der Orbital-Zitadelle getäuscht. Systemverkehr ahnungslos.`);
+  }
+}
+
+// src/procedural/space-stations.ts
+var activeStationControllers = [];
+function createSpaceStationMesh(type = "trade_hub", factionColor = 3718648) {
+  const group = new Group;
+  const spindleRadius = type === "citadel" ? 1.4 : 1.1;
+  const spindleHeight = type === "citadel" ? 6.2 : 5;
+  const spindleGeo = new CylinderGeometry(spindleRadius * 0.7, spindleRadius, spindleHeight, 8);
+  const spindleMat = new MeshStandardMaterial({
+    color: 3359061,
+    roughness: 0.35,
+    metalness: 0.85
+  });
+  const bodyMesh = new Mesh(spindleGeo, spindleMat);
+  group.add(bodyMesh);
+  const ringRadius = type === "citadel" ? 4.4 : type === "trade_hub" ? 3.8 : 3.2;
+  const ringTube = type === "citadel" ? 0.65 : 0.48;
+  const ringGeo = new TorusGeometry(ringRadius, ringTube, 10, 32);
+  const ringMat = new MeshStandardMaterial({
+    color: 4674921,
+    roughness: 0.25,
+    metalness: 0.8,
+    emissive: factionColor,
+    emissiveIntensity: 0.25
+  });
+  const ringMesh = new Mesh(ringGeo, ringMat);
+  ringMesh.rotation.x = Math.PI / 2;
+  group.add(ringMesh);
+  const spokeCount = type === "citadel" ? 4 : 3;
+  for (let i = 0;i < spokeCount; i++) {
+    const angle = i * Math.PI * 2 / spokeCount;
+    const spokeGeo = new CylinderGeometry(0.12, 0.12, ringRadius, 6);
+    const spokeMat = new MeshStandardMaterial({ color: 1976635, metalness: 0.9, roughness: 0.4 });
+    const spokeMesh = new Mesh(spokeGeo, spokeMat);
+    spokeMesh.rotation.z = Math.PI / 2;
+    spokeMesh.rotation.y = angle;
+    spokeMesh.position.set(Math.cos(angle) * (ringRadius * 0.5), 0, Math.sin(angle) * (ringRadius * 0.5));
+    ringMesh.add(spokeMesh);
+  }
+  const solarWingCount = 2;
+  for (let w = 0;w < solarWingCount; w++) {
+    const wingGeo = new BoxGeometry(0.08, 2.2, 1.4);
+    const wingMat = new MeshStandardMaterial({
+      color: 165063,
+      roughness: 0.15,
+      metalness: 0.95,
+      emissive: 223649,
+      emissiveIntensity: 0.35
+    });
+    const wingMesh = new Mesh(wingGeo, wingMat);
+    const side = w === 0 ? 1 : -1;
+    wingMesh.position.set(0, (spindleHeight * 0.45 + 1.1) * side, 0);
+    group.add(wingMesh);
+  }
+  const dishGeo = new ConeGeometry(0.9, 0.4, 12, 1, true);
+  dishGeo.rotateX(Math.PI);
+  const dishMat = new MeshStandardMaterial({ color: 9741240, metalness: 0.85, roughness: 0.2 });
+  const dishMesh = new Mesh(dishGeo, dishMat);
+  dishMesh.position.set(0, spindleHeight * 0.5 + 0.3, 0);
+  group.add(dishMesh);
+  const dockLights = [];
+  const pylonCount = 4;
+  for (let p = 0;p < pylonCount; p++) {
+    const pAngle = p * Math.PI * 2 / pylonCount;
+    const pylonGeo = new BoxGeometry(0.35, 0.25, 1.8);
+    const pylonMat = new MeshStandardMaterial({ color: 1976635, metalness: 0.85, roughness: 0.3 });
+    const pylonMesh = new Mesh(pylonGeo, pylonMat);
+    pylonMesh.position.set(Math.cos(pAngle) * (spindleRadius + 0.9), 0, Math.sin(pAngle) * (spindleRadius + 0.9));
+    pylonMesh.rotation.y = -pAngle;
+    group.add(pylonMesh);
+    const isPort = p % 2 === 0;
+    const beaconCol = isPort ? 2278750 : 15680580;
+    const beaconGeo = new SphereGeometry(0.12, 8, 8);
+    const beaconMat = new MeshBasicMaterial({ color: beaconCol });
+    const beaconMesh = new Mesh(beaconGeo, beaconMat);
+    beaconMesh.position.set(0, 0.18, 0.9);
+    pylonMesh.add(beaconMesh);
+    dockLights.push(beaconMesh);
+  }
+  const shieldGeo = new SphereGeometry(ringRadius * 1.25, 16, 16);
+  const shieldMat = new MeshBasicMaterial({
+    color: factionColor,
+    transparent: true,
+    opacity: 0.08,
+    wireframe: true,
+    blending: AdditiveBlending
+  });
+  const shieldMesh = new Mesh(shieldGeo, shieldMat);
+  group.add(shieldMesh);
+  const controller = {
+    group,
+    bodyMesh,
+    ringMesh,
+    dockLights,
+    shieldMesh,
+    update: (dt) => {
+      ringMesh.rotation.z += (type === "citadel" ? 0.35 : 0.5) * dt;
+      const blink = Math.sin(Date.now() * 0.006) > 0;
+      dockLights.forEach((light) => {
+        light.visible = blink;
+      });
+      if (shieldMesh) {
+        const shieldPulse = 0.06 + Math.sin(Date.now() * 0.003) * 0.03;
+        shieldMat.opacity = shieldPulse;
+      }
+    }
+  };
+  activeStationControllers.push(controller);
+  return controller;
+}
+function spawnSystemSpaceStations(planetsInput) {
+  clearSpaceStations();
+  let planets = [];
+  if (planetsInput && Array.isArray(planetsInput) && planetsInput.length > 0) {
+    planets = planetsInput;
+  } else if (activePlanets && activePlanets.length > 0) {
+    planets = activePlanets;
+  } else if (STATE.universe && STATE.universe.systems) {
+    const activeSys = STATE.universe.systems.find((s) => s.id === STATE.currentSystemId) || STATE.universe.systems[STATE.currentSystemId];
+    if (activeSys && activeSys.planets) {
+      planets = activeSys.planets;
+    }
+  }
+  if (!planets || planets.length === 0)
+    return;
+  let stationIdCounter = 1;
+  planets.forEach((p) => {
+    if (p.isMoon)
+      return;
+    const species = p.attributes && p.attributes.species || p.species;
+    if (!species || !species.techLevel)
+      return;
+    const tech = species.techLevel;
+    if (tech === "Spacefaring" || tech === "Hyper-Advanced") {
+      const isHyper = tech === "Hyper-Advanced";
+      const stationType = isHyper ? "citadel" : "trade_hub";
+      const factionCol = isHyper ? 11032055 : 3718648;
+      const controller = createSpaceStationMesh(stationType, factionCol);
+      const pSize = p.size || 5;
+      const orbitRadius = pSize * 2.5 + 7.5;
+      const orbitAngle = Math.PI * 0.35 + stationIdCounter * 1.5;
+      const orbitSpeed = 0.28 / Math.sqrt(orbitRadius);
+      const planetX = p.mesh ? p.mesh.position.x : 0;
+      const planetZ = p.mesh ? p.mesh.position.z : 0;
+      controller.group.position.set(planetX + Math.cos(orbitAngle) * orbitRadius, 0, planetZ + Math.sin(orbitAngle) * orbitRadius);
+      scene.add(controller.group);
+      const stName = isHyper ? `Orbital-Zitadelle ${p.name.replace(/ Prime| Major| A| B/g, "")}-Alpha` : `Handelsrelais ${p.name.replace(/ Prime| Major| A| B/g, "")}-Dock`;
+      const station = {
+        id: Date.now() + stationIdCounter++,
+        name: stName,
+        factionId: species.factionId || "free_traders",
+        mesh: controller.group,
+        bodyMesh: controller.bodyMesh,
+        ringMesh: controller.ringMesh,
+        position: controller.group.position,
+        parentPlanet: p,
+        orbitRadius,
+        orbitAngle,
+        orbitSpeed,
+        rotationSpeed: 0.5,
+        health: isHyper ? 350 : 180,
+        maxHealth: isHyper ? 350 : 180,
+        defenseRating: isHyper ? 95 : 60,
+        alertLevel: "peace",
+        alertTimer: 0,
+        type: stationType
+      };
+      STATE.spaceStations.push(station);
+      const stationGravSource = {
+        mesh: controller.group,
+        type: "ship_wreck",
+        name: stName,
+        mass: 2.5,
+        radius: 4.5,
+        gravityRange: 16,
+        position: controller.group.position,
+        isSpaceStation: true
+      };
+      STATE.gravitySources.push(stationGravSource);
+    }
+  });
+  if (STATE.spaceStations.length > 0) {
+    addLogEntry("SYSTEM", `\uD83D\uDCE1 ORBITALE RELAIS: ${STATE.spaceStations.length} Raumstation(en) im Sektor erfasst.`);
+  }
+}
+function clearSpaceStations() {
+  STATE.spaceStations.forEach((st) => {
+    if (st.mesh) {
+      scene.remove(st.mesh);
+    }
+  });
+  activeStationControllers.length = 0;
+  STATE.spaceStations = [];
 }
 
 // src/procedural/sun-shader.ts
@@ -39092,6 +39514,7 @@ function clearActiveSystem() {
   STATE.abductProgress = 0;
   clearFleet();
   clearJumpGates();
+  clearSpaceStations();
   if (STATE.voyagerProbe && STATE.voyagerProbe.mesh) {
     scene.remove(STATE.voyagerProbe.mesh);
     disposeObject3D(STATE.voyagerProbe.mesh);
@@ -39609,6 +40032,7 @@ function spawnPlanetsAndAsteroids() {
     STATE.asteroids.push(sourceObj);
   });
   initPlanetDefenseFleets();
+  spawnSystemSpaceStations(activePlanets);
   if (STATE.currentSystemId === 1 || STATE.currentSystemId === 0) {
     spawnVoyagerProbe();
   }
@@ -39734,6 +40158,7 @@ function initiateSystemArrival(fromSys, targetSys, resolution) {
   }
   playWarpDropoutSound();
   triggerSystemArrivalBanner(targetSys, dominantFactionName, resolution);
+  handleSystemArrivalStealthCheck();
   triggerAutoSave(`Ankunft in ${targetSys.name}`);
 }
 
@@ -40805,6 +41230,28 @@ function updateMinimap() {
       minimapCtx.stroke();
     }
   }
+  if (STATE.spaceStations && STATE.spaceStations.length > 0) {
+    STATE.spaceStations.forEach((st) => {
+      const dx = st.position.x - STATE.playerPosition.x;
+      const dz = st.position.z - STATE.playerPosition.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < range) {
+        const sx = cx + dx * invRangeRadius;
+        const sy = cy + dz * invRangeRadius;
+        minimapCtx.fillStyle = st.alertLevel === "hunt" ? "#ef4444" : "#38bdf8";
+        minimapCtx.strokeStyle = st.alertLevel === "hunt" ? "rgba(239, 68, 68, 0.8)" : "rgba(56, 189, 248, 0.8)";
+        minimapCtx.lineWidth = 1.2;
+        minimapCtx.beginPath();
+        minimapCtx.moveTo(sx, sy - 4.5);
+        minimapCtx.lineTo(sx + 4.5, sy);
+        minimapCtx.lineTo(sx, sy + 4.5);
+        minimapCtx.lineTo(sx - 4.5, sy);
+        minimapCtx.closePath();
+        minimapCtx.fill();
+        minimapCtx.stroke();
+      }
+    });
+  }
   STATE.fleetShips.forEach((ship) => {
     const dx = ship.position.x - STATE.playerPosition.x;
     const dz = ship.position.z - STATE.playerPosition.z;
@@ -40812,10 +41259,13 @@ function updateMinimap() {
     if (dist < range) {
       const sx = cx + dx * invRangeRadius;
       const sy = cy + dz * invRangeRadius;
-      if (ship.state === "disabled") {
+      if (ship.type === "freighter" || ship.type === "heavy_freighter") {
+        minimapCtx.fillStyle = ship.state === "flee" ? "#ef4444" : "#f59e0b";
+        minimapCtx.fillRect(sx - 2, sy - 2, 4, 4);
+      } else if (ship.state === "disabled") {
         minimapCtx.fillStyle = "#64748b";
         minimapCtx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
-      } else if (ship.state === "intercept") {
+      } else if (ship.state === "intercept" || ship.state === "hunt") {
         minimapCtx.fillStyle = "#f43f5e";
         minimapCtx.beginPath();
         minimapCtx.arc(sx, sy, 3.5, 0, Math.PI * 2);
@@ -40825,7 +41275,7 @@ function updateMinimap() {
         minimapCtx.arc(sx, sy, 5.5 + Math.sin(Date.now() * 0.015) * 1.5, 0, Math.PI * 2);
         minimapCtx.stroke();
       } else {
-        minimapCtx.fillStyle = "#f59e0b";
+        minimapCtx.fillStyle = "#38bdf8";
         minimapCtx.beginPath();
         minimapCtx.arc(sx, sy, 2.5, 0, Math.PI * 2);
         minimapCtx.fill();
@@ -43198,6 +43648,112 @@ function renderPresetsUI() {
   });
 }
 
+// src/systems/stealth.ts
+function toggleStealth() {
+  if (!STATE.gameStarted)
+    return false;
+  if (!STATE.stealthActive) {
+    if (STATE.mentalEnergy < 10) {
+      addLogEntry("SYSTEM", `Zu wenig Mentalkraft für psionischen Schleier (mindestens 10 Psi nötig)!`);
+      return false;
+    }
+    STATE.stealthActive = true;
+    playStealthToggleSound(true);
+    const drainRate = getEffectiveStealthDrainRate();
+    const veilBonus = STATE.mutations.chimera_veil?.purchased ? " [Schimären-Schleier aktiv: -50% Drain]" : "";
+    addLogEntry("SYSTEM", `\uD83D\uDD2E PSIONISCHER SCHLEIER AKTIVIERT: Chamäleon-Signatur maskiert Najmafar (-${drainRate.toFixed(1)} Psi/s)${veilBonus}.`);
+    updateStealthVisuals(true);
+    updateStealthHUD();
+    return true;
+  } else {
+    STATE.stealthActive = false;
+    playStealthToggleSound(false);
+    addLogEntry("SYSTEM", `\uD83D\uDC41️ PSIONISCHER SCHLEIER DEAKTIVIERT: Volle biologische Signatur sichtbar.`);
+    updateStealthVisuals(false);
+    updateStealthHUD();
+    return false;
+  }
+}
+function getEffectiveStealthDrainRate() {
+  let rate = STATE.stealthDrainRate || 2;
+  if (STATE.mutations.chimera_veil && STATE.mutations.chimera_veil.purchased) {
+    rate *= 0.5;
+  }
+  if (STATE.mutations.telepathic_focus && STATE.mutations.telepathic_focus.purchased) {
+    rate *= 0.85;
+  }
+  return Math.max(0.4, rate);
+}
+function updateStealth(dt) {
+  if (STATE.stealthActive) {
+    const drain = getEffectiveStealthDrainRate() * dt;
+    STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - drain);
+    if (STATE.mentalEnergy <= 0) {
+      STATE.stealthActive = false;
+      playCrashSound();
+      addLogEntry("CREW", `⚠️ SCHLEIER KOLLABIERT: Mentale Erschöpfung! Najmafar ist vor den Sensoren entblößt!`);
+      updateStealthVisuals(false);
+      updateStealthHUD();
+      triggerProximityDetection();
+    }
+  }
+  updateStealthVisuals(STATE.stealthActive);
+}
+function updateStealthVisuals(active) {
+  if (!STATE.playerGroup)
+    return;
+  const targetOpacity = active ? 0.28 : 1;
+  const targetWire = active;
+  STATE.playerGroup.traverse((obj) => {
+    if (obj.isMesh) {
+      const mat = obj.material;
+      if (Array.isArray(mat)) {
+        mat.forEach((m) => applyMatStealth(m, targetOpacity, active));
+      } else if (mat) {
+        applyMatStealth(mat, targetOpacity, active);
+      }
+    }
+  });
+}
+function applyMatStealth(mat, targetOpacity, active) {
+  mat.transparent = true;
+  mat.opacity = MathUtils.lerp(mat.opacity, targetOpacity, 0.14);
+  if (active) {
+    if ("emissive" in mat && mat.emissive) {
+      mat.emissive.setHex(11032055);
+      mat.emissiveIntensity = 0.45;
+    }
+  } else {
+    if ("emissive" in mat && mat.emissive) {
+      mat.emissive.setHex(13073);
+      mat.emissiveIntensity = 0.2;
+    }
+  }
+}
+function triggerProximityDetection() {
+  const playerPos = STATE.playerPosition;
+  const hasNearbyThreat = STATE.fleetShips.some((s) => s.state !== "disabled" && s.position.distanceTo(playerPos) < 45) || STATE.spaceStations.some((st) => st.position.distanceTo(playerPos) < 55);
+  if (hasNearbyThreat) {
+    STATE.systemAlertLevel = "hunt";
+    STATE.systemAlertTimer = 35;
+    addLogEntry("SYSTEM", `\uD83D\uDEA8 SENSOR-ALARM: Flotten-Arrays haben Najmafars ungetarnte Position gelockt!`);
+  }
+}
+function updateStealthHUD() {
+  const badge = document.getElementById("stealth-status-badge");
+  if (!badge)
+    return;
+  if (STATE.stealthActive) {
+    badge.style.display = "inline-flex";
+    badge.className = "stealth-badge active";
+    badge.innerHTML = `\uD83D\uDD2E <span>GETARNT</span>`;
+  } else {
+    badge.style.display = "inline-flex";
+    badge.className = "stealth-badge inactive";
+    badge.innerHTML = `\uD83D\uDC41️ <span>SICHTBAR</span>`;
+  }
+}
+
 // src/input/controls.ts
 var raycaster = new Raycaster;
 var mouseVec = new Vector2;
@@ -43226,6 +43782,9 @@ function setupControls() {
       triggerPsionicSonar();
     }
     if (key === "t") {
+      toggleStealth();
+    }
+    if (key === "g") {
       cycleTarget(1);
     }
     if (key === "x") {
@@ -43345,6 +43904,13 @@ function setupControls() {
     empBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       triggerBioDischarge();
+    });
+  }
+  const stealthBtn = document.getElementById("dock-stealth-btn");
+  if (stealthBtn) {
+    stealthBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleStealth();
     });
   }
   const musicBtn = document.getElementById("music-toggle-btn");
@@ -44574,6 +45140,7 @@ function animate(time) {
     updateHarvesting(dt);
     updateAbduction(dt);
     updateFleet(dt);
+    updateStealth(dt);
     updateCrewSimulation(dt);
     updatePartyGrid();
     updateSonarWave(dt);

@@ -202,7 +202,14 @@ export const STATE: GameState = {
     voyagerScanned: false,
     voyagerDialogSeen: false,
     ftueStep: 0,
-    ftueCompleted: false
+    ftueCompleted: false,
+
+    // Space Stations & Psionic Stealth System
+    spaceStations: [],
+    stealthActive: false,
+    stealthDrainRate: 2.0,
+    systemAlertLevel: 'peace',
+    systemAlertTimer: 0
 };
 
 export const activePlanets: PlanetEntry[] = [];

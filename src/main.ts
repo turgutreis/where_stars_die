@@ -11,6 +11,7 @@ import { updateScanning, triggerScanStart } from './systems/scanner';
 import { updateHarvesting, triggerHarvestStart } from './systems/harvesting';
 import { updateAbduction, triggerAbductStart } from './systems/abduction';
 import { updateFleet } from './systems/fleet';
+import { updateStealth } from './systems/stealth';
 import { updateCrewSimulation, renderCrewUI } from './systems/crew';
 import { updatePartyGrid } from './ui/party-grid';
 import { updateMinimap, updateSonarWave, initHUD, addLogEntry, updateHUDStats } from './ui/hud';
@@ -67,6 +68,7 @@ function animate(time: number) {
         updateHarvesting(dt);
         updateAbduction(dt);
         updateFleet(dt);
+        updateStealth(dt);
         updateCrewSimulation(dt);
         updatePartyGrid();
         updateSonarWave(dt);
