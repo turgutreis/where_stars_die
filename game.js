@@ -37610,6 +37610,17 @@ function updateFleet(dt) {
     }
   }
   updateEmpHUD();
+  if (STATE.systemAlertLevel === "hunt") {
+    if (STATE.stealthActive) {
+      STATE.systemAlertTimer = Math.max(0, (STATE.systemAlertTimer || 0) - dt);
+      if (STATE.systemAlertTimer <= 0) {
+        STATE.systemAlertLevel = "peace";
+        addLogEntry("SYSTEM", "Flottenalarm aufgehoben – Ziel-Biosignatur vollständig im Vakuum verblasst.");
+      }
+    } else {
+      STATE.systemAlertTimer = Math.max(STATE.systemAlertTimer || 0, 30);
+    }
+  }
   if (shockwaveMesh && shockwaveTimer > 0) {
     shockwaveTimer -= dt;
     const totalDuration = 0.6;
@@ -37684,16 +37695,42 @@ function updateFleet(dt) {
       }
       return;
     }
-    const planetPos = ship.homePlanet && ship.homePlanet.mesh ? ship.homePlanet.mesh.position : ship.position;
+    const planetPos = ship.homePlanet && ship.homePlanet.mesh ? ship.homePlanet.mesh.position : ship.homePlanet?.source?.position || new Vector3(0, 0, 0);
     const distToPlayer = ship.position.distanceTo(playerPos);
     const distPlanetToPlayer = planetPos.distanceTo(playerPos);
+    if (ship.state === "returning") {
+      const isMilitary = ship.type === "interceptor" || ship.type === "corvette";
+      if (isMilitary && !STATE.stealthActive && (STATE.systemAlertLevel === "hunt" || distToPlayer < 45)) {
+        ship.state = "hunt";
+        ship.alertTimer = 35;
+        addLogEntry("SYSTEM", `${ship.name}: 'Ziel wieder im Radar! Setze Abfangkurs erneut an!'`);
+      } else {
+        const toPlanet = new Vector3().subVectors(planetPos, ship.position);
+        const distToPlanet = toPlanet.length();
+        const cruiseSpeed = isMilitary ? ship.type === "corvette" ? 24 : 32 : 14;
+        const cruiseDir = toPlanet.clone().normalize();
+        ship.velocity.lerp(cruiseDir.multiplyScalar(cruiseSpeed), 3 * dt);
+        ship.position.addScaledVector(ship.velocity, dt);
+        if (ship.velocity.lengthSq() > 0.1) {
+          ship.mesh.rotation.y = Math.atan2(ship.velocity.x, ship.velocity.z);
+        }
+        if (distToPlanet <= ship.orbitRadius + 2.5) {
+          ship.orbitAngle = Math.atan2(ship.position.z - planetPos.z, ship.position.x - planetPos.x);
+          ship.velocity.set(0, 0, 0);
+          if (isMilitary) {
+            ship.state = "patrol";
+            addLogEntry("SYSTEM", `${ship.name} hat Heimat-Orbit um ${ship.homePlanet.name} erreicht.`);
+          } else {
+            ship.state = "trade_cruise";
+          }
+        }
+        return;
+      }
+    }
     if (ship.type === "freighter" || ship.type === "heavy_freighter") {
       if (ship.state === "trade_cruise") {
         ship.orbitAngle += ship.orbitSpeed * dt;
-        const targetX = planetPos.x + Math.cos(ship.orbitAngle) * ship.orbitRadius;
-        const targetZ = planetPos.z + Math.sin(ship.orbitAngle) * ship.orbitRadius;
-        ship.position.x = MathUtils.lerp(ship.position.x, targetX, 0.05);
-        ship.position.z = MathUtils.lerp(ship.position.z, targetZ, 0.05);
+        ship.position.set(planetPos.x + Math.cos(ship.orbitAngle) * ship.orbitRadius, 0, planetPos.z + Math.sin(ship.orbitAngle) * ship.orbitRadius);
         const tangentX = -Math.sin(ship.orbitAngle);
         const tangentZ = Math.cos(ship.orbitAngle);
         ship.mesh.rotation.y = Math.atan2(tangentX, tangentZ);
@@ -37702,7 +37739,7 @@ function updateFleet(dt) {
           playFleetAlarmSound();
           addLogEntry("SYSTEM", `\uD83D\uDEA8 NOTRUF: Ziviler Frachter ${ship.name} meldet ungetarnten Leviathan! Fordert Geleitschutz an!`);
           STATE.systemAlertLevel = "hunt";
-          STATE.systemAlertTimer = 35;
+          STATE.systemAlertTimer = 40;
         }
       } else if (ship.state === "flee") {
         const awayDir = new Vector3().subVectors(ship.position, playerPos).normalize();
@@ -37712,45 +37749,62 @@ function updateFleet(dt) {
         if (ship.velocity.lengthSq() > 0.1) {
           ship.mesh.rotation.y = Math.atan2(ship.velocity.x, ship.velocity.z);
         }
-        if (distToPlayer > 55) {
-          ship.state = "trade_cruise";
+        if (distToPlayer > 60 || STATE.stealthActive) {
+          ship.state = "returning";
+          addLogEntry("SYSTEM", `${ship.name}: 'Gefahr abgewendet. Kehre auf Handelsroute zurück.'`);
         }
       }
       return;
     }
-    if (STATE.systemAlertLevel === "hunt" && ship.state === "patrol") {
+    if (STATE.systemAlertLevel === "hunt" && (ship.state === "patrol" || ship.state === "returning")) {
       if (!STATE.stealthActive) {
         ship.state = "hunt";
-        ship.alertTimer = 25;
+        ship.alertTimer = 35;
       }
     }
-    const isPlayerThreatening = !STATE.stealthActive && (distPlanetToPlayer < 35 || STATE.scanningPlanet && STATE.scanningPlanet.name === ship.homePlanet.name || STATE.abductActive && STATE.abductTarget && STATE.abductTarget.name === ship.homePlanet.name);
+    const isPlayerThreatening = !STATE.stealthActive && (distPlanetToPlayer < 40 || STATE.scanningPlanet && STATE.scanningPlanet.name === ship.homePlanet.name || STATE.abductActive && STATE.abductTarget && STATE.abductTarget.name === ship.homePlanet.name);
     if (isPlayerThreatening && ship.state === "patrol") {
       ship.state = "intercept";
-      ship.alertTimer = 15;
+      ship.alertTimer = 30;
       addLogEntry("CREW", `Capt. Miller: 'Militärische Abfangjäger von ${ship.homePlanet.name} formieren Abfangkurs!'`);
     }
-    if (ship.state === "hunt") {
-      ship.alertTimer -= dt;
-      if (STATE.stealthActive) {
+    if (ship.state === "hunt" || ship.state === "intercept") {
+      if (!STATE.stealthActive && ship.state === "intercept" && distToPlayer > 40) {
+        ship.state = "hunt";
+        STATE.systemAlertLevel = "hunt";
+        STATE.systemAlertTimer = 40;
+        addLogEntry("SYSTEM", `${ship.name}: 'Ziel flieht – leite systemweite Langstrecken-Jagd ein!'`);
+      }
+      if (!STATE.stealthActive) {
+        ship.alertTimer = Math.max(ship.alertTimer, 25);
+      } else {
         ship.alertTimer -= dt * 2;
         if (ship.alertTimer <= 0) {
-          ship.state = "patrol";
-          addLogEntry("SYSTEM", `${ship.name}: 'Ziel-Signatur verloren (Sensor-Ghost)... breche Jagd ab.'`);
+          ship.state = "returning";
+          addLogEntry("SYSTEM", `${ship.name}: 'Ziel-Signatur verloren (Sensor-Ghost)... breche Jagd ab und kehre zur Basis zurück.'`);
+          return;
         }
       }
       const toPlayer = new Vector3().subVectors(playerPos, ship.position);
       const dist = toPlayer.length();
-      toPlayer.normalize();
-      const pursuitSpeed = ship.type === "corvette" ? 26 : 38;
-      const desiredDist = 14;
-      const distDiff = dist - desiredDist;
-      const tangent = new Vector3(-toPlayer.z, 0, toPlayer.x);
+      const dirToPlayer = toPlayer.clone().normalize();
+      const isCorvette = ship.type === "corvette";
+      const maxCombatSpeed = isCorvette ? 26 : 36;
+      const maxPursuitSpeed = isCorvette ? 36 : 48;
       const accel = new Vector3;
-      accel.addScaledVector(toPlayer, Math.min(32, distDiff * 4));
-      accel.addScaledVector(tangent, 15);
-      ship.velocity.addScaledVector(accel, dt);
-      ship.velocity.clampLength(0, pursuitSpeed);
+      if (dist > 30) {
+        accel.addScaledVector(dirToPlayer, 42);
+        ship.velocity.addScaledVector(accel, dt);
+        ship.velocity.clampLength(0, maxPursuitSpeed);
+      } else {
+        const desiredDist = isCorvette ? 13 : 9;
+        const distDiff = dist - desiredDist;
+        const tangent = new Vector3(-dirToPlayer.z, 0, dirToPlayer.x);
+        accel.addScaledVector(dirToPlayer, Math.min(32, distDiff * 4));
+        accel.addScaledVector(tangent, 16);
+        ship.velocity.addScaledVector(accel, dt);
+        ship.velocity.clampLength(0, maxCombatSpeed);
+      }
       ship.velocity.multiplyScalar(Math.exp(-0.35 * dt));
       ship.position.addScaledVector(ship.velocity, dt);
       if (ship.velocity.lengthSq() > 0.1) {
@@ -37758,45 +37812,14 @@ function updateFleet(dt) {
       }
       ship.attackCooldown -= dt;
       if (ship.attackCooldown <= 0 && dist < 32 && !STATE.stealthActive) {
-        ship.attackCooldown = ship.type === "corvette" ? 1.2 : 1.6;
-        fireFleetProjectile(ship, playerPos);
-      }
-    } else if (ship.state === "intercept") {
-      ship.alertTimer -= dt;
-      if (STATE.stealthActive || ship.alertTimer <= 0 && distToPlayer > 40) {
-        ship.state = "patrol";
-        addLogEntry("SYSTEM", `${ship.name} kehrt in planetaren Patrouillen-Orbit zurück.`);
-      }
-      const toPlayer = new Vector3().subVectors(playerPos, ship.position);
-      const dist = toPlayer.length();
-      toPlayer.normalize();
-      const desiredDist = 12;
-      const distDiff = dist - desiredDist;
-      const tangent = new Vector3(-toPlayer.z, 0, toPlayer.x);
-      const accel = new Vector3;
-      accel.addScaledVector(toPlayer, Math.min(28, distDiff * 3.5));
-      accel.addScaledVector(tangent, 18);
-      ship.velocity.addScaledVector(accel, dt);
-      ship.velocity.clampLength(0, ship.type === "corvette" ? 24 : 34);
-      ship.velocity.multiplyScalar(Math.exp(-0.35 * dt));
-      ship.position.addScaledVector(ship.velocity, dt);
-      if (ship.velocity.lengthSq() > 0.1) {
-        const angle = Math.atan2(ship.velocity.x, ship.velocity.z);
-        ship.mesh.rotation.y = angle;
-      }
-      ship.attackCooldown -= dt;
-      if (ship.attackCooldown <= 0 && dist < 30 && !STATE.stealthActive) {
-        ship.attackCooldown = ship.type === "corvette" ? 1.4 : 1.8;
+        ship.attackCooldown = isCorvette ? 1.3 : 1.7;
         fireFleetProjectile(ship, playerPos);
       }
     } else {
       ship.orbitAngle += ship.orbitSpeed * dt;
-      const targetX = planetPos.x + Math.cos(ship.orbitAngle) * ship.orbitRadius;
-      const targetZ = planetPos.z + Math.sin(ship.orbitAngle) * ship.orbitRadius;
-      ship.position.x = MathUtils.lerp(ship.position.x, targetX, 0.05);
-      ship.position.z = MathUtils.lerp(ship.position.z, targetZ, 0.05);
-      const tangentX = -Math.sin(ship.orbitAngle);
-      const tangentZ = Math.cos(ship.orbitAngle);
+      ship.position.set(planetPos.x + Math.cos(ship.orbitAngle) * ship.orbitRadius, 0, planetPos.z + Math.sin(ship.orbitAngle) * ship.orbitRadius);
+      const tangentX = -Math.sin(ship.orbitAngle) * (ship.orbitSpeed >= 0 ? 1 : -1);
+      const tangentZ = Math.cos(ship.orbitAngle) * (ship.orbitSpeed >= 0 ? 1 : -1);
       ship.mesh.rotation.y = Math.atan2(tangentX, tangentZ);
     }
   });
@@ -41274,6 +41297,11 @@ function updateMinimap() {
         minimapCtx.beginPath();
         minimapCtx.arc(sx, sy, 5.5 + Math.sin(Date.now() * 0.015) * 1.5, 0, Math.PI * 2);
         minimapCtx.stroke();
+      } else if (ship.state === "returning") {
+        minimapCtx.fillStyle = "#06b6d4";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+        minimapCtx.fill();
       } else {
         minimapCtx.fillStyle = "#38bdf8";
         minimapCtx.beginPath();

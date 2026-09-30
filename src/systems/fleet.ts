@@ -210,6 +210,21 @@ export function updateFleet(dt: number) {
 
     updateEmpHUD();
 
+    // 2. System-wide Fleet Alert Management
+    if (STATE.systemAlertLevel === 'hunt') {
+        if (STATE.stealthActive) {
+            // Najmafar is cloaked: alert timer counts down
+            STATE.systemAlertTimer = Math.max(0, (STATE.systemAlertTimer || 0) - dt);
+            if (STATE.systemAlertTimer <= 0) {
+                STATE.systemAlertLevel = 'peace';
+                addLogEntry("SYSTEM", "Flottenalarm aufgehoben – Ziel-Biosignatur vollständig im Vakuum verblasst.");
+            }
+        } else {
+            // Najmafar is uncloaked: alert stays active across the entire system!
+            STATE.systemAlertTimer = Math.max(STATE.systemAlertTimer || 0, 30.0);
+        }
+    }
+
     // 2. Continuous Shockwave Expansion & Hit Detection
     if (shockwaveMesh && shockwaveTimer > 0) {
         shockwaveTimer -= dt;
@@ -304,19 +319,61 @@ export function updateFleet(dt: number) {
             return;
         }
 
-        const planetPos = (ship.homePlanet && ship.homePlanet.mesh) ? ship.homePlanet.mesh.position : ship.position;
+        const planetPos = (ship.homePlanet && ship.homePlanet.mesh)
+            ? ship.homePlanet.mesh.position
+            : (ship.homePlanet?.source?.position || new THREE.Vector3(0, 0, 0));
         const distToPlayer = ship.position.distanceTo(playerPos);
         const distPlanetToPlayer = planetPos.distanceTo(playerPos);
 
-        // 1. Freighter Trade Cruise & Flee AI
+        // 1. Returning to Orbit State (Physics-driven cruise back home, NO rubber-banding / yo-yo!)
+        if (ship.state === 'returning') {
+            const isMilitary = ship.type === 'interceptor' || ship.type === 'corvette';
+
+            // Military ships immediately re-engage if uncamouflaged player threatens again
+            if (isMilitary && !STATE.stealthActive && (STATE.systemAlertLevel === 'hunt' || distToPlayer < 45.0)) {
+                ship.state = 'hunt';
+                ship.alertTimer = 35.0;
+                addLogEntry("SYSTEM", `${ship.name}: 'Ziel wieder im Radar! Setze Abfangkurs erneut an!'`);
+            } else {
+                const toPlanet = new THREE.Vector3().subVectors(planetPos, ship.position);
+                const distToPlanet = toPlanet.length();
+                const cruiseSpeed = isMilitary ? (ship.type === 'corvette' ? 24.0 : 32.0) : 14.0;
+                const cruiseDir = toPlanet.clone().normalize();
+
+                // Smoothly accelerate towards home planet
+                ship.velocity.lerp(cruiseDir.multiplyScalar(cruiseSpeed), 3.0 * dt);
+                ship.position.addScaledVector(ship.velocity, dt);
+
+                if (ship.velocity.lengthSq() > 0.1) {
+                    ship.mesh.rotation.y = Math.atan2(ship.velocity.x, ship.velocity.z);
+                }
+
+                // Check orbital insertion: smooth entry into circular orbit
+                if (distToPlanet <= ship.orbitRadius + 2.5) {
+                    // Synchronize orbit angle exactly to insertion point
+                    ship.orbitAngle = Math.atan2(ship.position.z - planetPos.z, ship.position.x - planetPos.x);
+                    ship.velocity.set(0, 0, 0);
+
+                    if (isMilitary) {
+                        ship.state = 'patrol';
+                        addLogEntry("SYSTEM", `${ship.name} hat Heimat-Orbit um ${ship.homePlanet.name} erreicht.`);
+                    } else {
+                        ship.state = 'trade_cruise';
+                    }
+                }
+                return;
+            }
+        }
+
+        // 2. Freighter Trade Cruise & Flee AI
         if (ship.type === 'freighter' || ship.type === 'heavy_freighter') {
             if (ship.state === 'trade_cruise') {
                 ship.orbitAngle += ship.orbitSpeed * dt;
-                const targetX = planetPos.x + Math.cos(ship.orbitAngle) * ship.orbitRadius;
-                const targetZ = planetPos.z + Math.sin(ship.orbitAngle) * ship.orbitRadius;
-
-                ship.position.x = THREE.MathUtils.lerp(ship.position.x, targetX, 0.05);
-                ship.position.z = THREE.MathUtils.lerp(ship.position.z, targetZ, 0.05);
+                ship.position.set(
+                    planetPos.x + Math.cos(ship.orbitAngle) * ship.orbitRadius,
+                    0,
+                    planetPos.z + Math.sin(ship.orbitAngle) * ship.orbitRadius
+                );
 
                 const tangentX = -Math.sin(ship.orbitAngle);
                 const tangentZ = Math.cos(ship.orbitAngle);
@@ -328,7 +385,7 @@ export function updateFleet(dt: number) {
                     playFleetAlarmSound();
                     addLogEntry("SYSTEM", `🚨 NOTRUF: Ziviler Frachter ${ship.name} meldet ungetarnten Leviathan! Fordert Geleitschutz an!`);
                     STATE.systemAlertLevel = 'hunt';
-                    STATE.systemAlertTimer = 35.0;
+                    STATE.systemAlertTimer = 40.0;
                 }
             } else if (ship.state === 'flee') {
                 // Accelerate directly away from Najmafar
@@ -341,120 +398,113 @@ export function updateFleet(dt: number) {
                     ship.mesh.rotation.y = Math.atan2(ship.velocity.x, ship.velocity.z);
                 }
 
-                if (distToPlayer > 55.0) {
-                    ship.state = 'trade_cruise';
+                // If player is far away or camouflaged, stop fleeing and cruise smoothly back to trade route
+                if (distToPlayer > 60.0 || STATE.stealthActive) {
+                    ship.state = 'returning';
+                    addLogEntry("SYSTEM", `${ship.name}: 'Gefahr abgewendet. Kehre auf Handelsroute zurück.'`);
                 }
             }
             return;
         }
 
-        // 2. Military Combat Ships (Interceptors & Corvettes)
-        // System-wide Hunt Response
-        if (STATE.systemAlertLevel === 'hunt' && ship.state === 'patrol') {
+        // 3. Military Combat Ships (Interceptors & Corvettes)
+        // System-wide Hunt Response: uncloaked Najmafar draws all military ships across the entire system!
+        if (STATE.systemAlertLevel === 'hunt' && (ship.state === 'patrol' || ship.state === 'returning')) {
             if (!STATE.stealthActive) {
                 ship.state = 'hunt';
-                ship.alertTimer = 25.0;
+                ship.alertTimer = 35.0;
             }
         }
 
+        // Local Incursion Detection around civilized planet
         const isPlayerThreatening = !STATE.stealthActive && (
-            distPlanetToPlayer < 35.0 ||
+            distPlanetToPlayer < 40.0 ||
             (STATE.scanningPlanet && STATE.scanningPlanet.name === ship.homePlanet.name) ||
             (STATE.abductActive && STATE.abductTarget && STATE.abductTarget.name === ship.homePlanet.name)
         );
 
         if (isPlayerThreatening && ship.state === 'patrol') {
             ship.state = 'intercept';
-            ship.alertTimer = 15.0;
+            ship.alertTimer = 30.0;
             addLogEntry("CREW", `Capt. Miller: 'Militärische Abfangjäger von ${ship.homePlanet.name} formieren Abfangkurs!'`);
         }
 
-        if (ship.state === 'hunt') {
-            ship.alertTimer -= dt;
+        // Hostile Pursuit & Combat (Hunt / Intercept)
+        if (ship.state === 'hunt' || ship.state === 'intercept') {
+            // If in intercept and player moves outside local perimeter without cloaking,
+            // upgrade to system-wide hunt!
+            if (!STATE.stealthActive && ship.state === 'intercept' && distToPlayer > 40.0) {
+                ship.state = 'hunt';
+                STATE.systemAlertLevel = 'hunt';
+                STATE.systemAlertTimer = 40.0;
+                addLogEntry("SYSTEM", `${ship.name}: 'Ziel flieht – leite systemweite Langstrecken-Jagd ein!'`);
+            }
 
-            // Cloaking breaks radar lock
-            if (STATE.stealthActive) {
+            // Uncamouflaged: refresh alert and keep tracking across the ENTIRE system!
+            if (!STATE.stealthActive) {
+                ship.alertTimer = Math.max(ship.alertTimer, 25.0);
+            } else {
+                // Cloaking active: break radar lock and search window decays
                 ship.alertTimer -= dt * 2.0;
                 if (ship.alertTimer <= 0) {
-                    ship.state = 'patrol';
-                    addLogEntry("SYSTEM", `${ship.name}: 'Ziel-Signatur verloren (Sensor-Ghost)... breche Jagd ab.'`);
+                    ship.state = 'returning';
+                    addLogEntry("SYSTEM", `${ship.name}: 'Ziel-Signatur verloren (Sensor-Ghost)... breche Jagd ab und kehre zur Basis zurück.'`);
+                    return;
                 }
             }
 
             const toPlayer = new THREE.Vector3().subVectors(playerPos, ship.position);
             const dist = toPlayer.length();
-            toPlayer.normalize();
+            const dirToPlayer = toPlayer.clone().normalize();
 
-            const pursuitSpeed = ship.type === 'corvette' ? 26.0 : 38.0;
-            const desiredDist = 14.0;
-            const distDiff = dist - desiredDist;
-            const tangent = new THREE.Vector3(-toPlayer.z, 0, toPlayer.x);
+            const isCorvette = ship.type === 'corvette';
+            const maxCombatSpeed = isCorvette ? 26.0 : 36.0;
+            const maxPursuitSpeed = isCorvette ? 36.0 : 48.0;
+
             const accel = new THREE.Vector3();
 
-            accel.addScaledVector(toPlayer, Math.min(32, distDiff * 4.0));
-            accel.addScaledVector(tangent, 15.0);
+            if (dist > 30.0) {
+                // Long-range pursuit: direct thrust towards Najmafar with interceptor speed!
+                accel.addScaledVector(dirToPlayer, 42.0);
+                ship.velocity.addScaledVector(accel, dt);
+                ship.velocity.clampLength(0, maxPursuitSpeed);
+            } else {
+                // Close dogfight range: tactical circle, strafe and weapon fire
+                const desiredDist = isCorvette ? 13.0 : 9.0;
+                const distDiff = dist - desiredDist;
+                const tangent = new THREE.Vector3(-dirToPlayer.z, 0, dirToPlayer.x);
 
-            ship.velocity.addScaledVector(accel, dt);
-            ship.velocity.clampLength(0, pursuitSpeed);
+                accel.addScaledVector(dirToPlayer, Math.min(32, distDiff * 4.0));
+                accel.addScaledVector(tangent, 16.0);
+
+                ship.velocity.addScaledVector(accel, dt);
+                ship.velocity.clampLength(0, maxCombatSpeed);
+            }
+
             ship.velocity.multiplyScalar(Math.exp(-0.35 * dt));
-
             ship.position.addScaledVector(ship.velocity, dt);
 
             if (ship.velocity.lengthSq() > 0.1) {
                 ship.mesh.rotation.y = Math.atan2(ship.velocity.x, ship.velocity.z);
             }
 
+            // Weapon Fire
             ship.attackCooldown -= dt;
             if (ship.attackCooldown <= 0 && dist < 32.0 && !STATE.stealthActive) {
-                ship.attackCooldown = ship.type === 'corvette' ? 1.2 : 1.6;
-                fireFleetProjectile(ship, playerPos);
-            }
-        } else if (ship.state === 'intercept') {
-            ship.alertTimer -= dt;
-            if (STATE.stealthActive || (ship.alertTimer <= 0 && distToPlayer > 40.0)) {
-                ship.state = 'patrol';
-                addLogEntry("SYSTEM", `${ship.name} kehrt in planetaren Patrouillen-Orbit zurück.`);
-            }
-
-            const toPlayer = new THREE.Vector3().subVectors(playerPos, ship.position);
-            const dist = toPlayer.length();
-            toPlayer.normalize();
-
-            const desiredDist = 12.0;
-            const distDiff = dist - desiredDist;
-            const tangent = new THREE.Vector3(-toPlayer.z, 0, toPlayer.x);
-            const accel = new THREE.Vector3();
-
-            accel.addScaledVector(toPlayer, Math.min(28, distDiff * 3.5));
-            accel.addScaledVector(tangent, 18.0);
-
-            ship.velocity.addScaledVector(accel, dt);
-            ship.velocity.clampLength(0, ship.type === 'corvette' ? 24.0 : 34.0);
-            ship.velocity.multiplyScalar(Math.exp(-0.35 * dt));
-
-            ship.position.addScaledVector(ship.velocity, dt);
-
-            if (ship.velocity.lengthSq() > 0.1) {
-                const angle = Math.atan2(ship.velocity.x, ship.velocity.z);
-                ship.mesh.rotation.y = angle;
-            }
-
-            ship.attackCooldown -= dt;
-            if (ship.attackCooldown <= 0 && dist < 30.0 && !STATE.stealthActive) {
-                ship.attackCooldown = ship.type === 'corvette' ? 1.4 : 1.8;
+                ship.attackCooldown = isCorvette ? 1.3 : 1.7;
                 fireFleetProjectile(ship, playerPos);
             }
         } else {
-            // Patrol Orbit
+            // 4. Stable Circular Patrol Orbit (NO LERP, seamless rotation around parent planet!)
             ship.orbitAngle += ship.orbitSpeed * dt;
-            const targetX = planetPos.x + Math.cos(ship.orbitAngle) * ship.orbitRadius;
-            const targetZ = planetPos.z + Math.sin(ship.orbitAngle) * ship.orbitRadius;
+            ship.position.set(
+                planetPos.x + Math.cos(ship.orbitAngle) * ship.orbitRadius,
+                0,
+                planetPos.z + Math.sin(ship.orbitAngle) * ship.orbitRadius
+            );
 
-            ship.position.x = THREE.MathUtils.lerp(ship.position.x, targetX, 0.05);
-            ship.position.z = THREE.MathUtils.lerp(ship.position.z, targetZ, 0.05);
-
-            const tangentX = -Math.sin(ship.orbitAngle);
-            const tangentZ = Math.cos(ship.orbitAngle);
+            const tangentX = -Math.sin(ship.orbitAngle) * (ship.orbitSpeed >= 0 ? 1 : -1);
+            const tangentZ = Math.cos(ship.orbitAngle) * (ship.orbitSpeed >= 0 ? 1 : -1);
             ship.mesh.rotation.y = Math.atan2(tangentX, tangentZ);
         }
     });

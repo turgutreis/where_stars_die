@@ -291,7 +291,7 @@ export interface PlanetEntry {
 }
 
 export type FleetShipType = 'interceptor' | 'corvette' | 'freighter' | 'heavy_freighter';
-export type FleetShipState = 'patrol' | 'intercept' | 'hunt' | 'trade_cruise' | 'trade_docked' | 'flee' | 'disabled' | 'stunned';
+export type FleetShipState = 'patrol' | 'intercept' | 'hunt' | 'trade_cruise' | 'trade_docked' | 'flee' | 'disabled' | 'stunned' | 'returning';
 
 export interface SpaceStation {
     id: number;

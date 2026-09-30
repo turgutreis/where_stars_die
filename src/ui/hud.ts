@@ -500,8 +500,13 @@ export function updateMinimap() {
                 minimapCtx.beginPath();
                 minimapCtx.arc(sx, sy, 5.5 + Math.sin(Date.now() * 0.015) * 1.5, 0, Math.PI * 2);
                 minimapCtx.stroke();
+            } else if (ship.state === 'returning') {
+                minimapCtx.fillStyle = '#06b6d4';
+                minimapCtx.beginPath();
+                minimapCtx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+                minimapCtx.fill();
             } else {
-                // Patrol
+                // Patrol / Trade Cruise
                 minimapCtx.fillStyle = '#38bdf8';
                 minimapCtx.beginPath();
                 minimapCtx.arc(sx, sy, 2.5, 0, Math.PI * 2);

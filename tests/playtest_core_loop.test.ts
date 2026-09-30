@@ -2621,17 +2621,113 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         const hunters = STATE.fleetShips.filter(s => s.type === 'interceptor' || s.type === 'corvette');
         expect(hunters.some(s => s.state === 'hunt')).toBe(true);
 
-        // Cloaking breaks tracking and calms hunters
+        // Cloaking breaks tracking and calms hunters (transitions to returning to fly home smoothly)
         STATE.stealthActive = true;
         hunters.forEach(h => h.alertTimer = 0.5);
         updateFleet(1.0);
-        expect(hunters.every(s => s.state === 'patrol' || s.state === 'disabled')).toBe(true);
+        expect(hunters.every(s => s.state === 'patrol' || s.state === 'returning' || s.state === 'disabled')).toBe(true);
 
         // Cleanup
         clearSpaceStations();
         clearFleet();
         expect(STATE.spaceStations.length).toBe(0);
         expect(STATE.fleetShips.length).toBe(0);
+    });
+
+    test("42. Relentless System-Wide Hunt & Smooth Orbital Return: Pursues uncamouflaged Najmafar across entire system without rubber-banding or distance leashes, and smoothly returns to orbit via Newtonian cruise", () => {
+        // 1. Setup civilized planet and military defense squadron
+        const planetGroup = new THREE.Group();
+        planetGroup.position.set(0, 0, 0);
+
+        const civPlanet: any = {
+            name: "Kronos Prime",
+            type: "Terrestrial",
+            size: 8.0,
+            mesh: planetGroup,
+            source: {
+                position: planetGroup.position,
+                mesh: planetGroup,
+                mass: 200,
+                radius: 8.0,
+                gravityRange: 80,
+                name: "Kronos Prime",
+                type: "planet"
+            },
+            attributes: {
+                species: {
+                    name: "Kronians",
+                    population: 8000000,
+                    techLevel: "Spacefaring",
+                    defenseRating: 85,
+                    factionId: "kronos_armada"
+                }
+            }
+        };
+
+        clearFleet();
+        spawnSystemFleet([civPlanet]);
+
+        const interceptor = STATE.fleetShips.find(s => s.type === 'interceptor');
+        expect(interceptor).toBeDefined();
+        expect(interceptor!.state).toBe('patrol');
+
+        // Initial orbit radius verification
+        const homeOrbitRadius = interceptor!.orbitRadius;
+        expect(homeOrbitRadius).toBeGreaterThan(10);
+
+        // 2. Uncamouflaged Player Incursion triggers Hunt
+        STATE.stealthActive = false;
+        STATE.systemAlertLevel = 'hunt';
+        STATE.systemAlertTimer = 40.0;
+        updateFleet(0.1);
+
+        expect(interceptor!.state).toBe('hunt');
+
+        // 3. Long-Range System Pursuit: Player flies 180 units away across the star system
+        STATE.playerPosition.set(180, 0, 0);
+
+        // Advance 2 seconds into long-range pursuit: velocity must be burning towards player (+X)
+        for (let i = 0; i < 4; i++) {
+            updateFleet(0.5);
+        }
+        expect(interceptor!.state).toBe('hunt');
+        expect(interceptor!.velocity.x).toBeGreaterThan(0);
+
+        // Advance further 8 seconds of simulation ticks: ship crosses the system and reaches player
+        for (let i = 0; i < 16; i++) {
+            updateFleet(0.5);
+        }
+
+        // Must still be hunting without aborting pursuit across the star system!
+        expect(interceptor!.state).toBe('hunt');
+        expect(STATE.systemAlertLevel).toBe('hunt');
+        // Ship successfully traversed the star system to engage player at x=180
+        expect(interceptor!.position.x).toBeGreaterThan(140);
+
+        // 4. Player Activates Psionic Camouflage [T]
+        STATE.stealthActive = true;
+        interceptor!.alertTimer = 0.5;
+
+        // Advance simulation: stealth causes lost lock
+        updateFleet(1.0);
+        expect(interceptor!.state).toBe('returning');
+
+        // 5. Smooth Physics Return Flight (NO YO-YO / NO LERP SNAP)
+        // Verify ship velocity points back toward home planet (-X direction)
+        expect(interceptor!.velocity.x).toBeLessThan(0);
+
+        // Simulate returning flight towards home planet
+        // Move ship close to home orbit insertion boundary
+        interceptor!.position.set(homeOrbitRadius + 1.5, 0, 0);
+        updateFleet(0.1);
+
+        // Ship smoothly inserted into orbit and synchronized angle without sudden jumps
+        expect(interceptor!.state).toBe('patrol');
+        expect(interceptor!.velocity.length()).toBe(0);
+        expect(Math.abs(interceptor!.position.length() - homeOrbitRadius)).toBeLessThan(1.0);
+
+        // Cleanup
+        clearFleet();
     });
 });
 
