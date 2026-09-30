@@ -29490,8 +29490,12 @@ var STATE = {
     scanSpeed: 1,
     repairRate: 0,
     stressDampening: 1,
-    psionicBonus: 0
+    psionicBonus: 0,
+    mutationDiscount: 0
   },
+  waterConsumptionRate: 0,
+  foodConsumptionRate: 0,
+  mutationDiscount: 0,
   primaryParadigm: "neutral",
   activeSubCodex: "none",
   paradigmModifiers: {
@@ -29513,16 +29517,16 @@ var STATE = {
     nucleus: { purchased: true, bioCost: 0, siliconCost: 0, name: "Najmafars Herzzelle", desc: "Zentrales pulsierendes Zerebrum." },
     organic_siphon: { purchased: false, bioCost: 120, siliconCost: 60, name: "Organischer Siphon", desc: "+35% Ernte-Speed & Strahlungs-Bio-Filter" },
     chitin_armor: { purchased: false, bioCost: 220, siliconCost: 130, name: "Chitin-Panzer", desc: "-50% Kollisionsschaden & Strahlungs-Zellschutz" },
-    vector_tentacles: { purchased: false, bioCost: 360, siliconCost: 240, name: "Vektor-Tentakel", desc: "+25% Schub, +35% Wendigkeit & Bio-Bremse" },
-    blade_armor: { purchased: false, bioCost: 550, siliconCost: 420, name: "Klingen-Panzerung", desc: "Dornen-Chitin & magnetische Strahlungs-Barriere (-80% Strahlung)" },
+    vector_tentacles: { purchased: false, bioCost: 360, siliconCost: 240, techCost: 10, name: "Vektor-Tentakel", desc: "+25% Schub, +35% Wendigkeit & Bio-Bremse" },
+    blade_armor: { purchased: false, bioCost: 550, siliconCost: 420, techCost: 15, name: "Klingen-Panzerung", desc: "Dornen-Chitin & magnetische Strahlungs-Barriere (-80% Strahlung)" },
     cocoon: { purchased: true, bioCost: 320, siliconCost: 140, name: "Kokon (4)", desc: "Basis-Kokons für 4 Gefangene." },
     hivemind: { purchased: false, bioCost: 500, siliconCost: 320, name: "Schwarm-Synapse (6)", desc: "Max 6 Crew & +20% auf alle Spezialisten-Buffs" },
-    neural_cluster: { purchased: false, bioCost: 650, siliconCost: 450, name: "Neuronale Wabe (10)", desc: "Erweitert Crew-Kapazität auf 10 & dämpft Dissonanz" },
-    cryo_matrix: { purchased: false, bioCost: 950, siliconCost: 750, name: "Kryo-Matrix (20)", desc: "Erweitert Crew-Kapazität auf 20 & verlangsamt Zelltod um 25%" },
-    hive_cerebrum: { purchased: false, bioCost: 1500, siliconCost: 1200, name: "Schwarm-Zerebrum (30)", desc: "Max 30 Crew • Schaltet Schwarm-Resonanz frei" },
+    neural_cluster: { purchased: false, bioCost: 650, siliconCost: 450, techCost: 20, name: "Neuronale Wabe (10)", desc: "Erweitert Crew-Kapazität auf 10 & dämpft Dissonanz" },
+    cryo_matrix: { purchased: false, bioCost: 950, siliconCost: 750, techCost: 15, name: "Kryo-Matrix (20)", desc: "Erweitert Crew-Kapazität auf 20 & verlangsamt Zelltod um 25%" },
+    hive_cerebrum: { purchased: false, bioCost: 1500, siliconCost: 1200, techCost: 30, name: "Schwarm-Zerebrum (30)", desc: "Max 30 Crew • Schaltet Schwarm-Resonanz frei" },
     telepathic_focus: { purchased: false, bioCost: 140, siliconCost: 80, name: "Telepathischer Fokus", desc: "Dechiffriert Gedanken & Funk • -30% Mental-Drain" },
     psionic_pulse: { purchased: false, bioCost: 280, siliconCost: 160, name: "Psionischer Impuls", desc: "150 Max Mentalkraft & 140 LJ Gedanken-Echo" },
-    chimera_veil: { purchased: false, bioCost: 420, siliconCost: 300, name: "Schimären-Schleier", desc: "+40% Stealth • Stress-Immunität bei Sensor-Erfassung" },
+    chimera_veil: { purchased: false, bioCost: 420, siliconCost: 300, techCost: 15, name: "Schimären-Schleier", desc: "+40% Stealth • Stress-Immunität bei Sensor-Erfassung" },
     resonance_screech: { purchased: false, bioCost: 600, siliconCost: 480, name: "Resonanz-Schrei", desc: "Bio-EMP Schockwelle lähmt Drohnen 50% länger & bricht Panik" },
     ibad: {
       purchased: false,
@@ -29534,7 +29538,7 @@ var STATE = {
     armor: { purchased: false, bioCost: 180, siliconCost: 110 },
     o2: { purchased: false, bioCost: 140, siliconCost: 60 },
     synapses: { purchased: false, bioCost: 260, siliconCost: 160 },
-    folddrive: { purchased: false, bioCost: 380, siliconCost: 420 },
+    folddrive: { purchased: false, bioCost: 380, siliconCost: 420, techCost: 25 },
     translator: { purchased: false, bioCost: 120, siliconCost: 80 }
   },
   radiationResistance: 0,
@@ -33994,6 +33998,8 @@ function triggerCrewDeathNotification(name, species, avatar = "\uD83D\uDC64") {
 
 // src/systems/crew.ts
 var radWarningCooldown = 0;
+var waterWarningCooldown = 0;
+var foodWarningCooldown = 0;
 var ORGAN_STATIONS = {
   flight_synapse: {
     name: "Flug-Synapse",
@@ -34495,13 +34501,26 @@ function calculateCrewBuffs() {
   scanMult += bioCount * 0.1;
   psioBonus += dreamCount * 25;
   stressDamp *= Math.pow(0.88, dreamCount);
+  const bioScientists = STATE.crew.filter((c) => c.role === "biologist" || c.role === "scientist").length;
+  const mutationDiscount = Math.min(0.5, bioScientists * 0.2);
+  STATE.mutationDiscount = Number(mutationDiscount.toFixed(2));
+  const isSynthetic = (c) => c.species === "Cyborg" || c.species === "Synthetisch" || c.disposition === "synthetic";
+  const organicCount = STATE.crew.filter((c) => !isSynthetic(c)).length;
+  const waterRecyclers = STATE.crew.filter((c) => c.role === "biologist" || c.role === "medic").length;
+  const waterDiscount = Math.min(0.6, waterRecyclers * 0.15 + (bioCount > 0 ? 0.15 : 0));
+  const netWaterRate = organicCount * 0.06 * (1 - waterDiscount);
+  const foodProduced = bioCount * 0.08;
+  const netFoodRate = Math.max(0, organicCount * 0.05 - foodProduced);
+  STATE.waterConsumptionRate = Number(netWaterRate.toFixed(3));
+  STATE.foodConsumptionRate = Number(netFoodRate.toFixed(3));
   STATE.crewBuffs = {
     thrust: Number(thrustMult.toFixed(2)),
     bioGain: Number(bioMult.toFixed(2)),
     scanSpeed: Number(scanMult.toFixed(2)),
     repairRate: Number(repair.toFixed(2)),
     stressDampening: Number(Math.max(0.1, stressDamp).toFixed(2)),
-    psionicBonus: Math.round(psioBonus)
+    psionicBonus: Math.round(psioBonus),
+    mutationDiscount: STATE.mutationDiscount
   };
   const basePsio = STATE.mutations.synapses && STATE.mutations.synapses.purchased ? 140 : 75;
   STATE.psionicRange = basePsio + STATE.crewBuffs.psionicBonus;
@@ -34563,6 +34582,43 @@ function updateCrewSimulation(dt) {
   if (stationCounts.bio_incubator > 0) {
     const bioTrickle = 0.2 * stationCounts.bio_incubator * dt;
     STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + bioTrickle);
+  }
+  const isSynthetic = (c) => c.species === "Cyborg" || c.species === "Synthetisch" || c.disposition === "synthetic";
+  const organicMembers = STATE.crew.filter((c) => !isSynthetic(c));
+  const organicCount = organicMembers.length;
+  const wRate = STATE.waterConsumptionRate !== undefined ? STATE.waterConsumptionRate : 0;
+  const fRate = STATE.foodConsumptionRate !== undefined ? STATE.foodConsumptionRate : 0;
+  if (wRate > 0) {
+    STATE.waterRes = Math.max(0, (STATE.waterRes || 0) - wRate * dt);
+  }
+  if (fRate > 0) {
+    STATE.foodRes = Math.max(0, (STATE.foodRes || 0) - fRate * dt);
+  }
+  const bioIncubatorCount = stationCounts.bio_incubator || 0;
+  const foodProduced = bioIncubatorCount * 0.08;
+  if (foodProduced > organicCount * 0.05) {
+    const excessFood = (foodProduced - organicCount * 0.05) * dt;
+    STATE.foodRes = Math.min(250, (STATE.foodRes || 0) + excessFood);
+  }
+  const isDehydrated = organicCount > 0 && (STATE.waterRes || 0) <= 0;
+  const isStarving = organicCount > 0 && (STATE.foodRes || 0) <= 0;
+  if (isDehydrated) {
+    waterWarningCooldown -= dt;
+    if (waterWarningCooldown <= 0) {
+      waterWarningCooldown = 12;
+      addLogEntry("CREW", "⚠️ DEHYDRIERUNG: Wasservorräte erschöpft! Organische Crew leidet unter akutem Durst & Panik!");
+    }
+  } else {
+    waterWarningCooldown = Math.max(0, waterWarningCooldown - dt);
+  }
+  if (isStarving) {
+    foodWarningCooldown -= dt;
+    if (foodWarningCooldown <= 0) {
+      foodWarningCooldown = 12;
+      addLogEntry("CREW", "⚠️ NAHRUNGSMANGEL: Nährstoff-Gel aufgebraucht! Zelltod & Alterung beschleunigt!");
+    }
+  } else {
+    foodWarningCooldown = Math.max(0, foodWarningCooldown - dt);
   }
   const totalCrew = STATE.crew.length;
   const uniqueRoles = new Set(STATE.crew.map((c) => c.role)).size;
@@ -34743,6 +34799,19 @@ function updateCrewSimulation(dt) {
         } else {
           c.thought = "Konzentriert: 'Sternenkartierung verläuft nach Plan.'";
         }
+      }
+    }
+    if (!isSynthetic(c)) {
+      if (isDehydrated) {
+        c.stress = Math.min(100, c.stress + 1.2 * dt);
+        c.illusionStability = Math.max(0, c.illusionStability - 1 * dt);
+      }
+      if (isStarving) {
+        c.stress = Math.min(100, c.stress + 0.9 * dt);
+        c.age = (c.age || 0) + 0.5 * dt;
+      }
+      if (!isDehydrated && !isStarving) {
+        c.stress = Math.max(0, c.stress - 0.25 * dt);
       }
     }
     if (c.illusionStability >= 50) {
@@ -34953,6 +35022,41 @@ function renderCrewUI(force = false) {
                 </div>
             `;
     }).join("");
+  }
+  const lifeBadge = document.getElementById("life-support-status-badge");
+  const waterStatusEl = document.getElementById("deck-water-status");
+  const foodStatusEl = document.getElementById("deck-food-status");
+  const biologistBoostText = document.getElementById("deck-biologist-boost-text");
+  const waterRate = STATE.waterConsumptionRate || 0;
+  const foodRate = STATE.foodConsumptionRate || 0;
+  const isSyntheticMember = (c) => c.species === "Cyborg" || c.species === "Synthetisch" || c.disposition === "synthetic";
+  const organicCount = STATE.crew.filter((c) => !isSyntheticMember(c)).length;
+  if (waterStatusEl) {
+    waterStatusEl.innerHTML = `\uD83D\uDCA7 ${Math.floor(STATE.waterRes || 0)}L <span style="font-size:0.6rem; color:#94a3b8;">(-${waterRate.toFixed(2)}/s)</span>`;
+  }
+  if (foodStatusEl) {
+    foodStatusEl.innerHTML = `\uD83C\uDF5E ${Math.floor(STATE.foodRes || 0)}kg <span style="font-size:0.6rem; color:#94a3b8;">(-${foodRate.toFixed(2)}/s)</span>`;
+  }
+  if (lifeBadge) {
+    if (organicCount === 0) {
+      lifeBadge.innerText = "Synthetisch / Leer";
+      lifeBadge.style.color = "#94a3b8";
+    } else if ((STATE.waterRes || 0) <= 0 || (STATE.foodRes || 0) <= 0) {
+      lifeBadge.innerText = "⚠️ KRITISCHER MANGEL";
+      lifeBadge.style.color = "#ef4444";
+    } else {
+      lifeBadge.innerText = "✓ Stabil";
+      lifeBadge.style.color = "#10b981";
+    }
+  }
+  if (biologistBoostText) {
+    const discountPct = Math.round((STATE.mutationDiscount || 0) * 100);
+    if (discountPct > 0) {
+      biologistBoostText.innerText = `\uD83E\uDDEA Biologen-Boost aktiv: -${discountPct}% Mutationskosten`;
+      biologistBoostText.style.display = "block";
+    } else {
+      biologistBoostText.style.display = "none";
+    }
   }
   if (synBanner && synTitle && synDesc) {
     if (totalCrew === 0) {
@@ -35544,7 +35648,8 @@ var MUTATION_DEFINITIONS = {
     x: 70,
     y: 20,
     bioCost: 360,
-    siliconCost: 240
+    siliconCost: 240,
+    techCost: 10
   },
   blade_armor: {
     key: "blade_armor",
@@ -35561,7 +35666,8 @@ var MUTATION_DEFINITIONS = {
     x: 90,
     y: 26,
     bioCost: 550,
-    siliconCost: 420
+    siliconCost: 420,
+    techCost: 15
   },
   cocoon: {
     key: "cocoon",
@@ -35612,7 +35718,8 @@ var MUTATION_DEFINITIONS = {
     x: 58,
     y: 50,
     bioCost: 650,
-    siliconCost: 450
+    siliconCost: 450,
+    techCost: 20
   },
   cryo_matrix: {
     key: "cryo_matrix",
@@ -35629,7 +35736,8 @@ var MUTATION_DEFINITIONS = {
     x: 74,
     y: 50,
     bioCost: 950,
-    siliconCost: 750
+    siliconCost: 750,
+    techCost: 15
   },
   hive_cerebrum: {
     key: "hive_cerebrum",
@@ -35646,7 +35754,8 @@ var MUTATION_DEFINITIONS = {
     x: 90,
     y: 50,
     bioCost: 1500,
-    siliconCost: 1200
+    siliconCost: 1200,
+    techCost: 30
   },
   telepathic_focus: {
     key: "telepathic_focus",
@@ -35697,7 +35806,8 @@ var MUTATION_DEFINITIONS = {
     x: 70,
     y: 80,
     bioCost: 420,
-    siliconCost: 300
+    siliconCost: 300,
+    techCost: 15
   },
   resonance_screech: {
     key: "resonance_screech",
@@ -36118,13 +36228,26 @@ function updateEvolutionTreeUI() {
   const totalCount = Object.keys(MUTATION_DEFINITIONS).length;
   const bioCountEl = document.getElementById("evo-bio-res");
   const silCountEl = document.getElementById("evo-silicon-res");
+  const techCountEl = document.getElementById("evo-tech-res");
+  const bioBadgeEl = document.getElementById("evo-biologist-badge");
   if (bioCountEl)
     bioCountEl.innerText = `${Math.floor(STATE.bioRes)}`;
   if (silCountEl)
     silCountEl.innerText = `${Math.floor(STATE.siliconRes)}`;
+  if (techCountEl)
+    techCountEl.innerText = `${Math.floor(STATE.techRes || 0)}`;
+  const discount = STATE.mutationDiscount || 0;
+  if (bioBadgeEl) {
+    if (discount > 0) {
+      bioBadgeEl.style.display = "inline-flex";
+      bioBadgeEl.innerText = `\uD83E\uDDEA Biologen-Boost: -${Math.round(discount * 100)}%`;
+    } else {
+      bioBadgeEl.style.display = "none";
+    }
+  }
   Object.values(MUTATION_DEFINITIONS).forEach((def) => {
     const key = def.key;
-    const mut = STATE.mutations[key] || { purchased: false, bioCost: def.bioCost, siliconCost: def.siliconCost };
+    const mut = STATE.mutations[key] || { purchased: false, bioCost: def.bioCost, siliconCost: def.siliconCost, techCost: def.techCost };
     const isPurchased = Boolean(mut.purchased);
     if (isPurchased)
       activeCount++;
@@ -36133,7 +36256,10 @@ function updateEvolutionTreeUI() {
       const prec = STATE.mutations[def.precursor];
       isPrecursorMet = Boolean(prec && prec.purchased);
     }
-    const canAfford = STATE.bioRes >= def.bioCost && STATE.siliconRes >= def.siliconCost;
+    const effBioCost = Math.round(def.bioCost * (1 - discount));
+    const effSilCost = Math.round(def.siliconCost * (1 - discount));
+    const effTechCost = Math.round((def.techCost || 0) * (1 - discount));
+    const canAfford = STATE.bioRes >= effBioCost && STATE.siliconRes >= effSilCost && (STATE.techRes || 0) >= effTechCost;
     const isAvailable = !isPurchased && isPrecursorMet;
     const isSelected = selectedMutationKey === key;
     const nodeEl = document.getElementById(`mut-node-${key}`);
@@ -36152,7 +36278,7 @@ function updateEvolutionTreeUI() {
           badgeEl.innerText = "\uD83D\uDD12 Gesperrt";
           badgeEl.style.color = "#94a3b8";
         } else {
-          badgeEl.innerText = `${def.bioCost}\uD83C\uDF3F`;
+          badgeEl.innerText = effTechCost > 0 ? `${effBioCost}\uD83C\uDF3F ${effTechCost}\uD83D\uDD2C` : `${effBioCost}\uD83C\uDF3F`;
           badgeEl.style.color = canAfford ? "#f59e0b" : "#ef4444";
         }
       }
@@ -36195,7 +36321,11 @@ function renderSynapseInspector(key) {
     isPrecursorMet = Boolean(prec && prec.purchased);
     precName = MUTATION_DEFINITIONS[def.precursor]?.name || def.precursor;
   }
-  const canAfford = STATE.bioRes >= def.bioCost && STATE.siliconRes >= def.siliconCost;
+  const discount = STATE.mutationDiscount || 0;
+  const effBioCost = Math.round(def.bioCost * (1 - discount));
+  const effSilCost = Math.round(def.siliconCost * (1 - discount));
+  const effTechCost = Math.round((def.techCost || 0) * (1 - discount));
+  const canAfford = STATE.bioRes >= effBioCost && STATE.siliconRes >= effSilCost && (STATE.techRes || 0) >= effTechCost;
   const canMutate = !isPurchased && isPrecursorMet && canAfford;
   let statusBadge = "";
   if (isPurchased) {
@@ -36207,8 +36337,9 @@ function renderSynapseInspector(key) {
   } else {
     statusBadge = `<span class="inspector-status-badge insufficient">⚠️ RESSOURCEN FEHLEN</span>`;
   }
-  const bioDeficit = Math.max(0, def.bioCost - STATE.bioRes);
-  const silDeficit = Math.max(0, def.siliconCost - STATE.siliconRes);
+  const bioDeficit = Math.max(0, effBioCost - STATE.bioRes);
+  const silDeficit = Math.max(0, effSilCost - STATE.siliconRes);
+  const techDeficit = Math.max(0, effTechCost - (STATE.techRes || 0));
   inspector.innerHTML = `
         <div class="inspector-header">
             <div class="inspector-icon-ring" style="border-color: ${def.branchColor}; box-shadow: 0 0 15px ${def.branchColor}66;">
@@ -36218,6 +36349,7 @@ function renderSynapseInspector(key) {
                 <span class="inspector-branch-tag" style="color: ${def.branchColor};">${def.branchLabel}</span>
                 <h3 class="inspector-title">${def.name}</h3>
                 ${statusBadge}
+                ${discount > 0 ? `<div style="font-size:0.68rem; color:#38bdf8; margin-top:3px; font-weight:600;">\uD83E\uDDEA Biologen-Boost: -${Math.round(discount * 100)}% Kosten</div>` : ""}
             </div>
         </div>
 
@@ -36253,16 +36385,22 @@ function renderSynapseInspector(key) {
             <div class="inspector-section">
                 <div class="inspector-sec-label">\uD83E\uDDEA Synthese-Kosten</div>
                 <div class="inspector-cost-grid">
-                    <div class="inspector-cost-card bio ${STATE.bioRes >= def.bioCost ? "afford" : "lacking"}">
+                    <div class="inspector-cost-card bio ${STATE.bioRes >= effBioCost ? "afford" : "lacking"}">
                         <span class="cost-type">\uD83C\uDF3F Biomasse</span>
-                        <span class="cost-amount">${def.bioCost} Bio</span>
-                        <span class="cost-status">${STATE.bioRes >= def.bioCost ? "✓ Genügend" : `-${Math.ceil(bioDeficit)} fehlt`}</span>
+                        <span class="cost-amount">${effBioCost} Bio</span>
+                        <span class="cost-status">${STATE.bioRes >= effBioCost ? "✓ Genügend" : `-${Math.ceil(bioDeficit)} fehlt`}</span>
                     </div>
-                    <div class="inspector-cost-card silicon ${STATE.siliconRes >= def.siliconCost ? "afford" : "lacking"}">
+                    <div class="inspector-cost-card silicon ${STATE.siliconRes >= effSilCost ? "afford" : "lacking"}">
                         <span class="cost-type">\uD83D\uDCA0 Silizium</span>
-                        <span class="cost-amount">${def.siliconCost} Silizium</span>
-                        <span class="cost-status">${STATE.siliconRes >= def.siliconCost ? "✓ Genügend" : `-${Math.ceil(silDeficit)} fehlt`}</span>
+                        <span class="cost-amount">${effSilCost} Silizium</span>
+                        <span class="cost-status">${STATE.siliconRes >= effSilCost ? "✓ Genügend" : `-${Math.ceil(silDeficit)} fehlt`}</span>
                     </div>
+                    ${effTechCost > 0 ? `
+                    <div class="inspector-cost-card tech ${(STATE.techRes || 0) >= effTechCost ? "afford" : "lacking"}">
+                        <span class="cost-type">\uD83D\uDD2C Technologie</span>
+                        <span class="cost-amount">${effTechCost} Tech</span>
+                        <span class="cost-status">${(STATE.techRes || 0) >= effTechCost ? "✓ Genügend" : `-${Math.ceil(techDeficit)} fehlt`}</span>
+                    </div>` : ""}
                 </div>
             </div>
         </div>
@@ -36615,6 +36753,53 @@ function renderDiplomacyActions(planet, factionId) {
     }
   };
   actionsContainer.appendChild(tradeBtn);
+  const sellTechBtn = document.createElement("button");
+  sellTechBtn.className = "diplo-action-btn trade-tech";
+  sellTechBtn.innerHTML = `<span>\uD83D\uDD2C Technologie verkaufen (15 Tech ➔ 35 Wasser + 35 Bio)</span><span class="diplo-badge">+10 Rep</span>`;
+  sellTechBtn.onclick = () => {
+    if ((STATE.techRes || 0) >= 15) {
+      STATE.techRes = (STATE.techRes || 0) - 15;
+      STATE.waterRes = (STATE.waterRes || 0) + 35;
+      STATE.bioRes += 35;
+      playBioCollectSound();
+      modifyReputation(factionId, 10, `Alien-Technologie an ${planet.name} veräußert (+35 Wasser & +35 Bio).`);
+      openDiplomacyComms(planet);
+    } else {
+      addLogEntry("SYSTEM", "Zu wenig Technologie für diesen Deal (15 Tech benötigt)!");
+    }
+  };
+  actionsContainer.appendChild(sellTechBtn);
+  const sellAlloyBtn = document.createElement("button");
+  sellAlloyBtn.className = "diplo-action-btn trade-alloy";
+  sellAlloyBtn.innerHTML = `<span>⚙️ Legierungen verkaufen (20 Legierungen ➔ 40 Nahrung + 30 Silizium)</span><span class="diplo-badge">+10 Rep</span>`;
+  sellAlloyBtn.onclick = () => {
+    if ((STATE.alloyRes || 0) >= 20) {
+      STATE.alloyRes = (STATE.alloyRes || 0) - 20;
+      STATE.foodRes = (STATE.foodRes || 0) + 40;
+      STATE.siliconRes += 30;
+      playSiliconCollectSound();
+      modifyReputation(factionId, 10, `Hüllenlegierungen an ${planet.name} exportiert (+40 Nahrung & +30 Silizium).`);
+      openDiplomacyComms(planet);
+    } else {
+      addLogEntry("SYSTEM", "Zu wenig Legierungen für diesen Deal (20 Legierungen benötigt)!");
+    }
+  };
+  actionsContainer.appendChild(sellAlloyBtn);
+  const buyWaterBtn = document.createElement("button");
+  buyWaterBtn.className = "diplo-action-btn trade-water";
+  buyWaterBtn.innerHTML = `<span>\uD83D\uDCA7 Notfall-Wasserfracht erwerben (25 Bio ➔ 35 Wasser)</span><span class="diplo-badge">+5 Rep</span>`;
+  buyWaterBtn.onclick = () => {
+    if (STATE.bioRes >= 25) {
+      STATE.bioRes -= 25;
+      STATE.waterRes = (STATE.waterRes || 0) + 35;
+      playBioCollectSound();
+      modifyReputation(factionId, 5, `Frisches Wasser von ${planet.name} importiert (+35 Wasser).`);
+      openDiplomacyComms(planet);
+    } else {
+      addLogEntry("SYSTEM", "Zu wenig Biomasse für Wasserimport (25 Bio benötigt)!");
+    }
+  };
+  actionsContainer.appendChild(buyWaterBtn);
   const tributeBtn = document.createElement("button");
   tributeBtn.className = "diplo-action-btn tribute";
   tributeBtn.innerHTML = `<span>\uD83C\uDF81 Friedens-Tribut darbringen (30 Bio opfern)</span><span class="diplo-badge">+15 Rep</span>`;
@@ -41848,14 +42033,59 @@ function initDeckUI() {
       }
     });
   });
+  const repairHullAlloyBtn = document.getElementById("repair-hull-alloy-btn");
+  if (repairHullAlloyBtn) {
+    repairHullAlloyBtn.addEventListener("click", () => {
+      if ((STATE.alloyRes || 0) >= 5) {
+        if (STATE.health >= STATE.maxHealth) {
+          addLogEntry("SYSTEM", "Biologische Hülle ist bereits vollständig intakt (100%).");
+          return;
+        }
+        STATE.alloyRes -= 5;
+        STATE.health = Math.min(STATE.maxHealth, STATE.health + 25);
+        playSiliconCollectSound();
+        addLogEntry("HÜLLE", "\uD83D\uDEE1️ Chitin-Legierungs-Matrix appliziert: +25 HP Hülle regeneriert!");
+        renderCrewUI(true);
+      } else {
+        addLogEntry("SYSTEM", "Zu wenig Legierungen für Hüllen-Reparatur (5 Legierungen benötigt)!");
+      }
+    });
+  }
+  const repairShuttleAlloyBtn = document.getElementById("repair-shuttle-alloy-btn");
+  if (repairShuttleAlloyBtn) {
+    repairShuttleAlloyBtn.addEventListener("click", () => {
+      if (!STATE.bioShuttle)
+        return;
+      if ((STATE.alloyRes || 0) >= 10) {
+        if (STATE.bioShuttle.hull >= STATE.bioShuttle.maxHull) {
+          addLogEntry("SYSTEM", "Bio-Shuttle Hülle ist bereits makellos (100%).");
+          return;
+        }
+        STATE.alloyRes -= 10;
+        STATE.bioShuttle.hull = STATE.bioShuttle.maxHull;
+        playSiliconCollectSound();
+        addLogEntry("SHUTTLE", "\uD83D\uDE80 Bio-Shuttle generalüberholt: Hülle mit Legierungen auf 100% wiederhergestellt!");
+        renderCrewUI(true);
+      } else {
+        addLogEntry("SYSTEM", "Zu wenig Legierungen für Shuttle-Generalüberholung (10 Legierungen benötigt)!");
+      }
+    });
+  }
 }
 function buyMutation(type) {
   const mut = STATE.mutations[type];
   if (!mut || mut.purchased)
     return;
-  if (STATE.bioRes >= mut.bioCost && STATE.siliconRes >= mut.siliconCost) {
-    STATE.bioRes -= mut.bioCost;
-    STATE.siliconRes -= mut.siliconCost;
+  const discount = STATE.mutationDiscount || 0;
+  const effBioCost = Math.round(mut.bioCost * (1 - discount));
+  const effSilCost = Math.round(mut.siliconCost * (1 - discount));
+  const effTechCost = Math.round((mut.techCost || 0) * (1 - discount));
+  if (STATE.bioRes >= effBioCost && STATE.siliconRes >= effSilCost && (STATE.techRes || 0) >= effTechCost) {
+    STATE.bioRes -= effBioCost;
+    STATE.siliconRes -= effSilCost;
+    if (effTechCost > 0) {
+      STATE.techRes = Math.max(0, (STATE.techRes || 0) - effTechCost);
+    }
     mut.purchased = true;
     playSiliconCollectSound();
     const btn = document.querySelector(`.mut-btn[data-mutation="${type}"]`);
@@ -41935,7 +42165,7 @@ function buyMutation(type) {
     updateMutationUI();
     triggerAutoSave(`Mutation: ${mut.name || type}`);
   } else {
-    addLogEntry("SYSTEM", `Evolution fehlgeschlagen: Nicht genügend Ressourcen (${mut.bioCost} Bio | ${mut.siliconCost} Silizium benötigt)!`);
+    addLogEntry("SYSTEM", `Evolution fehlgeschlagen: Nicht genügend Ressourcen (${effBioCost} Bio | ${effSilCost} Silizium${effTechCost > 0 ? ` | ${effTechCost} Tech` : ""} benötigt)!`);
   }
 }
 function updateMutationUI() {
@@ -41945,6 +42175,7 @@ function updateMutationUI() {
     bioEl.innerText = `${Math.floor(STATE.bioRes)}`;
   if (silEl)
     silEl.innerText = `${Math.floor(STATE.siliconRes)}`;
+  const discount = STATE.mutationDiscount || 0;
   Object.keys(STATE.mutations).forEach((key) => {
     const mut = STATE.mutations[key];
     const btn = document.querySelector(`.mut-btn[data-mutation="${key}"]`);
@@ -41954,7 +42185,10 @@ function updateMutationUI() {
         btn.classList.add("purchased");
         btn.innerText = "Aktiviert ✓";
       } else {
-        const canAfford = STATE.bioRes >= mut.bioCost && STATE.siliconRes >= mut.siliconCost;
+        const effBio = Math.round(mut.bioCost * (1 - discount));
+        const effSil = Math.round(mut.siliconCost * (1 - discount));
+        const effTech = Math.round((mut.techCost || 0) * (1 - discount));
+        const canAfford = STATE.bioRes >= effBio && STATE.siliconRes >= effSil && (STATE.techRes || 0) >= effTech;
         btn.disabled = !canAfford;
       }
     }

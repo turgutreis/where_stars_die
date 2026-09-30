@@ -18,6 +18,7 @@ export interface MutationNodeDef {
     y: number; // percentage 0-100
     bioCost: number;
     siliconCost: number;
+    techCost?: number;
 }
 
 export const MUTATION_DEFINITIONS: Record<string, MutationNodeDef> = {
@@ -90,7 +91,8 @@ export const MUTATION_DEFINITIONS: Record<string, MutationNodeDef> = {
         x: 70,
         y: 20,
         bioCost: 360,
-        siliconCost: 240
+        siliconCost: 240,
+        techCost: 10
     },
     blade_armor: {
         key: 'blade_armor',
@@ -107,7 +109,8 @@ export const MUTATION_DEFINITIONS: Record<string, MutationNodeDef> = {
         x: 90,
         y: 26,
         bioCost: 550,
-        siliconCost: 420
+        siliconCost: 420,
+        techCost: 15
     },
 
     // Ast 2: Neuronales Nest (Zentrales Nervenmark - Kapazität)
@@ -160,7 +163,8 @@ export const MUTATION_DEFINITIONS: Record<string, MutationNodeDef> = {
         x: 58,
         y: 50,
         bioCost: 650,
-        siliconCost: 450
+        siliconCost: 450,
+        techCost: 20
     },
     cryo_matrix: {
         key: 'cryo_matrix',
@@ -177,7 +181,8 @@ export const MUTATION_DEFINITIONS: Record<string, MutationNodeDef> = {
         x: 74,
         y: 50,
         bioCost: 950,
-        siliconCost: 750
+        siliconCost: 750,
+        techCost: 15
     },
     hive_cerebrum: {
         key: 'hive_cerebrum',
@@ -194,7 +199,8 @@ export const MUTATION_DEFINITIONS: Record<string, MutationNodeDef> = {
         x: 90,
         y: 50,
         bioCost: 1500,
-        siliconCost: 1200
+        siliconCost: 1200,
+        techCost: 30
     },
 
     // Ast 3: Psionik & Geist (Ventraler Mentaltentakel - Kräfte & Sensorik)
@@ -247,7 +253,8 @@ export const MUTATION_DEFINITIONS: Record<string, MutationNodeDef> = {
         x: 70,
         y: 80,
         bioCost: 420,
-        siliconCost: 300
+        siliconCost: 300,
+        techCost: 15
     },
     resonance_screech: {
         key: 'resonance_screech',
@@ -790,13 +797,27 @@ export function updateEvolutionTreeUI(): void {
     // 1. Update Top Bar Counts
     const bioCountEl = document.getElementById('evo-bio-res');
     const silCountEl = document.getElementById('evo-silicon-res');
+    const techCountEl = document.getElementById('evo-tech-res');
+    const bioBadgeEl = document.getElementById('evo-biologist-badge');
+
     if (bioCountEl) bioCountEl.innerText = `${Math.floor(STATE.bioRes)}`;
     if (silCountEl) silCountEl.innerText = `${Math.floor(STATE.siliconRes)}`;
+    if (techCountEl) techCountEl.innerText = `${Math.floor(STATE.techRes || 0)}`;
+
+    const discount = STATE.mutationDiscount || 0;
+    if (bioBadgeEl) {
+        if (discount > 0) {
+            bioBadgeEl.style.display = 'inline-flex';
+            bioBadgeEl.innerText = `🧪 Biologen-Boost: -${Math.round(discount * 100)}%`;
+        } else {
+            bioBadgeEl.style.display = 'none';
+        }
+    }
 
     // 2. Update Each Node
     Object.values(MUTATION_DEFINITIONS).forEach(def => {
         const key = def.key;
-        const mut = (STATE.mutations as any)[key] || { purchased: false, bioCost: def.bioCost, siliconCost: def.siliconCost };
+        const mut = (STATE.mutations as any)[key] || { purchased: false, bioCost: def.bioCost, siliconCost: def.siliconCost, techCost: def.techCost };
         const isPurchased = Boolean(mut.purchased);
         if (isPurchased) activeCount++;
 
@@ -807,7 +828,11 @@ export function updateEvolutionTreeUI(): void {
             isPrecursorMet = Boolean(prec && prec.purchased);
         }
 
-        const canAfford = STATE.bioRes >= def.bioCost && STATE.siliconRes >= def.siliconCost;
+        const effBioCost = Math.round(def.bioCost * (1 - discount));
+        const effSilCost = Math.round(def.siliconCost * (1 - discount));
+        const effTechCost = Math.round((def.techCost || 0) * (1 - discount));
+
+        const canAfford = STATE.bioRes >= effBioCost && STATE.siliconRes >= effSilCost && (STATE.techRes || 0) >= effTechCost;
         const isAvailable = !isPurchased && isPrecursorMet;
         const isSelected = selectedMutationKey === key;
 
@@ -828,7 +853,7 @@ export function updateEvolutionTreeUI(): void {
                     badgeEl.innerText = '🔒 Gesperrt';
                     badgeEl.style.color = '#94a3b8';
                 } else {
-                    badgeEl.innerText = `${def.bioCost}🌿`;
+                    badgeEl.innerText = effTechCost > 0 ? `${effBioCost}🌿 ${effTechCost}🔬` : `${effBioCost}🌿`;
                     badgeEl.style.color = canAfford ? '#f59e0b' : '#ef4444';
                 }
             }
@@ -884,7 +909,12 @@ export function renderSynapseInspector(key: string): void {
         precName = MUTATION_DEFINITIONS[def.precursor]?.name || def.precursor;
     }
 
-    const canAfford = STATE.bioRes >= def.bioCost && STATE.siliconRes >= def.siliconCost;
+    const discount = STATE.mutationDiscount || 0;
+    const effBioCost = Math.round(def.bioCost * (1 - discount));
+    const effSilCost = Math.round(def.siliconCost * (1 - discount));
+    const effTechCost = Math.round((def.techCost || 0) * (1 - discount));
+
+    const canAfford = STATE.bioRes >= effBioCost && STATE.siliconRes >= effSilCost && (STATE.techRes || 0) >= effTechCost;
     const canMutate = !isPurchased && isPrecursorMet && canAfford;
 
     let statusBadge = '';
@@ -898,8 +928,9 @@ export function renderSynapseInspector(key: string): void {
         statusBadge = `<span class="inspector-status-badge insufficient">⚠️ RESSOURCEN FEHLEN</span>`;
     }
 
-    const bioDeficit = Math.max(0, def.bioCost - STATE.bioRes);
-    const silDeficit = Math.max(0, def.siliconCost - STATE.siliconRes);
+    const bioDeficit = Math.max(0, effBioCost - STATE.bioRes);
+    const silDeficit = Math.max(0, effSilCost - STATE.siliconRes);
+    const techDeficit = Math.max(0, effTechCost - (STATE.techRes || 0));
 
     inspector.innerHTML = `
         <div class="inspector-header">
@@ -910,6 +941,7 @@ export function renderSynapseInspector(key: string): void {
                 <span class="inspector-branch-tag" style="color: ${def.branchColor};">${def.branchLabel}</span>
                 <h3 class="inspector-title">${def.name}</h3>
                 ${statusBadge}
+                ${discount > 0 ? `<div style="font-size:0.68rem; color:#38bdf8; margin-top:3px; font-weight:600;">🧪 Biologen-Boost: -${Math.round(discount * 100)}% Kosten</div>` : ''}
             </div>
         </div>
 
@@ -945,16 +977,22 @@ export function renderSynapseInspector(key: string): void {
             <div class="inspector-section">
                 <div class="inspector-sec-label">🧪 Synthese-Kosten</div>
                 <div class="inspector-cost-grid">
-                    <div class="inspector-cost-card bio ${STATE.bioRes >= def.bioCost ? 'afford' : 'lacking'}">
+                    <div class="inspector-cost-card bio ${STATE.bioRes >= effBioCost ? 'afford' : 'lacking'}">
                         <span class="cost-type">🌿 Biomasse</span>
-                        <span class="cost-amount">${def.bioCost} Bio</span>
-                        <span class="cost-status">${STATE.bioRes >= def.bioCost ? '✓ Genügend' : `-${Math.ceil(bioDeficit)} fehlt`}</span>
+                        <span class="cost-amount">${effBioCost} Bio</span>
+                        <span class="cost-status">${STATE.bioRes >= effBioCost ? '✓ Genügend' : `-${Math.ceil(bioDeficit)} fehlt`}</span>
                     </div>
-                    <div class="inspector-cost-card silicon ${STATE.siliconRes >= def.siliconCost ? 'afford' : 'lacking'}">
+                    <div class="inspector-cost-card silicon ${STATE.siliconRes >= effSilCost ? 'afford' : 'lacking'}">
                         <span class="cost-type">💠 Silizium</span>
-                        <span class="cost-amount">${def.siliconCost} Silizium</span>
-                        <span class="cost-status">${STATE.siliconRes >= def.siliconCost ? '✓ Genügend' : `-${Math.ceil(silDeficit)} fehlt`}</span>
+                        <span class="cost-amount">${effSilCost} Silizium</span>
+                        <span class="cost-status">${STATE.siliconRes >= effSilCost ? '✓ Genügend' : `-${Math.ceil(silDeficit)} fehlt`}</span>
                     </div>
+                    ${effTechCost > 0 ? `
+                    <div class="inspector-cost-card tech ${(STATE.techRes || 0) >= effTechCost ? 'afford' : 'lacking'}">
+                        <span class="cost-type">🔬 Technologie</span>
+                        <span class="cost-amount">${effTechCost} Tech</span>
+                        <span class="cost-status">${(STATE.techRes || 0) >= effTechCost ? '✓ Genügend' : `-${Math.ceil(techDeficit)} fehlt`}</span>
+                    </div>` : ''}
                 </div>
             </div>
         </div>

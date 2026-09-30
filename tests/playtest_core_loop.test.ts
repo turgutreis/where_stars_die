@@ -13,65 +13,81 @@ if (typeof (globalThis as any).localStorage === 'undefined' || !(globalThis as a
 }
 
 if (typeof globalThis.document === 'undefined') {
-    const dummyEl: any = {
-        style: {},
-        innerText: '',
-        innerHTML: '',
-        disabled: false,
-        classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => false },
-        setAttribute: (k: string, v: string) => { dummyEl[k] = v; },
-        removeAttribute: (k: string) => { delete dummyEl[k]; },
-        appendChild: () => {},
-        prepend: () => {},
-        children: [],
-        scrollTop: 0,
-        scrollHeight: 0,
-        addEventListener: () => {},
-        querySelector: () => dummyEl,
-        querySelectorAll: () => [],
-        getContext: () => ({
-            createRadialGradient: () => ({ addColorStop: () => {} }),
-            createLinearGradient: () => ({ addColorStop: () => {} }),
-            fillRect: () => {},
-            clearRect: () => {},
-            arc: () => {},
-            beginPath: () => {},
-            fill: () => {},
-            stroke: () => {},
-            moveTo: () => {},
-            lineTo: () => {},
-            closePath: () => {},
-            save: () => {},
-            restore: () => {},
-            translate: () => {},
-            rotate: () => {},
-            scale: () => {},
-            transform: () => {},
-            resetTransform: () => {},
-            setLineDash: () => {},
-            fillText: () => {},
-            strokeText: () => {},
-            measureText: () => ({ width: 10 }),
-            createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
-            getImageData: () => ({ data: new Uint8ClampedArray(1024) }),
-            putImageData: () => {}
-        })
-    };
+    function createMockElement() {
+        const el: any = {
+            style: {},
+            innerText: '',
+            innerHTML: '',
+            disabled: false,
+            children: [],
+            _listeners: {},
+            classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => false },
+            setAttribute: (k: string, v: string) => { el[k] = v; },
+            removeAttribute: (k: string) => { delete el[k]; },
+            appendChild: function(c: any) { (el.children = el.children || []).push(c); return c; },
+            removeChild: function(c: any) {
+                const idx = (el.children || []).indexOf(c);
+                if (idx !== -1) el.children.splice(idx, 1);
+                return c;
+            },
+            prepend: () => {},
+            scrollTop: 0,
+            scrollHeight: 0,
+            addEventListener: function(evt: string, cb: Function) {
+                (el._listeners = el._listeners || {})[evt] = el._listeners[evt] || [];
+                el._listeners[evt].push(cb);
+            },
+            click: function() {
+                if (el.onclick) el.onclick();
+                if (el._listeners?.['click']) el._listeners['click'].forEach((fn: any) => fn());
+            },
+            querySelector: () => createMockElement(),
+            querySelectorAll: () => [],
+            getContext: () => ({
+                createRadialGradient: () => ({ addColorStop: () => {} }),
+                createLinearGradient: () => ({ addColorStop: () => {} }),
+                fillRect: () => {},
+                clearRect: () => {},
+                arc: () => {},
+                beginPath: () => {},
+                fill: () => {},
+                stroke: () => {},
+                moveTo: () => {},
+                lineTo: () => {},
+                closePath: () => {},
+                save: () => {},
+                restore: () => {},
+                translate: () => {},
+                rotate: () => {},
+                scale: () => {},
+                transform: () => {},
+                resetTransform: () => {},
+                setLineDash: () => {},
+                fillText: () => {},
+                strokeText: () => {},
+                measureText: () => ({ width: 10 }),
+                createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+                getImageData: () => ({ data: new Uint8ClampedArray(1024) }),
+                putImageData: () => {}
+            })
+        };
+        Object.defineProperty(el, 'firstChild', {
+            get() { return (el.children && el.children.length > 0) ? el.children[0] : null; },
+            configurable: true
+        });
+        return el;
+    }
     const elementsMap: Record<string, any> = {};
     (globalThis as any).document = {
         getElementById: (id: string) => {
             if (!elementsMap[id]) {
-                elementsMap[id] = {
-                    ...dummyEl,
-                    style: {},
-                    classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => false }
-                };
+                elementsMap[id] = createMockElement();
             }
             return elementsMap[id];
         },
-        createElement: () => ({ ...dummyEl, style: {} }),
-        createElementNS: () => ({ ...dummyEl, style: {} }),
-        querySelector: () => dummyEl,
+        createElement: () => createMockElement(),
+        createElementNS: () => createMockElement(),
+        querySelector: () => createMockElement(),
         querySelectorAll: () => []
     };
 }
@@ -125,9 +141,13 @@ if (typeof globalThis.window === 'undefined') {
             }
             destination = {};
         },
+        requestAnimationFrame: (cb: any) => setTimeout(cb, 16),
+        cancelAnimationFrame: (id: any) => clearTimeout(id),
         addEventListener: () => {},
         localStorage: (globalThis as any).localStorage
     };
+    (globalThis as any).requestAnimationFrame = (globalThis as any).window.requestAnimationFrame;
+    (globalThis as any).cancelAnimationFrame = (globalThis as any).window.cancelAnimationFrame;
 }
 
 import { STATE, activePlanets } from '../src/core/state';
@@ -183,6 +203,8 @@ import {
 import { warpToSystem } from '../src/systems/galaxy-map';
 import { launchAwayMission, updateAwayMissions, completeAwayMission } from '../src/systems/shuttle-expeditions';
 import { SurfaceDeposit } from '../src/types/game';
+import { openDiplomacyComms, closeDiplomacyComms } from '../src/systems/diplomacy';
+import { initDeckUI } from '../src/ui/deck';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -1450,6 +1472,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         // 2. Buy 'hivemind' mutation -> expands to 6
         STATE.bioRes = 1000;
         STATE.siliconRes = 1000;
+        STATE.techRes = 500;
         buyMutation('hivemind');
         expect(STATE.mutations.hivemind.purchased).toBe(true);
         expect(STATE.maxCrewCapacity).toBe(6);
@@ -1966,6 +1989,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         // 4. Test Organic Purchase of Chitin & Fleisch Branch and Escalating Radiation Protection
         STATE.bioRes = 2000;
         STATE.siliconRes = 2000;
+        STATE.techRes = 500;
         if (STATE.mutations.organic_siphon) STATE.mutations.organic_siphon.purchased = false;
         if (STATE.mutations.chitin_armor) STATE.mutations.chitin_armor.purchased = false;
         if (STATE.mutations.vector_tentacles) STATE.mutations.vector_tentacles.purchased = false;
@@ -3155,6 +3179,229 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         // Cleanup
         clearFleet();
+    });
+
+    test("46. Expanded Resource Economy & Crew Life Support Integration: Hydration/Nutrition Decay, Biologist Mutation Boost, Tech Mutation Costs, Alloy Repairs & Commodity Diplomacy", () => {
+        // 1. Crew Life Support Rates (Water & Food)
+        STATE.crew = [];
+        calculateCrewBuffs();
+        expect(STATE.waterConsumptionRate).toBe(0);
+        expect(STATE.foodConsumptionRate).toBe(0);
+
+        // Add 2 organic crew members
+        const organicPilot: any = {
+            id: 101,
+            name: "Kaelen",
+            role: "pilot",
+            species: "Mensch",
+            disposition: "scholarly",
+            stress: 20,
+            age: 50,
+            maxLifespan: 500,
+            illusionStability: 80
+        };
+        const organicEngineer: any = {
+            id: 102,
+            name: "Brann",
+            role: "engineer",
+            species: "Zoltan",
+            disposition: "scholarly",
+            stress: 20,
+            age: 50,
+            maxLifespan: 500,
+            illusionStability: 80
+        };
+        STATE.crew.push(organicPilot, organicEngineer);
+        calculateCrewBuffs();
+        // 2 organic crew -> 2 * 0.06 = 0.12 water/s, 2 * 0.05 = 0.10 food/s
+        expect(STATE.waterConsumptionRate).toBeCloseTo(0.12, 3);
+        expect(STATE.foodConsumptionRate).toBeCloseTo(0.10, 3);
+
+        // Add 1 Synthetic crew member -> Zero water/food consumption
+        const syntheticCrew: any = {
+            id: 103,
+            name: "Unit-7",
+            role: "engineer",
+            species: "Cyborg",
+            disposition: "synthetic",
+            stress: 0,
+            age: 10,
+            maxLifespan: 1000,
+            illusionStability: 100
+        };
+        STATE.crew.push(syntheticCrew);
+        calculateCrewBuffs();
+        expect(STATE.waterConsumptionRate).toBeCloseTo(0.12, 3);
+        expect(STATE.foodConsumptionRate).toBeCloseTo(0.10, 3);
+
+        // Add 1 Biologist -> Grants mutation boost & bio-recycling discount on water
+        const bioCrew: any = {
+            id: 104,
+            name: "Dr. Song",
+            role: "biologist",
+            species: "Mensch",
+            disposition: "scholarly",
+            stress: 15,
+            age: 40,
+            maxLifespan: 500,
+            illusionStability: 85
+        };
+        STATE.crew.push(bioCrew);
+        // Initially place Dr. Song in dream_core to test baseline role buff without station incubator synergy
+        setCrewStation(bioCrew.id, 'dream_core');
+        calculateCrewBuffs();
+        // 3 organic crew. Biologist role gives 15% water discount: 3 * 0.06 * 0.85 = 0.153
+        expect(STATE.waterConsumptionRate).toBeCloseTo(0.153, 3);
+        expect(STATE.foodConsumptionRate).toBeCloseTo(0.15, 3);
+        expect(STATE.mutationDiscount).toBe(0.20);
+        expect(STATE.crewBuffs.mutationDiscount).toBe(0.20);
+
+        // Now assign Dr. Song to bio_incubator -> produces 0.08 food/s and extra 15% water discount (total 30%)
+        setCrewStation(bioCrew.id, 'bio_incubator');
+        calculateCrewBuffs();
+        // 3 * 0.06 * 0.70 = 0.126 water/s
+        expect(STATE.waterConsumptionRate).toBeCloseTo(0.126, 3);
+        // 3 * 0.05 - 0.08 = 0.07 food/s
+        expect(STATE.foodConsumptionRate).toBeCloseTo(0.07, 3);
+
+        // 2. Normal Resource Consumption & Satiated Comfort
+        STATE.waterRes = 20;
+        STATE.foodRes = 20;
+        organicPilot.stress = 30;
+        updateCrewSimulation(5.0);
+        expect(STATE.waterRes).toBeCloseTo(20 - (0.126 * 5.0), 2);
+        expect(STATE.foodRes).toBeCloseTo(20 - (0.07 * 5.0), 2);
+        // Satiated comfort: -0.25 * 5.0 = -1.25 stress reduction
+        expect(organicPilot.stress).toBeLessThan(30);
+
+        // 3. Dehydration & Starvation Penalties on Organic vs Synthetic
+        STATE.waterRes = 0;
+        STATE.foodRes = 0;
+        organicPilot.stress = 30;
+        organicPilot.illusionStability = 80;
+        const initialAge = organicPilot.age;
+        syntheticCrew.stress = 0;
+        const initialSynthAge = syntheticCrew.age;
+
+        updateCrewSimulation(2.0);
+        // Dehydration (+1.2/s stress, -1.0/s illusion) and Starvation (+0.9/s stress, +0.5/s age)
+        // Note: baseline calm gives -2.0/s stress, so net change is (+1.2 + 0.9 - 2.0)*2 = +0.2 (increases instead of dropping to 26)
+        expect(organicPilot.stress).toBeGreaterThan(30.5);
+        expect(organicPilot.illusionStability).toBeLessThan(79.0);
+        // Normal aging ~2.17 (with solar rad mult) + 1.0 accelerated starvation aging = ~3.17
+        expect(organicPilot.age - initialAge).toBeGreaterThan(3.0);
+
+        // Synthetic crew is immune to dehydration/starvation (normal radiation aging only, no +1.0 penalty)
+        expect(syntheticCrew.stress).toBe(0);
+        expect(syntheticCrew.age - initialSynthAge).toBeLessThan(2.5);
+
+        // 4. Advanced Mutations & Biologist Discount with Tech Cost
+        // Clear neural_cluster
+        if (STATE.mutations.neural_cluster) STATE.mutations.neural_cluster.purchased = false;
+        if (STATE.mutations.hivemind) STATE.mutations.hivemind.purchased = true; // satisfies precursor
+        STATE.maxCrewCapacity = 6;
+
+        // neural_cluster costs 650 Bio, 450 Silicon, 20 Tech.
+        // With 20% Biologist discount: 520 Bio, 360 Silicon, 16 Tech.
+        STATE.bioRes = 600;
+        STATE.siliconRes = 400;
+        STATE.techRes = 10; // Insufficient tech (needs 16)
+        buyMutation('neural_cluster');
+        expect(STATE.mutations.neural_cluster.purchased).toBe(false);
+
+        // Supply sufficient tech
+        STATE.techRes = 25;
+        buyMutation('neural_cluster');
+        expect(STATE.mutations.neural_cluster.purchased).toBe(true);
+        expect(STATE.maxCrewCapacity).toBe(10);
+        expect(STATE.techRes).toBe(25 - 16); // 9
+        expect(STATE.bioRes).toBe(600 - 520); // 80
+        expect(STATE.siliconRes).toBe(400 - 360); // 40
+
+        // 5. Deck UI Alloy Repairs (Najmafar Hull & Bio-Shuttle)
+        initDeckUI();
+        STATE.health = 50;
+        STATE.maxHealth = 100;
+        STATE.bioShuttle = {
+            ready: true,
+            hull: 40,
+            maxHull: 100,
+            heatShielding: 35,
+            radShielding: 35,
+            acidShielding: 35,
+            upgrades: []
+        };
+        STATE.alloyRes = 15;
+
+        // Repair hull using 5 alloys (+25 HP)
+        const repairHullBtn = document.getElementById('repair-hull-alloy-btn');
+        repairHullBtn?.click();
+        expect(STATE.health).toBe(75);
+        expect(STATE.alloyRes).toBe(10);
+
+        // Repair Bio-Shuttle using 10 alloys (Full 100%)
+        const repairShuttleBtn = document.getElementById('repair-shuttle-alloy-btn');
+        repairShuttleBtn?.click();
+        expect(STATE.bioShuttle.hull).toBe(100);
+        expect(STATE.alloyRes).toBe(0);
+
+        // 6. Diplomacy Commodity Trading (Tech sale, Alloy sale, Emergency Water)
+        const mockDiploPlanet: any = {
+            name: "Vega-Prime",
+            attributes: {
+                species: {
+                    name: "Vegans",
+                    factionId: "vega_collective"
+                }
+            }
+        };
+        STATE.reputation = { vega_collective: 10 };
+        openDiplomacyComms(mockDiploPlanet);
+        const actionsContainer = document.getElementById('diplomacy-actions-container');
+        expect(actionsContainer).toBeDefined();
+        const actionButtons = actionsContainer?.children || [];
+
+        // Sell Tech: Button with text containing 'Technologie verkaufen'
+        const sellTechButton = actionButtons.find((b: any) => b.innerHTML && b.innerHTML.includes('Technologie verkaufen'));
+        expect(sellTechButton).toBeDefined();
+
+        STATE.techRes = 20;
+        STATE.waterRes = 10;
+        STATE.bioRes = 20;
+        sellTechButton?.click();
+        // 15 Tech ➔ 35 Wasser + 35 Bio (+10 Rep)
+        expect(STATE.techRes).toBe(5);
+        expect(STATE.waterRes).toBe(45);
+        expect(STATE.bioRes).toBe(55);
+        expect(STATE.reputation.vega_collective).toBe(20);
+
+        // Sell Alloys: Button with text containing 'Legierungen verkaufen'
+        const sellAlloyButton = actionButtons.find((b: any) => b.innerHTML && b.innerHTML.includes('Legierungen verkaufen'));
+        expect(sellAlloyButton).toBeDefined();
+
+        STATE.alloyRes = 25;
+        STATE.foodRes = 10;
+        STATE.siliconRes = 20;
+        sellAlloyButton?.click();
+        // 20 Legierungen ➔ 40 Nahrung + 30 Silizium (+10 Rep)
+        expect(STATE.alloyRes).toBe(5);
+        expect(STATE.foodRes).toBe(50);
+        expect(STATE.siliconRes).toBe(50);
+        expect(STATE.reputation.vega_collective).toBe(30);
+
+        // Buy Emergency Water: Button with text containing 'Notfall-Wasserfracht'
+        const buyWaterButton = actionButtons.find((b: any) => b.innerHTML && b.innerHTML.includes('Notfall-Wasserfracht'));
+        expect(buyWaterButton).toBeDefined();
+
+        STATE.bioRes = 40;
+        const waterBefore = STATE.waterRes;
+        buyWaterButton?.click();
+        // 25 Bio ➔ 35 Wasser (+5 Rep)
+        expect(STATE.bioRes).toBe(15);
+        expect(STATE.waterRes).toBe(waterBefore + 35);
+        expect(STATE.reputation.vega_collective).toBe(35);
+
+        closeDiplomacyComms();
     });
 });
 

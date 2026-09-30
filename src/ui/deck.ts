@@ -85,15 +85,62 @@ export function initDeckUI() {
             }
         });
     });
+
+    const repairHullAlloyBtn = document.getElementById('repair-hull-alloy-btn');
+    if (repairHullAlloyBtn) {
+        repairHullAlloyBtn.addEventListener('click', () => {
+            if ((STATE.alloyRes || 0) >= 5) {
+                if (STATE.health >= STATE.maxHealth) {
+                    addLogEntry("SYSTEM", "Biologische Hülle ist bereits vollständig intakt (100%).");
+                    return;
+                }
+                STATE.alloyRes -= 5;
+                STATE.health = Math.min(STATE.maxHealth, STATE.health + 25);
+                playSiliconCollectSound();
+                addLogEntry("HÜLLE", "🛡️ Chitin-Legierungs-Matrix appliziert: +25 HP Hülle regeneriert!");
+                renderCrewUI(true);
+            } else {
+                addLogEntry("SYSTEM", "Zu wenig Legierungen für Hüllen-Reparatur (5 Legierungen benötigt)!");
+            }
+        });
+    }
+
+    const repairShuttleAlloyBtn = document.getElementById('repair-shuttle-alloy-btn');
+    if (repairShuttleAlloyBtn) {
+        repairShuttleAlloyBtn.addEventListener('click', () => {
+            if (!STATE.bioShuttle) return;
+            if ((STATE.alloyRes || 0) >= 10) {
+                if (STATE.bioShuttle.hull >= STATE.bioShuttle.maxHull) {
+                    addLogEntry("SYSTEM", "Bio-Shuttle Hülle ist bereits makellos (100%).");
+                    return;
+                }
+                STATE.alloyRes -= 10;
+                STATE.bioShuttle.hull = STATE.bioShuttle.maxHull;
+                playSiliconCollectSound();
+                addLogEntry("SHUTTLE", "🚀 Bio-Shuttle generalüberholt: Hülle mit Legierungen auf 100% wiederhergestellt!");
+                renderCrewUI(true);
+            } else {
+                addLogEntry("SYSTEM", "Zu wenig Legierungen für Shuttle-Generalüberholung (10 Legierungen benötigt)!");
+            }
+        });
+    }
 }
 
 export function buyMutation(type: string) {
     const mut = (STATE.mutations as any)[type];
     if (!mut || mut.purchased) return;
 
-    if (STATE.bioRes >= mut.bioCost && STATE.siliconRes >= mut.siliconCost) {
-        STATE.bioRes -= mut.bioCost;
-        STATE.siliconRes -= mut.siliconCost;
+    const discount = STATE.mutationDiscount || 0;
+    const effBioCost = Math.round(mut.bioCost * (1 - discount));
+    const effSilCost = Math.round(mut.siliconCost * (1 - discount));
+    const effTechCost = Math.round((mut.techCost || 0) * (1 - discount));
+
+    if (STATE.bioRes >= effBioCost && STATE.siliconRes >= effSilCost && (STATE.techRes || 0) >= effTechCost) {
+        STATE.bioRes -= effBioCost;
+        STATE.siliconRes -= effSilCost;
+        if (effTechCost > 0) {
+            STATE.techRes = Math.max(0, (STATE.techRes || 0) - effTechCost);
+        }
         mut.purchased = true;
 
         playSiliconCollectSound();
@@ -169,7 +216,7 @@ export function buyMutation(type: string) {
         updateMutationUI();
         triggerAutoSave(`Mutation: ${mut.name || type}`);
     } else {
-        addLogEntry("SYSTEM", `Evolution fehlgeschlagen: Nicht genügend Ressourcen (${mut.bioCost} Bio | ${mut.siliconCost} Silizium benötigt)!`);
+        addLogEntry("SYSTEM", `Evolution fehlgeschlagen: Nicht genügend Ressourcen (${effBioCost} Bio | ${effSilCost} Silizium${effTechCost > 0 ? ` | ${effTechCost} Tech` : ''} benötigt)!`);
     }
 }
 
@@ -179,6 +226,7 @@ export function updateMutationUI() {
     if (bioEl) bioEl.innerText = `${Math.floor(STATE.bioRes)}`;
     if (silEl) silEl.innerText = `${Math.floor(STATE.siliconRes)}`;
 
+    const discount = STATE.mutationDiscount || 0;
     Object.keys(STATE.mutations).forEach(key => {
         const mut = (STATE.mutations as any)[key];
         const btn = document.querySelector(`.mut-btn[data-mutation="${key}"]`) as HTMLButtonElement;
@@ -188,7 +236,10 @@ export function updateMutationUI() {
                 btn.classList.add('purchased');
                 btn.innerText = "Aktiviert ✓";
             } else {
-                const canAfford = STATE.bioRes >= mut.bioCost && STATE.siliconRes >= mut.siliconCost;
+                const effBio = Math.round(mut.bioCost * (1 - discount));
+                const effSil = Math.round(mut.siliconCost * (1 - discount));
+                const effTech = Math.round((mut.techCost || 0) * (1 - discount));
+                const canAfford = STATE.bioRes >= effBio && STATE.siliconRes >= effSil && (STATE.techRes || 0) >= effTech;
                 btn.disabled = !canAfford;
             }
         }

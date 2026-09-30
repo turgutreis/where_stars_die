@@ -124,6 +124,59 @@ function renderDiplomacyActions(planet: PlanetEntry, factionId: FactionId) {
     };
     actionsContainer.appendChild(tradeBtn);
 
+    // Action 2: Sell Tech (Export High-Tech Data)
+    const sellTechBtn = document.createElement('button');
+    sellTechBtn.className = 'diplo-action-btn trade-tech';
+    sellTechBtn.innerHTML = `<span>🔬 Technologie verkaufen (15 Tech ➔ 35 Wasser + 35 Bio)</span><span class="diplo-badge">+10 Rep</span>`;
+    sellTechBtn.onclick = () => {
+        if ((STATE.techRes || 0) >= 15) {
+            STATE.techRes = (STATE.techRes || 0) - 15;
+            STATE.waterRes = (STATE.waterRes || 0) + 35;
+            STATE.bioRes += 35;
+            playBioCollectSound();
+            modifyReputation(factionId, 10, `Alien-Technologie an ${planet.name} veräußert (+35 Wasser & +35 Bio).`);
+            openDiplomacyComms(planet);
+        } else {
+            addLogEntry("SYSTEM", "Zu wenig Technologie für diesen Deal (15 Tech benötigt)!");
+        }
+    };
+    actionsContainer.appendChild(sellTechBtn);
+
+    // Action 3: Sell Alloys (Export Structural Composite)
+    const sellAlloyBtn = document.createElement('button');
+    sellAlloyBtn.className = 'diplo-action-btn trade-alloy';
+    sellAlloyBtn.innerHTML = `<span>⚙️ Legierungen verkaufen (20 Legierungen ➔ 40 Nahrung + 30 Silizium)</span><span class="diplo-badge">+10 Rep</span>`;
+    sellAlloyBtn.onclick = () => {
+        if ((STATE.alloyRes || 0) >= 20) {
+            STATE.alloyRes = (STATE.alloyRes || 0) - 20;
+            STATE.foodRes = (STATE.foodRes || 0) + 40;
+            STATE.siliconRes += 30;
+            playSiliconCollectSound();
+            modifyReputation(factionId, 10, `Hüllenlegierungen an ${planet.name} exportiert (+40 Nahrung & +30 Silizium).`);
+            openDiplomacyComms(planet);
+        } else {
+            addLogEntry("SYSTEM", "Zu wenig Legierungen für diesen Deal (20 Legierungen benötigt)!");
+        }
+    };
+    actionsContainer.appendChild(sellAlloyBtn);
+
+    // Action 4: Buy Emergency Water (Volatile Reserves)
+    const buyWaterBtn = document.createElement('button');
+    buyWaterBtn.className = 'diplo-action-btn trade-water';
+    buyWaterBtn.innerHTML = `<span>💧 Notfall-Wasserfracht erwerben (25 Bio ➔ 35 Wasser)</span><span class="diplo-badge">+5 Rep</span>`;
+    buyWaterBtn.onclick = () => {
+        if (STATE.bioRes >= 25) {
+            STATE.bioRes -= 25;
+            STATE.waterRes = (STATE.waterRes || 0) + 35;
+            playBioCollectSound();
+            modifyReputation(factionId, 5, `Frisches Wasser von ${planet.name} importiert (+35 Wasser).`);
+            openDiplomacyComms(planet);
+        } else {
+            addLogEntry("SYSTEM", "Zu wenig Biomasse für Wasserimport (25 Bio benötigt)!");
+        }
+    };
+    actionsContainer.appendChild(buyWaterBtn);
+
     // Action 2: Tribute to Deity / Offering
     const tributeBtn = document.createElement('button');
     tributeBtn.className = 'diplo-action-btn tribute';

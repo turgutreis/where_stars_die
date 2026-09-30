@@ -425,6 +425,7 @@ export interface MutationItem {
     purchased: boolean;
     bioCost: number;
     siliconCost: number;
+    techCost?: number;
     name?: string;
     desc?: string;
 }
@@ -470,6 +471,7 @@ export interface CrewBuffs {
     repairRate: number;
     stressDampening: number;
     psionicBonus: number;
+    mutationDiscount?: number;
 }
 
 export interface DoctrineTransition {
@@ -515,6 +517,9 @@ export interface GameState {
     crewSatietyTimer: number;
     crewDialogueTimer: number;
     crewBuffs: CrewBuffs;
+    waterConsumptionRate?: number;
+    foodConsumptionRate?: number;
+    mutationDiscount?: number;
 
     // Paradigms & Triad Doctrine System
     primaryParadigm: PrimaryParadigm;

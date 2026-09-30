@@ -49,8 +49,12 @@ export const STATE: GameState = {
         scanSpeed: 1.0,
         repairRate: 0,
         stressDampening: 1.0,
-        psionicBonus: 0
+        psionicBonus: 0,
+        mutationDiscount: 0
     },
+    waterConsumptionRate: 0,
+    foodConsumptionRate: 0,
+    mutationDiscount: 0,
 
     // Paradigms & Triad Doctrine System (Initial: Neutral / Mentale Einsamkeit)
     primaryParadigm: 'neutral',
@@ -79,20 +83,20 @@ export const STATE: GameState = {
         // Ast 1: Chitin & Fleisch (Rumpf & Strahlungsschutz)
         organic_siphon: { purchased: false, bioCost: 120, siliconCost: 60, name: "Organischer Siphon", desc: "+35% Ernte-Speed & Strahlungs-Bio-Filter" },
         chitin_armor: { purchased: false, bioCost: 220, siliconCost: 130, name: "Chitin-Panzer", desc: "-50% Kollisionsschaden & Strahlungs-Zellschutz" },
-        vector_tentacles: { purchased: false, bioCost: 360, siliconCost: 240, name: "Vektor-Tentakel", desc: "+25% Schub, +35% Wendigkeit & Bio-Bremse" },
-        blade_armor: { purchased: false, bioCost: 550, siliconCost: 420, name: "Klingen-Panzerung", desc: "Dornen-Chitin & magnetische Strahlungs-Barriere (-80% Strahlung)" },
+        vector_tentacles: { purchased: false, bioCost: 360, siliconCost: 240, techCost: 10, name: "Vektor-Tentakel", desc: "+25% Schub, +35% Wendigkeit & Bio-Bremse" },
+        blade_armor: { purchased: false, bioCost: 550, siliconCost: 420, techCost: 15, name: "Klingen-Panzerung", desc: "Dornen-Chitin & magnetische Strahlungs-Barriere (-80% Strahlung)" },
 
         // Ast 2: Neuronales Nest (Kapazität)
         cocoon: { purchased: true, bioCost: 320, siliconCost: 140, name: "Kokon (4)", desc: "Basis-Kokons für 4 Gefangene." },
         hivemind: { purchased: false, bioCost: 500, siliconCost: 320, name: "Schwarm-Synapse (6)", desc: "Max 6 Crew & +20% auf alle Spezialisten-Buffs" },
-        neural_cluster: { purchased: false, bioCost: 650, siliconCost: 450, name: "Neuronale Wabe (10)", desc: "Erweitert Crew-Kapazität auf 10 & dämpft Dissonanz" },
-        cryo_matrix: { purchased: false, bioCost: 950, siliconCost: 750, name: "Kryo-Matrix (20)", desc: "Erweitert Crew-Kapazität auf 20 & verlangsamt Zelltod um 25%" },
-        hive_cerebrum: { purchased: false, bioCost: 1500, siliconCost: 1200, name: "Schwarm-Zerebrum (30)", desc: "Max 30 Crew • Schaltet Schwarm-Resonanz frei" },
+        neural_cluster: { purchased: false, bioCost: 650, siliconCost: 450, techCost: 20, name: "Neuronale Wabe (10)", desc: "Erweitert Crew-Kapazität auf 10 & dämpft Dissonanz" },
+        cryo_matrix: { purchased: false, bioCost: 950, siliconCost: 750, techCost: 15, name: "Kryo-Matrix (20)", desc: "Erweitert Crew-Kapazität auf 20 & verlangsamt Zelltod um 25%" },
+        hive_cerebrum: { purchased: false, bioCost: 1500, siliconCost: 1200, techCost: 30, name: "Schwarm-Zerebrum (30)", desc: "Max 30 Crew • Schaltet Schwarm-Resonanz frei" },
 
         // Ast 3: Psionik & Geist (Kräfte)
         telepathic_focus: { purchased: false, bioCost: 140, siliconCost: 80, name: "Telepathischer Fokus", desc: "Dechiffriert Gedanken & Funk • -30% Mental-Drain" },
         psionic_pulse: { purchased: false, bioCost: 280, siliconCost: 160, name: "Psionischer Impuls", desc: "150 Max Mentalkraft & 140 LJ Gedanken-Echo" },
-        chimera_veil: { purchased: false, bioCost: 420, siliconCost: 300, name: "Schimären-Schleier", desc: "+40% Stealth • Stress-Immunität bei Sensor-Erfassung" },
+        chimera_veil: { purchased: false, bioCost: 420, siliconCost: 300, techCost: 15, name: "Schimären-Schleier", desc: "+40% Stealth • Stress-Immunität bei Sensor-Erfassung" },
         resonance_screech: { purchased: false, bioCost: 600, siliconCost: 480, name: "Resonanz-Schrei", desc: "Bio-EMP Schockwelle lähmt Drohnen 50% länger & bricht Panik" },
 
         // Secret Relic
@@ -108,7 +112,7 @@ export const STATE: GameState = {
         armor: { purchased: false, bioCost: 180, siliconCost: 110 },
         o2: { purchased: false, bioCost: 140, siliconCost: 60 },
         synapses: { purchased: false, bioCost: 260, siliconCost: 160 },
-        folddrive: { purchased: false, bioCost: 380, siliconCost: 420 },
+        folddrive: { purchased: false, bioCost: 380, siliconCost: 420, techCost: 25 },
         translator: { purchased: false, bioCost: 120, siliconCost: 80 }
     },
     radiationResistance: 0,

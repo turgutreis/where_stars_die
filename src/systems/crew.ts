@@ -6,6 +6,8 @@ import { CrewMember, PrimaryParadigm, SubCodex, SpeciesCluster, OrganStationId }
 import { triggerCrewDeathNotification, updatePartyGrid } from '../ui/party-grid';
 
 let radWarningCooldown = 0.0;
+let waterWarningCooldown = 0.0;
+let foodWarningCooldown = 0.0;
 
 export const ORGAN_STATIONS: Record<OrganStationId, {
     name: string;
@@ -553,13 +555,31 @@ export function calculateCrewBuffs() {
     psioBonus += dreamCount * 25;
     stressDamp *= Math.pow(0.88, dreamCount);
 
+    // Biologist & Scientist Mutation Boost (reduces cost of all mutations by 20% per researcher, max 50%)
+    const bioScientists = STATE.crew.filter(c => c.role === 'biologist' || c.role === 'scientist').length;
+    const mutationDiscount = Math.min(0.50, bioScientists * 0.20);
+    STATE.mutationDiscount = Number(mutationDiscount.toFixed(2));
+
+    // Life Support: Water & Food Consumption Rates (Synthetic/Cyborg crew have zero consumption)
+    const isSynthetic = (c: CrewMember) => c.species === 'Cyborg' || c.species === 'Synthetisch' || c.disposition === 'synthetic';
+    const organicCount = STATE.crew.filter(c => !isSynthetic(c)).length;
+    const waterRecyclers = STATE.crew.filter(c => c.role === 'biologist' || c.role === 'medic').length;
+    const waterDiscount = Math.min(0.60, waterRecyclers * 0.15 + (bioCount > 0 ? 0.15 : 0));
+    const netWaterRate = organicCount * 0.06 * (1.0 - waterDiscount);
+    const foodProduced = bioCount * 0.08;
+    const netFoodRate = Math.max(0, (organicCount * 0.05) - foodProduced);
+
+    STATE.waterConsumptionRate = Number(netWaterRate.toFixed(3));
+    STATE.foodConsumptionRate = Number(netFoodRate.toFixed(3));
+
     STATE.crewBuffs = {
         thrust: Number(thrustMult.toFixed(2)),
         bioGain: Number(bioMult.toFixed(2)),
         scanSpeed: Number(scanMult.toFixed(2)),
         repairRate: Number(repair.toFixed(2)),
         stressDampening: Number(Math.max(0.1, stressDamp).toFixed(2)),
-        psionicBonus: Math.round(psioBonus)
+        psionicBonus: Math.round(psioBonus),
+        mutationDiscount: STATE.mutationDiscount
     };
 
     const basePsio = STATE.mutations.synapses && STATE.mutations.synapses.purchased ? 140 : 75;
@@ -636,6 +656,51 @@ export function updateCrewSimulation(dt: number) {
     if (stationCounts.bio_incubator > 0) {
         const bioTrickle = 0.2 * stationCounts.bio_incubator * dt;
         STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + bioTrickle);
+    }
+
+    // Life Support: Water & Food Consumption
+    const isSynthetic = (c: CrewMember) => c.species === 'Cyborg' || c.species === 'Synthetisch' || c.disposition === 'synthetic';
+    const organicMembers = STATE.crew.filter(c => !isSynthetic(c));
+    const organicCount = organicMembers.length;
+
+    const wRate = STATE.waterConsumptionRate !== undefined ? STATE.waterConsumptionRate : 0;
+    const fRate = STATE.foodConsumptionRate !== undefined ? STATE.foodConsumptionRate : 0;
+
+    if (wRate > 0) {
+        STATE.waterRes = Math.max(0, (STATE.waterRes || 0) - wRate * dt);
+    }
+    if (fRate > 0) {
+        STATE.foodRes = Math.max(0, (STATE.foodRes || 0) - fRate * dt);
+    }
+
+    const bioIncubatorCount = stationCounts.bio_incubator || 0;
+    const foodProduced = bioIncubatorCount * 0.08;
+    if (foodProduced > organicCount * 0.05) {
+        const excessFood = (foodProduced - organicCount * 0.05) * dt;
+        STATE.foodRes = Math.min(250, (STATE.foodRes || 0) + excessFood);
+    }
+
+    const isDehydrated = organicCount > 0 && (STATE.waterRes || 0) <= 0;
+    const isStarving = organicCount > 0 && (STATE.foodRes || 0) <= 0;
+
+    if (isDehydrated) {
+        waterWarningCooldown -= dt;
+        if (waterWarningCooldown <= 0) {
+            waterWarningCooldown = 12.0;
+            addLogEntry("CREW", "⚠️ DEHYDRIERUNG: Wasservorräte erschöpft! Organische Crew leidet unter akutem Durst & Panik!");
+        }
+    } else {
+        waterWarningCooldown = Math.max(0, waterWarningCooldown - dt);
+    }
+
+    if (isStarving) {
+        foodWarningCooldown -= dt;
+        if (foodWarningCooldown <= 0) {
+            foodWarningCooldown = 12.0;
+            addLogEntry("CREW", "⚠️ NAHRUNGSMANGEL: Nährstoff-Gel aufgebraucht! Zelltod & Alterung beschleunigt!");
+        }
+    } else {
+        foodWarningCooldown = Math.max(0, foodWarningCooldown - dt);
     }
 
     const totalCrew = STATE.crew.length;
@@ -856,6 +921,21 @@ export function updateCrewSimulation(dt: number) {
                 } else {
                     c.thought = "Konzentriert: 'Sternenkartierung verläuft nach Plan.'";
                 }
+            }
+        }
+
+        // Life Support: Dehydration & Starvation on organic crew members
+        if (!isSynthetic(c)) {
+            if (isDehydrated) {
+                c.stress = Math.min(100, c.stress + 1.2 * dt);
+                c.illusionStability = Math.max(0, c.illusionStability - 1.0 * dt);
+            }
+            if (isStarving) {
+                c.stress = Math.min(100, c.stress + 0.9 * dt);
+                c.age = (c.age || 0) + 0.5 * dt; // Accelerated aging
+            }
+            if (!isDehydrated && !isStarving) {
+                c.stress = Math.max(0, c.stress - 0.25 * dt); // Satiated comfort
             }
         }
 
@@ -1095,6 +1175,45 @@ export function renderCrewUI(force = false) {
                 </div>
             `;
         }).join('');
+    }
+
+    // Update Life Support and Commodity Status in Left Column
+    const lifeBadge = document.getElementById('life-support-status-badge');
+    const waterStatusEl = document.getElementById('deck-water-status');
+    const foodStatusEl = document.getElementById('deck-food-status');
+    const biologistBoostText = document.getElementById('deck-biologist-boost-text');
+
+    const waterRate = STATE.waterConsumptionRate || 0;
+    const foodRate = STATE.foodConsumptionRate || 0;
+    const isSyntheticMember = (c: CrewMember) => c.species === 'Cyborg' || c.species === 'Synthetisch' || c.disposition === 'synthetic';
+    const organicCount = STATE.crew.filter(c => !isSyntheticMember(c)).length;
+
+    if (waterStatusEl) {
+        waterStatusEl.innerHTML = `💧 ${Math.floor(STATE.waterRes || 0)}L <span style="font-size:0.6rem; color:#94a3b8;">(-${waterRate.toFixed(2)}/s)</span>`;
+    }
+    if (foodStatusEl) {
+        foodStatusEl.innerHTML = `🍞 ${Math.floor(STATE.foodRes || 0)}kg <span style="font-size:0.6rem; color:#94a3b8;">(-${foodRate.toFixed(2)}/s)</span>`;
+    }
+    if (lifeBadge) {
+        if (organicCount === 0) {
+            lifeBadge.innerText = "Synthetisch / Leer";
+            lifeBadge.style.color = "#94a3b8";
+        } else if ((STATE.waterRes || 0) <= 0 || (STATE.foodRes || 0) <= 0) {
+            lifeBadge.innerText = "⚠️ KRITISCHER MANGEL";
+            lifeBadge.style.color = "#ef4444";
+        } else {
+            lifeBadge.innerText = "✓ Stabil";
+            lifeBadge.style.color = "#10b981";
+        }
+    }
+    if (biologistBoostText) {
+        const discountPct = Math.round((STATE.mutationDiscount || 0) * 100);
+        if (discountPct > 0) {
+            biologistBoostText.innerText = `🧪 Biologen-Boost aktiv: -${discountPct}% Mutationskosten`;
+            biologistBoostText.style.display = 'block';
+        } else {
+            biologistBoostText.style.display = 'none';
+        }
     }
 
     if (synBanner && synTitle && synDesc) {
