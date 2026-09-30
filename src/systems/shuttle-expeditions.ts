@@ -324,3 +324,8 @@ export function closeShuttleExpeditionModal() {
     const modal = document.getElementById('shuttle-expedition-modal');
     if (modal) modal.style.display = 'none';
 }
+
+if (typeof window !== 'undefined') {
+    (window as any).openShuttleExpeditionModal = openShuttleExpeditionModal;
+    (window as any).closeShuttleExpeditionModal = closeShuttleExpeditionModal;
+}

@@ -45,24 +45,15 @@ export function generatePlanetAttributes(p: any): PlanetAttributes {
     const entangledTwinId = p.entangledTwinId ?? null;
     const quantumResonance = p.quantumResonance ?? (entangledTwinId ? 0.85 : 0.0);
 
-    if (p.atmos && p.temp && p.bio && p.res && (p.type !== 'Habitable' || (p.species && p.species.candidates && p.species.candidates.length > 0))) {
-        return {
-            atmos: p.atmos,
-            temp: p.temp,
-            bio: p.bio,
-            res: p.res,
-            species: p.species || null,
-            tidalLock,
-            magnetosphere,
-            geothermal,
-            radiationLevel,
-            entangledTwinId,
-            quantumResonance
-        };
-    }
-
     let atmos: string, temp: string, bio: string, res: string, species: any;
-    if (p.type === 'Habitable') {
+
+    if (p.atmos && p.temp && p.bio && p.res && (p.type !== 'Habitable' || (p.species && p.species.candidates && p.species.candidates.length > 0))) {
+        atmos = p.atmos;
+        temp = p.temp;
+        bio = p.bio;
+        res = p.res;
+        species = p.species || null;
+    } else if (p.type === 'Habitable') {
         atmos = hash % 2 === 0 ? "Stickstoff & Sauerstoff (Klasse M)" : "Dichte Aerosole & Wasserdampf";
         temp = (15 + (hash % 15)) + "°C";
         bio = hash % 3 === 0 ? "Biolumineszierende Flora" : (hash % 3 === 1 ? "Mikrobielle Kolonien" : "Komplexes Ökosystem");
@@ -443,6 +434,7 @@ export function completeScanning() {
 }
 
 let manuallyDismissedTarget: string | null = null;
+let lastDepositsCacheKey = '';
 
 export function dismissScannerPanel(): void {
     const scannerPanel = document.getElementById('left-deck-panel');
@@ -458,6 +450,7 @@ export function dismissScannerPanel(): void {
 
 export function resetDismissedScanner(): void {
     manuallyDismissedTarget = null;
+    lastDepositsCacheKey = '';
 }
 
 if (typeof window !== 'undefined') {
@@ -732,7 +725,7 @@ export function updateScannerUI(planet: any, dist: number) {
             }
         } else {
             // Planet / Moon Rendering
-            if (!planet.attributes) {
+            if (!planet.attributes || !planet.attributes.surfaceDeposits || planet.attributes.surfaceDeposits.length === 0) {
                 planet.attributes = generatePlanetAttributes(planet);
             }
             const attrs = planet.attributes;
@@ -830,69 +823,80 @@ export function updateScannerUI(planet: any, dist: number) {
             }
 
             // Surface Deposits & Shuttle Expeditions List
-            let depositsBox = document.getElementById('scanner-deposits-container');
-            if (!depositsBox && resultsBox) {
-                depositsBox = document.createElement('div');
-                depositsBox.id = 'scanner-deposits-container';
-                depositsBox.className = 'scanner-deposits-container';
-                resultsBox.appendChild(depositsBox);
+            const depositsBox = document.getElementById('scanner-deposits-container');
+            const depositsList = document.getElementById('scanner-deposits-list');
+            const shuttleBadge = document.getElementById('shuttle-status-badge');
+
+            if (shuttleBadge) {
+                if (!STATE.bioShuttle.ready && STATE.activeAwayMission) {
+                    const pct = Math.round((STATE.activeAwayMission.progress || 0) * 100);
+                    shuttleBadge.innerText = `Lander aktiv (${pct}%)`;
+                    shuttleBadge.style.color = '#38bdf8';
+                } else if (!STATE.bioShuttle.ready) {
+                    shuttleBadge.innerText = `Lander regeneriert...`;
+                    shuttleBadge.style.color = '#f59e0b';
+                } else {
+                    shuttleBadge.innerText = `Lander bereit`;
+                    shuttleBadge.style.color = '#10b981';
+                }
             }
 
-            if (depositsBox) {
+            if (depositsBox && depositsList) {
                 if (isShip || isStation) {
                     depositsBox.style.display = 'none';
                 } else if (attrs.surfaceDeposits && attrs.surfaceDeposits.length > 0) {
                     depositsBox.style.display = 'block';
-                    depositsBox.innerHTML = `
-                        <div style="font-size: 0.75rem; text-transform: uppercase; color: #38bdf8; font-weight: bold; margin-top: 10px; margin-bottom: 6px; letter-spacing: 0.05em; border-top: 1px solid rgba(56, 189, 248, 0.2); padding-top: 8px;">
-                            🚀 Boden-Vorkommen (Shuttle-Expeditionen):
-                        </div>
-                    `;
 
-                    attrs.surfaceDeposits.forEach(dep => {
-                        const card = document.createElement('div');
-                        card.className = `surface-deposit-card ${dep.depleted ? 'depleted' : ''}`;
-                        card.style.cssText = 'padding: 6px 8px; margin-bottom: 6px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 6px;';
+                    const activeDepId = STATE.activeAwayMission ? STATE.activeAwayMission.targetDeposit.id : '';
+                    const missionPct = STATE.activeAwayMission ? Math.round(STATE.activeAwayMission.progress * 100) : -1;
+                    const cacheKey = `${planet.name}_${attrs.surfaceDeposits.map((d: any) => `${d.id}:${d.depleted}`).join(',')}_${activeDepId}_${missionPct}`;
 
-                        const resLabel = dep.yieldResource === 'water' ? '💧 Wasser' : (dep.yieldResource === 'alloys' ? '🛡️ Titan' : (dep.yieldResource === 'tech' ? '⚙️ Tech' : (dep.yieldResource === 'food' ? '🌾 Nahrung' : '💎 Silizium')));
-                        const hazIcon = dep.hazardType === 'thermal' ? '🔥 Hitze' : (dep.hazardType === 'atmosphere' ? '☠️ Gas' : '☢️ Rad');
+                    if (lastDepositsCacheKey !== cacheKey) {
+                        lastDepositsCacheKey = cacheKey;
+                        depositsList.innerHTML = '';
 
-                        const isMissionActive = !!(STATE.activeAwayMission && STATE.activeAwayMission.targetDeposit.id === dep.id);
+                        attrs.surfaceDeposits.forEach((dep: any) => {
+                            const card = document.createElement('div');
+                            card.className = `surface-deposit-card ${dep.depleted ? 'depleted' : ''}`;
+                            card.style.cssText = `padding: 8px 10px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; cursor: ${dep.depleted ? 'default' : 'pointer'};`;
 
-                        let actionHtml = '';
-                        if (dep.depleted) {
-                            actionHtml = '<span style="font-size: 0.7rem; color: #64748b;">Erschöpft ✕</span>';
-                        } else if (isMissionActive) {
-                            const pct = Math.round((STATE.activeAwayMission?.progress || 0) * 100);
-                            actionHtml = `<span style="font-size: 0.7rem; color: #38bdf8; font-weight: bold;">Lander aktiv (${pct}%)</span>`;
-                        } else {
-                            actionHtml = `<button class="shuttle-dep-btn" style="padding: 3px 8px; font-size: 0.72rem; background: #0284c7; color: #fff; border: none; border-radius: 4px; cursor: pointer;">🚀 Lander starten</button>`;
-                        }
+                            const resLabel = dep.yieldResource === 'water' ? '💧 Wasser' : (dep.yieldResource === 'alloys' ? '🛡️ Titan' : (dep.yieldResource === 'tech' ? '⚙️ Tech' : (dep.yieldResource === 'food' ? '🌾 Nahrung' : '💎 Silizium')));
+                            const hazIcon = dep.hazardType === 'thermal' ? '🔥 Hitze' : (dep.hazardType === 'atmosphere' ? '☠️ Gas' : '☢️ Rad');
 
-                        card.innerHTML = `
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-                                <div style="font-weight: bold; font-size: 0.8rem; color: #f8fafc;">${dep.name}</div>
-                                <div>${actionHtml}</div>
-                            </div>
-                            <div style="font-size: 0.7rem; color: #94a3b8; margin-bottom: 3px;">${dep.description}</div>
-                            <div style="display: flex; gap: 8px; font-size: 0.7rem;">
-                                <span style="color: #38bdf8;">~${dep.yieldAmount}x ${resLabel}</span>
-                                <span style="color: #f59e0b;">${hazIcon} (${dep.hazardSeverity})</span>
-                            </div>
-                        `;
+                            const isMissionActive = !!(STATE.activeAwayMission && STATE.activeAwayMission.targetDeposit.id === dep.id);
 
-                        if (!dep.depleted && !isMissionActive) {
-                            const btn = card.querySelector('.shuttle-dep-btn');
-                            if (btn) {
-                                (btn as HTMLElement).onclick = (e) => {
+                            let actionHtml = '';
+                            if (dep.depleted) {
+                                actionHtml = '<span style="font-size: 0.7rem; color: #64748b; font-weight: bold;">Erschöpft ✕</span>';
+                            } else if (isMissionActive) {
+                                const pct = Math.round((STATE.activeAwayMission?.progress || 0) * 100);
+                                actionHtml = `<span style="font-size: 0.72rem; color: #38bdf8; font-weight: bold;">Lander aktiv (${pct}%)</span>`;
+                            } else {
+                                actionHtml = `<button class="shuttle-dep-btn" style="padding: 4px 10px; font-size: 0.72rem; background: linear-gradient(135deg, #0284c7, #38bdf8); color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🚀 Lander starten</button>`;
+                            }
+
+                            card.innerHTML = `
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                                    <div style="font-weight: bold; font-size: 0.8rem; color: #f8fafc;">${dep.name}</div>
+                                    <div>${actionHtml}</div>
+                                </div>
+                                <div style="font-size: 0.7rem; color: #94a3b8; margin-bottom: 4px;">${dep.description}</div>
+                                <div style="display: flex; gap: 8px; font-size: 0.7rem;">
+                                    <span style="color: #38bdf8; font-weight: 600;">~${dep.yieldAmount}x ${resLabel}</span>
+                                    <span style="color: #f59e0b;">${hazIcon} (${dep.hazardSeverity})</span>
+                                </div>
+                            `;
+
+                            if (!dep.depleted && !isMissionActive) {
+                                card.onclick = (e) => {
                                     e.stopPropagation();
                                     openShuttleExpeditionModal(planet, dep);
                                 };
                             }
-                        }
 
-                        depositsBox!.appendChild(card);
-                    });
+                            depositsList.appendChild(card);
+                        });
+                    }
                 } else {
                     depositsBox.style.display = 'none';
                 }
