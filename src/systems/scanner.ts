@@ -500,7 +500,11 @@ export function updateScannerUI(planet: any, dist: number) {
                         ? '🚨 Roter Alarm: Kampf & Jagd'
                         : (planet.state === 'flee'
                             ? '⚠️ Panik: Ausweichmanöver vor Bio-Signatur'
-                            : (planet.state === 'returning' ? '🔄 Flug zum Heimat-Orbit' : '🛡️ Normaler Patrouillenbetrieb')));
+                            : (planet.state === 'trade_cruise'
+                                ? '📦 Interstellarer Handels-Transit'
+                                : (planet.state === 'trade_docked'
+                                    ? '⚓ Im Fracht-Dock (Löscht/Bunkert Fracht)'
+                                    : (planet.state === 'returning' ? '🔄 Flug zum Heimat-Orbit' : '🛡️ Normaler Patrouillenbetrieb')))));
             }
             if (atmosEl) {
                 atmosEl.innerText = planet.cargo

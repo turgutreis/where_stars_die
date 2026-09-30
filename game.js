@@ -37689,7 +37689,7 @@ function updateScannerUI(planet, dist) {
       if (tempEl)
         tempEl.innerText = `${planet.health} / ${planet.maxHealth} HP (Struktur & Hülle)`;
       if (bioEl) {
-        bioEl.innerText = planet.state === "stunned" ? "⚡ Systeme gelähmt (EMP-Schock)" : planet.state === "hunt" || planet.state === "intercept" ? "\uD83D\uDEA8 Roter Alarm: Kampf & Jagd" : planet.state === "flee" ? "⚠️ Panik: Ausweichmanöver vor Bio-Signatur" : planet.state === "returning" ? "\uD83D\uDD04 Flug zum Heimat-Orbit" : "\uD83D\uDEE1️ Normaler Patrouillenbetrieb";
+        bioEl.innerText = planet.state === "stunned" ? "⚡ Systeme gelähmt (EMP-Schock)" : planet.state === "hunt" || planet.state === "intercept" ? "\uD83D\uDEA8 Roter Alarm: Kampf & Jagd" : planet.state === "flee" ? "⚠️ Panik: Ausweichmanöver vor Bio-Signatur" : planet.state === "trade_cruise" ? "\uD83D\uDCE6 Interstellarer Handels-Transit" : planet.state === "trade_docked" ? "⚓ Im Fracht-Dock (Löscht/Bunkert Fracht)" : planet.state === "returning" ? "\uD83D\uDD04 Flug zum Heimat-Orbit" : "\uD83D\uDEE1️ Normaler Patrouillenbetrieb";
       }
       if (atmosEl) {
         atmosEl.innerText = planet.cargo ? `\uD83D\uDCE6 Frachtgut: ${planet.cargo.amount}x ${planet.cargo.type === "silicon" ? "Silizium" : "Biomasse"}` : isStation ? "\uD83C\uDFE2 Fracht-Docks & Wohnringe" : "Militärische Bewaffnung (Keine Handelsgüter)";
@@ -38082,11 +38082,44 @@ function spawnSystemFleet(planetsInput) {
         commanderRole: fCommander ? fCommander.role : "engineer",
         commanderThought: fCommander?.thought
       };
+      assignNextTradeDestination(freighter);
       STATE.fleetShips.push(freighter);
     }
   });
   if (STATE.fleetShips.length > 0) {
     addLogEntry("SYSTEM", `Sensoren geortet: ${STATE.fleetShips.length} planetare Schiffe (Jäger & Handels-Konvois) im Sektor aktiv.`);
+  }
+}
+function assignNextTradeDestination(ship) {
+  const candidates = [];
+  if (STATE.spaceStations && STATE.spaceStations.length > 0) {
+    STATE.spaceStations.forEach((s) => {
+      if (s !== ship.tradeTargetStation && s.mesh) {
+        candidates.push({ type: "station", target: s });
+      }
+    });
+  }
+  const planetList = activePlanets && activePlanets.length > 0 ? activePlanets : [];
+  if (planetList.length > 0) {
+    const otherPlanets = planetList.filter((p) => !p.isMoon && p !== ship.tradeTargetPlanet && p !== ship.homePlanet && p.mesh);
+    if (otherPlanets.length > 0) {
+      otherPlanets.forEach((p) => candidates.push({ type: "planet", target: p }));
+    } else if (ship.tradeTargetPlanet !== ship.homePlanet && ship.homePlanet?.mesh) {
+      candidates.push({ type: "planet", target: ship.homePlanet });
+    }
+  }
+  if (candidates.length > 0) {
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+    if (chosen.type === "station") {
+      ship.tradeTargetStation = chosen.target;
+      ship.tradeTargetPlanet = null;
+    } else {
+      ship.tradeTargetPlanet = chosen.target;
+      ship.tradeTargetStation = null;
+    }
+  } else {
+    ship.tradeTargetPlanet = ship.homePlanet;
+    ship.tradeTargetStation = null;
   }
 }
 function updateFleet(dt) {
@@ -38222,30 +38255,99 @@ function updateFleet(dt) {
       }
     }
     if (ship.type === "freighter" || ship.type === "heavy_freighter") {
+      if (distToPlayer < 28 && !STATE.stealthActive && ship.state !== "flee" && ship.state !== "stunned" && ship.state !== "disabled") {
+        ship.state = "flee";
+        playFleetAlarmSound();
+        addLogEntry("SYSTEM", `\uD83D\uDEA8 NOTRUF: Ziviler Frachter ${ship.name} meldet ungetarnten Leviathan! Fordert Geleitschutz an!`);
+        STATE.systemAlertLevel = "hunt";
+        STATE.systemAlertTimer = 40;
+        if (ship.crewMembers && ship.crewMembers[0]) {
+          ship.crewMembers[0].thought = "ALARM! Ungetarnte Bio-Entität auf Abfangkurs! Volle Notfall-Beschleunigung!";
+          ship.commanderThought = ship.crewMembers[0].thought;
+        }
+      }
       if (ship.state === "trade_cruise") {
-        ship.orbitAngle += ship.orbitSpeed * dt;
-        ship.position.set(planetPos.x + Math.cos(ship.orbitAngle) * ship.orbitRadius, 0, planetPos.z + Math.sin(ship.orbitAngle) * ship.orbitRadius);
-        const tangentX = -Math.sin(ship.orbitAngle);
-        const tangentZ = Math.cos(ship.orbitAngle);
-        ship.mesh.rotation.y = Math.atan2(tangentX, tangentZ);
-        if (distToPlayer < 28 && !STATE.stealthActive) {
-          ship.state = "flee";
-          playFleetAlarmSound();
-          addLogEntry("SYSTEM", `\uD83D\uDEA8 NOTRUF: Ziviler Frachter ${ship.name} meldet ungetarnten Leviathan! Fordert Geleitschutz an!`);
-          STATE.systemAlertLevel = "hunt";
-          STATE.systemAlertTimer = 40;
+        let destPos = null;
+        let destName = "Handels-Station";
+        if (ship.tradeTargetStation && (ship.tradeTargetStation.mesh || ship.tradeTargetStation.position)) {
+          destPos = ship.tradeTargetStation.mesh ? ship.tradeTargetStation.mesh.position : ship.tradeTargetStation.position;
+          destName = ship.tradeTargetStation.name;
+        } else if (ship.tradeTargetPlanet && (ship.tradeTargetPlanet.mesh || ship.tradeTargetPlanet.source && ship.tradeTargetPlanet.source.position)) {
+          destPos = ship.tradeTargetPlanet.mesh ? ship.tradeTargetPlanet.mesh.position : ship.tradeTargetPlanet.source.position;
+          destName = ship.tradeTargetPlanet.name;
+        } else {
+          assignNextTradeDestination(ship);
+          if (ship.tradeTargetStation && ship.tradeTargetStation.mesh) {
+            destPos = ship.tradeTargetStation.mesh.position;
+            destName = ship.tradeTargetStation.name;
+          } else if (ship.tradeTargetPlanet && ship.tradeTargetPlanet.mesh) {
+            destPos = ship.tradeTargetPlanet.mesh.position;
+            destName = ship.tradeTargetPlanet.name;
+          }
+        }
+        if (!destPos) {
+          destPos = planetPos;
+        }
+        const toDest = new Vector3().subVectors(destPos, ship.position);
+        const distToDest = toDest.length();
+        const cruiseSpeed = 16;
+        const cruiseDir = toDest.clone().normalize();
+        ship.velocity.lerp(cruiseDir.multiplyScalar(cruiseSpeed), Math.min(1, 3.5 * dt));
+        ship.position.addScaledVector(ship.velocity, dt);
+        if (ship.velocity.lengthSq() > 0.1) {
+          ship.mesh.rotation.y = Math.atan2(ship.velocity.x, ship.velocity.z);
+        }
+        const arrivalDist = ship.tradeTargetStation ? 12 : (ship.tradeTargetPlanet?.size || 5) + 7;
+        if (distToDest <= arrivalDist) {
+          ship.state = "trade_docked";
+          ship.dockTimer = 10 + Math.random() * 8;
+          ship.velocity.set(0, 0, 0);
+          if (ship.crewMembers && ship.crewMembers[0]) {
+            ship.crewMembers[0].thought = `Docking an ${destName} bestätigt. Frachtkräne entladen ${ship.cargo?.amount || 65}x ${ship.cargo?.type === "silicon" ? "Silizium" : "Biomasse"}.`;
+            ship.commanderThought = ship.crewMembers[0].thought;
+          }
+        }
+      } else if (ship.state === "trade_docked") {
+        ship.dockTimer = (ship.dockTimer || 0) - dt;
+        let dockCenter = planetPos;
+        if (ship.tradeTargetStation && (ship.tradeTargetStation.mesh || ship.tradeTargetStation.position)) {
+          dockCenter = ship.tradeTargetStation.mesh ? ship.tradeTargetStation.mesh.position : ship.tradeTargetStation.position;
+        } else if (ship.tradeTargetPlanet && (ship.tradeTargetPlanet.mesh || ship.tradeTargetPlanet.source?.position)) {
+          dockCenter = ship.tradeTargetPlanet.mesh ? ship.tradeTargetPlanet.mesh.position : ship.tradeTargetPlanet.source.position;
+        }
+        ship.orbitAngle = (ship.orbitAngle || 0) + 0.15 * dt;
+        const dockOrbitRadius = 8.5;
+        ship.position.set(dockCenter.x + Math.cos(ship.orbitAngle) * dockOrbitRadius, 0, dockCenter.z + Math.sin(ship.orbitAngle) * dockOrbitRadius);
+        const tangX = -Math.sin(ship.orbitAngle);
+        const tangZ = Math.cos(ship.orbitAngle);
+        ship.mesh.rotation.y = Math.atan2(tangX, tangZ);
+        if (ship.dockTimer <= 0) {
+          const newType = Math.random() > 0.4 ? "silicon" : "bio";
+          const newAmount = Math.floor(45 + Math.random() * 45);
+          ship.cargo = { type: newType, amount: newAmount };
+          assignNextTradeDestination(ship);
+          const nextDestName = ship.tradeTargetStation?.name || ship.tradeTargetPlanet?.name || "Handels-Station";
+          if (ship.crewMembers && ship.crewMembers[0]) {
+            ship.crewMembers[0].thought = `Ladevorgang beendet. Fracht manifestiert (${newAmount}x ${newType === "silicon" ? "Silizium" : "Biomasse"}). Setze Kurs auf ${nextDestName}.`;
+            ship.commanderThought = ship.crewMembers[0].thought;
+          }
+          ship.state = "trade_cruise";
         }
       } else if (ship.state === "flee") {
         const awayDir = new Vector3().subVectors(ship.position, playerPos).normalize();
-        ship.velocity.addScaledVector(awayDir, 30 * dt);
+        ship.velocity.addScaledVector(awayDir, 32 * dt);
         ship.velocity.clampLength(0, 24);
         ship.position.addScaledVector(ship.velocity, dt);
         if (ship.velocity.lengthSq() > 0.1) {
           ship.mesh.rotation.y = Math.atan2(ship.velocity.x, ship.velocity.z);
         }
         if (distToPlayer > 60 || STATE.stealthActive) {
-          ship.state = "returning";
+          ship.state = "trade_cruise";
           addLogEntry("SYSTEM", `${ship.name}: 'Gefahr abgewendet. Kehre auf Handelsroute zurück.'`);
+          if (ship.crewMembers && ship.crewMembers[0]) {
+            ship.crewMembers[0].thought = "Bedrohung verloren. Triebwerke stabilisiert – setzen Transit-Route fort.";
+            ship.commanderThought = ship.crewMembers[0].thought;
+          }
         }
       }
       return;
@@ -40567,8 +40669,8 @@ function spawnPlanetsAndAsteroids() {
     STATE.gravitySources.push(sourceObj);
     STATE.asteroids.push(sourceObj);
   });
-  initPlanetDefenseFleets();
   spawnSystemSpaceStations(activePlanets);
+  initPlanetDefenseFleets();
   if (STATE.currentSystemId === 1 || STATE.currentSystemId === 0) {
     spawnVoyagerProbe();
   }
@@ -41810,6 +41912,11 @@ function updateMinimap() {
         minimapCtx.beginPath();
         minimapCtx.arc(sx, sy, 5.5 + Math.sin(Date.now() * 0.015) * 1.5, 0, Math.PI * 2);
         minimapCtx.stroke();
+      } else if (ship.type === "freighter" || ship.type === "heavy_freighter") {
+        minimapCtx.fillStyle = ship.state === "trade_docked" ? "#facc15" : "#f59e0b";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 3, 0, Math.PI * 2);
+        minimapCtx.fill();
       } else if (ship.state === "returning") {
         minimapCtx.fillStyle = "#06b6d4";
         minimapCtx.beginPath();

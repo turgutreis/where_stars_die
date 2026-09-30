@@ -500,13 +500,18 @@ export function updateMinimap() {
                 minimapCtx.beginPath();
                 minimapCtx.arc(sx, sy, 5.5 + Math.sin(Date.now() * 0.015) * 1.5, 0, Math.PI * 2);
                 minimapCtx.stroke();
+            } else if (ship.type === 'freighter' || ship.type === 'heavy_freighter') {
+                minimapCtx.fillStyle = ship.state === 'trade_docked' ? '#facc15' : '#f59e0b';
+                minimapCtx.beginPath();
+                minimapCtx.arc(sx, sy, 3.0, 0, Math.PI * 2);
+                minimapCtx.fill();
             } else if (ship.state === 'returning') {
                 minimapCtx.fillStyle = '#06b6d4';
                 minimapCtx.beginPath();
                 minimapCtx.arc(sx, sy, 2.5, 0, Math.PI * 2);
                 minimapCtx.fill();
             } else {
-                // Patrol / Trade Cruise
+                // Military Patrol
                 minimapCtx.fillStyle = '#38bdf8';
                 minimapCtx.beginPath();
                 minimapCtx.arc(sx, sy, 2.5, 0, Math.PI * 2);

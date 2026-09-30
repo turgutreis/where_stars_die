@@ -349,6 +349,7 @@ export interface FleetShip {
     tradeTargetStation?: SpaceStation | null;
     tradeProgress?: number;
     tradeDirection?: 1 | -1;
+    dockTimer?: number;
     factionId?: FactionId | string;
     civilizationName?: string;
     factionName?: string;

@@ -802,8 +802,8 @@ export function spawnPlanetsAndAsteroids() {
         STATE.asteroids.push(sourceObj);
     });
 
-    initPlanetDefenseFleets();
     spawnSystemSpaceStations(activePlanets);
+    initPlanetDefenseFleets();
 
     // Spawn Voyager 2 probe in the starting system
     if (STATE.currentSystemId === 1 || STATE.currentSystemId === 0) {

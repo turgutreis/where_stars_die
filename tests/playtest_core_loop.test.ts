@@ -2826,6 +2826,113 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         clearFleet();
         clearSpaceStations();
     });
+
+    test("44. Active Interplanetary Trade Transit: Freighters cruise across star system when cloaked, dock at stations/planets, reload cargo, and resume routes without waiting for uncloaked incursions", () => {
+        clearFleet();
+        clearSpaceStations();
+        activePlanets.length = 0;
+
+        // 1. Setup two planets in the system
+        const pGroup1 = new THREE.Group();
+        pGroup1.position.set(40, 0, 0);
+        const homePlanet: any = {
+            name: "Mercuria",
+            type: "Habitable",
+            size: 5.0,
+            distance: 40,
+            mesh: pGroup1,
+            isMoon: false,
+            scanned: true,
+            source: { position: pGroup1.position, mass: 150, radius: 5.0, gravityRange: 50, name: "Mercuria", type: "planet" },
+            attributes: {
+                species: { name: "Mercurians", population: 5000000, techLevel: "Spacefaring", defenseRating: 70, factionId: "free_traders" }
+            }
+        };
+
+        const pGroup2 = new THREE.Group();
+        pGroup2.position.set(160, 0, 0);
+        const targetPlanet: any = {
+            name: "Aurelia",
+            type: "Gas Giant",
+            size: 8.0,
+            distance: 160,
+            mesh: pGroup2,
+            isMoon: false,
+            scanned: true,
+            source: { position: pGroup2.position, mass: 300, radius: 8.0, gravityRange: 90, name: "Aurelia", type: "planet" },
+            attributes: { species: { name: "Aurelians", population: 2000000, techLevel: "Spacefaring", defenseRating: 60, factionId: "free_traders" } }
+        };
+
+        activePlanets.push(homePlanet, targetPlanet);
+
+        // 2. Spawn Space Stations and Fleet
+        spawnSystemSpaceStations(activePlanets);
+        spawnSystemFleet(activePlanets);
+
+        const freighters = STATE.fleetShips.filter(s => s.type === 'freighter');
+        expect(freighters.length).toBeGreaterThanOrEqual(1);
+
+        const freighter = freighters[0];
+        expect(freighter.state).toBe('trade_cruise');
+        expect(freighter.tradeTargetStation || freighter.tradeTargetPlanet).toBeDefined();
+
+        // Target Aurelia explicitly for deterministic test
+        freighter.tradeTargetPlanet = targetPlanet;
+        freighter.tradeTargetStation = null;
+        freighter.position.set(50, 0, 0);
+
+        // 3. Player is Camouflaged / Cloaked [T] or far away
+        STATE.stealthActive = true;
+        STATE.playerPosition.set(300, 0, 300);
+
+        const startX = freighter.position.x;
+
+        // Simulate 4 seconds of trade cruise across space
+        for (let i = 0; i < 8; i++) {
+            updateFleet(0.5);
+        }
+
+        // Freighter actively traveled through interplanetary space towards Aurelia (+X direction)!
+        expect(freighter.state).toBe('trade_cruise');
+        expect(freighter.velocity.length()).toBeGreaterThan(5.0);
+        expect(freighter.position.x).toBeGreaterThan(startX + 10.0);
+
+        // 4. Test Arrival & Docking Phase
+        // Place freighter near Aurelia's docking perimeter (< 15 units)
+        freighter.position.set(155, 0, 0);
+        updateFleet(0.1);
+
+        expect(freighter.state).toBe('trade_docked');
+        expect(freighter.dockTimer).toBeGreaterThan(0);
+        expect(freighter.commanderThought).toContain('Docking');
+
+        // Complete docking timer
+        freighter.dockTimer = 0.05;
+        updateFleet(0.1);
+
+        // Freighter completed cargo exchange and resumed cruise to next trade port!
+        expect(freighter.state).toBe('trade_cruise');
+        expect(freighter.cargo).toBeDefined();
+        expect(freighter.commanderThought).toContain('Ladevorgang beendet');
+
+        // 5. Test Panic & Recovery: Uncamouflaged Leviathan incursion triggers flee
+        STATE.stealthActive = false;
+        STATE.playerPosition.copy(freighter.position).add(new THREE.Vector3(10, 0, 0)); // 10 units away uncloaked
+        updateFleet(0.1);
+
+        expect(freighter.state).toBe('flee');
+        expect(STATE.systemAlertLevel).toBe('hunt');
+
+        // Activating Stealth resolves panic and returns freighter back to trade cruise
+        STATE.stealthActive = true;
+        updateFleet(0.1);
+
+        expect(freighter.state).toBe('trade_cruise');
+
+        // Cleanup
+        clearFleet();
+        clearSpaceStations();
+    });
 });
 
 
