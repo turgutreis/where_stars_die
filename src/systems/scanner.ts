@@ -460,6 +460,10 @@ export function resetDismissedScanner(): void {
     manuallyDismissedTarget = null;
 }
 
+if (typeof window !== 'undefined') {
+    (window as any).dismissScannerPanel = dismissScannerPanel;
+}
+
 export function updateScannerUI(planet: any, dist: number) {
     const nameEl = document.getElementById('scan-planet-name');
     const distEl = document.getElementById('scan-planet-dist');

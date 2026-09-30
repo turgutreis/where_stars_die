@@ -5,6 +5,7 @@ import { calculateCrewBuffs, renderCrewUI } from '../systems/crew';
 import { renderFactionReputationUI } from '../systems/factions';
 import { initEvolutionTree, updateEvolutionTreeUI, startNeuralCanvasLoop, stopNeuralCanvasLoop } from './evolution-tree';
 import { triggerAutoSave } from '../systems/save-manager';
+import { dismissScannerPanel } from '../systems/scanner';
 
 export function isDeckOpen(): boolean {
     const modal = document.getElementById('deck-modal');

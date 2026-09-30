@@ -37348,7 +37348,7 @@ function launchAwayMission(planet, deposit, teamCrewIds) {
   }
   const team = [];
   teamCrewIds.forEach((id) => {
-    const member = STATE.crew.find((c) => c.id === id);
+    const member = STATE.crew.find((c) => String(c.id) === String(id));
     if (member)
       team.push(member);
   });
@@ -37490,7 +37490,7 @@ function completeAwayMission(mission) {
   if (deposit.type === "derelict_cache" && STATE.crew.length < STATE.maxCrewCapacity && Math.random() < 0.65) {
     const survivorPool = team;
     const newMember = {
-      id: `survivor-${Date.now()}`,
+      id: Date.now() + Math.floor(Math.random() * 1000),
       name: `Überlebender V-${Math.floor(Math.random() * 899 + 100)}`,
       species: "Xeno-Humanoid",
       role: "engineer",
@@ -37932,8 +37932,22 @@ function completeScanning() {
   }
 }
 var manuallyDismissedTarget = null;
+function dismissScannerPanel() {
+  const scannerPanel = document.getElementById("left-deck-panel");
+  if (scannerPanel) {
+    scannerPanel.classList.remove("visible");
+  }
+  if (STATE.lockedTarget) {
+    manuallyDismissedTarget = STATE.lockedTarget.name;
+  } else if (STATE.nearestPlanet) {
+    manuallyDismissedTarget = STATE.nearestPlanet.name;
+  }
+}
 function resetDismissedScanner() {
   manuallyDismissedTarget = null;
+}
+if (typeof window !== "undefined") {
+  window.dismissScannerPanel = dismissScannerPanel;
 }
 function updateScannerUI(planet, dist) {
   const nameEl = document.getElementById("scan-planet-name");

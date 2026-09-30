@@ -150,6 +150,7 @@ export interface BioShuttle {
     radShielding: number;  // 0 to 100
     acidShielding: number; // 0 to 100
     upgrades: string[];
+    activeMission?: AwayMission | null;
 }
 
 export interface AwayMission {

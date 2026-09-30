@@ -26,7 +26,7 @@ export function launchAwayMission(
     // Resolve crew members
     const team: CrewMember[] = [];
     teamCrewIds.forEach(id => {
-        const member = STATE.crew.find(c => c.id === id);
+        const member = STATE.crew.find(c => String(c.id) === String(id));
         if (member) team.push(member);
     });
 
@@ -205,7 +205,7 @@ export function completeAwayMission(mission: AwayMission) {
     if (deposit.type === 'derelict_cache' && STATE.crew.length < STATE.maxCrewCapacity && Math.random() < 0.65) {
         const survivorPool = team;
         const newMember: CrewMember = {
-            id: `survivor-${Date.now()}`,
+            id: Date.now() + Math.floor(Math.random() * 1000),
             name: `Überlebender V-${Math.floor(Math.random() * 899 + 100)}`,
             species: 'Xeno-Humanoid',
             role: 'engineer',
