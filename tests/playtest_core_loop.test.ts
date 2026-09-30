@@ -181,6 +181,8 @@ import {
     createDeepVoidSystem 
 } from '../src/systems/warp-calculator';
 import { warpToSystem } from '../src/systems/galaxy-map';
+import { launchAwayMission, updateAwayMissions, completeAwayMission } from '../src/systems/shuttle-expeditions';
+import { SurfaceDeposit } from '../src/types/game';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -194,6 +196,12 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         STATE.maxBioEnergy = 100;
         STATE.bioRes = 50;
         STATE.siliconRes = 30;
+        STATE.waterRes = 25;
+        STATE.alloyRes = 10;
+        STATE.techRes = 0;
+        STATE.foodRes = 30;
+        STATE.bioShuttle = { ready: true, hull: 100, maxHull: 100, activeMission: null };
+        STATE.activeAwayMission = null;
         STATE.health = 100;
         STATE.maxHealth = 100;
         STATE.scannedPlanets = {};
@@ -2570,7 +2578,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         const freighter = freighters[0];
         expect(freighter.cargo).toBeDefined();
-        expect(freighter.cargo?.type).toBe('silicon');
+        expect(['silicon', 'water', 'alloys', 'tech', 'food', 'passengers']).toContain(freighter.cargo?.type);
         expect(freighter.state).toBe('trade_cruise');
 
         // Test freighter panic when uncamouflaged player approaches
@@ -2582,6 +2590,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         // Test EMP assimilation of disabled freighter yields higher bounty
         freighter.state = 'stunned';
+        freighter.cargo = { type: 'silicon', amount: 65, name: 'Silizium-Fracht' };
         STATE.playerPosition.copy(freighter.position);
         const initSilicon = STATE.siliconRes;
         const salvaged = salvageNearestWreck();
@@ -2932,6 +2941,220 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         // Cleanup
         clearFleet();
         clearSpaceStations();
+    });
+
+    test("45. Multi-Tier Economy, Planetary Hazards & Shuttle Away Missions: Multi-tier trade commodities, procedural deposits with environmental hazards, role-specialized landing parties and survivor extraction", () => {
+        // 1. Multi-Tier Cargo & Salvage Rewards
+        const mockWaterFreighter: any = {
+            id: 'freighter-water-1',
+            type: 'freighter',
+            name: 'Hydra-Tanker 01',
+            position: new THREE.Vector3(20, 0, 20),
+            velocity: new THREE.Vector3(0, 0, 0),
+            rotation: 0,
+            state: 'stunned',
+            hull: 0,
+            maxHull: 150,
+            speed: 0,
+            cargo: { type: 'water', amount: 45, name: 'Gletscher-Wasser' }
+        };
+        const mockTechFreighter: any = {
+            id: 'freighter-tech-1',
+            type: 'freighter',
+            name: 'Cyber-Vault 09',
+            position: new THREE.Vector3(20, 0, 20),
+            velocity: new THREE.Vector3(0, 0, 0),
+            rotation: 0,
+            state: 'stunned',
+            hull: 0,
+            maxHull: 150,
+            speed: 0,
+            cargo: { type: 'tech', amount: 20, name: 'Quanten-Prozessoren' }
+        };
+        const mockPassengerFreighter: any = {
+            id: 'freighter-passengers-1',
+            type: 'freighter',
+            name: 'Kolonieschiff Arkadia',
+            position: new THREE.Vector3(20, 0, 20),
+            velocity: new THREE.Vector3(0, 0, 0),
+            rotation: 0,
+            state: 'stunned',
+            hull: 0,
+            maxHull: 150,
+            speed: 0,
+            cargo: { type: 'passengers', amount: 1, name: 'Kryo-Kolonisten' }
+        };
+
+        // Test Water salvage
+        STATE.fleetShips = [mockWaterFreighter];
+        STATE.playerPosition.copy(mockWaterFreighter.position);
+        const initWater = STATE.waterRes;
+        expect(salvageNearestWreck()).toBe(true);
+        expect(STATE.waterRes).toBe(initWater + 45);
+
+        // Test Tech salvage
+        STATE.fleetShips = [mockTechFreighter];
+        STATE.playerPosition.copy(mockTechFreighter.position);
+        const initTech = STATE.techRes;
+        expect(salvageNearestWreck()).toBe(true);
+        expect(STATE.techRes).toBe(initTech + 20);
+
+        // Test Passenger rescue
+        STATE.fleetShips = [mockPassengerFreighter];
+        STATE.playerPosition.copy(mockPassengerFreighter.position);
+        STATE.crew = [];
+        STATE.maxCrewCapacity = 6;
+        expect(salvageNearestWreck()).toBe(true);
+        expect(STATE.crew.length).toBe(1);
+        expect(STATE.crew[0].trait).toBeDefined();
+        expect(STATE.crew[0].role).toBeDefined();
+
+        // 2. Procedural Planetary Hazards & Surface Deposits
+        const habAttrs = generatePlanetAttributes({ name: 'Aurelia-Prime', type: 'Habitable', distance: 35 });
+        expect(habAttrs.hazards).toBeDefined();
+        expect(habAttrs.hazards.thermal).toBe('temperate');
+        expect(habAttrs.hazards.atmosphere).toBe('breathable');
+        expect(habAttrs.surfaceDeposits.some(d => d.yieldResource === 'tech')).toBe(true);
+        expect(habAttrs.surfaceDeposits.some(d => d.yieldResource === 'food')).toBe(true);
+
+        const gasGiantAttrs = generatePlanetAttributes({ name: 'Cronos-9', type: 'Gas Giant', distance: 120 });
+        expect(gasGiantAttrs.hazards.thermal).toBe('cryogenic');
+        expect(gasGiantAttrs.hazards.gravity).toBe('high');
+        expect(gasGiantAttrs.surfaceDeposits.some(d => d.yieldResource === 'water')).toBe(true);
+
+        const rockyAttrs = generatePlanetAttributes({ name: 'Obsidian-4', type: 'Rocky', distance: 18 });
+        expect(rockyAttrs.hazards).toBeDefined();
+        expect(['inferno', 'cryogenic']).toContain(rockyAttrs.hazards.thermal);
+        expect(rockyAttrs.surfaceDeposits.length).toBeGreaterThanOrEqual(1);
+
+        const techPlanetAttrs = habAttrs;
+
+        // 3. Bio-Shuttle & Away Mission System
+        const testPlanet: any = {
+            id: 'planet-test-1',
+            name: 'Aurelia-Prime',
+            position: new THREE.Vector3(100, 0, 0),
+            radius: 8,
+            mesh: new THREE.Mesh(),
+            attributes: techPlanetAttrs,
+            type: 'planet'
+        };
+
+        const targetDeposit: SurfaceDeposit = {
+            id: 'dep-test-1',
+            name: 'Alte Ruinen der Vorläufer',
+            type: 'ruins',
+            description: 'Uralte psionische Archive',
+            hazardType: 'thermal',
+            hazardSeverity: 'moderate',
+            yieldResource: 'tech',
+            yieldAmount: 20,
+            depleted: false
+        };
+
+        // Crew configuration
+        const engCrew: any = {
+            id: 'crew-eng',
+            name: 'Ingenieur Tarek',
+            species: 'Cyborg',
+            role: 'engineer',
+            roleName: 'Schild-Ingenieur',
+            stress: 50,
+            trait: { name: 'Thermal-Schutz', desc: 'Dämpft Hitze', type: 'repair' }
+        };
+        const sciCrew: any = {
+            id: 'crew-sci',
+            name: 'Forscherin Lyra',
+            species: 'Synapse',
+            role: 'scientist',
+            roleName: 'Quanten-Archivarin',
+            stress: 40,
+            trait: { name: 'Artefakt-Fokus', desc: '+Tech-Ausbeute', type: 'efficiency' }
+        };
+        STATE.crew = [engCrew, sciCrew];
+
+        // Empty team should fail launch
+        expect(launchAwayMission(testPlanet, targetDeposit, [])).toBe(false);
+
+        // Launch away mission with team
+        const launched = launchAwayMission(testPlanet, targetDeposit, ['crew-eng', 'crew-sci']);
+        expect(launched).toBe(true);
+        expect(STATE.bioShuttle.ready).toBe(false);
+        expect(STATE.activeAwayMission).not.toBeNull();
+        expect(STATE.activeAwayMission?.status).toBe('descending');
+
+        // Cannot launch another mission while shuttle is deployed
+        expect(launchAwayMission(testPlanet, targetDeposit, ['crew-eng'])).toBe(false);
+
+        // Simulate flight: Progress into Exploring stage (25% - 65%)
+        // With an engineer on board, thermal damage is mitigated
+        const shuttleHullBefore = STATE.bioShuttle.hull;
+        STATE.activeAwayMission!.timer = 11.0; // ~38% progress
+        updateAwayMissions(0.1);
+        expect(STATE.activeAwayMission?.status).toBe('exploring');
+        expect(STATE.bioShuttle.hull).toBe(shuttleHullBefore);
+
+        // Progress into Extracting stage (65% - 90%)
+        STATE.activeAwayMission!.timer = 4.0; // ~77% progress
+        updateAwayMissions(0.1);
+        expect(STATE.activeAwayMission?.status).toBe('extracting');
+
+        // Progress into Ascending stage (90% - 100%)
+        STATE.activeAwayMission!.timer = 1.0; // ~94% progress
+        updateAwayMissions(0.1);
+        expect(STATE.activeAwayMission?.status).toBe('ascending');
+
+        // Conclude mission at 100%
+        const prevTech = STATE.techRes;
+        STATE.activeAwayMission!.timer = 0.0;
+        updateAwayMissions(0.1);
+
+        // Assert Mission Completion
+        expect(STATE.activeAwayMission).toBeNull();
+        expect(STATE.bioShuttle.ready).toBe(true);
+        expect(targetDeposit.depleted).toBe(true);
+        // Engineer (+40%) and Scientist on tech (+50%) => 20 * (1 + 0.4 + 0.5) = 20 * 1.9 = 38
+        expect(STATE.techRes).toBe(prevTech + 38);
+        expect(engCrew.stress).toBe(30);
+        expect(sciCrew.stress).toBe(20);
+
+        // 4. Derelict Cache Survivor Rescue
+        const derelictDeposit: SurfaceDeposit = {
+            id: 'dep-derelict-1',
+            name: 'Notfall-Rettungskapsel',
+            type: 'derelict_cache',
+            description: 'Abgestürztes Kolonieschiff',
+            hazardType: 'radiation',
+            hazardSeverity: 'none',
+            yieldResource: 'tech',
+            yieldAmount: 10,
+            depleted: false
+        };
+        const crewCountBefore = STATE.crew.length;
+        STATE.maxCrewCapacity = 10;
+        const originalRandom = Math.random;
+        Math.random = () => 0.1; // < 0.65 threshold
+        try {
+            const mission2: any = {
+                id: 'mission-cache',
+                planetName: 'Aurelia-Prime',
+                targetDeposit: derelictDeposit,
+                team: [sciCrew],
+                progress: 1.0,
+                duration: 18.0,
+                timer: 0.0,
+                status: 'ascending',
+                eventsLog: []
+            };
+            completeAwayMission(mission2);
+            expect(STATE.crew.length).toBe(crewCountBefore + 1);
+            expect(STATE.crew[STATE.crew.length - 1].trait.type).toBe('repair');
+        } finally {
+            Math.random = originalRandom;
+        }
+
+        // Cleanup
+        clearFleet();
     });
 });
 

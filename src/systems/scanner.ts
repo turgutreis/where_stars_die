@@ -6,10 +6,11 @@ import { collapseQuantumCivilization } from '../procedural/quantum-civ';
 import { getFaction } from '../systems/factions';
 import { openDiplomacyComms } from '../systems/diplomacy';
 import { createScanVisuals, updateScanVisuals, removeScanVisuals } from '../procedural/meshes';
-import { SpeciesData, PlanetAttributes, FleetShip, SpaceStation } from '../types/game';
+import { SpeciesData, PlanetAttributes, FleetShip, SpaceStation, PlanetaryHazards, SurfaceDeposit } from '../types/game';
 import { generateProceduralCandidates } from './crew-generation';
 import { advanceFtueStep, triggerVoyagerSignalDetection } from '../ui/directives';
 import { abductCrewFromShip } from './abduction';
+import { openShuttleExpeditionModal } from './shuttle-expeditions';
 
 export function generatePlanetAttributes(p: any): PlanetAttributes {
     const sysId = STATE.currentSystemId || 0;
@@ -97,6 +98,113 @@ export function generatePlanetAttributes(p: any): PlanetAttributes {
         species = null;
     }
 
+    // Planetary Hazards & Surface Deposits for Shuttle Expeditions
+    let hazards: PlanetaryHazards;
+    const surfaceDeposits: SurfaceDeposit[] = [];
+
+    if (p.type === 'Habitable') {
+        hazards = {
+            thermal: 'temperate',
+            atmosphere: 'breathable',
+            radiation: (radiationLevel === 'Extreme' || radiationLevel === 'High') ? 'moderate' : 'low',
+            gravity: 'standard'
+        };
+        surfaceDeposits.push({
+            id: `dep-${hash}-1`,
+            name: 'Alte Vorläufer-Ruinen',
+            type: 'ruins',
+            description: 'Monolithische Alien-Strukturen mit intakten Datenkernen.',
+            yieldResource: 'tech',
+            yieldAmount: 20 + (hash % 15),
+            hazardType: 'radiation',
+            hazardSeverity: 'low'
+        });
+        surfaceDeposits.push({
+            id: `dep-${hash}-2`,
+            name: 'Biolumineszenter Xeno-Hain',
+            type: 'xeno_grove',
+            description: 'Dichte Nährstoffpflanzen und Bio-Sporen von hohem Wert.',
+            yieldResource: 'food',
+            yieldAmount: 45 + (hash % 25),
+            hazardType: 'atmosphere',
+            hazardSeverity: 'none'
+        });
+        if (hash % 2 === 0) {
+            surfaceDeposits.push({
+                id: `dep-${hash}-3`,
+                name: 'Tiefes Grundwasser-Reservoir',
+                type: 'subsurface_water',
+                description: 'Unterirdische Kavernen mit reinem Trinkwasser.',
+                yieldResource: 'water',
+                yieldAmount: 55 + (hash % 30),
+                hazardType: 'thermal',
+                hazardSeverity: 'none'
+            });
+        }
+    } else if (p.type === 'Gas Giant') {
+        hazards = {
+            thermal: 'cryogenic',
+            atmosphere: 'corrosive',
+            radiation: 'moderate',
+            gravity: 'high'
+        };
+        surfaceDeposits.push({
+            id: `dep-${hash}-1`,
+            name: 'Stratos-Deuterium-Wirbel',
+            type: 'subsurface_water',
+            description: 'Kondensierte flüchtige Wasser- und Deuterium-Taschen.',
+            yieldResource: 'water',
+            yieldAmount: 60 + (hash % 40),
+            hazardType: 'gravity',
+            hazardSeverity: 'moderate'
+        });
+    } else { // Rocky / Volcanic / Ice
+        const isHot = hash % 2 === 0;
+        hazards = {
+            thermal: isHot ? 'inferno' : 'cryogenic',
+            atmosphere: hash % 2 === 0 ? 'toxic' : 'vacuum',
+            radiation: radiationLevel === 'Extreme' ? 'extreme' : 'moderate',
+            gravity: hash % 3 === 0 ? 'low' : 'standard'
+        };
+
+        surfaceDeposits.push({
+            id: `dep-${hash}-1`,
+            name: isHot ? 'Geothermisches Titan-Schlotfeld' : 'Subglazialer Eiskern-Ozean',
+            type: isHot ? 'geothermal_vent' : 'subsurface_water',
+            description: isHot
+                ? 'Magmaspalten reich an geschmolzenen Titan- und Wolfram-Legierungen.'
+                : 'Unter ewigem Eis liegende reine Wasservorkommen.',
+            yieldResource: isHot ? 'alloys' : 'water',
+            yieldAmount: 35 + (hash % 25),
+            hazardType: 'thermal',
+            hazardSeverity: 'moderate'
+        });
+
+        surfaceDeposits.push({
+            id: `dep-${hash}-2`,
+            name: 'Kristalline Silikat-Kavernen',
+            type: 'crystal_caverns',
+            description: 'Tief liegende Höhlensysteme mit reinen Silizium-Kristallen.',
+            yieldResource: 'silicon',
+            yieldAmount: 50 + (hash % 30),
+            hazardType: 'atmosphere',
+            hazardSeverity: hazards.atmosphere === 'toxic' ? 'moderate' : 'low'
+        });
+
+        if (hash % 3 === 0) {
+            surfaceDeposits.push({
+                id: `dep-${hash}-3`,
+                name: 'Gestrandetes Raumschiff-Wrack',
+                type: 'derelict_cache',
+                description: 'Ein uraltes Forschungsschiff mit intakter Hyper-Technologie und Überlebenskapseln.',
+                yieldResource: 'tech',
+                yieldAmount: 22 + (hash % 12),
+                hazardType: 'radiation',
+                hazardSeverity: 'moderate'
+            });
+        }
+    }
+
     return { 
         atmos, 
         temp, 
@@ -108,7 +216,9 @@ export function generatePlanetAttributes(p: any): PlanetAttributes {
         geothermal,
         radiationLevel,
         entangledTwinId,
-        quantumResonance
+        quantumResonance,
+        hazards,
+        surfaceDeposits
     };
 }
 
@@ -507,9 +617,20 @@ export function updateScannerUI(planet: any, dist: number) {
                                     : (planet.state === 'returning' ? '🔄 Flug zum Heimat-Orbit' : '🛡️ Normaler Patrouillenbetrieb')))));
             }
             if (atmosEl) {
-                atmosEl.innerText = planet.cargo
-                    ? `📦 Frachtgut: ${planet.cargo.amount}x ${planet.cargo.type === 'silicon' ? 'Silizium' : 'Biomasse'}`
-                    : (isStation ? '🏢 Fracht-Docks & Wohnringe' : 'Militärische Bewaffnung (Keine Handelsgüter)');
+                if (planet.cargo) {
+                    let cargoIcon = '📦';
+                    let cargoName = planet.cargo.type;
+                    if (planet.cargo.type === 'water') { cargoIcon = '💧'; cargoName = 'Reinwasser & Volatiles'; }
+                    else if (planet.cargo.type === 'alloys') { cargoIcon = '🛡️'; cargoName = 'Titan- & Rumpflegierungen'; }
+                    else if (planet.cargo.type === 'tech') { cargoIcon = '⚙️'; cargoName = 'Quanten-Prozessoren & Hyper-Tech'; }
+                    else if (planet.cargo.type === 'food') { cargoIcon = '🌾'; cargoName = 'Nährstoff-Gel & Rationen'; }
+                    else if (planet.cargo.type === 'passengers') { cargoIcon = '👥'; cargoName = 'Zivile Passagiere & Kolonisten'; }
+                    else if (planet.cargo.type === 'silicon') { cargoIcon = '💎'; cargoName = 'Silizium-Kristalle'; }
+                    else { cargoIcon = '🧬'; cargoName = 'Biomasse-Präparate'; }
+                    atmosEl.innerText = `${cargoIcon} Frachtgut: ${planet.cargo.amount}x ${cargoName}`;
+                } else {
+                    atmosEl.innerText = isStation ? '🏢 Fracht-Docks & Wohnringe' : 'Militärische Bewaffnung (Keine Handelsgüter)';
+                }
             }
 
             if (quantumRow) quantumRow.style.display = 'none';
@@ -704,6 +825,75 @@ export function updateScannerUI(planet: any, dist: number) {
                 }
             }
 
+            // Surface Deposits & Shuttle Expeditions List
+            let depositsBox = document.getElementById('scanner-deposits-container');
+            if (!depositsBox && resultsBox) {
+                depositsBox = document.createElement('div');
+                depositsBox.id = 'scanner-deposits-container';
+                depositsBox.className = 'scanner-deposits-container';
+                resultsBox.appendChild(depositsBox);
+            }
+
+            if (depositsBox) {
+                if (isShip || isStation) {
+                    depositsBox.style.display = 'none';
+                } else if (attrs.surfaceDeposits && attrs.surfaceDeposits.length > 0) {
+                    depositsBox.style.display = 'block';
+                    depositsBox.innerHTML = `
+                        <div style="font-size: 0.75rem; text-transform: uppercase; color: #38bdf8; font-weight: bold; margin-top: 10px; margin-bottom: 6px; letter-spacing: 0.05em; border-top: 1px solid rgba(56, 189, 248, 0.2); padding-top: 8px;">
+                            🚀 Boden-Vorkommen (Shuttle-Expeditionen):
+                        </div>
+                    `;
+
+                    attrs.surfaceDeposits.forEach(dep => {
+                        const card = document.createElement('div');
+                        card.className = `surface-deposit-card ${dep.depleted ? 'depleted' : ''}`;
+                        card.style.cssText = 'padding: 6px 8px; margin-bottom: 6px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 6px;';
+
+                        const resLabel = dep.yieldResource === 'water' ? '💧 Wasser' : (dep.yieldResource === 'alloys' ? '🛡️ Titan' : (dep.yieldResource === 'tech' ? '⚙️ Tech' : (dep.yieldResource === 'food' ? '🌾 Nahrung' : '💎 Silizium')));
+                        const hazIcon = dep.hazardType === 'thermal' ? '🔥 Hitze' : (dep.hazardType === 'atmosphere' ? '☠️ Gas' : '☢️ Rad');
+
+                        const isMissionActive = !!(STATE.activeAwayMission && STATE.activeAwayMission.targetDeposit.id === dep.id);
+
+                        let actionHtml = '';
+                        if (dep.depleted) {
+                            actionHtml = '<span style="font-size: 0.7rem; color: #64748b;">Erschöpft ✕</span>';
+                        } else if (isMissionActive) {
+                            const pct = Math.round((STATE.activeAwayMission?.progress || 0) * 100);
+                            actionHtml = `<span style="font-size: 0.7rem; color: #38bdf8; font-weight: bold;">Lander aktiv (${pct}%)</span>`;
+                        } else {
+                            actionHtml = `<button class="shuttle-dep-btn" style="padding: 3px 8px; font-size: 0.72rem; background: #0284c7; color: #fff; border: none; border-radius: 4px; cursor: pointer;">🚀 Lander starten</button>`;
+                        }
+
+                        card.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                                <div style="font-weight: bold; font-size: 0.8rem; color: #f8fafc;">${dep.name}</div>
+                                <div>${actionHtml}</div>
+                            </div>
+                            <div style="font-size: 0.7rem; color: #94a3b8; margin-bottom: 3px;">${dep.description}</div>
+                            <div style="display: flex; gap: 8px; font-size: 0.7rem;">
+                                <span style="color: #38bdf8;">~${dep.yieldAmount}x ${resLabel}</span>
+                                <span style="color: #f59e0b;">${hazIcon} (${dep.hazardSeverity})</span>
+                            </div>
+                        `;
+
+                        if (!dep.depleted && !isMissionActive) {
+                            const btn = card.querySelector('.shuttle-dep-btn');
+                            if (btn) {
+                                (btn as HTMLElement).onclick = (e) => {
+                                    e.stopPropagation();
+                                    openShuttleExpeditionModal(planet, dep);
+                                };
+                            }
+                        }
+
+                        depositsBox!.appendChild(card);
+                    });
+                } else {
+                    depositsBox.style.display = 'none';
+                }
+            }
+
             if (commsBtn) {
                 commsBtn.style.display = (inRange && hasSentient) ? 'block' : 'none';
                 commsBtn.onclick = () => openDiplomacyComms(planet);
@@ -734,5 +924,7 @@ export function updateScannerUI(planet: any, dist: number) {
         if (abductBtn) abductBtn.style.display = 'none';
         const commsBtn = document.getElementById('start-comms-btn');
         if (commsBtn) commsBtn.style.display = 'none';
+        const depositsBox = document.getElementById('scanner-deposits-container');
+        if (depositsBox) depositsBox.style.display = 'none';
     }
 }

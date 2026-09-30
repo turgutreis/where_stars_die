@@ -23,6 +23,7 @@ import { initGameOverUI, updateExplosionEffects } from './engine/game-over';
 import { triggerPrologueSequence, initPrologueListeners } from './ui/prologue';
 import { initDirectivesHUD, renderDirectives, updateVoyagerHUDTracker } from './ui/directives';
 import { initVoyagerDialogListeners } from './ui/voyager-dialog';
+import { updateAwayMissions } from './systems/shuttle-expeditions';
 import { initFirstContactModalListeners } from './ui/first-contact-modal';
 import { initSaveModal } from './ui/save-modal';
 import { hideMainMenu, showMainMenu, toggleMainMenu } from './ui/menu-controller';
@@ -73,6 +74,7 @@ function animate(time: number) {
         updatePartyGrid();
         updateSonarWave(dt);
         updateExplosionEffects(dt);
+        updateAwayMissions(dt);
 
         // Trajectory prediction
         updateTrajectory();

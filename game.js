@@ -29465,6 +29465,20 @@ var STATE = {
   visitedSystemIds: [1],
   bioRes: 0,
   siliconRes: 0,
+  waterRes: 25,
+  alloyRes: 10,
+  techRes: 0,
+  foodRes: 30,
+  bioShuttle: {
+    ready: true,
+    hull: 100,
+    maxHull: 100,
+    heatShielding: 35,
+    radShielding: 35,
+    acidShielding: 35,
+    upgrades: []
+  },
+  activeAwayMission: null,
   psionicRange: 75,
   warpRange: 90,
   maxCrewCapacity: 4,
@@ -37322,6 +37336,267 @@ function stopAbductSound() {
   }
 }
 
+// src/systems/shuttle-expeditions.ts
+function launchAwayMission(planet, deposit, teamCrewIds) {
+  if (!STATE.bioShuttle.ready) {
+    addLogEntry("WARN", "Shuttle-Start fehlgeschlagen: Bio-Lander befindet sich bereits auf einer Mission oder regeneriert!");
+    return false;
+  }
+  if (deposit.depleted) {
+    addLogEntry("WARN", `Vorkommen '${deposit.name}' ist bereits vollständig erschöpft.`);
+    return false;
+  }
+  const team = [];
+  teamCrewIds.forEach((id) => {
+    const member = STATE.crew.find((c) => c.id === id);
+    if (member)
+      team.push(member);
+  });
+  if (team.length === 0) {
+    addLogEntry("WARN", "Shuttle-Start fehlgeschlagen: Kein Besatzungsmitglied für das Außenteam ausgewählt!");
+    return false;
+  }
+  if (team.length > 3) {
+    team.length = 3;
+  }
+  const duration = 18;
+  const mission = {
+    id: `mission-${Date.now()}`,
+    planetName: planet.name,
+    targetDeposit: deposit,
+    team,
+    progress: 0,
+    duration,
+    timer: duration,
+    status: "descending",
+    eventsLog: []
+  };
+  STATE.activeAwayMission = mission;
+  STATE.bioShuttle.ready = false;
+  STATE.bioShuttle.activeMission = mission;
+  const names = team.map((m) => `${m.name} (${m.roleName || m.role})`).join(", ");
+  addLogEntry("SYSTEM", `\uD83D\uDE80 EXPEDITION GESTARTET: Bio-Lander dockt ab! Außenteam [${names}] nimmt Kurs auf '${deposit.name}' (${planet.name}).`);
+  closeShuttleExpeditionModal();
+  updateHUDStats();
+  return true;
+}
+function updateAwayMissions(dt) {
+  const mission = STATE.activeAwayMission;
+  if (!mission)
+    return;
+  mission.timer -= dt;
+  mission.progress = Math.min(1, 1 - mission.timer / mission.duration);
+  const deposit = mission.targetDeposit;
+  const team = mission.team;
+  const hasScientist = team.some((m) => m.role === "scientist");
+  const hasEngineer = team.some((m) => m.role === "engineer");
+  const hasSoldier = team.some((m) => m.role === "soldier");
+  const hasMedic = team.some((m) => m.role === "medic");
+  if (mission.progress < 0.25 && mission.status !== "descending") {
+    mission.status = "descending";
+  }
+  if (mission.progress >= 0.25 && mission.progress < 0.65 && mission.status === "descending") {
+    mission.status = "exploring";
+    if (deposit.hazardType === "thermal" && deposit.hazardSeverity !== "none") {
+      if (hasEngineer) {
+        const eng = team.find((m) => m.role === "engineer");
+        addLogEntry("CREW", `\uD83D\uDD27 ${eng?.name}: 'Thermal-Schilde optimal kalibriert. Hitzeeinwirkung auf Null gedämpft!'`);
+      } else {
+        addLogEntry("WARN", `⚠️ Extreme Hitzewelle auf ${mission.planetName}! Lander-Hitzeschilde bei 85%.`);
+        STATE.bioShuttle.hull = Math.max(20, STATE.bioShuttle.hull - 5);
+      }
+    } else if (deposit.hazardType === "atmosphere" && deposit.hazardSeverity !== "none") {
+      if (hasMedic) {
+        const med = team.find((m) => m.role === "medic");
+        addLogEntry("CREW", `\uD83D\uDC89 ${med?.name}: 'Toxische Bio-Aerosole gefiltert. Vitalfunktionen aller Teammitglieder stabil.'`);
+      } else {
+        addLogEntry("WARN", `⚠️ Korrosive Atmosphäre greift Chitin-Verkleidung an!`);
+        STATE.bioShuttle.hull = Math.max(20, STATE.bioShuttle.hull - 6);
+      }
+    } else if (deposit.hazardType === "radiation") {
+      if (hasScientist) {
+        const sci = team.find((m) => m.role === "scientist");
+        addLogEntry("CREW", `\uD83D\uDD2C ${sci?.name}: 'Quanten-Strahlungsmuster dekodiert! Isolierte Artefakt-Signaturen entdeckt!'`);
+      }
+    }
+    if (deposit.type === "ruins" || deposit.type === "xeno_grove") {
+      if (hasSoldier) {
+        const sol = team.find((m) => m.role === "soldier");
+        addLogEntry("CREW", `\uD83D\uDEE1️ ${sol?.name}: 'Aggressive Xenofauna abgewehrt! Perimeter gesichert – Bergetrupp kann vordringen.'`);
+      }
+    }
+  }
+  if (mission.progress >= 0.65 && mission.progress < 0.9 && mission.status === "exploring") {
+    mission.status = "extracting";
+    addLogEntry("EXPEDITION", `⛏️ Außenteam baut '${deposit.name}' ab. Frachtkammern des Bio-Landers werden befüllt.`);
+  }
+  if (mission.progress >= 0.9 && mission.progress < 1 && mission.status === "extracting") {
+    mission.status = "ascending";
+    addLogEntry("EXPEDITION", `\uD83D\uDE80 Bergung abgeschlossen! Shuttle zündet Bio-Ascent-Triebwerke und kehrt zu Najmafar zurück.`);
+  }
+  if (mission.progress >= 1) {
+    completeAwayMission(mission);
+  }
+}
+function completeAwayMission(mission) {
+  const deposit = mission.targetDeposit;
+  deposit.depleted = true;
+  const team = mission.team;
+  const hasScientist = team.some((m) => m.role === "scientist");
+  const hasEngineer = team.some((m) => m.role === "engineer");
+  let yieldMultiplier = 1;
+  if (hasEngineer)
+    yieldMultiplier += 0.4;
+  if (hasScientist && deposit.yieldResource === "tech")
+    yieldMultiplier += 0.5;
+  const finalAmount = Math.round(deposit.yieldAmount * yieldMultiplier);
+  switch (deposit.yieldResource) {
+    case "water":
+      STATE.waterRes += finalAmount;
+      addLogEntry("HARVEST", `\uD83D\uDCA7 EXPEDITIONS-ERFOLG: +${finalAmount} Frischwasser / Volatiles von ${mission.planetName} eingelagert!`);
+      playBioCollectSound();
+      break;
+    case "alloys":
+      STATE.alloyRes += finalAmount;
+      addLogEntry("HARVEST", `\uD83D\uDEE1️ EXPEDITIONS-ERFOLG: +${finalAmount} Titan- & Rumpflegierungen von ${mission.planetName} geborgen!`);
+      playSiliconCollectSound();
+      break;
+    case "tech":
+      STATE.techRes += finalAmount;
+      addLogEntry("HARVEST", `⚙️ EXPEDITIONS-ERFOLG: +${finalAmount} Vorläufer-Technologie & Quanten-Schaltkreise geborgen!`);
+      playSiliconCollectSound();
+      break;
+    case "food":
+      STATE.foodRes += finalAmount;
+      addLogEntry("HARVEST", `\uD83C\uDF3E EXPEDITIONS-ERFOLG: +${finalAmount} Nährstoff-Gel & organische Rationen gesichert!`);
+      playBioCollectSound();
+      break;
+    case "silicon":
+      STATE.siliconRes += finalAmount;
+      addLogEntry("HARVEST", `\uD83D\uDC8E EXPEDITIONS-ERFOLG: +${finalAmount} Silizium-Kristalle extrahiert!`);
+      playSiliconCollectSound();
+      break;
+    case "bio":
+    default:
+      STATE.bioRes += finalAmount;
+      addLogEntry("HARVEST", `\uD83E\uDDEC EXPEDITIONS-ERFOLG: +${finalAmount} Biomasse assimiliert!`);
+      playBioCollectSound();
+      break;
+  }
+  team.forEach((m) => {
+    m.stress = Math.max(0, m.stress - 20);
+  });
+  STATE.loneliness = Math.max(0, STATE.loneliness - 10);
+  if (deposit.type === "derelict_cache" && STATE.crew.length < STATE.maxCrewCapacity && Math.random() < 0.65) {
+    const survivorPool = team;
+    const newMember = {
+      id: `survivor-${Date.now()}`,
+      name: `Überlebender V-${Math.floor(Math.random() * 899 + 100)}`,
+      species: "Xeno-Humanoid",
+      role: "engineer",
+      roleName: "Kolonie-Ingenieur",
+      age: 28,
+      maxLifespan: 120,
+      stress: 40,
+      trait: {
+        name: "Wrack-Überlebender",
+        desc: "+15% Shuttle-Haltbarkeit & Reparatur",
+        type: "repair"
+      }
+    };
+    STATE.crew.push(newMember);
+    addLogEntry("CREW", `\uD83D\uDC65 ÜBERLEBENDER GEBORGEN: ${newMember.name} aus dem Wrack gerettet & in Najmafars Kokon aufgenommen!`);
+  }
+  STATE.bioShuttle.ready = true;
+  STATE.bioShuttle.activeMission = null;
+  STATE.activeAwayMission = null;
+  updateHUDStats();
+  if (STATE.nearestPlanet) {
+    updateScannerUI(STATE.nearestPlanet, 5);
+  }
+}
+function openShuttleExpeditionModal(planet, deposit) {
+  const modal = document.getElementById("shuttle-expedition-modal");
+  if (!modal)
+    return;
+  const titleEl = document.getElementById("shuttle-modal-title");
+  const descEl = document.getElementById("shuttle-modal-desc");
+  const hazardEl = document.getElementById("shuttle-modal-hazards");
+  const yieldEl = document.getElementById("shuttle-modal-yield");
+  const crewListEl = document.getElementById("shuttle-crew-selection-list");
+  const launchBtn = document.getElementById("shuttle-launch-confirm-btn");
+  if (titleEl)
+    titleEl.innerText = `Expedition: ${deposit.name}`;
+  if (descEl)
+    descEl.innerText = `${deposit.description} (${planet.name})`;
+  if (hazardEl) {
+    const hazIcon = deposit.hazardType === "thermal" ? "\uD83D\uDD25 Hitze" : deposit.hazardType === "atmosphere" ? "☠️ Atmosphäre" : deposit.hazardType === "radiation" ? "☢️ Strahlung" : "\uD83E\uDE90 Gravitation";
+    const hazColor = deposit.hazardSeverity === "extreme" ? "#f43f5e" : deposit.hazardSeverity === "moderate" || deposit.hazardSeverity === "high" ? "#f59e0b" : "#10b981";
+    hazardEl.innerHTML = `<span style="color: ${hazColor}; font-weight: bold;">Gefahr: ${hazIcon} (${deposit.hazardSeverity.toUpperCase()})</span>`;
+  }
+  if (yieldEl) {
+    let resLabel = "Biomasse";
+    if (deposit.yieldResource === "water")
+      resLabel = "\uD83D\uDCA7 Wasser / Volatiles";
+    if (deposit.yieldResource === "alloys")
+      resLabel = "\uD83D\uDEE1️ Titan-Legierungen";
+    if (deposit.yieldResource === "tech")
+      resLabel = "⚙️ Hyper-Technologie";
+    if (deposit.yieldResource === "food")
+      resLabel = "\uD83C\uDF3E Nahrung / Nährstoffe";
+    if (deposit.yieldResource === "silicon")
+      resLabel = "\uD83D\uDC8E Silizium-Kristalle";
+    yieldEl.innerHTML = `<strong>Erwartete Ausbeute:</strong> ~${deposit.yieldAmount}x ${resLabel}`;
+  }
+  if (crewListEl) {
+    crewListEl.innerHTML = "";
+    if (STATE.crew.length === 0) {
+      crewListEl.innerHTML = '<div style="color: #94a3b8; font-style: italic;">Keine Crew-Mitglieder in den Kokons verfügbar.</div>';
+    } else {
+      STATE.crew.forEach((c, idx) => {
+        const item = document.createElement("label");
+        item.className = "shuttle-crew-item";
+        item.style.display = "flex";
+        item.style.alignItems = "center";
+        item.style.gap = "10px";
+        item.style.padding = "8px";
+        item.style.background = "rgba(15, 23, 42, 0.7)";
+        item.style.borderRadius = "6px";
+        item.style.cursor = "pointer";
+        const roleIcon = c.role === "scientist" ? "\uD83D\uDD2C" : c.role === "engineer" ? "\uD83D\uDD27" : c.role === "soldier" ? "\uD83D\uDEE1️" : c.role === "medic" ? "\uD83D\uDC89" : "\uD83D\uDC64";
+        const isPrechecked = idx < 2;
+        item.innerHTML = `
+                    <input type="checkbox" name="shuttle-crew" value="${c.id}" ${isPrechecked ? "checked" : ""} style="accent-color: #38bdf8;">
+                    <div style="font-size: 1.2rem;">${roleIcon}</div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: bold; color: #f8fafc;">${c.name}</div>
+                        <div style="font-size: 0.75rem; color: #94a3b8;">${c.roleName || c.role} &bull; Stress: ${Math.round(c.stress)}%</div>
+                    </div>
+                `;
+        crewListEl.appendChild(item);
+      });
+    }
+  }
+  if (launchBtn) {
+    launchBtn.onclick = () => {
+      const checkedBoxes = document.querySelectorAll('input[name="shuttle-crew"]:checked');
+      const selectedIds = [];
+      checkedBoxes.forEach((b) => selectedIds.push(b.value));
+      if (selectedIds.length === 0) {
+        alert("Bitte wähle mindestens ein Crewmitglied für das Außenteam aus!");
+        return;
+      }
+      launchAwayMission(planet, deposit, selectedIds);
+    };
+  }
+  modal.style.display = "flex";
+}
+function closeShuttleExpeditionModal() {
+  const modal = document.getElementById("shuttle-expedition-modal");
+  if (modal)
+    modal.style.display = "none";
+}
+
 // src/systems/scanner.ts
 function generatePlanetAttributes(p) {
   const sysId = STATE.currentSystemId || 0;
@@ -37382,6 +37657,105 @@ function generatePlanetAttributes(p) {
     res = "Reich an Silizium-Kristallen, Eisen & Schwermetallen";
     species = null;
   }
+  let hazards;
+  const surfaceDeposits = [];
+  if (p.type === "Habitable") {
+    hazards = {
+      thermal: "temperate",
+      atmosphere: "breathable",
+      radiation: radiationLevel === "Extreme" || radiationLevel === "High" ? "moderate" : "low",
+      gravity: "standard"
+    };
+    surfaceDeposits.push({
+      id: `dep-${hash}-1`,
+      name: "Alte Vorläufer-Ruinen",
+      type: "ruins",
+      description: "Monolithische Alien-Strukturen mit intakten Datenkernen.",
+      yieldResource: "tech",
+      yieldAmount: 20 + hash % 15,
+      hazardType: "radiation",
+      hazardSeverity: "low"
+    });
+    surfaceDeposits.push({
+      id: `dep-${hash}-2`,
+      name: "Biolumineszenter Xeno-Hain",
+      type: "xeno_grove",
+      description: "Dichte Nährstoffpflanzen und Bio-Sporen von hohem Wert.",
+      yieldResource: "food",
+      yieldAmount: 45 + hash % 25,
+      hazardType: "atmosphere",
+      hazardSeverity: "none"
+    });
+    if (hash % 2 === 0) {
+      surfaceDeposits.push({
+        id: `dep-${hash}-3`,
+        name: "Tiefes Grundwasser-Reservoir",
+        type: "subsurface_water",
+        description: "Unterirdische Kavernen mit reinem Trinkwasser.",
+        yieldResource: "water",
+        yieldAmount: 55 + hash % 30,
+        hazardType: "thermal",
+        hazardSeverity: "none"
+      });
+    }
+  } else if (p.type === "Gas Giant") {
+    hazards = {
+      thermal: "cryogenic",
+      atmosphere: "corrosive",
+      radiation: "moderate",
+      gravity: "high"
+    };
+    surfaceDeposits.push({
+      id: `dep-${hash}-1`,
+      name: "Stratos-Deuterium-Wirbel",
+      type: "subsurface_water",
+      description: "Kondensierte flüchtige Wasser- und Deuterium-Taschen.",
+      yieldResource: "water",
+      yieldAmount: 60 + hash % 40,
+      hazardType: "gravity",
+      hazardSeverity: "moderate"
+    });
+  } else {
+    const isHot = hash % 2 === 0;
+    hazards = {
+      thermal: isHot ? "inferno" : "cryogenic",
+      atmosphere: hash % 2 === 0 ? "toxic" : "vacuum",
+      radiation: radiationLevel === "Extreme" ? "extreme" : "moderate",
+      gravity: hash % 3 === 0 ? "low" : "standard"
+    };
+    surfaceDeposits.push({
+      id: `dep-${hash}-1`,
+      name: isHot ? "Geothermisches Titan-Schlotfeld" : "Subglazialer Eiskern-Ozean",
+      type: isHot ? "geothermal_vent" : "subsurface_water",
+      description: isHot ? "Magmaspalten reich an geschmolzenen Titan- und Wolfram-Legierungen." : "Unter ewigem Eis liegende reine Wasservorkommen.",
+      yieldResource: isHot ? "alloys" : "water",
+      yieldAmount: 35 + hash % 25,
+      hazardType: "thermal",
+      hazardSeverity: "moderate"
+    });
+    surfaceDeposits.push({
+      id: `dep-${hash}-2`,
+      name: "Kristalline Silikat-Kavernen",
+      type: "crystal_caverns",
+      description: "Tief liegende Höhlensysteme mit reinen Silizium-Kristallen.",
+      yieldResource: "silicon",
+      yieldAmount: 50 + hash % 30,
+      hazardType: "atmosphere",
+      hazardSeverity: hazards.atmosphere === "toxic" ? "moderate" : "low"
+    });
+    if (hash % 3 === 0) {
+      surfaceDeposits.push({
+        id: `dep-${hash}-3`,
+        name: "Gestrandetes Raumschiff-Wrack",
+        type: "derelict_cache",
+        description: "Ein uraltes Forschungsschiff mit intakter Hyper-Technologie und Überlebenskapseln.",
+        yieldResource: "tech",
+        yieldAmount: 22 + hash % 12,
+        hazardType: "radiation",
+        hazardSeverity: "moderate"
+      });
+    }
+  }
   return {
     atmos,
     temp,
@@ -37393,7 +37767,9 @@ function generatePlanetAttributes(p) {
     geothermal,
     radiationLevel,
     entangledTwinId,
-    quantumResonance
+    quantumResonance,
+    hazards,
+    surfaceDeposits
   };
 }
 function triggerScanStart() {
@@ -37692,7 +38068,35 @@ function updateScannerUI(planet, dist) {
         bioEl.innerText = planet.state === "stunned" ? "⚡ Systeme gelähmt (EMP-Schock)" : planet.state === "hunt" || planet.state === "intercept" ? "\uD83D\uDEA8 Roter Alarm: Kampf & Jagd" : planet.state === "flee" ? "⚠️ Panik: Ausweichmanöver vor Bio-Signatur" : planet.state === "trade_cruise" ? "\uD83D\uDCE6 Interstellarer Handels-Transit" : planet.state === "trade_docked" ? "⚓ Im Fracht-Dock (Löscht/Bunkert Fracht)" : planet.state === "returning" ? "\uD83D\uDD04 Flug zum Heimat-Orbit" : "\uD83D\uDEE1️ Normaler Patrouillenbetrieb";
       }
       if (atmosEl) {
-        atmosEl.innerText = planet.cargo ? `\uD83D\uDCE6 Frachtgut: ${planet.cargo.amount}x ${planet.cargo.type === "silicon" ? "Silizium" : "Biomasse"}` : isStation ? "\uD83C\uDFE2 Fracht-Docks & Wohnringe" : "Militärische Bewaffnung (Keine Handelsgüter)";
+        if (planet.cargo) {
+          let cargoIcon = "\uD83D\uDCE6";
+          let cargoName = planet.cargo.type;
+          if (planet.cargo.type === "water") {
+            cargoIcon = "\uD83D\uDCA7";
+            cargoName = "Reinwasser & Volatiles";
+          } else if (planet.cargo.type === "alloys") {
+            cargoIcon = "\uD83D\uDEE1️";
+            cargoName = "Titan- & Rumpflegierungen";
+          } else if (planet.cargo.type === "tech") {
+            cargoIcon = "⚙️";
+            cargoName = "Quanten-Prozessoren & Hyper-Tech";
+          } else if (planet.cargo.type === "food") {
+            cargoIcon = "\uD83C\uDF3E";
+            cargoName = "Nährstoff-Gel & Rationen";
+          } else if (planet.cargo.type === "passengers") {
+            cargoIcon = "\uD83D\uDC65";
+            cargoName = "Zivile Passagiere & Kolonisten";
+          } else if (planet.cargo.type === "silicon") {
+            cargoIcon = "\uD83D\uDC8E";
+            cargoName = "Silizium-Kristalle";
+          } else {
+            cargoIcon = "\uD83E\uDDEC";
+            cargoName = "Biomasse-Präparate";
+          }
+          atmosEl.innerText = `${cargoIcon} Frachtgut: ${planet.cargo.amount}x ${cargoName}`;
+        } else {
+          atmosEl.innerText = isStation ? "\uD83C\uDFE2 Fracht-Docks & Wohnringe" : "Militärische Bewaffnung (Keine Handelsgüter)";
+        }
       }
       if (quantumRow)
         quantumRow.style.display = "none";
@@ -37871,6 +38275,65 @@ function updateScannerUI(planet, dist) {
           fleetRow.style.display = "none";
         }
       }
+      let depositsBox = document.getElementById("scanner-deposits-container");
+      if (!depositsBox && resultsBox) {
+        depositsBox = document.createElement("div");
+        depositsBox.id = "scanner-deposits-container";
+        depositsBox.className = "scanner-deposits-container";
+        resultsBox.appendChild(depositsBox);
+      }
+      if (depositsBox) {
+        if (isShip || isStation) {
+          depositsBox.style.display = "none";
+        } else if (attrs.surfaceDeposits && attrs.surfaceDeposits.length > 0) {
+          depositsBox.style.display = "block";
+          depositsBox.innerHTML = `
+                        <div style="font-size: 0.75rem; text-transform: uppercase; color: #38bdf8; font-weight: bold; margin-top: 10px; margin-bottom: 6px; letter-spacing: 0.05em; border-top: 1px solid rgba(56, 189, 248, 0.2); padding-top: 8px;">
+                            \uD83D\uDE80 Boden-Vorkommen (Shuttle-Expeditionen):
+                        </div>
+                    `;
+          attrs.surfaceDeposits.forEach((dep) => {
+            const card = document.createElement("div");
+            card.className = `surface-deposit-card ${dep.depleted ? "depleted" : ""}`;
+            card.style.cssText = "padding: 6px 8px; margin-bottom: 6px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 6px;";
+            const resLabel = dep.yieldResource === "water" ? "\uD83D\uDCA7 Wasser" : dep.yieldResource === "alloys" ? "\uD83D\uDEE1️ Titan" : dep.yieldResource === "tech" ? "⚙️ Tech" : dep.yieldResource === "food" ? "\uD83C\uDF3E Nahrung" : "\uD83D\uDC8E Silizium";
+            const hazIcon = dep.hazardType === "thermal" ? "\uD83D\uDD25 Hitze" : dep.hazardType === "atmosphere" ? "☠️ Gas" : "☢️ Rad";
+            const isMissionActive = !!(STATE.activeAwayMission && STATE.activeAwayMission.targetDeposit.id === dep.id);
+            let actionHtml = "";
+            if (dep.depleted) {
+              actionHtml = '<span style="font-size: 0.7rem; color: #64748b;">Erschöpft ✕</span>';
+            } else if (isMissionActive) {
+              const pct = Math.round((STATE.activeAwayMission?.progress || 0) * 100);
+              actionHtml = `<span style="font-size: 0.7rem; color: #38bdf8; font-weight: bold;">Lander aktiv (${pct}%)</span>`;
+            } else {
+              actionHtml = `<button class="shuttle-dep-btn" style="padding: 3px 8px; font-size: 0.72rem; background: #0284c7; color: #fff; border: none; border-radius: 4px; cursor: pointer;">\uD83D\uDE80 Lander starten</button>`;
+            }
+            card.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                                <div style="font-weight: bold; font-size: 0.8rem; color: #f8fafc;">${dep.name}</div>
+                                <div>${actionHtml}</div>
+                            </div>
+                            <div style="font-size: 0.7rem; color: #94a3b8; margin-bottom: 3px;">${dep.description}</div>
+                            <div style="display: flex; gap: 8px; font-size: 0.7rem;">
+                                <span style="color: #38bdf8;">~${dep.yieldAmount}x ${resLabel}</span>
+                                <span style="color: #f59e0b;">${hazIcon} (${dep.hazardSeverity})</span>
+                            </div>
+                        `;
+            if (!dep.depleted && !isMissionActive) {
+              const btn = card.querySelector(".shuttle-dep-btn");
+              if (btn) {
+                btn.onclick = (e) => {
+                  e.stopPropagation();
+                  openShuttleExpeditionModal(planet, dep);
+                };
+              }
+            }
+            depositsBox.appendChild(card);
+          });
+        } else {
+          depositsBox.style.display = "none";
+        }
+      }
       if (commsBtn) {
         commsBtn.style.display = inRange && hasSentient ? "block" : "none";
         commsBtn.onclick = () => openDiplomacyComms(planet);
@@ -37904,6 +38367,9 @@ function updateScannerUI(planet, dist) {
     const commsBtn = document.getElementById("start-comms-btn");
     if (commsBtn)
       commsBtn.style.display = "none";
+    const depositsBox = document.getElementById("scanner-deposits-container");
+    if (depositsBox)
+      depositsBox.style.display = "none";
   }
 }
 
@@ -38072,7 +38538,10 @@ function spawnSystemFleet(planetsInput) {
         originalColor: 14251782,
         attackCooldown: 999,
         alertTimer: 0,
-        cargo: { type: "silicon", amount: 65 },
+        cargo: {
+          type: ["silicon", "water", "alloys", "tech", "food", "passengers"][Math.floor(Math.random() * 6)],
+          amount: Math.floor(40 + Math.random() * 45)
+        },
         factionId: fFactionId,
         civilizationName: fCivName,
         factionName: fFaction.shortName,
@@ -38322,13 +38791,21 @@ function updateFleet(dt) {
         const tangZ = Math.cos(ship.orbitAngle);
         ship.mesh.rotation.y = Math.atan2(tangX, tangZ);
         if (ship.dockTimer <= 0) {
-          const newType = Math.random() > 0.4 ? "silicon" : "bio";
-          const newAmount = Math.floor(45 + Math.random() * 45);
+          const cargoChoices = [
+            "silicon",
+            "water",
+            "alloys",
+            "tech",
+            "food",
+            "passengers"
+          ];
+          const newType = cargoChoices[Math.floor(Math.random() * cargoChoices.length)];
+          const newAmount = newType === "passengers" ? Math.floor(4 + Math.random() * 5) : Math.floor(40 + Math.random() * 45);
           ship.cargo = { type: newType, amount: newAmount };
           assignNextTradeDestination(ship);
           const nextDestName = ship.tradeTargetStation?.name || ship.tradeTargetPlanet?.name || "Handels-Station";
           if (ship.crewMembers && ship.crewMembers[0]) {
-            ship.crewMembers[0].thought = `Ladevorgang beendet. Fracht manifestiert (${newAmount}x ${newType === "silicon" ? "Silizium" : "Biomasse"}). Setze Kurs auf ${nextDestName}.`;
+            ship.crewMembers[0].thought = `Ladevorgang beendet. Fracht manifestiert (${newAmount}x ${newType}). Setze Kurs auf ${nextDestName}.`;
             ship.commanderThought = ship.crewMembers[0].thought;
           }
           ship.state = "trade_cruise";
@@ -38544,13 +39021,43 @@ function salvageNearestWreck() {
     if (ship.position.distanceTo(playerPos) <= 8.5) {
       scene.remove(ship.mesh);
       const isFreighter = ship.type === "freighter" || ship.type === "heavy_freighter";
-      const silBonus = isFreighter ? 65 : 35;
-      const bioBonus = isFreighter ? 45 : 30;
-      STATE.siliconRes += silBonus;
-      STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + bioBonus);
-      if (isFreighter) {
-        addLogEntry("SYSTEM", `\uD83D\uDCA5 FRACHT-ASSIMILATION: Frachträume von ${ship.name} absorbiert! +${silBonus} Silizium & +${bioBonus} Biomasse erbeutet!`);
+      if (isFreighter && ship.cargo) {
+        const c = ship.cargo;
+        if (c.type === "passengers") {
+          const rescuedCount = c.amount || 4;
+          addLogEntry("SYSTEM", `\uD83D\uDCA5 FRACHT-ASSIMILATION: ${rescuedCount} zivile Passagiere aus ${ship.name} gerettet & in Kokons aufgenommen!`);
+          for (let i2 = 0;i2 < rescuedCount && STATE.crew.length < STATE.maxCrewCapacity; i2++) {
+            const cand = generateProceduralCandidates(Date.now() + i2, 1)[0];
+            if (cand) {
+              STATE.crew.push(cand);
+              addLogEntry("CREW", `Überlebender Kolonist geborgen: ${cand.name} (${cand.roleName || cand.role})`);
+            }
+          }
+        } else if (c.type === "water") {
+          STATE.waterRes += c.amount;
+          addLogEntry("SYSTEM", `\uD83D\uDCA5 FRACHT-ASSIMILATION: +${c.amount} Reinwasser / Volatiles aus ${ship.name} extrahiert!`);
+        } else if (c.type === "alloys") {
+          STATE.alloyRes += c.amount;
+          addLogEntry("SYSTEM", `\uD83D\uDCA5 FRACHT-ASSIMILATION: +${c.amount} Titan- & Rumpflegierungen aus ${ship.name} geborgen!`);
+        } else if (c.type === "tech") {
+          STATE.techRes += c.amount;
+          addLogEntry("SYSTEM", `\uD83D\uDCA5 FRACHT-ASSIMILATION: +${c.amount} Hyper-Technologie & Quanten-Prozessoren gesichert!`);
+        } else if (c.type === "food") {
+          STATE.foodRes += c.amount;
+          addLogEntry("SYSTEM", `\uD83D\uDCA5 FRACHT-ASSIMILATION: +${c.amount} Nährstoff-Gel & Rationen geborgen!`);
+        } else if (c.type === "silicon") {
+          STATE.siliconRes += c.amount;
+          addLogEntry("SYSTEM", `\uD83D\uDCA5 FRACHT-ASSIMILATION: +${c.amount} Silizium-Kristalle aus ${ship.name} geborgen!`);
+        } else {
+          STATE.bioRes += c.amount;
+          addLogEntry("SYSTEM", `\uD83D\uDCA5 FRACHT-ASSIMILATION: +${c.amount} Biomasse aus ${ship.name} assimiliert!`);
+        }
+        STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 30);
       } else {
+        const silBonus = isFreighter ? 65 : 35;
+        const bioBonus = isFreighter ? 45 : 30;
+        STATE.siliconRes += silBonus;
+        STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + bioBonus);
         addLogEntry("SYSTEM", `Schiff von ${ship.name} assimiliert: +${silBonus} Silizium & +${bioBonus} Bio-Energie gewonnen!`);
       }
       playSiliconCollectSound();
@@ -41647,6 +42154,22 @@ function updateHUDStats(isHarmony = false) {
   if (silCountEl) {
     silCountEl.innerText = `${Math.floor(STATE.siliconRes || 0)}`;
   }
+  const waterCountEl = document.getElementById("res-water-count");
+  if (waterCountEl) {
+    waterCountEl.innerText = `${Math.floor(STATE.waterRes || 0)}`;
+  }
+  const alloyCountEl = document.getElementById("res-alloy-count");
+  if (alloyCountEl) {
+    alloyCountEl.innerText = `${Math.floor(STATE.alloyRes || 0)}`;
+  }
+  const techCountEl = document.getElementById("res-tech-count");
+  if (techCountEl) {
+    techCountEl.innerText = `${Math.floor(STATE.techRes || 0)}`;
+  }
+  const foodCountEl = document.getElementById("res-food-count");
+  if (foodCountEl) {
+    foodCountEl.innerText = `${Math.floor(STATE.foodRes || 0)}`;
+  }
   const chronosCountEl = document.getElementById("chronos-count");
   if (chronosCountEl) {
     const visited = STATE.visitedSystemIds ? STATE.visitedSystemIds.length : STATE.systemsVisited || 1;
@@ -44197,6 +44720,11 @@ function setupControls() {
         howToModal.style.display = "none";
         return;
       }
+      const shuttleModal = document.getElementById("shuttle-expedition-modal");
+      if (shuttleModal && shuttleModal.style.display === "flex") {
+        closeShuttleExpeditionModal();
+        return;
+      }
       if (isDiplomacyCommsOpen()) {
         closeDiplomacyComms();
         return;
@@ -45660,6 +46188,7 @@ function animate(time) {
     updatePartyGrid();
     updateSonarWave(dt);
     updateExplosionEffects(dt);
+    updateAwayMissions(dt);
     updateTrajectory();
     updateMinimap();
     updateVoyagerHUDTracker();

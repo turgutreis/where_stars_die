@@ -15,9 +15,25 @@ export const STATE: GameState = {
     systemsVisited: 1,
     visitedSystemIds: [1],
 
-    // Evolution Resources
+    // Evolution & Refined Resources
     bioRes: 0,
     siliconRes: 0,
+    waterRes: 25, // Starting reserve of fresh volatiles
+    alloyRes: 10, // Starting reserve of chitin-alloy composite
+    techRes: 0,
+    foodRes: 30,  // Starting nutrient gel
+
+    // Bio-Shuttle & Away Missions
+    bioShuttle: {
+        ready: true,
+        hull: 100,
+        maxHull: 100,
+        heatShielding: 35,
+        radShielding: 35,
+        acidShielding: 35,
+        upgrades: []
+    },
+    activeAwayMission: null,
 
     // Sensor & Travel Limits
     psionicRange: 75,

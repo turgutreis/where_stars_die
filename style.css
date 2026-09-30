@@ -227,6 +227,10 @@ html {
 
 .res-dot.bio { background: #10b981; box-shadow: 0 0 6px #10b981; }
 .res-dot.silicon { background: #06b6d4; box-shadow: 0 0 6px #06b6d4; }
+.res-dot.water { background: #38bdf8; box-shadow: 0 0 6px #38bdf8; }
+.res-dot.alloy { background: #94a3b8; box-shadow: 0 0 6px #94a3b8; }
+.res-dot.tech { background: #a855f7; box-shadow: 0 0 6px #a855f7; }
+.res-dot.food { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
 
 .chronos-badge {
     color: #facc15;
@@ -7102,4 +7106,38 @@ body.game-started .hud-left {
 .save-quick-actions {
     display: flex;
     gap: 10px;
+}
+
+/* Shuttle Away Missions & Surface Deposits UI */
+.surface-deposit-card {
+    transition: all 0.2s ease;
+}
+
+.surface-deposit-card:hover {
+    background: rgba(30, 41, 59, 0.75) !important;
+    border-color: rgba(56, 189, 248, 0.35) !important;
+}
+
+.shuttle-crew-item {
+    transition: background 0.2s ease, border-color 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.shuttle-crew-item:hover {
+    background: rgba(30, 41, 59, 0.9) !important;
+    border-color: rgba(56, 189, 248, 0.3);
+}
+
+.shuttle-dep-btn {
+    transition: all 0.2s ease;
+}
+
+.shuttle-dep-btn:hover:not(:disabled) {
+    background: #0284c7 !important;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+    transform: scale(1.03);
+}
+
+.shuttle-dep-btn:disabled {
+    cursor: not-allowed;
 }

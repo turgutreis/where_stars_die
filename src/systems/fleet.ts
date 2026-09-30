@@ -215,7 +215,10 @@ export function spawnSystemFleet(planetsInput?: any) {
                 originalColor: 0xd97706,
                 attackCooldown: 999,
                 alertTimer: 0,
-                cargo: { type: 'silicon', amount: 65 },
+                cargo: {
+                    type: (['silicon', 'water', 'alloys', 'tech', 'food', 'passengers'][Math.floor(Math.random() * 6)]) as any,
+                    amount: Math.floor(40 + Math.random() * 45)
+                },
                 factionId: fFactionId,
                 civilizationName: fCivName,
                 factionName: fFaction.shortName,
@@ -539,15 +542,18 @@ export function updateFleet(dt: number) {
 
                 if (ship.dockTimer <= 0) {
                     // Cargo exchange complete
-                    const newType = Math.random() > 0.4 ? 'silicon' : 'bio';
-                    const newAmount = Math.floor(45 + Math.random() * 45);
+                    const cargoChoices: ('silicon' | 'water' | 'alloys' | 'tech' | 'food' | 'passengers')[] = [
+                        'silicon', 'water', 'alloys', 'tech', 'food', 'passengers'
+                    ];
+                    const newType = cargoChoices[Math.floor(Math.random() * cargoChoices.length)];
+                    const newAmount = newType === 'passengers' ? Math.floor(4 + Math.random() * 5) : Math.floor(40 + Math.random() * 45);
                     ship.cargo = { type: newType, amount: newAmount };
 
                     // Route to next port
                     assignNextTradeDestination(ship);
                     const nextDestName = ship.tradeTargetStation?.name || ship.tradeTargetPlanet?.name || 'Handels-Station';
                     if (ship.crewMembers && ship.crewMembers[0]) {
-                        ship.crewMembers[0].thought = `Ladevorgang beendet. Fracht manifestiert (${newAmount}x ${newType === 'silicon' ? 'Silizium' : 'Biomasse'}). Setze Kurs auf ${nextDestName}.`;
+                        ship.crewMembers[0].thought = `Ladevorgang beendet. Fracht manifestiert (${newAmount}x ${newType}). Setze Kurs auf ${nextDestName}.`;
                         ship.commanderThought = ship.crewMembers[0].thought;
                     }
                     ship.state = 'trade_cruise';
@@ -831,15 +837,43 @@ export function salvageNearestWreck(): boolean {
             scene.remove(ship.mesh);
 
             const isFreighter = ship.type === 'freighter' || ship.type === 'heavy_freighter';
-            const silBonus = isFreighter ? 65 : 35;
-            const bioBonus = isFreighter ? 45 : 30;
-
-            STATE.siliconRes += silBonus;
-            STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + bioBonus);
-
-            if (isFreighter) {
-                addLogEntry("SYSTEM", `💥 FRACHT-ASSIMILATION: Frachträume von ${ship.name} absorbiert! +${silBonus} Silizium & +${bioBonus} Biomasse erbeutet!`);
+            if (isFreighter && ship.cargo) {
+                const c = ship.cargo;
+                if (c.type === 'passengers') {
+                    const rescuedCount = c.amount || 4;
+                    addLogEntry("SYSTEM", `💥 FRACHT-ASSIMILATION: ${rescuedCount} zivile Passagiere aus ${ship.name} gerettet & in Kokons aufgenommen!`);
+                    for (let i = 0; i < rescuedCount && STATE.crew.length < STATE.maxCrewCapacity; i++) {
+                        const cand = generateProceduralCandidates(Date.now() + i, 1)[0];
+                        if (cand) {
+                            STATE.crew.push(cand);
+                            addLogEntry("CREW", `Überlebender Kolonist geborgen: ${cand.name} (${cand.roleName || cand.role})`);
+                        }
+                    }
+                } else if (c.type === 'water') {
+                    STATE.waterRes += c.amount;
+                    addLogEntry("SYSTEM", `💥 FRACHT-ASSIMILATION: +${c.amount} Reinwasser / Volatiles aus ${ship.name} extrahiert!`);
+                } else if (c.type === 'alloys') {
+                    STATE.alloyRes += c.amount;
+                    addLogEntry("SYSTEM", `💥 FRACHT-ASSIMILATION: +${c.amount} Titan- & Rumpflegierungen aus ${ship.name} geborgen!`);
+                } else if (c.type === 'tech') {
+                    STATE.techRes += c.amount;
+                    addLogEntry("SYSTEM", `💥 FRACHT-ASSIMILATION: +${c.amount} Hyper-Technologie & Quanten-Prozessoren gesichert!`);
+                } else if (c.type === 'food') {
+                    STATE.foodRes += c.amount;
+                    addLogEntry("SYSTEM", `💥 FRACHT-ASSIMILATION: +${c.amount} Nährstoff-Gel & Rationen geborgen!`);
+                } else if (c.type === 'silicon') {
+                    STATE.siliconRes += c.amount;
+                    addLogEntry("SYSTEM", `💥 FRACHT-ASSIMILATION: +${c.amount} Silizium-Kristalle aus ${ship.name} geborgen!`);
+                } else {
+                    STATE.bioRes += c.amount;
+                    addLogEntry("SYSTEM", `💥 FRACHT-ASSIMILATION: +${c.amount} Biomasse aus ${ship.name} assimiliert!`);
+                }
+                STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 30);
             } else {
+                const silBonus = isFreighter ? 65 : 35;
+                const bioBonus = isFreighter ? 45 : 30;
+                STATE.siliconRes += silBonus;
+                STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + bioBonus);
                 addLogEntry("SYSTEM", `Schiff von ${ship.name} assimiliert: +${silBonus} Silizium & +${bioBonus} Bio-Energie gewonnen!`);
             }
             playSiliconCollectSound();

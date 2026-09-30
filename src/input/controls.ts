@@ -17,6 +17,7 @@ import { openVoyagerDialog, closeVoyagerDialog, isVoyagerDialogOpen } from '../u
 import { isSaveModalOpen, closeSaveModal } from '../ui/save-modal';
 import { toggleMainMenu } from '../ui/menu-controller';
 import { toggleStealth } from '../systems/stealth';
+import { closeShuttleExpeditionModal } from '../systems/shuttle-expeditions';
 
 const raycaster = new THREE.Raycaster();
 const mouseVec = new THREE.Vector2();
@@ -83,6 +84,13 @@ export function setupControls() {
             const howToModal = document.getElementById('how-to-play-modal');
             if (howToModal && howToModal.style.display === 'flex') {
                 howToModal.style.display = 'none';
+                return;
+            }
+
+            // 3b. Close Shuttle Expedition Modal if open
+            const shuttleModal = document.getElementById('shuttle-expedition-modal');
+            if (shuttleModal && shuttleModal.style.display === 'flex') {
+                closeShuttleExpeditionModal();
                 return;
             }
 

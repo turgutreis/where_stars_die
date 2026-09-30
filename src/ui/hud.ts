@@ -188,6 +188,26 @@ export function updateHUDStats(isHarmony = false) {
         silCountEl.innerText = `${Math.floor(STATE.siliconRes || 0)}`;
     }
 
+    const waterCountEl = document.getElementById('res-water-count');
+    if (waterCountEl) {
+        waterCountEl.innerText = `${Math.floor(STATE.waterRes || 0)}`;
+    }
+
+    const alloyCountEl = document.getElementById('res-alloy-count');
+    if (alloyCountEl) {
+        alloyCountEl.innerText = `${Math.floor(STATE.alloyRes || 0)}`;
+    }
+
+    const techCountEl = document.getElementById('res-tech-count');
+    if (techCountEl) {
+        techCountEl.innerText = `${Math.floor(STATE.techRes || 0)}`;
+    }
+
+    const foodCountEl = document.getElementById('res-food-count');
+    if (foodCountEl) {
+        foodCountEl.innerText = `${Math.floor(STATE.foodRes || 0)}`;
+    }
+
     const chronosCountEl = document.getElementById('chronos-count');
     if (chronosCountEl) {
         const visited = STATE.visitedSystemIds ? STATE.visitedSystemIds.length : (STATE.systemsVisited || 1);

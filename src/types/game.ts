@@ -118,6 +118,55 @@ export interface SpeciesData {
     quantumCiv?: QuantumCivState | null;
 }
 
+export type PlanetaryHazardLevel = 'none' | 'low' | 'moderate' | 'extreme';
+
+export interface PlanetaryHazards {
+    thermal: 'temperate' | 'inferno' | 'cryogenic';
+    atmosphere: 'breathable' | 'toxic' | 'corrosive' | 'vacuum';
+    radiation: PlanetaryHazardLevel;
+    gravity: 'low' | 'standard' | 'high';
+}
+
+export type SurfaceDepositType = 'ruins' | 'crystal_caverns' | 'subsurface_water' | 'geothermal_vent' | 'xeno_grove' | 'derelict_cache';
+export type RefinedResourceType = 'water' | 'alloys' | 'tech' | 'food' | 'bio' | 'silicon';
+
+export interface SurfaceDeposit {
+    id: string;
+    name: string;
+    type: SurfaceDepositType;
+    description: string;
+    yieldResource: RefinedResourceType;
+    yieldAmount: number;
+    hazardType: 'thermal' | 'atmosphere' | 'radiation' | 'gravity';
+    hazardSeverity: PlanetaryHazardLevel;
+    depleted?: boolean;
+}
+
+export interface BioShuttle {
+    ready: boolean;
+    hull: number;
+    maxHull: number;
+    heatShielding: number; // 0 to 100
+    radShielding: number;  // 0 to 100
+    acidShielding: number; // 0 to 100
+    upgrades: string[];
+}
+
+export interface AwayMission {
+    id: string;
+    planetName: string;
+    targetDeposit: SurfaceDeposit;
+    team: CrewMember[];
+    progress: number; // 0.0 to 1.0
+    duration: number; // total duration in seconds
+    timer: number;    // remaining timer
+    status: 'descending' | 'exploring' | 'extracting' | 'ascending' | 'complete' | 'aborted';
+    eventsLog: string[];
+    recoveredResources?: { type: RefinedResourceType; amount: number };
+    rescuedPassengers?: number;
+    shuttleDamageTaken?: number;
+}
+
 export interface PlanetAttributes {
     atmos: string;
     temp: string;
@@ -130,6 +179,8 @@ export interface PlanetAttributes {
     radiationLevel?: 'Low' | 'Moderate' | 'High' | 'Extreme';
     entangledTwinId?: string | null;
     quantumResonance?: number;
+    hazards?: PlanetaryHazards;
+    surfaceDeposits?: SurfaceDeposit[];
 }
 
 export interface MoonArchetypeData {
@@ -344,7 +395,7 @@ export interface FleetShip {
     originalColor?: number;
     attackCooldown: number;
     alertTimer: number;
-    cargo?: { type: 'silicon' | 'bio' | 'alloys'; amount: number };
+    cargo?: { type: 'silicon' | 'bio' | 'alloys' | 'water' | 'tech' | 'food' | 'passengers'; amount: number };
     tradeTargetPlanet?: PlanetEntry | null;
     tradeTargetStation?: SpaceStation | null;
     tradeProgress?: number;
@@ -442,9 +493,17 @@ export interface GameState {
     systemsVisited: number;
     visitedSystemIds: number[];
 
-    // Evolution Resources
+    // Evolution & Refined Resources
     bioRes: number;
     siliconRes: number;
+    waterRes: number;
+    alloyRes: number;
+    techRes: number;
+    foodRes: number;
+
+    // Bio-Shuttle & Away Missions
+    bioShuttle: BioShuttle;
+    activeAwayMission?: AwayMission | null;
 
     // Sensor & Travel Limits
     psionicRange: number;
