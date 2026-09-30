@@ -211,14 +211,15 @@ export function updatePhysics(dt: number) {
         if (targetReticleGroup) targetReticleGroup.visible = false;
     }
 
-    // 3. Calculate closest or locked planet distance & update Scanner UI
+    // 3. Calculate closest or locked planet/vessel distance & update Scanner UI
     let targetPlanet: any = null;
     let targetDist = Infinity;
 
-    if (STATE.lockedTarget && STATE.lockedTarget.mesh) {
+    if (STATE.lockedTarget && (STATE.lockedTarget.mesh || STATE.lockedTarget.position)) {
         targetPlanet = STATE.lockedTarget;
-        const dx = STATE.playerPosition.x - targetPlanet.mesh.position.x;
-        const dz = STATE.playerPosition.z - targetPlanet.mesh.position.z;
+        const targetPos = targetPlanet.mesh ? targetPlanet.mesh.position : targetPlanet.position;
+        const dx = STATE.playerPosition.x - targetPos.x;
+        const dz = STATE.playerPosition.z - targetPos.z;
         targetDist = Math.sqrt(dx * dx + dz * dz);
     } else if (STATE.orbitLevel === 'moon' && STATE.activeMoonOrbit && STATE.activeMoonOrbit.mesh) {
         targetPlanet = STATE.activeMoonOrbit;
@@ -244,9 +245,38 @@ export function updatePhysics(dt: number) {
         });
         targetPlanet = closestPlanet;
         targetDist = minDist;
+
+        // Proximity detection for nearby Space Station or Fleet Ship (< 18 AE)
+        if (STATE.spaceStations) {
+            for (const st of STATE.spaceStations) {
+                const pos = st.mesh ? st.mesh.position : st.position;
+                if (pos) {
+                    const dist = STATE.playerPosition.distanceTo(pos);
+                    if (dist < 18 && dist < targetDist) {
+                        targetPlanet = st;
+                        targetDist = dist;
+                    }
+                }
+            }
+        }
+        if (STATE.fleetShips) {
+            for (const sh of STATE.fleetShips) {
+                if (sh.status === 'disabled') continue;
+                const pos = sh.mesh ? sh.mesh.position : sh.position;
+                if (pos) {
+                    const dist = STATE.playerPosition.distanceTo(pos);
+                    if (dist < 18 && dist < targetDist) {
+                        targetPlanet = sh;
+                        targetDist = dist;
+                    }
+                }
+            }
+        }
     }
 
-    STATE.nearestPlanet = targetPlanet;
+    if (targetPlanet && !targetPlanet.isStation && !targetPlanet.isShip && !targetPlanet.stationType && !targetPlanet.shipType) {
+        STATE.nearestPlanet = targetPlanet;
+    }
     updateScannerUI(targetPlanet, targetDist);
 
     // 4. Multi-Body Gravity Calculation (Inverse-square law with Softening)

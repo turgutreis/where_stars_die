@@ -36431,7 +36431,7 @@ function generateQuantumWalkHistory(systemSeed, bits) {
   });
   return eras;
 }
-function collapseQuantumCivilization(systemId, planetIndex, seed) {
+function collapseQuantumCivilization2(systemId, planetIndex, seed) {
   const random = lcg(seed * 7331 + systemId * 137 + planetIndex * 43);
   const qpu = new QpuSimulator(random);
   const { stateIndex, bits } = qpu.measureWavefunction(random);
@@ -37031,6 +37031,297 @@ function updateVoyagerHUDTracker() {
   }
 }
 
+// src/ui/first-contact-modal.ts
+var isModalOpen = false;
+function openFirstContactModal(candidate) {
+  const modal = document.getElementById("first-contact-modal");
+  if (!modal)
+    return;
+  const nameEl = document.getElementById("fc-candidate-name");
+  const speciesEl = document.getElementById("fc-candidate-species");
+  const roleEl = document.getElementById("fc-candidate-role");
+  const avatarEl = document.getElementById("fc-candidate-avatar");
+  const thoughtEl = document.getElementById("fc-candidate-thought");
+  const ringEl = document.getElementById("fc-candidate-ring");
+  if (nameEl)
+    nameEl.innerText = candidate.name;
+  if (speciesEl)
+    speciesEl.innerText = candidate.species;
+  if (roleEl)
+    roleEl.innerText = `${candidate.roleIcon || "\uD83D\uDC64"} ${candidate.roleName || candidate.role} • ${candidate.disposition || "scholarly"}`;
+  if (avatarEl)
+    avatarEl.innerText = candidate.avatarIcon || "\uD83D\uDC64";
+  if (thoughtEl)
+    thoughtEl.innerText = `\uD83D\uDCAD "${candidate.thought}"`;
+  if (ringEl && candidate.speciesColor) {
+    ringEl.style.borderColor = candidate.speciesColor;
+    ringEl.style.boxShadow = `0 0 20px ${candidate.speciesColor}88`;
+  }
+  modal.style.display = "flex";
+  isModalOpen = true;
+  try {
+    playLockOnSound();
+  } catch (e) {}
+  addLogEntry("DOKTRIN", `\uD83C\uDF0C ERSTKONTAKT: Najmafars Geist berührt das Bewusstsein von ${candidate.name} (${candidate.species})!`);
+}
+function closeFirstContactModal() {
+  const modal = document.getElementById("first-contact-modal");
+  if (modal)
+    modal.style.display = "none";
+  isModalOpen = false;
+}
+function chooseFirstContactDoctrine(paradigm) {
+  if (paradigm === "neutral")
+    return;
+  setPrimaryParadigm(paradigm, true);
+  closeFirstContactModal();
+  const titles = {
+    domination: "⚡ HERRSCHAFT & UNTERWERFUNG",
+    deception: "\uD83D\uDD2E TÄUSCHUNG & TRAUM-MATRIX",
+    symbiosis: "\uD83C\uDF31 SYMBIOSE & HARMONIE",
+    neutral: "\uD83C\uDF0C NEUTRAL"
+  };
+  const descs = {
+    domination: "Najmafars Wille zwingt das fremde Bewusstsein unter psionischen Gehorsam! Triebwerke und Hülle entfalten rohe Kraft.",
+    deception: "Ein psionischer Traum-Schleier senkt sich herab. Die sterblichen Wesen glauben sich in einer vertrauten Forschungsstation.",
+    symbiosis: "Najmafars Nervenbahnen verbinden sich in ehrlicher Resonanz mit dem Gast. Ein neues Zeitalter der Symbiose bricht an.",
+    neutral: ""
+  };
+  try {
+    playBioHarvestSound();
+  } catch (e) {}
+  addLogEntry("DOKTRIN", `✨ ERSTKONTAKT BESIEGELT: Najmafar wählt den Pfad [${titles[paradigm]}]!`);
+  addLogEntry("CREW", descs[paradigm]);
+  updateHUDStats();
+  calculateCrewBuffs();
+  renderCrewUI(true);
+  updatePartyGrid();
+  triggerAutoSave(`Doktrin gewählt: ${titles[paradigm]}`);
+}
+function initFirstContactModalListeners() {
+  const modal = document.getElementById("first-contact-modal");
+  if (modal) {
+    const closeBtn = document.getElementById("close-first-contact-modal-btn");
+    if (closeBtn) {
+      closeBtn.onclick = () => closeFirstContactModal();
+    }
+  }
+}
+if (typeof window !== "undefined") {
+  window.chooseFirstContactDoctrine = (p) => chooseFirstContactDoctrine(p);
+  window.openFirstContactModal = () => {
+    if (STATE.crew.length > 0)
+      openFirstContactModal(STATE.crew[0]);
+  };
+  window.closeFirstContactModal = () => closeFirstContactModal();
+}
+
+// src/systems/abduction.ts
+var abductOsc = null;
+var abductGain = null;
+var abductFilter = null;
+function triggerAbductStart() {
+  if (!STATE.gameStarted || STATE.abductActive || STATE.scanningPlanet || STATE.extractingPlanet || !STATE.nearestPlanet)
+    return;
+  if (STATE.crew.length >= STATE.maxCrewCapacity) {
+    addLogEntry("SYSTEM", `Psionischer Transfer blockiert: Kokon-Kapazität voll (${STATE.crew.length} / ${STATE.maxCrewCapacity})! Erweitere Kapazität im Evolutions-Deck.`);
+    return;
+  }
+  const p = STATE.nearestPlanet;
+  const meshScale = p.mesh ? p.mesh.scale.x : 1;
+  const dx = STATE.playerPosition.x - p.mesh.position.x;
+  const dz = STATE.playerPosition.z - p.mesh.position.z;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  const maxStartDist = Math.max(28, (p.size || 3) * meshScale * 4.4);
+  if (dist > maxStartDist) {
+    addLogEntry("SYSTEM", `Zu weit entfernt für psionischen Traktorstrahl (Distanz: ${dist.toFixed(1)} / Max ${maxStartDist.toFixed(0)}).`);
+    return;
+  }
+  if (!p.attributes) {
+    p.attributes = generatePlanetAttributes(p);
+  }
+  if (!p.attributes.species || !p.attributes.species.candidates || p.attributes.species.candidates.length === 0) {
+    const generated = generatePlanetAttributes(p);
+    if (generated.species && generated.species.candidates && generated.species.candidates.length > 0) {
+      p.attributes.species = generated.species;
+    }
+  }
+  if (!p.attributes.species || !p.attributes.species.candidates || p.attributes.species.candidates.length === 0) {
+    addLogEntry("SYSTEM", `Keine vernunftbegabten Individuen auf ${p.name} für psionische Entführung verfügbar.`);
+    return;
+  }
+  STATE.abductActive = true;
+  STATE.abductTarget = p;
+  STATE.abductProgress = 0;
+  const progContainer = document.getElementById("abduct-progress-container");
+  if (progContainer)
+    progContainer.style.display = "block";
+  createAbductBeam(STATE.playerPosition, p.mesh.position);
+  startAbductSound();
+  addLogEntry("SYSTEM", `PSIONISCHER TRAKTORSTRAHL AKTIVIERT. Fasse Bewusstsein auf ${p.name} ins Visier...`);
+}
+function updateAbduction(dt) {
+  if (!STATE.abductTarget)
+    return;
+  const meshScale = STATE.abductTarget.mesh ? STATE.abductTarget.mesh.scale.x : 1;
+  const dx = STATE.playerPosition.x - STATE.abductTarget.mesh.position.x;
+  const dz = STATE.playerPosition.z - STATE.abductTarget.mesh.position.z;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  const maxHoldDist = Math.max(38, (STATE.abductTarget.size || 3) * meshScale * 5);
+  if (dist > maxHoldDist) {
+    cancelAbduction(`Ziel außer Reichweite (Distanz: ${dist.toFixed(1)} > ${maxHoldDist.toFixed(0)})`);
+    return;
+  }
+  updateAbductBeam(STATE.playerPosition, STATE.abductTarget.mesh.position);
+  STATE.abductProgress += dt * 45;
+  const bar = document.getElementById("abduct-progress-bar");
+  const text = document.getElementById("abduct-progress-text");
+  if (bar)
+    bar.style.width = `${STATE.abductProgress}%`;
+  if (text)
+    text.innerText = `${Math.round(STATE.abductProgress)}%`;
+  if (STATE.abductProgress >= 100) {
+    completeAbduction();
+  }
+}
+function cancelAbduction(reason) {
+  stopAbductSound();
+  removeAbductBeam();
+  addLogEntry("SYSTEM", `Entführung abgebrochen: ${reason}`);
+  STATE.abductActive = false;
+  STATE.abductTarget = null;
+  STATE.abductProgress = 0;
+  const progContainer = document.getElementById("abduct-progress-container");
+  if (progContainer)
+    progContainer.style.display = "none";
+}
+function completeAbduction() {
+  stopAbductSound();
+  removeAbductBeam();
+  const progContainer = document.getElementById("abduct-progress-container");
+  if (progContainer)
+    progContainer.style.display = "none";
+  const planet = STATE.abductTarget;
+  if (planet) {
+    if (!planet.attributes) {
+      planet.attributes = generatePlanetAttributes(planet);
+      const rawSpecies = planet.species;
+      if (rawSpecies) {
+        planet.attributes.species = rawSpecies;
+      }
+    }
+    if (!planet.attributes.species || !planet.attributes.species.candidates || planet.attributes.species.candidates.length === 0) {
+      const gen = generatePlanetAttributes(planet);
+      if (gen.species && gen.species.candidates && gen.species.candidates.length > 0) {
+        planet.attributes.species = gen.species;
+      }
+    }
+    if (planet.attributes.species && planet.attributes.species.candidates && planet.attributes.species.candidates.length > 0) {
+      const candidate = planet.attributes.species.candidates.shift();
+      if (candidate) {
+        const existingNames = new Set(STATE.crew.map((c) => c.name));
+        if (existingNames.has(candidate.name)) {
+          const fallbackSuffix = ["II", "III", "IV", "V", "Prime"][STATE.crew.length % 5];
+          candidate.name = `${candidate.name} ${fallbackSuffix}`;
+        }
+        assignCrewToOptimalStation(candidate);
+        STATE.crew.push(candidate);
+        STATE.crewSatietyTimer = 0;
+        calculateCrewBuffs();
+        if (candidate.species === "Fremen" || candidate.speciesType === "fremen" || planet.name && planet.name.includes("Arrakis")) {
+          if (STATE.mutations.ibad && !STATE.mutations.ibad.purchased) {
+            STATE.mutations.ibad.purchased = true;
+            updateMutationUI();
+            addLogEntry("SYSTEM", `\uD83D\uDC41️ AUGEN DES IBAD ERWACHT: Durch Assimilation des Fremen ${candidate.name} mutieren Najmafars Sehnerven blau-in-blau! Die Weitsicht des Gewürzes (Prescience) stabilisiert den Geist und schaltet die spätere Heilung von Psychosen frei.`);
+          }
+        }
+        const crewCount = STATE.crew.length;
+        const instantTarget = crewCount >= 3 ? 5 : crewCount === 2 ? 25 : 45;
+        STATE.loneliness = Math.min(STATE.loneliness, instantTarget);
+        addLogEntry("SYSTEM", `PSIONISCHE ASSIMILATION ERFOLGREICH: ${candidate.name} (${candidate.roleName || candidate.role}) in Kokon-Kammer transferiert.`);
+        addLogEntry("CREW", `Traum-Matrix initialisiert: ${candidate.name} lindert deine Einsamkeit! (${Math.round(STATE.loneliness)}% Einsamkeit)`);
+        advanceFtueStep(6);
+        renderCrewUI();
+        updatePartyGrid();
+        updateHUDStats();
+        if (STATE.primaryParadigm === "neutral") {
+          openFirstContactModal(candidate);
+        }
+        if (STATE.nearestPlanet === planet) {
+          updateScannerUI(planet, 10);
+        }
+      }
+    } else {
+      addLogEntry("SYSTEM", `Transfer fehlgeschlagen: Kein psionischer Wirt auf ${planet.name} identifiziert.`);
+    }
+  }
+  STATE.abductActive = false;
+  STATE.abductTarget = null;
+  STATE.abductProgress = 0;
+}
+function abductCrewFromShip(ship) {
+  if (!ship || !ship.crewMembers || ship.crewMembers.length === 0) {
+    addLogEntry("SYSTEM", "Keine lebenden Besatzungsmitglieder im Wrack auffindbar.");
+    return false;
+  }
+  if (STATE.crew.length >= STATE.maxCrewCapacity) {
+    addLogEntry("SYSTEM", `Psionischer Kokon-Transfer blockiert: Kapazität voll (${STATE.crew.length} / ${STATE.maxCrewCapacity})!`);
+    return false;
+  }
+  const candidate = ship.crewMembers.shift();
+  assignCrewToOptimalStation(candidate);
+  STATE.crew.push(candidate);
+  STATE.crewSatietyTimer = 0;
+  calculateCrewBuffs();
+  renderCrewUI();
+  updatePartyGrid();
+  updateHUDStats();
+  addLogEntry("SYSTEM", `PSIONISCHER KOKON-TRANSFER: ${candidate.name} (${candidate.roleName || candidate.role}, ${candidate.speciesArchetypeName || candidate.species}) aus ${ship.name} assimiliert & in Kokon gebettet!`);
+  addLogEntry("CREW", `Traum-Matrix initialisiert: ${candidate.name} lindert die Einsamkeit (-15%)!`);
+  STATE.loneliness = Math.max(0, STATE.loneliness - 15);
+  if (STATE.primaryParadigm === "neutral") {
+    openFirstContactModal(candidate);
+  }
+  updateScannerUI(ship, 10);
+  return true;
+}
+function startAbductSound() {
+  const ctx = getAudioContext();
+  if (!ctx)
+    return;
+  abductOsc = ctx.createOscillator();
+  abductGain = ctx.createGain();
+  abductFilter = ctx.createBiquadFilter();
+  abductOsc.type = "triangle";
+  abductOsc.frequency.setValueAtTime(330, ctx.currentTime);
+  abductFilter.type = "bandpass";
+  abductFilter.frequency.setValueAtTime(440, ctx.currentTime);
+  abductFilter.Q.setValueAtTime(3, ctx.currentTime);
+  abductGain.gain.setValueAtTime(0, ctx.currentTime);
+  abductGain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.2);
+  abductOsc.connect(abductFilter);
+  abductFilter.connect(abductGain);
+  abductGain.connect(ctx.destination);
+  abductOsc.start();
+}
+function stopAbductSound() {
+  if (abductOsc) {
+    const ctx = getAudioContext();
+    const time = ctx ? ctx.currentTime : 0;
+    if (abductGain && time) {
+      abductGain.gain.cancelScheduledValues(time);
+      abductGain.gain.setValueAtTime(abductGain.gain.value, time);
+      abductGain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+      abductOsc.stop(time + 0.2);
+    } else {
+      abductOsc.stop();
+    }
+    abductOsc = null;
+    abductGain = null;
+    abductFilter = null;
+  }
+}
+
 // src/systems/scanner.ts
 function generatePlanetAttributes(p) {
   const sysId = STATE.currentSystemId || 0;
@@ -37065,7 +37356,7 @@ function generatePlanetAttributes(p) {
     bio = hash % 3 === 0 ? "Biolumineszierende Flora" : hash % 3 === 1 ? "Mikrobielle Kolonien" : "Komplexes Ökosystem";
     res = "Reich an Biomasse, Kohlenstoff & O2";
     const pool = generateProceduralCandidates(hash, hash % 2 === 0 ? 2 : 1);
-    const qCiv = collapseQuantumCivilization(STATE.currentSystemId, hash % 8, hash);
+    const qCiv = collapseQuantumCivilization2(STATE.currentSystemId, hash % 8, hash);
     const faction = getFaction(qCiv.factionId);
     species = {
       hasSentient: true,
@@ -37106,23 +37397,52 @@ function generatePlanetAttributes(p) {
   };
 }
 function triggerScanStart() {
-  const target = STATE.orbitLevel === "moon" && STATE.activeMoonOrbit ? STATE.activeMoonOrbit : STATE.nearestPlanet;
+  let target = STATE.lockedTarget || (STATE.orbitLevel === "moon" && STATE.activeMoonOrbit ? STATE.activeMoonOrbit : STATE.nearestPlanet);
+  if (!STATE.lockedTarget) {
+    let bestObj = null;
+    let bestDist = Infinity;
+    const playerPos = STATE.playerPosition;
+    STATE.spaceStations.forEach((st) => {
+      const d = st.position.distanceTo(playerPos);
+      if (d < 30 && d < bestDist) {
+        bestDist = d;
+        bestObj = st;
+      }
+    });
+    STATE.fleetShips.forEach((s) => {
+      if (s.state === "disabled")
+        return;
+      const d = s.position.distanceTo(playerPos);
+      if (d < 25 && d < bestDist) {
+        bestDist = d;
+        bestObj = s;
+      }
+    });
+    if (bestObj) {
+      const curDist = target && target.mesh ? target.mesh.position.distanceTo(playerPos) : Infinity;
+      if (bestDist < curDist) {
+        target = bestObj;
+      }
+    }
+  }
   if (!STATE.gameStarted || STATE.scanningPlanet || STATE.extractingPlanet || !target)
     return;
-  const planet = target;
-  const isAlreadyScanned = planet.scanned || STATE.scannedPlanets && STATE.scannedPlanets[planet.name];
+  const isShip = target.type === "interceptor" || target.type === "corvette" || target.type === "freighter" || target.type === "heavy_freighter";
+  const isStation = target.type === "citadel" || target.type === "trade_hub" || target.type === "mining_relay";
+  const isAlreadyScanned = target.scanned || STATE.scannedPlanets && STATE.scannedPlanets[target.name];
   if (isAlreadyScanned) {
-    addLogEntry("SYSTEM", `${planet.isMoon ? "Mond" : "Planet"} ${planet.name} ist bereits vollständig kartografiert & gescannt.`);
+    addLogEntry("SYSTEM", `${isStation ? "Raumstation" : isShip ? "Schiff" : target.isMoon ? "Mond" : "Planet"} ${target.name} ist bereits vollständig gescannt & analysiert.`);
     return;
   }
-  const meshScale = planet.mesh ? planet.mesh.scale.x : 1;
-  const maxScanDist = Math.max(25, (planet.size || 2.5) * meshScale * 3.8);
-  const dx = STATE.playerPosition.x - planet.mesh.position.x;
-  const dz = STATE.playerPosition.z - planet.mesh.position.z;
+  const meshScale = target.mesh ? target.mesh.scale.x : 1;
+  const maxScanDist = isStation ? 35 : isShip ? 28 : Math.max(25, (target.size || 2.5) * meshScale * 3.8);
+  const targetPos = target.mesh ? target.mesh.position : target.position || new Vector3(0, 0, 0);
+  const dx = STATE.playerPosition.x - targetPos.x;
+  const dz = STATE.playerPosition.z - targetPos.z;
   const dist = Math.sqrt(dx * dx + dz * dz);
   if (dist >= maxScanDist)
     return;
-  STATE.scanningPlanet = planet;
+  STATE.scanningPlanet = target;
   STATE.scanProgress = 0;
   const progContainer = document.getElementById("scan-progress-container");
   if (progContainer)
@@ -37130,24 +37450,27 @@ function triggerScanStart() {
   const scanBtn = document.getElementById("start-scan-btn");
   if (scanBtn)
     scanBtn.setAttribute("disabled", "true");
-  const visualRadius = (planet.size || 3) * meshScale;
-  createScanVisuals(STATE.playerPosition, planet.mesh.position, visualRadius);
+  const visualRadius = isStation ? 5.5 : isShip ? 2.5 : (target.size || 3) * meshScale;
+  createScanVisuals(STATE.playerPosition, targetPos, visualRadius);
   startQuantumScanSound();
-  addLogEntry("SYSTEM", `Spektral-Scan initiiert für: ${STATE.scanningPlanet.name}. Halte Orbit-Position...`);
+  addLogEntry("SYSTEM", `${isShip ? "Telepathie- & Frequenz-Scan" : isStation ? "Orbital-Stations-Scan" : "Spektral-Scan"} initiiert für: ${target.name}. Halte Sensordistanz...`);
 }
 function updateScanning(dt) {
   if (!STATE.scanningPlanet)
     return;
+  const isShip = STATE.scanningPlanet.type === "interceptor" || STATE.scanningPlanet.type === "corvette" || STATE.scanningPlanet.type === "freighter" || STATE.scanningPlanet.type === "heavy_freighter";
+  const isStation = STATE.scanningPlanet.type === "citadel" || STATE.scanningPlanet.type === "trade_hub" || STATE.scanningPlanet.type === "mining_relay";
   const meshScale = STATE.scanningPlanet.mesh ? STATE.scanningPlanet.mesh.scale.x : 1;
-  const maxHoldDist = Math.max(32, (STATE.scanningPlanet.size || 2.5) * meshScale * 4.4);
-  const dx = STATE.playerPosition.x - STATE.scanningPlanet.mesh.position.x;
-  const dz = STATE.playerPosition.z - STATE.scanningPlanet.mesh.position.z;
+  const maxHoldDist = isStation ? 42 : isShip ? 35 : Math.max(32, (STATE.scanningPlanet.size || 2.5) * meshScale * 4.4);
+  const targetPos = STATE.scanningPlanet.mesh ? STATE.scanningPlanet.mesh.position : STATE.scanningPlanet.position || new Vector3(0, 0, 0);
+  const dx = STATE.playerPosition.x - targetPos.x;
+  const dz = STATE.playerPosition.z - targetPos.z;
   const dist = Math.sqrt(dx * dx + dz * dz);
   if (dist > maxHoldDist) {
     cancelScanning("Signalverlust. Abstand überschritt Sicherheitsradius.");
     return;
   }
-  updateScanVisuals(STATE.playerPosition, STATE.scanningPlanet.mesh.position);
+  updateScanVisuals(STATE.playerPosition, targetPos);
   const scanSpeedMult = STATE.crewBuffs ? STATE.crewBuffs.scanSpeed : 1;
   STATE.scanProgress += dt * 35 * scanSpeedMult;
   updateQuantumScanSound(STATE.scanProgress);
@@ -37177,32 +37500,53 @@ function completeScanning() {
   const progContainer = document.getElementById("scan-progress-container");
   if (progContainer)
     progContainer.style.display = "none";
-  const planet = STATE.scanningPlanet;
+  const target = STATE.scanningPlanet;
   try {
-    if (planet) {
-      if (!planet.attributes) {
-        planet.attributes = generatePlanetAttributes(planet);
-      }
-      planet.scanned = true;
-      STATE.scannedPlanets[planet.name] = true;
-      STATE.bioRes += 15;
-      STATE.siliconRes += 10;
-      STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 15);
-      addLogEntry("SYSTEM", `Spektral-Scan von ${planet.name} abgeschlossen! Atmosphärendatenbank aktualisiert (+15 Bio | +10 Silizium).`);
-      if (planet.attributes?.entangledTwinId) {
-        addLogEntry("SYSTEM", `QUANTEN-KOPPLUNG: ${planet.name} ist resonant verschränkt mit ${planet.attributes.entangledTwinId} (${Math.round((planet.attributes.quantumResonance || 0.85) * 100)}% Resonanz)!`);
-      }
-      if (planet.attributes?.species && planet.attributes.species.population > 0) {
-        addLogEntry("SYSTEM", `PSIO-DETEKTION: Intelligentes Leben (${planet.attributes.species.name}) auf ${planet.name} entdeckt! Psionischer Transfer [F] bereit.`);
+    if (target) {
+      const isShip = target.type === "interceptor" || target.type === "corvette" || target.type === "freighter" || target.type === "heavy_freighter";
+      const isStation = target.type === "citadel" || target.type === "trade_hub" || target.type === "mining_relay";
+      target.scanned = true;
+      if (isShip) {
+        STATE.bioRes += 10;
+        STATE.siliconRes += 15;
+        STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 15);
+        const civ = target.civilizationName || target.factionName || "Unbekannte Zivilisation";
+        const home = target.homePlanet?.name || "Sektor";
+        addLogEntry("SYSTEM", `\uD83E\uDDE0 TELEPATHIE-SCAN ERFOLGREICH: ${target.name} (${civ}) durchleuchtet! (+15 Silizium | +15 Mentalkraft)`);
+        addLogEntry("CREW", `Capt. Miller: 'Bordfunk synchronisiert! Schiff von ${home}. Kommandant: ${target.commanderName}, ${target.crewMembers?.length || 1} Besatzungsmitglied(er) an Bord.'`);
+        updateScannerUI(target, 10);
+      } else if (isStation) {
+        STATE.siliconRes += 25;
+        STATE.bioRes += 15;
+        STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 20);
+        const civ = target.civilizationName || target.factionName || "Unbekannte Zivilisation";
+        addLogEntry("SYSTEM", `\uD83D\uDEF0️ STATIONS-ANALYSE ERFOLGREICH: ${target.name} (${civ}) kartografiert! (+25 Silizium | +20 Mentalkraft)`);
+        addLogEntry("CREW", `Capt. Miller: 'Stationsleitung ${target.commanderName} erfasst. ${target.population?.toLocaleString() || "1.200"} Einwohner im Habitat-Ring.'`);
+        updateScannerUI(target, 10);
       } else {
-        addLogEntry("SENSOR", `Atmosphärendaten: ${planet.attributes?.atmos || "Vakuum"} | Bio: ${planet.attributes?.bio || "Steril"}. Keine Lebensformen detektiert.`);
+        if (!target.attributes) {
+          target.attributes = generatePlanetAttributes(target);
+        }
+        STATE.scannedPlanets[target.name] = true;
+        STATE.bioRes += 15;
+        STATE.siliconRes += 10;
+        STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 15);
+        addLogEntry("SYSTEM", `Spektral-Scan von ${target.name} abgeschlossen! Atmosphärendatenbank aktualisiert (+15 Bio | +10 Silizium).`);
+        if (target.attributes?.entangledTwinId) {
+          addLogEntry("SYSTEM", `QUANTEN-KOPPLUNG: ${target.name} ist resonant verschränkt mit ${target.attributes.entangledTwinId} (${Math.round((target.attributes.quantumResonance || 0.85) * 100)}% Resonanz)!`);
+        }
+        if (target.attributes?.species && target.attributes.species.population > 0) {
+          addLogEntry("SYSTEM", `PSIO-DETEKTION: Intelligentes Leben (${target.attributes.species.name}) auf ${target.name} entdeckt! Psionischer Transfer [F] bereit.`);
+        } else {
+          addLogEntry("SENSOR", `Atmosphärendaten: ${target.attributes?.atmos || "Vakuum"} | Bio: ${target.attributes?.bio || "Steril"}. Keine Lebensformen detektiert.`);
+        }
+        if ((STATE.ftueStep || 0) <= 1 && !STATE.voyagerSignalDetected) {
+          triggerVoyagerSignalDetection();
+        } else if ((STATE.ftueStep || 0) === 1) {
+          advanceFtueStep(2);
+        }
+        updateScannerUI(target, 10);
       }
-      if ((STATE.ftueStep || 0) <= 1 && !STATE.voyagerSignalDetected) {
-        triggerVoyagerSignalDetection();
-      } else if ((STATE.ftueStep || 0) === 1) {
-        advanceFtueStep(2);
-      }
-      updateScannerUI(planet, 10);
     }
   } catch (err) {
     console.error("Scanner completion error:", err);
@@ -37253,17 +37597,24 @@ function updateScannerUI(planet, dist) {
       scannerPanel.classList.remove("visible");
     }
   }
-  if (nameEl)
-    nameEl.innerText = `${planet.name} (${planet.isMoon ? "Mond" : planet.type})`;
-  if (distEl) {
-    distEl.innerText = `${dist.toFixed(1)} ${dist < 20 ? "(In Sensorreichweite)" : "(Zu weit entfernt)"}`;
-    distEl.style.color = dist < 20 ? "#10b981" : "#f59e0b";
+  const isShip = planet && (planet.type === "interceptor" || planet.type === "corvette" || planet.type === "freighter" || planet.type === "heavy_freighter");
+  const isStation = planet && (planet.type === "citadel" || planet.type === "trade_hub" || planet.type === "mining_relay");
+  if (nameEl) {
+    if (isShip) {
+      const shipTypeLabel = planet.type === "corvette" ? "Schwere Korvette" : planet.type === "freighter" ? "Ziviler Frachter" : "Abfangjäger";
+      nameEl.innerText = `${planet.name} (${shipTypeLabel})`;
+    } else if (isStation) {
+      const stationTypeLabel = planet.type === "citadel" ? "Orbital-Zitadelle" : planet.type === "trade_hub" ? "Handels-Hub" : "Bergbau-Relais";
+      nameEl.innerText = `${planet.name} (${stationTypeLabel})`;
+    } else {
+      nameEl.innerText = `${planet.name} (${planet.isMoon ? "Mond" : planet.type})`;
+    }
   }
   const orbitBadge = document.getElementById("orbit-subsystem-badge");
   const orbitBadgeTitle = document.getElementById("orbit-badge-title");
   const orbitBadgeSub = document.getElementById("orbit-badge-sub");
   if (orbitBadge) {
-    if (STATE.orbitLevel === "moon" && STATE.activeMoonOrbit) {
+    if (!isShip && !isStation && STATE.orbitLevel === "moon" && STATE.activeMoonOrbit) {
       orbitBadge.style.display = "flex";
       if (orbitBadgeTitle) {
         orbitBadgeTitle.innerText = `\uD83C\uDF15 MOND-ORBIT: ${STATE.activeMoonOrbit.name.toUpperCase()}`;
@@ -37274,7 +37625,7 @@ function updateScannerUI(planet, dist) {
         const alt = Math.max(0.1, dist - curRadius).toFixed(1);
         orbitBadgeSub.innerText = `Mutterplanet: ${parentName} • Höhe: ${alt} LJ`;
       }
-    } else if (STATE.orbitLevel === "planet" && STATE.orbitPlanet) {
+    } else if (!isShip && !isStation && STATE.orbitLevel === "planet" && STATE.orbitPlanet) {
       orbitBadge.style.display = "flex";
       if (orbitBadgeTitle) {
         orbitBadgeTitle.innerText = `\uD83E\uDE90 SUB-SYSTEM: ${STATE.orbitPlanet.name.toUpperCase()}`;
@@ -37290,9 +37641,9 @@ function updateScannerUI(planet, dist) {
     }
   }
   const meshScale = planet.mesh ? planet.mesh.scale.x : 1;
-  const maxScanDist = Math.max(25, (planet.size || 2.5) * meshScale * 3.8);
+  const maxScanDist = isStation ? 35 : isShip ? 28 : Math.max(25, (planet.size || 2.5) * meshScale * 3.8);
   const inRange = dist < maxScanDist;
-  const isScanned = planet.scanned || STATE.scannedPlanets[planet.name];
+  const isScanned = Boolean(planet.scanned || STATE.scannedPlanets[planet.name]);
   if (distEl) {
     distEl.innerText = `${dist.toFixed(1)} ${inRange ? "(In Sensorreichweite)" : "(Zu weit entfernt)"}`;
     distEl.style.color = inRange ? "#10b981" : "#f59e0b";
@@ -37300,140 +37651,246 @@ function updateScannerUI(planet, dist) {
   if (scanBtn) {
     scanBtn.disabled = !inRange || isScanned || STATE.scanningPlanet !== null;
     if (isScanned) {
-      scanBtn.innerText = "Oberflächenscan Abgeschlossen ✓";
+      scanBtn.innerText = isShip ? "Telepathie-Dossier Geladen ✓" : isStation ? "Stations-Scan Abgeschlossen ✓" : "Oberflächenscan Abgeschlossen ✓";
     } else {
-      scanBtn.innerText = inRange ? "Scan initiieren [F]" : `Zu weit entfernt (< ${Math.round(maxScanDist)} nötig)`;
+      scanBtn.innerText = inRange ? isShip ? "Telepathie-Scan [F]" : isStation ? "Station Scannen [F]" : "Scan initiieren [F]" : `Zu weit entfernt (< ${Math.round(maxScanDist)} nötig)`;
     }
   }
   if (isScanned) {
-    if (!planet.attributes) {
-      planet.attributes = generatePlanetAttributes(planet);
-    }
-    const attrs = planet.attributes;
     if (placeholderBox)
       placeholderBox.style.display = "none";
     if (resultsBox)
       resultsBox.style.display = "block";
     const titleEl = document.getElementById("scan-planet-title");
-    if (titleEl)
-      titleEl.innerText = `Analyse: ${planet.name}`;
     const typeEl = document.getElementById("scan-planet-type");
-    if (typeEl)
-      typeEl.innerText = `${planet.type} (${planet.size}x)`;
     const tempEl = document.getElementById("scan-planet-temp");
-    if (tempEl)
-      tempEl.innerText = attrs.temp || "-";
     const bioEl = document.getElementById("scan-planet-bio");
-    if (bioEl)
-      bioEl.innerText = attrs.bio || "-";
     const atmosEl = document.getElementById("scan-planet-atmos");
-    if (atmosEl)
-      atmosEl.innerText = attrs.atmos || "-";
     const quantumRow = document.getElementById("scan-planet-quantum-row");
     const quantumEl = document.getElementById("scan-planet-quantum");
-    if (quantumRow && quantumEl) {
-      if (attrs.entangledTwinId) {
-        quantumRow.style.display = "flex";
-        const resPct = Math.round((attrs.quantumResonance || 0.85) * 100);
-        quantumEl.innerHTML = `\uD83D\uDD17 Verschränkt mit <span style="color: #c084fc; font-weight: bold;">${attrs.entangledTwinId}</span> (${resPct}% Resonanz)`;
-      } else {
-        quantumRow.style.display = "none";
-      }
-    }
     const physicsRow = document.getElementById("scan-planet-physics-row");
     const physicsEl = document.getElementById("scan-planet-physics");
-    if (physicsRow && physicsEl) {
-      physicsRow.style.display = "flex";
-      const rotText = attrs.tidalLock ? "Gebundene Rotation (1:1)" : "Freie Rotation";
-      const geoText = attrs.geothermal ? ` • ${attrs.geothermal}` : "";
-      physicsEl.innerText = `${rotText}${geoText}`;
-    }
     const radiationRow = document.getElementById("scan-planet-radiation-row");
     const radiationEl = document.getElementById("scan-planet-radiation");
-    if (radiationRow && radiationEl) {
-      radiationRow.style.display = "flex";
-      const radLevel = attrs.radiationLevel || "Normal";
-      const magLevel = attrs.magnetosphere ? ` • \uD83E\uDDF2 ${attrs.magnetosphere}` : "";
-      radiationEl.innerText = `${radLevel}${magLevel}`;
-      if (radLevel === "Extreme") {
-        radiationEl.style.color = "#f43f5e";
-      } else if (radLevel === "High") {
-        radiationEl.style.color = "#fb923c";
-      } else {
-        radiationEl.style.color = "#facc15";
-      }
-    }
     const resEl = document.getElementById("scan-planet-resources");
-    if (resEl)
-      resEl.innerText = attrs.res || "-";
     const speciesRow = document.getElementById("scan-planet-species-row");
     const speciesEl = document.getElementById("scan-planet-species");
     const techRow = document.getElementById("scan-planet-tech-row");
     const techEl = document.getElementById("scan-planet-tech");
     const fleetRow = document.getElementById("scan-planet-fleet-row");
     const fleetEl = document.getElementById("scan-planet-fleet");
-    const spec = attrs.species;
-    const hasSentient = spec && spec.population > 0;
-    if (speciesRow && speciesEl) {
-      if (hasSentient) {
-        speciesRow.style.display = "flex";
-        let candidateTag = "";
-        if (spec.candidates && spec.candidates.length > 0) {
-          const topCand = spec.candidates[0];
-          const hasRole = STATE.crew.some((c) => c.role === topCand.role);
-          candidateTag = hasRole ? `<br><span class="candidate-role-synergy-tag duplicate-role">\uD83D\uDC65 Ziel: ${topCand.roleName || topCand.role} (Verstärkt Buffs)</span>` : `<br><span class="candidate-role-synergy-tag new-role">✨ Ziel: ${topCand.roleName || topCand.role} (Neue Rolle: Synergie!)</span>`;
-        }
-        speciesEl.innerHTML = `<span style="color: #38bdf8; font-weight: bold;">${spec.name}</span> (Pop: ${spec.population})${candidateTag}`;
-      } else {
-        speciesRow.style.display = "none";
-      }
-    }
-    if (techRow && techEl) {
-      if (hasSentient && spec.techLevel) {
-        techRow.style.display = "flex";
-        let icon = "\uD83C\uDFDB️";
-        if (spec.techLevel === "Industrial")
-          icon = "\uD83C\uDFED";
-        if (spec.techLevel === "Spacefaring")
-          icon = "\uD83D\uDE80";
-        if (spec.techLevel === "Hyper-Advanced")
-          icon = "\uD83C\uDF0C";
-        techEl.innerText = `${icon} ${spec.techLevel} (${spec.fleetDisposition || "Defensiv"})`;
-      } else {
-        techRow.style.display = "none";
-      }
-    }
-    if (fleetRow && fleetEl) {
-      if (hasSentient && (spec.techLevel === "Spacefaring" || spec.techLevel === "Hyper-Advanced")) {
-        fleetRow.style.display = "flex";
-        const activeShips = STATE.fleetShips.filter((s) => s.homePlanet.name === planet.name);
-        const alertText = activeShips.some((s) => s.state === "intercept") ? "\uD83D\uDEA8 ALARM: Abfangkurs!" : "\uD83D\uDEE1️ Patrouille aktiv";
-        fleetEl.innerText = `${activeShips.length} Einheiten | ${alertText}`;
-        fleetEl.style.color = activeShips.some((s) => s.state === "intercept") ? "#f43f5e" : "#38bdf8";
-      } else {
-        fleetRow.style.display = "none";
-      }
-    }
     const commsBtn = document.getElementById("start-comms-btn");
-    if (commsBtn) {
-      commsBtn.style.display = inRange && hasSentient ? "block" : "none";
-      commsBtn.onclick = () => openDiplomacyComms(planet);
-    }
-    if (harvestBtn) {
-      const isDepleted = planet.depleted || planet.harvested || STATE.depletedPlanets && STATE.depletedPlanets[planet.name];
-      harvestBtn.style.display = inRange && !STATE.extractingPlanet && !STATE.abductActive ? "block" : "none";
-      if (isDepleted) {
-        harvestBtn.disabled = true;
-        harvestBtn.innerText = "Ressourcen erschöpft ✕";
-        harvestBtn.style.opacity = "0.5";
-      } else {
-        harvestBtn.disabled = false;
-        harvestBtn.innerText = "Bio-Siphon aktivieren [E]";
-        harvestBtn.style.opacity = "1.0";
+    if (isShip || isStation) {
+      if (titleEl)
+        titleEl.innerText = isStation ? `Station: ${planet.name}` : `Schiff: ${planet.name}`;
+      if (typeEl) {
+        typeEl.innerText = isStation ? planet.type === "citadel" ? "Orbital-Zitadelle" : planet.type === "trade_hub" ? "Handels-Hub" : "Bergbau-Relais" : planet.type === "corvette" ? "Schwere Korvette" : planet.type === "freighter" ? "Ziviler Frachter" : "Leichter Abfangjäger";
       }
-    }
-    if (abductBtn) {
-      abductBtn.style.display = inRange && hasSentient && !STATE.abductActive && !STATE.extractingPlanet ? "block" : "none";
+      if (tempEl)
+        tempEl.innerText = `${planet.health} / ${planet.maxHealth} HP (Struktur & Hülle)`;
+      if (bioEl) {
+        bioEl.innerText = planet.state === "stunned" ? "⚡ Systeme gelähmt (EMP-Schock)" : planet.state === "hunt" || planet.state === "intercept" ? "\uD83D\uDEA8 Roter Alarm: Kampf & Jagd" : planet.state === "flee" ? "⚠️ Panik: Ausweichmanöver vor Bio-Signatur" : planet.state === "returning" ? "\uD83D\uDD04 Flug zum Heimat-Orbit" : "\uD83D\uDEE1️ Normaler Patrouillenbetrieb";
+      }
+      if (atmosEl) {
+        atmosEl.innerText = planet.cargo ? `\uD83D\uDCE6 Frachtgut: ${planet.cargo.amount}x ${planet.cargo.type === "silicon" ? "Silizium" : "Biomasse"}` : isStation ? "\uD83C\uDFE2 Fracht-Docks & Wohnringe" : "Militärische Bewaffnung (Keine Handelsgüter)";
+      }
+      if (quantumRow)
+        quantumRow.style.display = "none";
+      if (radiationRow)
+        radiationRow.style.display = "none";
+      if (physicsRow && physicsEl) {
+        physicsRow.style.display = "flex";
+        const physLabel = physicsRow.querySelector(".label");
+        if (physLabel)
+          physLabel.innerText = isStation ? "Deflektorschilde:" : "Antrieb:";
+        physicsEl.innerText = isStation ? `Schildbewertung: ${planet.defenseRating}/100` : `Sub-Licht-Ionenschub (${planet.velocity ? Math.round(planet.velocity.length()) : 0} AE/s)`;
+      }
+      if (speciesRow && speciesEl) {
+        speciesRow.style.display = "flex";
+        const specLabel = speciesRow.querySelector(".label");
+        if (specLabel)
+          specLabel.innerText = "Zivilisation & Crew:";
+        const faction = planet.factionId ? getFaction(planet.factionId) : null;
+        const civ = planet.civilizationName || faction?.name || "Unabhängige Sternen-Allianz";
+        const home = planet.homePlanet?.name || (planet.parentPlanet ? planet.parentPlanet.name : "Sektor");
+        let crewHtml = `
+                    <div style="margin-bottom: 6px;">
+                        <span style="color: #38bdf8; font-weight: bold;">${faction?.emblem || "\uD83C\uDFDB️"} ${civ}</span>
+                        <span style="color: #94a3b8; font-size: 0.72rem;"> (${planet.factionName || faction?.shortName || "Unabhängig"} • Heimat: ${home})</span>
+                    </div>`;
+        if (planet.crewMembers && planet.crewMembers.length > 0) {
+          crewHtml += `<div style="font-weight: 600; color: #a855f7; margin-bottom: 3px; font-size: 0.74rem;">\uD83D\uDC65 Besatzung (${planet.crewMembers.length}):</div>`;
+          planet.crewMembers.forEach((c) => {
+            crewHtml += `
+                        <div class="ship-crew-card">
+                            <div class="crew-header">
+                                <span>${c.avatarIcon || "\uD83D\uDC64"}</span>
+                                <span style="color: #f1f5f9;">${c.name}</span>
+                                <span style="color: #38bdf8; font-size: 0.68rem;">[${c.roleName || c.role}]</span>
+                            </div>
+                            <div style="color: #94a3b8; font-size: 0.68rem;">Spezies: ${c.speciesArchetypeName || c.species} • Trait: ${c.trait?.name || "Standard"}</div>
+                            ${c.thought ? `<div class="crew-thought">\uD83D\uDCAD "${c.thought}"</div>` : ""}
+                        </div>`;
+          });
+        }
+        if (isStation && planet.population) {
+          crewHtml += `<div style="color: #06b6d4; font-size: 0.72rem; margin-top: 4px;">\uD83D\uDC65 Habitat-Bevölkerung: ~${planet.population.toLocaleString()} Wesen</div>`;
+        }
+        speciesEl.innerHTML = crewHtml;
+      }
+      if (techRow && techEl) {
+        techRow.style.display = "flex";
+        const techLabel = techRow.querySelector(".label");
+        if (techLabel)
+          techLabel.innerText = "Doktrin:";
+        const faction = planet.factionId ? getFaction(planet.factionId) : null;
+        techEl.innerText = faction ? `${faction.emblem} ${faction.doctrine}` : isStation ? "Raumstation der Föderation" : "Militärische Abfangstaffel";
+      }
+      if (fleetRow)
+        fleetRow.style.display = "none";
+      if (resEl) {
+        resEl.innerText = planet.cargo ? `Erbeutbare Fracht: +${planet.cargo.amount} ${planet.cargo.type === "silicon" ? "Silizium" : "Biomasse"}` : isStation ? "Handelsgüter & Flottentreibstoff" : "Silizium-Legierungen & Schiffsschrott";
+      }
+      if (commsBtn) {
+        commsBtn.style.display = inRange && (isStation || planet.state === "trade_cruise" || planet.state === "patrol") ? "block" : "none";
+        if (isStation) {
+          commsBtn.onclick = () => openDiplomacyComms(planet.parentPlanet || planet);
+        }
+      }
+      if (harvestBtn) {
+        const canHarvest = (planet.state === "stunned" || planet.state === "disabled") && inRange;
+        harvestBtn.style.display = canHarvest ? "block" : "none";
+        if (canHarvest) {
+          harvestBtn.disabled = false;
+          harvestBtn.innerText = "Wrack plündern [E]";
+        }
+      }
+      if (abductBtn) {
+        const canAbduct = (planet.state === "stunned" || planet.state === "disabled") && planet.crewMembers && planet.crewMembers.length > 0 && inRange;
+        abductBtn.style.display = canAbduct ? "block" : "none";
+        if (canAbduct) {
+          abductBtn.innerText = "Besatzung per Kokon bergen [F]";
+          abductBtn.onclick = () => {
+            abductCrewFromShip(planet);
+          };
+        }
+      }
+    } else {
+      if (!planet.attributes) {
+        planet.attributes = generatePlanetAttributes(planet);
+      }
+      const attrs = planet.attributes;
+      if (titleEl)
+        titleEl.innerText = `Analyse: ${planet.name}`;
+      if (typeEl)
+        typeEl.innerText = `${planet.type} (${planet.size}x)`;
+      if (tempEl)
+        tempEl.innerText = attrs.temp || "-";
+      if (bioEl)
+        bioEl.innerText = attrs.bio || "-";
+      if (atmosEl)
+        atmosEl.innerText = attrs.atmos || "-";
+      if (quantumRow && quantumEl) {
+        if (attrs.entangledTwinId) {
+          quantumRow.style.display = "flex";
+          const resPct = Math.round((attrs.quantumResonance || 0.85) * 100);
+          quantumEl.innerHTML = `\uD83D\uDD17 Verschränkt mit <span style="color: #c084fc; font-weight: bold;">${attrs.entangledTwinId}</span> (${resPct}% Resonanz)`;
+        } else {
+          quantumRow.style.display = "none";
+        }
+      }
+      if (physicsRow && physicsEl) {
+        physicsRow.style.display = "flex";
+        const physLabel = physicsRow.querySelector(".label");
+        if (physLabel)
+          physLabel.innerText = "Planetare Physik:";
+        const rotText = attrs.tidalLock ? "Gebundene Rotation (1:1)" : "Freie Rotation";
+        const geoText = attrs.geothermal ? ` • ${attrs.geothermal}` : "";
+        physicsEl.innerText = `${rotText}${geoText}`;
+      }
+      if (radiationRow && radiationEl) {
+        radiationRow.style.display = "flex";
+        const radLevel = attrs.radiationLevel || "Normal";
+        const magLevel = attrs.magnetosphere ? ` • \uD83E\uDDF2 ${attrs.magnetosphere}` : "";
+        radiationEl.innerText = `${radLevel}${magLevel}`;
+        if (radLevel === "Extreme") {
+          radiationEl.style.color = "#f43f5e";
+        } else if (radLevel === "High") {
+          radiationEl.style.color = "#fb923c";
+        } else {
+          radiationEl.style.color = "#facc15";
+        }
+      }
+      if (resEl)
+        resEl.innerText = attrs.res || "-";
+      const spec = attrs.species;
+      const hasSentient = spec && spec.population > 0;
+      if (speciesRow && speciesEl) {
+        const specLabel = speciesRow.querySelector(".label");
+        if (specLabel)
+          specLabel.innerText = "Intelligentes Leben:";
+        if (hasSentient) {
+          speciesRow.style.display = "flex";
+          let candidateTag = "";
+          if (spec.candidates && spec.candidates.length > 0) {
+            const topCand = spec.candidates[0];
+            const hasRole = STATE.crew.some((c) => c.role === topCand.role);
+            candidateTag = hasRole ? `<br><span class="candidate-role-synergy-tag duplicate-role">\uD83D\uDC65 Ziel: ${topCand.roleName || topCand.role} (Verstärkt Buffs)</span>` : `<br><span class="candidate-role-synergy-tag new-role">✨ Ziel: ${topCand.roleName || topCand.role} (Neue Rolle: Synergie!)</span>`;
+          }
+          speciesEl.innerHTML = `<span style="color: #38bdf8; font-weight: bold;">${spec.name}</span> (Pop: ${spec.population})${candidateTag}`;
+        } else {
+          speciesRow.style.display = "none";
+        }
+      }
+      if (techRow && techEl) {
+        const techLabel = techRow.querySelector(".label");
+        if (techLabel)
+          techLabel.innerText = "Zivilisation:";
+        if (hasSentient && spec.techLevel) {
+          techRow.style.display = "flex";
+          let icon = "\uD83C\uDFDB️";
+          if (spec.techLevel === "Industrial")
+            icon = "\uD83C\uDFED";
+          if (spec.techLevel === "Spacefaring")
+            icon = "\uD83D\uDE80";
+          if (spec.techLevel === "Hyper-Advanced")
+            icon = "\uD83C\uDF0C";
+          techEl.innerText = `${icon} ${spec.techLevel} (${spec.fleetDisposition || "Defensiv"})`;
+        } else {
+          techRow.style.display = "none";
+        }
+      }
+      if (fleetRow && fleetEl) {
+        if (hasSentient && (spec.techLevel === "Spacefaring" || spec.techLevel === "Hyper-Advanced")) {
+          fleetRow.style.display = "flex";
+          const activeShips = STATE.fleetShips.filter((s) => s.homePlanet.name === planet.name);
+          const alertText = activeShips.some((s) => s.state === "intercept") ? "\uD83D\uDEA8 ALARM: Abfangkurs!" : "\uD83D\uDEE1️ Patrouille aktiv";
+          fleetEl.innerText = `${activeShips.length} Einheiten | ${alertText}`;
+          fleetEl.style.color = activeShips.some((s) => s.state === "intercept") ? "#f43f5e" : "#38bdf8";
+        } else {
+          fleetRow.style.display = "none";
+        }
+      }
+      if (commsBtn) {
+        commsBtn.style.display = inRange && hasSentient ? "block" : "none";
+        commsBtn.onclick = () => openDiplomacyComms(planet);
+      }
+      if (harvestBtn) {
+        const isDepleted = planet.depleted || planet.harvested || STATE.depletedPlanets && STATE.depletedPlanets[planet.name];
+        harvestBtn.style.display = inRange && !STATE.extractingPlanet && !STATE.abductActive ? "block" : "none";
+        if (isDepleted) {
+          harvestBtn.disabled = true;
+          harvestBtn.innerText = "Ressourcen erschöpft ✕";
+          harvestBtn.style.opacity = "0.5";
+        } else {
+          harvestBtn.disabled = false;
+          harvestBtn.innerText = "Bio-Siphon aktivieren [E]";
+          harvestBtn.style.opacity = "1.0";
+        }
+      }
+      if (abductBtn) {
+        abductBtn.style.display = inRange && hasSentient && !STATE.abductActive && !STATE.extractingPlanet ? "block" : "none";
+      }
     }
   } else {
     if (resultsBox)
@@ -37513,6 +37970,17 @@ function spawnSystemFleet(planetsInput) {
         const planetZ2 = p.mesh ? p.mesh.position.z : 0;
         shipGroup.position.set(planetX2 + Math.cos(orbitAngle) * orbitRadius, 0, planetZ2 + Math.sin(orbitAngle) * orbitRadius);
         scene.add(shipGroup);
+        const species3 = p.attributes && p.attributes.species || p.species;
+        const factionId = species3?.factionId || "free_traders";
+        const faction = getFaction(factionId);
+        const civName = species3?.name || faction.name;
+        const shipSeed = (p.name || "Orb").charCodeAt(0) * 100 + i * 37 + (isCorvette ? 77 : 13) >>> 0;
+        const crewCount = isCorvette ? 3 : 1;
+        const shipCrew = generateProceduralCandidates(shipSeed, crewCount);
+        const commander = shipCrew[0];
+        if (commander) {
+          commander.thought = isCorvette ? "Waffen und Schilde auf Bereitschaft. Halte Sektor-Patrouille." : "Jäger-Avionik kalibriert. Achte auf unidentifizierte Bio-Signaturen.";
+        }
         const fleetShip = {
           id: Date.now() + Math.random(),
           mesh: shipGroup,
@@ -37530,7 +37998,15 @@ function spawnSystemFleet(planetsInput) {
           state: "patrol",
           originalColor: origColor,
           attackCooldown: 0.5 + Math.random() * 1.5,
-          alertTimer: 0
+          alertTimer: 0,
+          factionId,
+          civilizationName: civName,
+          factionName: faction.shortName,
+          scanned: false,
+          crewMembers: shipCrew,
+          commanderName: commander ? `${commander.name} (${commander.roleName || commander.role})` : isCorvette ? "Korvetten-Kommandant" : "Abfangpilot",
+          commanderRole: commander ? commander.role : "pilot",
+          commanderThought: commander?.thought
         };
         STATE.fleetShips.push(fleetShip);
       }
@@ -37568,6 +38044,16 @@ function spawnSystemFleet(planetsInput) {
       const planetZ = p.mesh ? p.mesh.position.z : 0;
       freighterGroup.position.set(planetX + Math.cos(routeAngle) * routeRadius, 0, planetZ + Math.sin(routeAngle) * routeRadius);
       scene.add(freighterGroup);
+      const species2 = p.attributes && p.attributes.species || p.species;
+      const fFactionId = species2?.factionId || "free_traders";
+      const fFaction = getFaction(fFactionId);
+      const fCivName = species2?.name || fFaction.name;
+      const freightSeed = (p.name || "Freight").charCodeAt(0) * 150 + Math.floor(Math.random() * 50) >>> 0;
+      const freighterCrew = generateProceduralCandidates(freightSeed, 2);
+      const fCommander = freighterCrew[0];
+      if (fCommander) {
+        fCommander.thought = "Überwacht die Frachtbehälter... 'Hoffentlich keine Sternenfresser oder Piraten.'";
+      }
       const freighter = {
         id: Date.now() + Math.random() + 500,
         mesh: freighterGroup,
@@ -37586,7 +38072,15 @@ function spawnSystemFleet(planetsInput) {
         originalColor: 14251782,
         attackCooldown: 999,
         alertTimer: 0,
-        cargo: { type: "silicon", amount: 65 }
+        cargo: { type: "silicon", amount: 65 },
+        factionId: fFactionId,
+        civilizationName: fCivName,
+        factionName: fFaction.shortName,
+        scanned: false,
+        crewMembers: freighterCrew,
+        commanderName: fCommander ? `${fCommander.name} (${fCommander.roleName || fCommander.role})` : "Frachtkapitän",
+        commanderRole: fCommander ? fCommander.role : "engineer",
+        commanderThought: fCommander?.thought
       };
       STATE.fleetShips.push(freighter);
     }
@@ -38158,10 +38652,23 @@ function spawnSystemSpaceStations(planetsInput) {
       controller.group.position.set(planetX + Math.cos(orbitAngle) * orbitRadius, 0, planetZ + Math.sin(orbitAngle) * orbitRadius);
       scene.add(controller.group);
       const stName = isHyper ? `Orbital-Zitadelle ${p.name.replace(/ Prime| Major| A| B/g, "")}-Alpha` : `Handelsrelais ${p.name.replace(/ Prime| Major| A| B/g, "")}-Dock`;
+      const factionId = species.factionId || "free_traders";
+      const faction = getFaction(factionId);
+      const civName = species.name || faction.name;
+      const stationSeed = (p.name || "Station").split("").reduce((acc, c) => acc + c.charCodeAt(0), 100);
+      const stationCrew = generateProceduralCandidates(stationSeed, 3);
+      const commander = stationCrew[0];
+      if (commander) {
+        commander.thought = isHyper ? "Überwacht die Quantenschilde der Zitadelle... 'Keine feindlichen Schiffe im Orbit.'" : "Koordiniert eintreffende Frachter-Konvois... 'Docking-Bucht 3 bereit zum Andocken.'";
+      }
+      const population = isHyper ? 3200 + stationSeed % 1400 : 1150 + stationSeed % 750;
+      const description = isHyper ? "Schwer befestigte Orbital-Zitadelle zur planetaren Raumraum-Überwachung und Flottenkoordination." : "Zentraler Handels-Hub für interplanetare Frachtrouten, Mineralientausch und Schiffswartung.";
       const station = {
         id: Date.now() + stationIdCounter++,
         name: stName,
-        factionId: species.factionId || "free_traders",
+        factionId,
+        civilizationName: civName,
+        factionName: faction.shortName,
         mesh: controller.group,
         bodyMesh: controller.bodyMesh,
         ringMesh: controller.ringMesh,
@@ -38176,7 +38683,13 @@ function spawnSystemSpaceStations(planetsInput) {
         defenseRating: isHyper ? 95 : 60,
         alertLevel: "peace",
         alertTimer: 0,
-        type: stationType
+        type: stationType,
+        scanned: false,
+        population,
+        commanderName: commander ? `${commander.name} (${commander.roleName || commander.role})` : "Stations-Kommandant",
+        commanderRole: commander ? commander.role : "pilot",
+        crewMembers: stationCrew,
+        description
       };
       STATE.spaceStations.push(station);
       const stationGravSource = {
@@ -42861,271 +43374,6 @@ function stopHarvestSound() {
   }
 }
 
-// src/ui/first-contact-modal.ts
-var isModalOpen = false;
-function openFirstContactModal(candidate) {
-  const modal = document.getElementById("first-contact-modal");
-  if (!modal)
-    return;
-  const nameEl = document.getElementById("fc-candidate-name");
-  const speciesEl = document.getElementById("fc-candidate-species");
-  const roleEl = document.getElementById("fc-candidate-role");
-  const avatarEl = document.getElementById("fc-candidate-avatar");
-  const thoughtEl = document.getElementById("fc-candidate-thought");
-  const ringEl = document.getElementById("fc-candidate-ring");
-  if (nameEl)
-    nameEl.innerText = candidate.name;
-  if (speciesEl)
-    speciesEl.innerText = candidate.species;
-  if (roleEl)
-    roleEl.innerText = `${candidate.roleIcon || "\uD83D\uDC64"} ${candidate.roleName || candidate.role} • ${candidate.disposition || "scholarly"}`;
-  if (avatarEl)
-    avatarEl.innerText = candidate.avatarIcon || "\uD83D\uDC64";
-  if (thoughtEl)
-    thoughtEl.innerText = `\uD83D\uDCAD "${candidate.thought}"`;
-  if (ringEl && candidate.speciesColor) {
-    ringEl.style.borderColor = candidate.speciesColor;
-    ringEl.style.boxShadow = `0 0 20px ${candidate.speciesColor}88`;
-  }
-  modal.style.display = "flex";
-  isModalOpen = true;
-  try {
-    playLockOnSound();
-  } catch (e) {}
-  addLogEntry("DOKTRIN", `\uD83C\uDF0C ERSTKONTAKT: Najmafars Geist berührt das Bewusstsein von ${candidate.name} (${candidate.species})!`);
-}
-function closeFirstContactModal() {
-  const modal = document.getElementById("first-contact-modal");
-  if (modal)
-    modal.style.display = "none";
-  isModalOpen = false;
-}
-function chooseFirstContactDoctrine(paradigm) {
-  if (paradigm === "neutral")
-    return;
-  setPrimaryParadigm(paradigm, true);
-  closeFirstContactModal();
-  const titles = {
-    domination: "⚡ HERRSCHAFT & UNTERWERFUNG",
-    deception: "\uD83D\uDD2E TÄUSCHUNG & TRAUM-MATRIX",
-    symbiosis: "\uD83C\uDF31 SYMBIOSE & HARMONIE",
-    neutral: "\uD83C\uDF0C NEUTRAL"
-  };
-  const descs = {
-    domination: "Najmafars Wille zwingt das fremde Bewusstsein unter psionischen Gehorsam! Triebwerke und Hülle entfalten rohe Kraft.",
-    deception: "Ein psionischer Traum-Schleier senkt sich herab. Die sterblichen Wesen glauben sich in einer vertrauten Forschungsstation.",
-    symbiosis: "Najmafars Nervenbahnen verbinden sich in ehrlicher Resonanz mit dem Gast. Ein neues Zeitalter der Symbiose bricht an.",
-    neutral: ""
-  };
-  try {
-    playBioHarvestSound();
-  } catch (e) {}
-  addLogEntry("DOKTRIN", `✨ ERSTKONTAKT BESIEGELT: Najmafar wählt den Pfad [${titles[paradigm]}]!`);
-  addLogEntry("CREW", descs[paradigm]);
-  updateHUDStats();
-  calculateCrewBuffs();
-  renderCrewUI(true);
-  updatePartyGrid();
-  triggerAutoSave(`Doktrin gewählt: ${titles[paradigm]}`);
-}
-function initFirstContactModalListeners() {
-  const modal = document.getElementById("first-contact-modal");
-  if (modal) {
-    const closeBtn = document.getElementById("close-first-contact-modal-btn");
-    if (closeBtn) {
-      closeBtn.onclick = () => closeFirstContactModal();
-    }
-  }
-}
-if (typeof window !== "undefined") {
-  window.chooseFirstContactDoctrine = (p) => chooseFirstContactDoctrine(p);
-  window.openFirstContactModal = () => {
-    if (STATE.crew.length > 0)
-      openFirstContactModal(STATE.crew[0]);
-  };
-  window.closeFirstContactModal = () => closeFirstContactModal();
-}
-
-// src/systems/abduction.ts
-var abductOsc = null;
-var abductGain = null;
-var abductFilter = null;
-function triggerAbductStart() {
-  if (!STATE.gameStarted || STATE.abductActive || STATE.scanningPlanet || STATE.extractingPlanet || !STATE.nearestPlanet)
-    return;
-  if (STATE.crew.length >= STATE.maxCrewCapacity) {
-    addLogEntry("SYSTEM", `Psionischer Transfer blockiert: Kokon-Kapazität voll (${STATE.crew.length} / ${STATE.maxCrewCapacity})! Erweitere Kapazität im Evolutions-Deck.`);
-    return;
-  }
-  const p = STATE.nearestPlanet;
-  const meshScale = p.mesh ? p.mesh.scale.x : 1;
-  const dx = STATE.playerPosition.x - p.mesh.position.x;
-  const dz = STATE.playerPosition.z - p.mesh.position.z;
-  const dist = Math.sqrt(dx * dx + dz * dz);
-  const maxStartDist = Math.max(28, (p.size || 3) * meshScale * 4.4);
-  if (dist > maxStartDist) {
-    addLogEntry("SYSTEM", `Zu weit entfernt für psionischen Traktorstrahl (Distanz: ${dist.toFixed(1)} / Max ${maxStartDist.toFixed(0)}).`);
-    return;
-  }
-  if (!p.attributes) {
-    p.attributes = generatePlanetAttributes(p);
-  }
-  if (!p.attributes.species || !p.attributes.species.candidates || p.attributes.species.candidates.length === 0) {
-    const generated = generatePlanetAttributes(p);
-    if (generated.species && generated.species.candidates && generated.species.candidates.length > 0) {
-      p.attributes.species = generated.species;
-    }
-  }
-  if (!p.attributes.species || !p.attributes.species.candidates || p.attributes.species.candidates.length === 0) {
-    addLogEntry("SYSTEM", `Keine vernunftbegabten Individuen auf ${p.name} für psionische Entführung verfügbar.`);
-    return;
-  }
-  STATE.abductActive = true;
-  STATE.abductTarget = p;
-  STATE.abductProgress = 0;
-  const progContainer = document.getElementById("abduct-progress-container");
-  if (progContainer)
-    progContainer.style.display = "block";
-  createAbductBeam(STATE.playerPosition, p.mesh.position);
-  startAbductSound();
-  addLogEntry("SYSTEM", `PSIONISCHER TRAKTORSTRAHL AKTIVIERT. Fasse Bewusstsein auf ${p.name} ins Visier...`);
-}
-function updateAbduction(dt) {
-  if (!STATE.abductTarget)
-    return;
-  const meshScale = STATE.abductTarget.mesh ? STATE.abductTarget.mesh.scale.x : 1;
-  const dx = STATE.playerPosition.x - STATE.abductTarget.mesh.position.x;
-  const dz = STATE.playerPosition.z - STATE.abductTarget.mesh.position.z;
-  const dist = Math.sqrt(dx * dx + dz * dz);
-  const maxHoldDist = Math.max(38, (STATE.abductTarget.size || 3) * meshScale * 5);
-  if (dist > maxHoldDist) {
-    cancelAbduction(`Ziel außer Reichweite (Distanz: ${dist.toFixed(1)} > ${maxHoldDist.toFixed(0)})`);
-    return;
-  }
-  updateAbductBeam(STATE.playerPosition, STATE.abductTarget.mesh.position);
-  STATE.abductProgress += dt * 45;
-  const bar = document.getElementById("abduct-progress-bar");
-  const text = document.getElementById("abduct-progress-text");
-  if (bar)
-    bar.style.width = `${STATE.abductProgress}%`;
-  if (text)
-    text.innerText = `${Math.round(STATE.abductProgress)}%`;
-  if (STATE.abductProgress >= 100) {
-    completeAbduction();
-  }
-}
-function cancelAbduction(reason) {
-  stopAbductSound();
-  removeAbductBeam();
-  addLogEntry("SYSTEM", `Entführung abgebrochen: ${reason}`);
-  STATE.abductActive = false;
-  STATE.abductTarget = null;
-  STATE.abductProgress = 0;
-  const progContainer = document.getElementById("abduct-progress-container");
-  if (progContainer)
-    progContainer.style.display = "none";
-}
-function completeAbduction() {
-  stopAbductSound();
-  removeAbductBeam();
-  const progContainer = document.getElementById("abduct-progress-container");
-  if (progContainer)
-    progContainer.style.display = "none";
-  const planet = STATE.abductTarget;
-  if (planet) {
-    if (!planet.attributes) {
-      planet.attributes = generatePlanetAttributes(planet);
-      const rawSpecies = planet.species;
-      if (rawSpecies) {
-        planet.attributes.species = rawSpecies;
-      }
-    }
-    if (!planet.attributes.species || !planet.attributes.species.candidates || planet.attributes.species.candidates.length === 0) {
-      const gen = generatePlanetAttributes(planet);
-      if (gen.species && gen.species.candidates && gen.species.candidates.length > 0) {
-        planet.attributes.species = gen.species;
-      }
-    }
-    if (planet.attributes.species && planet.attributes.species.candidates && planet.attributes.species.candidates.length > 0) {
-      const candidate = planet.attributes.species.candidates.shift();
-      if (candidate) {
-        const existingNames = new Set(STATE.crew.map((c) => c.name));
-        if (existingNames.has(candidate.name)) {
-          const fallbackSuffix = ["II", "III", "IV", "V", "Prime"][STATE.crew.length % 5];
-          candidate.name = `${candidate.name} ${fallbackSuffix}`;
-        }
-        assignCrewToOptimalStation(candidate);
-        STATE.crew.push(candidate);
-        STATE.crewSatietyTimer = 0;
-        calculateCrewBuffs();
-        if (candidate.species === "Fremen" || candidate.speciesType === "fremen" || planet.name && planet.name.includes("Arrakis")) {
-          if (STATE.mutations.ibad && !STATE.mutations.ibad.purchased) {
-            STATE.mutations.ibad.purchased = true;
-            updateMutationUI();
-            addLogEntry("SYSTEM", `\uD83D\uDC41️ AUGEN DES IBAD ERWACHT: Durch Assimilation des Fremen ${candidate.name} mutieren Najmafars Sehnerven blau-in-blau! Die Weitsicht des Gewürzes (Prescience) stabilisiert den Geist und schaltet die spätere Heilung von Psychosen frei.`);
-          }
-        }
-        const crewCount = STATE.crew.length;
-        const instantTarget = crewCount >= 3 ? 5 : crewCount === 2 ? 25 : 45;
-        STATE.loneliness = Math.min(STATE.loneliness, instantTarget);
-        addLogEntry("SYSTEM", `PSIONISCHE ASSIMILATION ERFOLGREICH: ${candidate.name} (${candidate.roleName || candidate.role}) in Kokon-Kammer transferiert.`);
-        addLogEntry("CREW", `Traum-Matrix initialisiert: ${candidate.name} lindert deine Einsamkeit! (${Math.round(STATE.loneliness)}% Einsamkeit)`);
-        advanceFtueStep(6);
-        renderCrewUI();
-        updatePartyGrid();
-        updateHUDStats();
-        if (STATE.primaryParadigm === "neutral") {
-          openFirstContactModal(candidate);
-        }
-        if (STATE.nearestPlanet === planet) {
-          updateScannerUI(planet, 10);
-        }
-      }
-    } else {
-      addLogEntry("SYSTEM", `Transfer fehlgeschlagen: Kein psionischer Wirt auf ${planet.name} identifiziert.`);
-    }
-  }
-  STATE.abductActive = false;
-  STATE.abductTarget = null;
-  STATE.abductProgress = 0;
-}
-function startAbductSound() {
-  const ctx = getAudioContext();
-  if (!ctx)
-    return;
-  abductOsc = ctx.createOscillator();
-  abductGain = ctx.createGain();
-  abductFilter = ctx.createBiquadFilter();
-  abductOsc.type = "triangle";
-  abductOsc.frequency.setValueAtTime(330, ctx.currentTime);
-  abductFilter.type = "bandpass";
-  abductFilter.frequency.setValueAtTime(440, ctx.currentTime);
-  abductFilter.Q.setValueAtTime(3, ctx.currentTime);
-  abductGain.gain.setValueAtTime(0, ctx.currentTime);
-  abductGain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.2);
-  abductOsc.connect(abductFilter);
-  abductFilter.connect(abductGain);
-  abductGain.connect(ctx.destination);
-  abductOsc.start();
-}
-function stopAbductSound() {
-  if (abductOsc) {
-    const ctx = getAudioContext();
-    const time = ctx ? ctx.currentTime : 0;
-    if (abductGain && time) {
-      abductGain.gain.cancelScheduledValues(time);
-      abductGain.gain.setValueAtTime(abductGain.gain.value, time);
-      abductGain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
-      abductOsc.stop(time + 0.2);
-    } else {
-      abductOsc.stop();
-    }
-    abductOsc = null;
-    abductGain = null;
-    abductFilter = null;
-  }
-}
-
 // src/ui/options.ts
 var isOptionsOpen = false;
 function initOptionsUI() {
@@ -43872,6 +44120,49 @@ function setupControls() {
           return;
         }
       }
+      if (STATE.lockedTarget) {
+        const target = STATE.lockedTarget;
+        if (target.isShip || target.shipType) {
+          if (target.status === "stunned") {
+            const targetPos = target.mesh ? target.mesh.position : target.position;
+            if (targetPos && STATE.playerPosition.distanceTo(targetPos) <= 25) {
+              abductCrewFromShip(target);
+              return;
+            }
+          }
+          triggerScanStart();
+          return;
+        } else if (target.isStation || target.stationType) {
+          triggerScanStart();
+          return;
+        }
+      }
+      if (STATE.fleetShips) {
+        const nearbyShip = STATE.fleetShips.find((s) => {
+          const pos = s.mesh ? s.mesh.position : s.position;
+          return pos && STATE.playerPosition.distanceTo(pos) <= 22;
+        });
+        if (nearbyShip) {
+          if (nearbyShip.status === "stunned") {
+            abductCrewFromShip(nearbyShip);
+            return;
+          }
+          if (!nearbyShip.scanned) {
+            triggerScanStart();
+            return;
+          }
+        }
+      }
+      if (STATE.spaceStations) {
+        const nearbyStation = STATE.spaceStations.find((s) => {
+          const pos = s.mesh ? s.mesh.position : s.position;
+          return pos && STATE.playerPosition.distanceTo(pos) <= 25;
+        });
+        if (nearbyStation && !nearbyStation.scanned) {
+          triggerScanStart();
+          return;
+        }
+      }
       if (STATE.nearestPlanet) {
         const isScanned = STATE.nearestPlanet.scanned || STATE.scannedPlanets && STATE.scannedPlanets[STATE.nearestPlanet.name];
         if (isScanned) {
@@ -44048,6 +44339,18 @@ function setupTargetRaycasting() {
     if (STATE.voyagerProbe && STATE.voyagerProbe.mesh) {
       targetMeshes.push(STATE.voyagerProbe.mesh);
     }
+    if (STATE.spaceStations) {
+      STATE.spaceStations.forEach((s) => {
+        if (s.mesh)
+          targetMeshes.push(s.mesh);
+      });
+    }
+    if (STATE.fleetShips) {
+      STATE.fleetShips.forEach((s) => {
+        if (s.mesh && s.status !== "disabled")
+          targetMeshes.push(s.mesh);
+      });
+    }
     const intersects2 = raycaster.intersectObjects(targetMeshes, true);
     if (intersects2.length > 0) {
       const hitObject = intersects2[0].object;
@@ -44073,6 +44376,40 @@ function setupTargetRaycasting() {
           }
         }
         return;
+      }
+      if (STATE.spaceStations) {
+        const targetStation = STATE.spaceStations.find((s) => {
+          if (s.mesh === hitObject)
+            return true;
+          let cur = hitObject;
+          while (cur) {
+            if (cur === s.mesh)
+              return true;
+            cur = cur.parent;
+          }
+          return false;
+        });
+        if (targetStation) {
+          setLockedTarget(targetStation);
+          return;
+        }
+      }
+      if (STATE.fleetShips) {
+        const targetShip = STATE.fleetShips.find((s) => {
+          if (s.mesh === hitObject)
+            return true;
+          let cur = hitObject;
+          while (cur) {
+            if (cur === s.mesh)
+              return true;
+            cur = cur.parent;
+          }
+          return false;
+        });
+        if (targetShip) {
+          setLockedTarget(targetShip);
+          return;
+        }
       }
       const target = activePlanets.find((p) => {
         if (p.mesh === hitObject || p.bodyMesh === hitObject)
@@ -44110,6 +44447,11 @@ function setLockedTarget(target) {
   playLockOnSound();
   if (target.isVoyager) {
     addLogEntry("SYSTEM", `\uD83C\uDFAF ZIEL FIXIERT: Voyager 2 [Archaische Raumsonde]. 1420 MHz Radiobarke erfasst.`);
+  } else if (target.isStation || target.stationType) {
+    addLogEntry("SYSTEM", `\uD83D\uDEF0️ RAUMSTATION ERFASST: ${target.name} [${target.type || target.stationType}]. Scanner ausgerichtet.`);
+  } else if (target.isShip || target.shipType) {
+    const typeLabel = target.shipType === "freighter" ? "Handelskonvoi" : target.shipType || "Flottenschiff";
+    addLogEntry("SYSTEM", `\uD83D\uDE80 RAUMSCHIFF ERFASST: ${target.name} [${typeLabel}]. Scanner ausgerichtet.`);
   } else {
     const typeLabel = target.isMoon ? `Mond (${target.type})` : target.type;
     addLogEntry("SYSTEM", `\uD83C\uDFAF ZIEL MANUELL FIXIERT: ${target.name} [${typeLabel}]. Scanner ausgerichtet.`);
@@ -44124,17 +44466,26 @@ function clearLockedTarget() {
   updateTargetLockBadgeUI();
 }
 function cycleTarget(direction = 1) {
-  if (!activePlanets || activePlanets.length === 0)
+  const candidates = [];
+  if (activePlanets)
+    candidates.push(...activePlanets);
+  if (STATE.spaceStations)
+    candidates.push(...STATE.spaceStations);
+  if (STATE.fleetShips)
+    candidates.push(...STATE.fleetShips.filter((s) => s.status !== "disabled"));
+  if (candidates.length === 0)
     return;
-  const sorted = [...activePlanets].sort((a, b) => {
-    const da = a.mesh.position.distanceTo(STATE.playerPosition);
-    const db = b.mesh.position.distanceTo(STATE.playerPosition);
+  const sorted = [...candidates].sort((a, b) => {
+    const posA = a.mesh ? a.mesh.position : a.position || STATE.playerPosition;
+    const posB = b.mesh ? b.mesh.position : b.position || STATE.playerPosition;
+    const da = posA.distanceTo(STATE.playerPosition);
+    const db = posB.distanceTo(STATE.playerPosition);
     return da - db;
   });
   if (!STATE.lockedTarget) {
     setLockedTarget(sorted[0]);
   } else {
-    const curIdx = sorted.findIndex((p) => p.name === STATE.lockedTarget.name);
+    const curIdx = sorted.findIndex((p) => p.id && p.id === STATE.lockedTarget.id || p.name === STATE.lockedTarget.name);
     let nextIdx = (curIdx + direction + sorted.length) % sorted.length;
     setLockedTarget(sorted[nextIdx]);
   }
@@ -44697,10 +45048,11 @@ function updatePhysics(dt) {
   }
   let targetPlanet = null;
   let targetDist = Infinity;
-  if (STATE.lockedTarget && STATE.lockedTarget.mesh) {
+  if (STATE.lockedTarget && (STATE.lockedTarget.mesh || STATE.lockedTarget.position)) {
     targetPlanet = STATE.lockedTarget;
-    const dx = STATE.playerPosition.x - targetPlanet.mesh.position.x;
-    const dz = STATE.playerPosition.z - targetPlanet.mesh.position.z;
+    const targetPos = targetPlanet.mesh ? targetPlanet.mesh.position : targetPlanet.position;
+    const dx = STATE.playerPosition.x - targetPos.x;
+    const dz = STATE.playerPosition.z - targetPos.z;
     targetDist = Math.sqrt(dx * dx + dz * dz);
   } else if (STATE.orbitLevel === "moon" && STATE.activeMoonOrbit && STATE.activeMoonOrbit.mesh) {
     targetPlanet = STATE.activeMoonOrbit;
@@ -44726,8 +45078,36 @@ function updatePhysics(dt) {
     });
     targetPlanet = closestPlanet;
     targetDist = minDist;
+    if (STATE.spaceStations) {
+      for (const st of STATE.spaceStations) {
+        const pos = st.mesh ? st.mesh.position : st.position;
+        if (pos) {
+          const dist = STATE.playerPosition.distanceTo(pos);
+          if (dist < 18 && dist < targetDist) {
+            targetPlanet = st;
+            targetDist = dist;
+          }
+        }
+      }
+    }
+    if (STATE.fleetShips) {
+      for (const sh of STATE.fleetShips) {
+        if (sh.status === "disabled")
+          continue;
+        const pos = sh.mesh ? sh.mesh.position : sh.position;
+        if (pos) {
+          const dist = STATE.playerPosition.distanceTo(pos);
+          if (dist < 18 && dist < targetDist) {
+            targetPlanet = sh;
+            targetDist = dist;
+          }
+        }
+      }
+    }
   }
-  STATE.nearestPlanet = targetPlanet;
+  if (targetPlanet && !targetPlanet.isStation && !targetPlanet.isShip && !targetPlanet.stationType && !targetPlanet.shipType) {
+    STATE.nearestPlanet = targetPlanet;
+  }
   updateScannerUI(targetPlanet, targetDist);
   let netGx = 0;
   let netGz = 0;

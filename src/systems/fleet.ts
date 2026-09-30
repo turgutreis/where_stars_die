@@ -4,8 +4,9 @@ import { scene } from '../engine/scene';
 import { addLogEntry } from '../ui/hud';
 import { playCrashSound, playSiliconCollectSound, playEmpChargeSound, playFleetAlarmSound } from '../engine/audio';
 import { empLight } from '../procedural/meshes';
-import { collapseQuantumCivilization } from '../procedural/quantum-civ';
-import { FleetShip, FleetProjectile, PlanetEntry } from '../types/game';
+import { FleetShip, FleetProjectile, PlanetEntry, FactionId } from '../types/game';
+import { getFaction } from './factions';
+import { generateProceduralCandidates } from './crew-generation';
 
 let shockwaveMesh: THREE.Mesh | null = null;
 let shockwaveTimer = 0;
@@ -92,6 +93,21 @@ export function spawnSystemFleet(planetsInput?: any) {
 
                 scene.add(shipGroup);
 
+                const species = (p.attributes && p.attributes.species) || (p as any).species;
+                const factionId: FactionId = (species?.factionId as FactionId) || 'free_traders';
+                const faction = getFaction(factionId);
+                const civName = species?.name || faction.name;
+
+                const shipSeed = ((p.name || 'Orb').charCodeAt(0) * 100 + i * 37 + (isCorvette ? 77 : 13)) >>> 0;
+                const crewCount = isCorvette ? 3 : 1;
+                const shipCrew = generateProceduralCandidates(shipSeed, crewCount);
+                const commander = shipCrew[0];
+                if (commander) {
+                    commander.thought = isCorvette
+                        ? "Waffen und Schilde auf Bereitschaft. Halte Sektor-Patrouille."
+                        : "Jäger-Avionik kalibriert. Achte auf unidentifizierte Bio-Signaturen.";
+                }
+
                 const fleetShip: FleetShip = {
                     id: Date.now() + Math.random(),
                     mesh: shipGroup,
@@ -109,7 +125,15 @@ export function spawnSystemFleet(planetsInput?: any) {
                     state: 'patrol',
                     originalColor: origColor,
                     attackCooldown: 0.5 + Math.random() * 1.5,
-                    alertTimer: 0
+                    alertTimer: 0,
+                    factionId,
+                    civilizationName: civName,
+                    factionName: faction.shortName,
+                    scanned: false,
+                    crewMembers: shipCrew,
+                    commanderName: commander ? `${commander.name} (${commander.roleName || commander.role})` : (isCorvette ? 'Korvetten-Kommandant' : 'Abfangpilot'),
+                    commanderRole: commander ? commander.role : 'pilot',
+                    commanderThought: commander?.thought
                 };
 
                 STATE.fleetShips.push(fleetShip);
@@ -161,6 +185,18 @@ export function spawnSystemFleet(planetsInput?: any) {
 
             scene.add(freighterGroup);
 
+            const species = (p.attributes && p.attributes.species) || (p as any).species;
+            const fFactionId: FactionId = (species?.factionId as FactionId) || 'free_traders';
+            const fFaction = getFaction(fFactionId);
+            const fCivName = species?.name || fFaction.name;
+
+            const freightSeed = ((p.name || 'Freight').charCodeAt(0) * 150 + Math.floor(Math.random() * 50)) >>> 0;
+            const freighterCrew = generateProceduralCandidates(freightSeed, 2);
+            const fCommander = freighterCrew[0];
+            if (fCommander) {
+                fCommander.thought = "Überwacht die Frachtbehälter... 'Hoffentlich keine Sternenfresser oder Piraten.'";
+            }
+
             const freighter: FleetShip = {
                 id: Date.now() + Math.random() + 500,
                 mesh: freighterGroup,
@@ -179,7 +215,15 @@ export function spawnSystemFleet(planetsInput?: any) {
                 originalColor: 0xd97706,
                 attackCooldown: 999,
                 alertTimer: 0,
-                cargo: { type: 'silicon', amount: 65 }
+                cargo: { type: 'silicon', amount: 65 },
+                factionId: fFactionId,
+                civilizationName: fCivName,
+                factionName: fFaction.shortName,
+                scanned: false,
+                crewMembers: freighterCrew,
+                commanderName: fCommander ? `${fCommander.name} (${fCommander.roleName || fCommander.role})` : 'Frachtkapitän',
+                commanderRole: fCommander ? fCommander.role : 'engineer',
+                commanderThought: fCommander?.thought
             };
 
             STATE.fleetShips.push(freighter);

@@ -142,7 +142,7 @@ import { updatePhysics } from '../src/engine/physics';
 import { generateProceduralCandidates, getCrewReactiveThought } from '../src/systems/crew-generation';
 import { calculateCrewBuffs, updateCrewSimulation, rejuvenateCrewMember, setPrimaryParadigm, setActiveSubCodex, updateParadigmModifiers, getSpeciesClusters, toggleClusterExpansion, rejuvenateSpeciesCluster, cyclePrimaryParadigm, getExpandedClustersKey, clearExpandedClusters, setCrewStation, getStationCrewCounts, calculateRadiationProtection } from '../src/systems/crew';
 import { buyMutation } from '../src/ui/deck';
-import { triggerAbductStart } from '../src/systems/abduction';
+import { triggerAbductStart, abductCrewFromShip } from '../src/systems/abduction';
 import { advanceFtueStep, FTUE_DIRECTIVES } from '../src/ui/directives';
 import { openVoyagerDialog, closeVoyagerDialog, isVoyagerDialogOpen } from '../src/ui/voyager-dialog';
 import { handleVoyagerScan, setLockedTarget } from '../src/input/controls';
@@ -2728,6 +2728,103 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         // Cleanup
         clearFleet();
+    });
+
+    test("43. Ship & Space Station Telemetry Dossier: Scans vessels & stations, reveals crew thoughts & civilization intelligence, and abducts crew from stunned wrecks", () => {
+        clearFleet();
+        clearSpaceStations();
+        activePlanets.length = 0;
+
+        // 1. Setup Civilized Planet
+        const planetGroup = new THREE.Group();
+        planetGroup.position.set(100, 0, 0);
+        const civPlanet: any = {
+            name: "Aethelgard",
+            type: "Habitable",
+            size: 6.0,
+            distance: 100,
+            mesh: planetGroup,
+            isMoon: false,
+            scanned: true,
+            source: {
+                position: new THREE.Vector3(100, 0, 0),
+                mass: 200,
+                radius: 6.0,
+                gravityRange: 80,
+                name: "Aethelgard",
+                type: "planet"
+            },
+            attributes: {
+                species: {
+                    name: "Aethelgardians",
+                    population: 12000000,
+                    techLevel: "Spacefaring",
+                    defenseRating: 90,
+                    factionId: "aethel_commonwealth"
+                }
+            }
+        };
+        activePlanets.push(civPlanet);
+
+        // 2. Spawn Fleet and Space Station
+        spawnSystemFleet([civPlanet]);
+        spawnSystemSpaceStations([civPlanet]);
+
+        expect(STATE.fleetShips.length).toBeGreaterThan(0);
+        expect(STATE.spaceStations.length).toBeGreaterThan(0);
+
+        const ship = STATE.fleetShips[0];
+        const station = STATE.spaceStations[0];
+
+        // Verify procedural intelligence on ship & station
+        expect(ship.civilizationName).toBe("Aethelgardians");
+        expect(ship.crewMembers.length).toBeGreaterThan(0);
+        expect(ship.commanderThought).toBeDefined();
+        expect(ship.scanned).toBe(false);
+
+        expect(station.civilizationName).toBe("Aethelgardians");
+        expect(station.crewMembers.length).toBeGreaterThan(0);
+        expect(station.population).toBeGreaterThan(0);
+        expect(station.scanned).toBe(false);
+
+        // 3. Scan Fleet Ship
+        STATE.lockedTarget = ship;
+        STATE.playerPosition.copy(ship.position);
+        triggerScanStart();
+        expect(STATE.scanningPlanet).toBe(ship);
+
+        // Complete scan
+        updateScanning(4.0); // Advance scan timer to finish
+        expect(ship.scanned).toBe(true);
+        expect(() => updateScannerUI(ship, 5)).not.toThrow();
+
+        // 4. Scan Space Station
+        STATE.lockedTarget = station;
+        const stationPos = station.mesh ? station.mesh.position : station.position;
+        STATE.playerPosition.copy(stationPos);
+        triggerScanStart();
+        expect(STATE.scanningPlanet).toBe(station);
+
+        updateScanning(4.0);
+        expect(station.scanned).toBe(true);
+        expect(() => updateScannerUI(station, 5)).not.toThrow();
+
+        // 5. Stunned Ship Crew Abduction / Rescue
+        ship.status = 'stunned';
+        ship.stunTimer = 10.0;
+        const initialShipCrewCount = ship.crewMembers.length;
+        const initialPlayerCrewCount = STATE.crew.length;
+        const initialLoneliness = STATE.loneliness;
+
+        const abducted = abductCrewFromShip(ship);
+        expect(abducted).toBe(true);
+        expect(STATE.crew.length).toBe(initialPlayerCrewCount + 1);
+        expect(ship.crewMembers.length).toBe(initialShipCrewCount - 1);
+        expect(STATE.loneliness).toBeLessThanOrEqual(initialLoneliness);
+
+        // Cleanup
+        clearFleet();
+        clearSpaceStations();
     });
 });
 

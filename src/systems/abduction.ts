@@ -179,6 +179,37 @@ export function completeAbduction() {
     STATE.abductProgress = 0;
 }
 
+export function abductCrewFromShip(ship: any): boolean {
+    if (!ship || !ship.crewMembers || ship.crewMembers.length === 0) {
+        addLogEntry("SYSTEM", "Keine lebenden Besatzungsmitglieder im Wrack auffindbar.");
+        return false;
+    }
+    if (STATE.crew.length >= STATE.maxCrewCapacity) {
+        addLogEntry("SYSTEM", `Psionischer Kokon-Transfer blockiert: Kapazität voll (${STATE.crew.length} / ${STATE.maxCrewCapacity})!`);
+        return false;
+    }
+
+    const candidate = ship.crewMembers.shift()!;
+    assignCrewToOptimalStation(candidate);
+    STATE.crew.push(candidate);
+    STATE.crewSatietyTimer = 0;
+    calculateCrewBuffs();
+    renderCrewUI();
+    updatePartyGrid();
+    updateHUDStats();
+
+    addLogEntry("SYSTEM", `PSIONISCHER KOKON-TRANSFER: ${candidate.name} (${candidate.roleName || candidate.role}, ${candidate.speciesArchetypeName || candidate.species}) aus ${ship.name} assimiliert & in Kokon gebettet!`);
+    addLogEntry("CREW", `Traum-Matrix initialisiert: ${candidate.name} lindert die Einsamkeit (-15%)!`);
+    STATE.loneliness = Math.max(0, STATE.loneliness - 15);
+
+    if (STATE.primaryParadigm === 'neutral') {
+        openFirstContactModal(candidate);
+    }
+
+    updateScannerUI(ship, 10);
+    return true;
+}
+
 export function startAbductSound() {
     const ctx = getAudioContext();
     if (!ctx) return;

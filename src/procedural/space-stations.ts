@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { STATE, activePlanets } from '../core/state';
 import { scene } from '../engine/scene';
-import { SpaceStation, PlanetEntry } from '../types/game';
+import { SpaceStation, PlanetEntry, FactionId } from '../types/game';
 import { addLogEntry } from '../ui/hud';
+import { getFaction } from '../systems/factions';
+import { generateProceduralCandidates } from '../systems/crew-generation';
 
 export interface SpaceStationController {
     group: THREE.Group;
@@ -210,10 +212,28 @@ export function spawnSystemSpaceStations(planetsInput?: PlanetEntry[]) {
                 ? `Orbital-Zitadelle ${p.name.replace(/ Prime| Major| A| B/g, '')}-Alpha`
                 : `Handelsrelais ${p.name.replace(/ Prime| Major| A| B/g, '')}-Dock`;
 
+            const factionId: FactionId = (species.factionId as FactionId) || 'free_traders';
+            const faction = getFaction(factionId);
+            const civName = species.name || faction.name;
+            const stationSeed = (p.name || 'Station').split('').reduce((acc, c) => acc + c.charCodeAt(0), 100);
+            const stationCrew = generateProceduralCandidates(stationSeed, 3);
+            const commander = stationCrew[0];
+            if (commander) {
+                commander.thought = isHyper
+                    ? "Überwacht die Quantenschilde der Zitadelle... 'Keine feindlichen Schiffe im Orbit.'"
+                    : "Koordiniert eintreffende Frachter-Konvois... 'Docking-Bucht 3 bereit zum Andocken.'";
+            }
+            const population = isHyper ? (3200 + (stationSeed % 1400)) : (1150 + (stationSeed % 750));
+            const description = isHyper
+                ? "Schwer befestigte Orbital-Zitadelle zur planetaren Raumraum-Überwachung und Flottenkoordination."
+                : "Zentraler Handels-Hub für interplanetare Frachtrouten, Mineralientausch und Schiffswartung.";
+
             const station: SpaceStation = {
                 id: Date.now() + stationIdCounter++,
                 name: stName,
-                factionId: species.factionId || 'free_traders',
+                factionId,
+                civilizationName: civName,
+                factionName: faction.shortName,
                 mesh: controller.group,
                 bodyMesh: controller.bodyMesh,
                 ringMesh: controller.ringMesh,
@@ -228,7 +248,13 @@ export function spawnSystemSpaceStations(planetsInput?: PlanetEntry[]) {
                 defenseRating: isHyper ? 95 : 60,
                 alertLevel: 'peace',
                 alertTimer: 0,
-                type: stationType
+                type: stationType,
+                scanned: false,
+                population,
+                commanderName: commander ? `${commander.name} (${commander.roleName || commander.role})` : 'Stations-Kommandant',
+                commanderRole: commander ? commander.role : 'pilot',
+                crewMembers: stationCrew,
+                description
             };
 
             STATE.spaceStations.push(station);

@@ -5,7 +5,7 @@ import { playLockOnSound, setThrusterSound, toggleMusic, isMusicPlaying, isMusic
 import { toggleGalaxyMap, isMapOpen } from '../systems/galaxy-map';
 import { triggerScanStart, resetDismissedScanner } from '../systems/scanner';
 import { triggerHarvestStart } from '../systems/harvesting';
-import { triggerAbductStart } from '../systems/abduction';
+import { triggerAbductStart, abductCrewFromShip } from '../systems/abduction';
 import { triggerBioDischarge, salvageNearestWreck } from '../systems/fleet';
 import { triggerPsionicSonar, addLogEntry } from '../ui/hud';
 import { buyMutation } from '../ui/deck';
@@ -127,7 +127,54 @@ export function setupControls() {
                 }
             }
 
-            // 2. Planetary scanning & abduction
+            // 2. Interaction with locked target (Ship or SpaceStation)
+            if (STATE.lockedTarget) {
+                const target = STATE.lockedTarget as any;
+                if (target.isShip || target.shipType) {
+                    if (target.status === 'stunned') {
+                        const targetPos = target.mesh ? target.mesh.position : target.position;
+                        if (targetPos && STATE.playerPosition.distanceTo(targetPos) <= 25) {
+                            abductCrewFromShip(target);
+                            return;
+                        }
+                    }
+                    triggerScanStart();
+                    return;
+                } else if (target.isStation || target.stationType) {
+                    triggerScanStart();
+                    return;
+                }
+            }
+
+            // 3. Proximity check for nearby FleetShip or SpaceStation (< 22 AE)
+            if (STATE.fleetShips) {
+                const nearbyShip = STATE.fleetShips.find(s => {
+                    const pos = s.mesh ? s.mesh.position : s.position;
+                    return pos && STATE.playerPosition.distanceTo(pos) <= 22;
+                });
+                if (nearbyShip) {
+                    if (nearbyShip.status === 'stunned') {
+                        abductCrewFromShip(nearbyShip);
+                        return;
+                    }
+                    if (!nearbyShip.scanned) {
+                        triggerScanStart();
+                        return;
+                    }
+                }
+            }
+            if (STATE.spaceStations) {
+                const nearbyStation = STATE.spaceStations.find(s => {
+                    const pos = s.mesh ? s.mesh.position : s.position;
+                    return pos && STATE.playerPosition.distanceTo(pos) <= 25;
+                });
+                if (nearbyStation && !nearbyStation.scanned) {
+                    triggerScanStart();
+                    return;
+                }
+            }
+
+            // 4. Planetary scanning & abduction
             if (STATE.nearestPlanet) {
                 const isScanned = STATE.nearestPlanet.scanned || (STATE.scannedPlanets && STATE.scannedPlanets[STATE.nearestPlanet.name]);
                 if (isScanned) {
@@ -317,6 +364,16 @@ export function setupTargetRaycasting() {
         if (STATE.voyagerProbe && STATE.voyagerProbe.mesh) {
             targetMeshes.push(STATE.voyagerProbe.mesh);
         }
+        if (STATE.spaceStations) {
+            STATE.spaceStations.forEach(s => {
+                if (s.mesh) targetMeshes.push(s.mesh);
+            });
+        }
+        if (STATE.fleetShips) {
+            STATE.fleetShips.forEach(s => {
+                if (s.mesh && s.status !== 'disabled') targetMeshes.push(s.mesh);
+            });
+        }
 
         const intersects = raycaster.intersectObjects(targetMeshes, true);
         if (intersects.length > 0) {
@@ -346,6 +403,40 @@ export function setupTargetRaycasting() {
                     }
                 }
                 return;
+            }
+
+            // Check if Space Station was clicked
+            if (STATE.spaceStations) {
+                const targetStation = STATE.spaceStations.find(s => {
+                    if (s.mesh === hitObject) return true;
+                    let cur: THREE.Object3D | null = hitObject;
+                    while (cur) {
+                        if (cur === s.mesh) return true;
+                        cur = cur.parent;
+                    }
+                    return false;
+                });
+                if (targetStation) {
+                    setLockedTarget(targetStation);
+                    return;
+                }
+            }
+
+            // Check if Fleet Ship was clicked
+            if (STATE.fleetShips) {
+                const targetShip = STATE.fleetShips.find(s => {
+                    if (s.mesh === hitObject) return true;
+                    let cur: THREE.Object3D | null = hitObject;
+                    while (cur) {
+                        if (cur === s.mesh) return true;
+                        cur = cur.parent;
+                    }
+                    return false;
+                });
+                if (targetShip) {
+                    setLockedTarget(targetShip);
+                    return;
+                }
             }
 
             const target = activePlanets.find(p => {
@@ -384,6 +475,11 @@ export function setLockedTarget(target: any) {
     playLockOnSound();
     if (target.isVoyager) {
         addLogEntry("SYSTEM", `🎯 ZIEL FIXIERT: Voyager 2 [Archaische Raumsonde]. 1420 MHz Radiobarke erfasst.`);
+    } else if (target.isStation || target.stationType) {
+        addLogEntry("SYSTEM", `🛰️ RAUMSTATION ERFASST: ${target.name} [${target.type || target.stationType}]. Scanner ausgerichtet.`);
+    } else if (target.isShip || target.shipType) {
+        const typeLabel = target.shipType === 'freighter' ? 'Handelskonvoi' : (target.shipType || 'Flottenschiff');
+        addLogEntry("SYSTEM", `🚀 RAUMSCHIFF ERFASST: ${target.name} [${typeLabel}]. Scanner ausgerichtet.`);
     } else {
         const typeLabel = target.isMoon ? `Mond (${target.type})` : target.type;
         addLogEntry("SYSTEM", `🎯 ZIEL MANUELL FIXIERT: ${target.name} [${typeLabel}]. Scanner ausgerichtet.`);
@@ -400,18 +496,25 @@ export function clearLockedTarget() {
 }
 
 export function cycleTarget(direction = 1) {
-    if (!activePlanets || activePlanets.length === 0) return;
+    const candidates: any[] = [];
+    if (activePlanets) candidates.push(...activePlanets);
+    if (STATE.spaceStations) candidates.push(...STATE.spaceStations);
+    if (STATE.fleetShips) candidates.push(...STATE.fleetShips.filter(s => s.status !== 'disabled'));
 
-    const sorted = [...activePlanets].sort((a, b) => {
-        const da = a.mesh.position.distanceTo(STATE.playerPosition);
-        const db = b.mesh.position.distanceTo(STATE.playerPosition);
+    if (candidates.length === 0) return;
+
+    const sorted = [...candidates].sort((a, b) => {
+        const posA = a.mesh ? a.mesh.position : (a.position || STATE.playerPosition);
+        const posB = b.mesh ? b.mesh.position : (b.position || STATE.playerPosition);
+        const da = posA.distanceTo(STATE.playerPosition);
+        const db = posB.distanceTo(STATE.playerPosition);
         return da - db;
     });
 
     if (!STATE.lockedTarget) {
         setLockedTarget(sorted[0]);
     } else {
-        const curIdx = sorted.findIndex(p => p.name === STATE.lockedTarget!.name);
+        const curIdx = sorted.findIndex(p => (p.id && p.id === STATE.lockedTarget!.id) || p.name === STATE.lockedTarget!.name);
         let nextIdx = (curIdx + direction + sorted.length) % sorted.length;
         setLockedTarget(sorted[nextIdx]);
     }

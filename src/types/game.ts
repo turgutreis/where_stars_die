@@ -296,7 +296,9 @@ export type FleetShipState = 'patrol' | 'intercept' | 'hunt' | 'trade_cruise' | 
 export interface SpaceStation {
     id: number;
     name: string;
-    factionId?: string;
+    factionId?: FactionId | string;
+    civilizationName?: string;
+    factionName?: string;
     mesh: THREE.Group;
     bodyMesh: THREE.Mesh;
     ringMesh?: THREE.Mesh | null;
@@ -312,6 +314,12 @@ export interface SpaceStation {
     alertLevel: 'peace' | 'alert' | 'hunt';
     alertTimer: number;
     type: 'citadel' | 'trade_hub' | 'mining_relay';
+    scanned?: boolean;
+    population?: number;
+    commanderName?: string;
+    commanderRole?: string;
+    crewMembers?: CrewMember[];
+    description?: string;
 }
 
 export interface FleetShip {
@@ -341,6 +349,14 @@ export interface FleetShip {
     tradeTargetStation?: SpaceStation | null;
     tradeProgress?: number;
     tradeDirection?: 1 | -1;
+    factionId?: FactionId | string;
+    civilizationName?: string;
+    factionName?: string;
+    scanned?: boolean;
+    crewMembers?: CrewMember[];
+    commanderName?: string;
+    commanderRole?: string;
+    commanderThought?: string;
 }
 
 export interface FleetProjectile {

@@ -833,12 +833,17 @@ export function updatePsionicCompass() {
     const nameEl = document.getElementById('compass-planet-name');
     const distEl = document.getElementById('compass-distance-text');
 
-    // Organic Sensation of Gravitation
+    // Organic Sensation of Gravitation & Sensor Proximity
     let gravSensation = '';
+    const isVessel = target.isShip || target.isStation || target.shipType || target.stationType;
     if (dist < 22) {
-        gravSensation = '⚡ Orbit-Eintritt / Starkes Gravitationsfeld';
+        gravSensation = isVessel
+            ? '🎯 Telemetrie-Nahbereich / Scan-Erfassung möglich'
+            : '⚡ Orbit-Eintritt / Starkes Gravitationsfeld';
     } else if (dist < 65) {
-        gravSensation = '🌀 Spürbare Raumzeitkrümmung';
+        gravSensation = isVessel
+            ? '🛰️ Taktische Sensorik-Reichweite'
+            : '🌀 Spürbare Raumzeitkrümmung';
     } else if (dist < 160) {
         gravSensation = '🌌 Sanfte Schwerkraft-Dünung';
     } else {
@@ -847,7 +852,9 @@ export function updatePsionicCompass() {
 
     // Icon & Label styling
     if (iconEl) {
-        if (isSentient) iconEl.innerText = '🧠';
+        if (target.isStation || target.stationType) iconEl.innerText = '🛰️';
+        else if (target.isShip || target.shipType) iconEl.innerText = target.shipType === 'freighter' ? '📦' : '🚀';
+        else if (isSentient) iconEl.innerText = '🧠';
         else if (target.type === 'star' || target.type === 'Yellow Sun' || target.type === 'Black Hole') iconEl.innerText = '☀️';
         else if (target.type === 'Gas Giant') iconEl.innerText = '🪐';
         else if (target.type === 'Habitable') iconEl.innerText = '🌍';
@@ -858,11 +865,25 @@ export function updatePsionicCompass() {
 
     if (labelEl) {
         if (isLocked) {
-            labelEl.innerText = '🎯 FIXIERTES GRAVITATIONSZIEL:';
-            labelEl.style.color = '#38bdf8';
+            if (target.isStation || target.stationType) {
+                labelEl.innerText = '🛰️ FIXIERTE RAUMSTATION:';
+                labelEl.style.color = '#38bdf8';
+            } else if (target.isShip || target.shipType) {
+                labelEl.innerText = target.shipType === 'freighter' ? '📦 FIXIERTES HANDELSSCHIFF:' : '🚀 FIXIERTES KAMPFSCHIFF:';
+                labelEl.style.color = '#38bdf8';
+            } else {
+                labelEl.innerText = '🎯 FIXIERTES GRAVITATIONSZIEL:';
+                labelEl.style.color = '#38bdf8';
+            }
         } else if (isSentient) {
             labelEl.innerText = '🧠 PSIO- & GRAVITATIONS-RESONANZ:';
             labelEl.style.color = '#d946ef';
+        } else if (target.isStation || target.stationType) {
+            labelEl.innerText = '🛰️ NÄCHSTE RAUMSTATION:';
+            labelEl.style.color = '#38bdf8';
+        } else if (target.isShip || target.shipType) {
+            labelEl.innerText = '🚀 NÄCHSTES RAUMSCHIFF:';
+            labelEl.style.color = '#38bdf8';
         } else {
             labelEl.innerText = '🪐 RAUMZEIT-GEFÄLLE (NÄCHSTE MASSE):';
             labelEl.style.color = '#a855f7';
