@@ -1,7 +1,7 @@
 import { STATE } from '../core/state';
 import { playSiliconCollectSound } from '../engine/audio';
 import { addLogEntry } from './hud';
-import { calculateCrewBuffs, renderCrewUI } from '../systems/crew';
+import { calculateCrewBuffs, renderCrewUI, performTherapySession } from '../systems/crew';
 import { renderFactionReputationUI } from '../systems/factions';
 import { initEvolutionTree, updateEvolutionTreeUI, startNeuralCanvasLoop, stopNeuralCanvasLoop } from './evolution-tree';
 import { triggerAutoSave } from '../systems/save-manager';
@@ -122,6 +122,13 @@ export function initDeckUI() {
             } else {
                 addLogEntry("SYSTEM", "Zu wenig Legierungen für Shuttle-Generalüberholung (10 Legierungen benötigt)!");
             }
+        });
+    }
+
+    const therapyBtn = document.getElementById('therapy-session-btn');
+    if (therapyBtn) {
+        therapyBtn.addEventListener('click', () => {
+            performTherapySession();
         });
     }
 }

@@ -160,7 +160,7 @@ import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, upda
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
 import { updatePhysics } from '../src/engine/physics';
 import { generateProceduralCandidates, getCrewReactiveThought } from '../src/systems/crew-generation';
-import { calculateCrewBuffs, updateCrewSimulation, rejuvenateCrewMember, setPrimaryParadigm, setActiveSubCodex, updateParadigmModifiers, getSpeciesClusters, toggleClusterExpansion, rejuvenateSpeciesCluster, cyclePrimaryParadigm, getExpandedClustersKey, clearExpandedClusters, setCrewStation, getStationCrewCounts, calculateRadiationProtection } from '../src/systems/crew';
+import { calculateCrewBuffs, updateCrewSimulation, rejuvenateCrewMember, setPrimaryParadigm, setActiveSubCodex, updateParadigmModifiers, getSpeciesClusters, toggleClusterExpansion, rejuvenateSpeciesCluster, cyclePrimaryParadigm, getExpandedClustersKey, clearExpandedClusters, setCrewStation, getStationCrewCounts, calculateRadiationProtection, isTraumaActive, advanceTraumaTherapy, performTherapySession, triggerCrewSabotageEvent } from '../src/systems/crew';
 import { buyMutation } from '../src/ui/deck';
 import { triggerAbductStart, abductCrewFromShip } from '../src/systems/abduction';
 import { advanceFtueStep, FTUE_DIRECTIVES } from '../src/ui/directives';
@@ -3402,6 +3402,234 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.reputation.vega_collective).toBe(35);
 
         closeDiplomacyComms();
+    });
+
+    test("47. Najmafar Big Freeze Trauma & Multi-Stage Stress Escalation System", () => {
+        // 1. Initial State: Najmafar begins with 3 Big Freeze psionic traumas
+        expect(STATE.psionicTraumas).toBeDefined();
+        expect(STATE.psionicTraumas!.length).toBe(3);
+
+        const cryo = STATE.psionicTraumas!.find(t => t.id === 'cryo_apathy');
+        const echo = STATE.psionicTraumas!.find(t => t.id === 'echo_paranoia');
+        const voidNihil = STATE.psionicTraumas!.find(t => t.id === 'void_nihilism');
+
+        expect(cryo).toBeDefined();
+        expect(echo).toBeDefined();
+        expect(voidNihil).toBeDefined();
+
+        expect(isTraumaActive('cryo_apathy')).toBe(true);
+        expect(isTraumaActive('echo_paranoia')).toBe(true);
+        expect(isTraumaActive('void_nihilism')).toBe(true);
+
+        // 2. Traumatic Debuff Effects:
+        // A. cryo_apathy: -15% thrust modifier
+        STATE.primaryParadigm = 'neutral';
+        STATE.activeSubCodex = 'none';
+        STATE.doctrineTransition = undefined;
+        if (STATE.mutations.synapses) STATE.mutations.synapses.purchased = false;
+        if (STATE.mutations.ibad) STATE.mutations.ibad.purchased = false;
+        updateParadigmModifiers();
+
+        STATE.crew = [];
+        calculateCrewBuffs();
+        const baseThrustWithDebuff = STATE.crewBuffs.thrust;
+        expect(baseThrustWithDebuff).toBeCloseTo(0.85, 2);
+
+        // B. echo_paranoia: -25% mental energy regen rate
+        STATE.telepathyActive = false;
+        STATE.mentalEnergy = 50;
+        STATE.maxMentalEnergy = 100;
+        if (STATE.mutations.synapses) STATE.mutations.synapses.purchased = false; // base 3.5 * dt
+        // With 25% penalty: 3.5 * 0.75 = 2.625
+        updateCrewSimulation(1.0);
+        expect(STATE.mentalEnergy).toBeCloseTo(50 + 2.625, 2);
+
+        // C. void_nihilism: +50% silicon cost for chitin repair (0.075/hp vs 0.05/hp)
+        STATE.health = 50;
+        STATE.maxHealth = 100;
+        STATE.siliconRes = 100;
+        // Mock a crew member in chitin_gland
+        STATE.crew = [{
+            id: 801,
+            name: "Ingenieur Vance",
+            species: "Lithoid",
+            role: "engineer",
+            roleName: "Chitin-Ingenieur",
+            station: "chitin_gland",
+            stress: 10,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: "Arbeitet",
+            thought: "Reparatur läuft.",
+            age: 50,
+            maxLifespan: 500
+        }];
+        calculateCrewBuffs();
+        // Station repair rate = 0.5 HP/sec + 0.25 HP/sec engineer calm mind perk = 0.75 HP/sec
+        // Silicon cost with void_nihilism = 0.5 * 0.075 = 0.0375
+        const silBefore = STATE.siliconRes;
+        updateCrewSimulation(1.0);
+        expect(STATE.health).toBe(50.75);
+        expect(STATE.siliconRes).toBeCloseTo(silBefore - 0.0375, 4);
+
+        // 3. Multi-Stage Stress Escalation System
+        // Add a pilot providing thrust buff
+        const testPilot = {
+            id: 802,
+            name: "Pilot Miller",
+            species: "Terraner",
+            role: "pilot",
+            roleName: "Steuermann",
+            station: "flight_synapse",
+            stress: 20,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: "Arbeitet",
+            thought: "Systeme synchronisiert.",
+            age: 30,
+            maxLifespan: 500
+        };
+        STATE.crew.push(testPilot as any);
+
+        // Stage 1 (stress < 70%): Link is connected/dissonant, specialist buff active
+        calculateCrewBuffs();
+        expect(testPilot.connectionStatus).toBe('connected');
+        expect(testPilot.escalationStage).toBe(1);
+        const thrustWithPilot = STATE.crewBuffs.thrust;
+
+        // Stage 2 (stress 70-84%): Telepathic connection severed!
+        // Buff deactivated and loneliness spikes (+15%)
+        testPilot.stress = 75;
+        calculateCrewBuffs();
+        expect(testPilot.connectionStatus).toBe('severed');
+        expect(testPilot.escalationStage).toBe(2);
+        // Thrust dropped because pilot buff was suppressed
+        expect(STATE.crewBuffs.thrust).toBeLessThan(thrustWithPilot);
+
+        // Loneliness increases due to severed mind
+        STATE.loneliness = 20;
+        updateCrewSimulation(1.0);
+        expect(testPilot.status).toBe("Verbindung gekappt");
+
+        // If ALL crew are severed or 0 connected crew, target loneliness is 100%
+        STATE.crew[0].stress = 75; // both severed
+        updateCrewSimulation(1.0);
+        expect(STATE.loneliness).toBeGreaterThan(20); // climbing towards 100%
+
+        // Stage 3 (stress >= 85%): Crisis Alarm & 15-second countdown window
+        // Crucial test: Ship must NOT take continuous melt damage (health remains intact during countdown)
+        testPilot.illusionStability = 20; // Unstable dream keeps mind in panic
+        testPilot.stress = 88;
+        STATE.health = 100;
+        STATE.maxHealth = 100;
+        updateCrewSimulation(0.1);
+        expect(testPilot.escalationStage).toBe(3);
+        expect(testPilot.crisisActive).toBe(true);
+        expect(testPilot.crisisTimer).toBe(15.0);
+        expect(STATE.health).toBe(100); // ZERO melt damage!
+
+        // Let 5 seconds pass: health must STILL be 100!
+        updateCrewSimulation(5.0);
+        expect(testPilot.crisisTimer).toBeCloseTo(10.0, 1);
+        expect(STATE.health).toBe(100); // No instantaneous HP drain!
+
+        // Defusal test: Player calms crew member below 80% stress
+        testPilot.stress = 65;
+        testPilot.illusionStability = 100;
+        updateCrewSimulation(0.1);
+        expect(testPilot.crisisActive).toBe(false); // Defused successfully!
+
+        // Trigger discrete sabotage test: Push stress back to 90%, let timer expire
+        testPilot.illusionStability = 10;
+        testPilot.stress = 90;
+        testPilot.crisisActive = false;
+        testPilot.crisisTimer = 0; // force new crisis initiation
+        updateCrewSimulation(0.1);
+        expect(testPilot.crisisActive).toBe(true);
+        expect(testPilot.crisisTimer).toBe(15.0);
+
+        // Advance past 15 seconds to expire crisis timer
+        updateCrewSimulation(16.0);
+
+        // Discrete event executed: crisisActive set to false, 25s cooldown started, stress partially relieved
+        expect(testPilot.crisisActive).toBe(false);
+        expect(testPilot.crisisTimer).toBeGreaterThan(0); // in cooldown
+        expect(testPilot.stress).toBeLessThan(90); // panic relieved by action
+        expect(STATE.activeCrisisEvents?.length).toBeGreaterThan(0);
+
+        // 4. Therapy & Healing of Big Freeze Traumas
+        // Reset crew to a scholar in dream_core
+        STATE.crew = [{
+            id: 803,
+            name: "Psychologin Vance",
+            species: "Eldari",
+            role: "psychologist",
+            roleName: "Traum-Weberin",
+            station: "dream_core",
+            stress: 10,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: "Meditiert",
+            thought: "Glätte die Leere.",
+            age: 100,
+            maxLifespan: 1000
+        }];
+        calculateCrewBuffs();
+
+        // Passive therapy progress in dream_core:
+        cryo!.therapyProgress = 0;
+        cryo!.healed = false;
+        // Without ibad: 0.35 * 1 mind * 10 seconds = +3.5%
+        updateCrewSimulation(10.0);
+        expect(cryo!.therapyProgress).toBeCloseTo(3.5, 1);
+
+        // With Augen des Ibad unlocked: 2x speed (0.70%/sec)
+        if (STATE.mutations.ibad) STATE.mutations.ibad.purchased = true;
+        updateCrewSimulation(10.0);
+        expect(cryo!.therapyProgress).toBeCloseTo(3.5 + 7.0, 1);
+
+        // Active Therapy Session (Psionic Katharsis)
+        STATE.mentalEnergy = 30;
+        STATE.bioEnergy = 20;
+        const initialProgress = cryo!.therapyProgress;
+        const sessionSuccess = performTherapySession();
+        expect(sessionSuccess).toBe(true);
+        expect(STATE.mentalEnergy).toBe(30 - 15);
+        expect(STATE.bioEnergy).toBe(20 - 10);
+        expect(cryo!.therapyProgress).toBeCloseTo(initialProgress + 25, 1);
+
+        // Complete therapy to 100%: permanently heals cryo_apathy
+        advanceTraumaTherapy(100);
+        expect(cryo!.healed).toBe(true);
+        expect(isTraumaActive('cryo_apathy')).toBe(false); // Debuff gone!
+
+        // Relapse Test: When all connections are lost or Najmafar is in deep isolation (100% loneliness)
+        STATE.crew = [];
+        STATE.loneliness = 100;
+        updateCrewSimulation(1.0);
+        expect(cryo!.flareUp).toBe(true);
+        expect(isTraumaActive('cryo_apathy')).toBe(true); // Active again due to flareUp
+
+        // Soothing when loneliness drops back down with calm companion
+        STATE.crew = [{
+            id: 804,
+            name: "Dr. Song",
+            species: "Terraner",
+            role: "psychologist",
+            roleName: "Traum-Weber",
+            station: "dream_core",
+            stress: 10,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: "Meditiert",
+            thought: "Glätte die Leere.",
+            age: 30,
+            maxLifespan: 500
+        }];
+        STATE.loneliness = 30;
+        updateCrewSimulation(1.0);
+        expect(cryo!.flareUp).toBe(false);
+        expect(isTraumaActive('cryo_apathy')).toBe(false); // Restored to healed!
     });
 });
 

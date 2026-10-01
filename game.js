@@ -29513,6 +29513,39 @@ var STATE = {
     progress: 1,
     duration: 25
   },
+  psionicTraumas: [
+    {
+      id: "cryo_apathy",
+      name: "Kryo-Apathie (Kältetod-Schock)",
+      icon: "❄️",
+      description: "Najmafar sah das Erkalten aller Sonnen im Big Freeze. Er glaubt, jede Bewegung sei vergebens.",
+      effectDescription: "-15% Schubkraft & Wendigkeit, +20% Trägheitsdrift",
+      healed: false,
+      therapyProgress: 0,
+      flareUp: false
+    },
+    {
+      id: "echo_paranoia",
+      name: "Echo-Paranoia (Stimmen der Leere)",
+      icon: "\uD83D\uDC41️",
+      description: "Das endlose Vakuum hallt mit Stimmen toter Zivilisationen wider.",
+      effectDescription: "-25% Mentalkraft-Regeneration & sporadische psionische Dissonanzen",
+      healed: false,
+      therapyProgress: 0,
+      flareUp: false
+    },
+    {
+      id: "void_nihilism",
+      name: "Nihilistische Zellelastizität",
+      icon: "\uD83D\uDD73️",
+      description: "Tiefe Gleichgültigkeit gegenüber physischem Verfall und Zelltod.",
+      effectDescription: "+50% Silizium-Bedarf bei Chitin-Reparatur & Hüllenregeneration",
+      healed: false,
+      therapyProgress: 0,
+      flareUp: false
+    }
+  ],
+  activeCrisisEvents: [],
   mutations: {
     nucleus: { purchased: true, bioCost: 0, siliconCost: 0, name: "Najmafars Herzzelle", desc: "Zentrales pulsierendes Zerebrum." },
     organic_siphon: { purchased: false, bioCost: 120, siliconCost: 60, name: "Organischer Siphon", desc: "+35% Ernte-Speed & Strahlungs-Bio-Filter" },
@@ -33997,6 +34030,103 @@ function triggerCrewDeathNotification(name, species, avatar = "\uD83D\uDC64") {
 }
 
 // src/systems/crew.ts
+function isTraumaActive(traumaId) {
+  if (!STATE.psionicTraumas)
+    return false;
+  const t = STATE.psionicTraumas.find((item) => item.id === traumaId);
+  if (!t)
+    return false;
+  return !t.healed || t.flareUp;
+}
+function advanceTraumaTherapy(amount) {
+  if (!STATE.psionicTraumas)
+    return false;
+  const target = STATE.psionicTraumas.find((t) => !t.healed);
+  if (!target)
+    return false;
+  target.therapyProgress = Math.min(100, target.therapyProgress + amount);
+  if (target.therapyProgress >= 100 && !target.healed) {
+    target.healed = true;
+    target.flareUp = false;
+    addLogEntry("SYSTEM", `✨ PSIONISCHE KATHARSIS: [${target.name}] geheilt! Najmafar hat ein kosmisches Trauma überwunden!`);
+    calculateCrewBuffs();
+    return true;
+  }
+  return false;
+}
+function performTherapySession() {
+  const mentalCost = 15;
+  const bioCost = 10;
+  if (STATE.mentalEnergy < mentalCost || STATE.bioEnergy < bioCost) {
+    addLogEntry("SYSTEM", `⚠️ Zu wenig Mentalkraft oder Bio-Energie für Katharsis-Sitzung (benötigt ${mentalCost} Mental, ${bioCost} Bio)!`);
+    return false;
+  }
+  const unhealed = STATE.psionicTraumas?.find((t) => !t.healed || t.flareUp);
+  if (!unhealed) {
+    addLogEntry("SYSTEM", "\uD83E\uDDE0 Alle bekannten Traumata des Big Freeze sind bereits geheilt und stabil!");
+    return false;
+  }
+  STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - mentalCost);
+  STATE.bioEnergy = Math.max(0, STATE.bioEnergy - bioCost);
+  if (unhealed.flareUp) {
+    unhealed.flareUp = false;
+    addLogEntry("CREW", `✨ PSIONISCHE BERUHIGUNG: Akuter Rückfall von [${unhealed.name}] wurde gelindert!`);
+  } else {
+    advanceTraumaTherapy(25);
+    addLogEntry("CREW", `\uD83E\uDDE0 PSIONISCHE KATHARSIS: Therapiesitzung durchgeführt (+25% Heilung an [${unhealed.name}])!`);
+  }
+  renderCrewUI(true);
+  return true;
+}
+function triggerCrewSabotageEvent(c) {
+  const eventTypes = ["hull_tear", "gland_clog", "thruster_sabotage", "psionic_scream"];
+  const chosenType = eventTypes[Math.floor(Math.random() * eventTypes.length)];
+  let title = "";
+  let description = "";
+  if (chosenType === "hull_tear") {
+    title = "Chitin-Wanddurchbruch";
+    description = `${c.name} reißt im Wahn eine innere Chitin-Membran auf (-15 HP, -10 Silizium)!`;
+    STATE.health = Math.max(1, STATE.health - 15);
+    STATE.siliconRes = Math.max(0, STATE.siliconRes - 10);
+  } else if (chosenType === "thruster_sabotage") {
+    title = "Schub-Tentakel Sabotage";
+    description = `${c.name} blockiert einen Flug-Synapsen-Kanal (-20 Bio-Energie)!`;
+    STATE.bioEnergy = Math.max(0, STATE.bioEnergy - 20);
+  } else if (chosenType === "gland_clog") {
+    title = "Sekretions-Verstopfung";
+    description = `${c.name} verstopft Naniten-Poren in der Chitin-Drüse (-10 HP)!`;
+    STATE.health = Math.max(1, STATE.health - 10);
+  } else {
+    title = "Psionischer Verzweiflungsschrei";
+    description = `${c.name} stößt einen telepathischen Schrei aus (-25 Mental-Energie, Stress der Crew +15)!`;
+    STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - 25);
+    STATE.crew.forEach((other) => {
+      if (other !== c)
+        other.stress = Math.min(100, other.stress + 15);
+    });
+  }
+  c.stress = Math.max(50, c.stress - 25);
+  c.crisisActive = false;
+  c.crisisTimer = 25;
+  const crisisEvent = {
+    id: `crisis_${Date.now()}_${c.id}`,
+    crewId: c.id,
+    crewName: c.name,
+    type: chosenType,
+    title,
+    description,
+    timer: 0,
+    maxTimer: 15,
+    resolved: true
+  };
+  if (!STATE.activeCrisisEvents)
+    STATE.activeCrisisEvents = [];
+  STATE.activeCrisisEvents.unshift(crisisEvent);
+  if (STATE.activeCrisisEvents.length > 5)
+    STATE.activeCrisisEvents.pop();
+  addLogEntry("CREW", `\uD83D\uDCA5 SABOTAGE-VORFALL: ${title}! ${description}`);
+  return crisisEvent;
+}
 var radWarningCooldown = 0;
 var waterWarningCooldown = 0;
 var foodWarningCooldown = 0;
@@ -34458,6 +34588,18 @@ function calculateCrewBuffs() {
   let dreamCount = 0;
   STATE.crew.forEach((c) => {
     assignCrewToOptimalStation(c);
+    const isSevered = (c.stress || 0) >= 70;
+    if (isSevered) {
+      c.connectionStatus = "severed";
+      c.escalationStage = (c.stress || 0) >= 85 ? 3 : 2;
+      return;
+    } else if ((c.stress || 0) >= 45) {
+      c.connectionStatus = "dissonant";
+      c.escalationStage = 1;
+    } else {
+      c.connectionStatus = "connected";
+      c.escalationStage = 1;
+    }
     if (c.station === "flight_synapse")
       flightCount++;
     else if (c.station === "chitin_gland")
@@ -34501,6 +34643,9 @@ function calculateCrewBuffs() {
   scanMult += bioCount * 0.1;
   psioBonus += dreamCount * 25;
   stressDamp *= Math.pow(0.88, dreamCount);
+  if (isTraumaActive("cryo_apathy")) {
+    thrustMult *= 0.85;
+  }
   const bioScientists = STATE.crew.filter((c) => c.role === "biologist" || c.role === "scientist").length;
   const mutationDiscount = Math.min(0.5, bioScientists * 0.2);
   STATE.mutationDiscount = Number(mutationDiscount.toFixed(2));
@@ -34568,16 +34713,21 @@ function updateCrewSimulation(dt) {
     }
   }
   const stationCounts = getStationCrewCounts();
-  if (stationCounts.chitin_gland > 0 && STATE.health < STATE.maxHealth && STATE.siliconRes >= 0.05 * dt) {
-    const repairRate = 0.5 * stationCounts.chitin_gland;
-    const actualRepair = Math.min(STATE.maxHealth - STATE.health, repairRate * dt);
-    STATE.health += actualRepair;
-    STATE.siliconRes = Math.max(0, STATE.siliconRes - 0.05 * actualRepair);
+  if (stationCounts.chitin_gland > 0 && STATE.health < STATE.maxHealth) {
+    const siliconCostPerHp = isTraumaActive("void_nihilism") ? 0.075 : 0.05;
+    if (STATE.siliconRes >= siliconCostPerHp * dt) {
+      const repairRate = 0.5 * stationCounts.chitin_gland;
+      const actualRepair = Math.min(STATE.maxHealth - STATE.health, repairRate * dt);
+      STATE.health += actualRepair;
+      STATE.siliconRes = Math.max(0, STATE.siliconRes - siliconCostPerHp * actualRepair);
+    }
   }
   if (stationCounts.dream_core > 0) {
     const mentalRegenBonus = 0.8 * stationCounts.dream_core * dt;
     STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + mentalRegenBonus);
     STATE.loneliness = Math.max(0, STATE.loneliness - 0.2 * stationCounts.dream_core * dt);
+    const ibadBonus = STATE.mutations.ibad?.purchased ? 2 : 1;
+    advanceTraumaTherapy(0.35 * stationCounts.dream_core * ibadBonus * dt);
   }
   if (stationCounts.bio_incubator > 0) {
     const bioTrickle = 0.2 * stationCounts.bio_incubator * dt;
@@ -34621,31 +34771,57 @@ function updateCrewSimulation(dt) {
     foodWarningCooldown = Math.max(0, foodWarningCooldown - dt);
   }
   const totalCrew = STATE.crew.length;
-  const uniqueRoles = new Set(STATE.crew.map((c) => c.role)).size;
+  const connectedCrew = STATE.crew.filter((c) => (c.stress || 0) < 70);
+  const connectedCount = connectedCrew.length;
+  const severedCount = totalCrew - connectedCount;
+  const uniqueRoles = new Set(connectedCrew.map((c) => c.role)).size;
   let targetLoneliness = 100;
   let isHarmony = false;
-  if (totalCrew === 0) {
+  if (totalCrew === 0 || connectedCount === 0) {
     targetLoneliness = 100;
-  } else if (totalCrew === 1) {
+  } else if (connectedCount === 1) {
     STATE.crewSatietyTimer += dt;
     const decay = Math.min(20, STATE.crewSatietyTimer / 120 * 20);
     targetLoneliness = 45 + decay;
-  } else if (totalCrew === 2) {
+  } else if (connectedCount === 2) {
     targetLoneliness = uniqueRoles === 2 ? 20 : 30;
-  } else if (totalCrew >= 3) {
+  } else if (connectedCount >= 3) {
     if (uniqueRoles >= 3) {
-      targetLoneliness = Math.max(0, 5 - (totalCrew - 3) * 2);
+      targetLoneliness = Math.max(0, 5 - (connectedCount - 3) * 2);
       isHarmony = true;
     } else {
-      targetLoneliness = Math.max(5, 15 - (totalCrew - 3) * 3);
-      if (totalCrew >= 4)
+      targetLoneliness = Math.max(5, 15 - (connectedCount - 3) * 3);
+      if (connectedCount >= 4)
         isHarmony = true;
     }
+  }
+  if (severedCount > 0 && connectedCount > 0) {
+    targetLoneliness = Math.min(100, targetLoneliness + severedCount * 15);
   }
   if (STATE.loneliness < targetLoneliness) {
     STATE.loneliness = Math.min(targetLoneliness, STATE.loneliness + 3 * dt);
   } else if (STATE.loneliness > targetLoneliness) {
     STATE.loneliness = Math.max(targetLoneliness, STATE.loneliness - 18 * dt);
+  }
+  if (STATE.loneliness >= 100) {
+    const healedTrauma = STATE.psionicTraumas?.find((t) => t.healed && !t.flareUp);
+    if (healedTrauma) {
+      healedTrauma.flareUp = true;
+      addLogEntry("CREW", `\uD83C\uDF0C TRAUMA-RÜCKFALL: Kosmische Einsamkeit des Big Freeze holt Najmafar wieder ein! [${healedTrauma.name}] bricht auf!`);
+      calculateCrewBuffs();
+    }
+  } else if (STATE.loneliness < 50) {
+    let hadFlare = false;
+    STATE.psionicTraumas?.forEach((t) => {
+      if (t.healed && t.flareUp) {
+        t.flareUp = false;
+        hadFlare = true;
+      }
+    });
+    if (hadFlare) {
+      addLogEntry("CREW", `✨ Seelische Geborgenheit: Der psionische Trauma-Rückfall klingt wieder ab.`);
+      calculateCrewBuffs();
+    }
   }
   if (isHarmony) {
     STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 0.5 * dt);
@@ -34823,10 +34999,43 @@ function updateCrewSimulation(dt) {
         STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 1.5 * dt);
       }
     }
-    if (c.stress >= 80) {
-      STATE.health = Math.max(0, STATE.health - 3.2 * dt);
-      if (Math.random() < 0.008) {
-        addLogEntry("CREW", `MATRIX-ALARM: ${c.name} randaliert in Panik und beschädigt Zellwände! Beruhige mit [LEERTASTE]!`);
+    if (c.stress >= 85) {
+      c.escalationStage = 3;
+      c.connectionStatus = "severed";
+      if (c.crisisTimer !== undefined && c.crisisTimer > 0 && !c.crisisActive) {
+        c.crisisTimer = Math.max(0, c.crisisTimer - dt);
+      } else if (!c.crisisActive) {
+        c.crisisActive = true;
+        c.crisisTimer = 15;
+        addLogEntry("CREW", `⚠️ KRISEN-WARNUNG: ${c.name} steht vor einem Nervenzusammenbruch! Sabotage in 15s – Beruhige den Geist via [LEERTASTE] oder Traum-Kern!`);
+      } else {
+        c.crisisTimer = Math.max(0, c.crisisTimer - dt);
+        if (c.crisisTimer <= 0) {
+          triggerCrewSabotageEvent(c);
+        }
+      }
+    } else if (c.stress >= 70) {
+      c.escalationStage = 2;
+      c.connectionStatus = "severed";
+      if (c.crisisActive && c.stress < 80) {
+        c.crisisActive = false;
+        c.crisisTimer = undefined;
+        addLogEntry("CREW", `✨ KRISE ABGEWENDET: ${c.name} hat sich beruhigt. Sabotagegefahr gebannt.`);
+      }
+      c.status = "Verbindung gekappt";
+    } else if (c.stress >= 45) {
+      c.escalationStage = 1;
+      c.connectionStatus = "dissonant";
+      if (c.crisisActive) {
+        c.crisisActive = false;
+        c.crisisTimer = undefined;
+      }
+    } else {
+      c.escalationStage = 1;
+      c.connectionStatus = "connected";
+      if (c.crisisActive) {
+        c.crisisActive = false;
+        c.crisisTimer = undefined;
       }
     }
   }
@@ -34838,7 +35047,10 @@ function updateCrewSimulation(dt) {
       addLogEntry("SYSTEM", "Mentale Reserven erschöpft! Telepathische Traum-Matrix flackert.");
     }
   } else {
-    const regenSpeed = STATE.mutations.synapses && STATE.mutations.synapses.purchased ? 7 * dt : 3.5 * dt;
+    let regenSpeed = STATE.mutations.synapses && STATE.mutations.synapses.purchased ? 7 * dt : 3.5 * dt;
+    if (isTraumaActive("echo_paranoia")) {
+      regenSpeed *= 0.75;
+    }
     STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + regenSpeed);
   }
   STATE.crewDialogueTimer -= dt;
@@ -34973,7 +35185,53 @@ function updateDeckLiveElements() {
     const thoughtEl = card.querySelector(".deck-thought-text");
     if (thoughtEl)
       thoughtEl.innerText = `\uD83D\uDCAD "${c.thought}"`;
+    const connBadge = card.querySelector(".deck-connection-badge");
+    if (connBadge) {
+      if (c.crisisActive && c.crisisTimer !== undefined) {
+        connBadge.innerText = `⚠️ SABOTAGE IN ${Math.ceil(c.crisisTimer)}s`;
+        connBadge.style.color = "#fff";
+        connBadge.style.background = "#ef4444";
+      } else if (c.connectionStatus === "severed") {
+        connBadge.innerText = "\uD83D\uDD12 Verbindung gekappt";
+        connBadge.style.color = "#ef4444";
+        connBadge.style.background = "rgba(239,68,68,0.15)";
+      } else if (c.connectionStatus === "dissonant") {
+        connBadge.innerText = "⚡ Dissonant";
+        connBadge.style.color = "#f59e0b";
+        connBadge.style.background = "rgba(245,158,11,0.15)";
+      } else {
+        connBadge.innerText = "✓ Verbunden";
+        connBadge.style.color = "#10b981";
+        connBadge.style.background = "rgba(16,185,129,0.15)";
+      }
+    }
   });
+  if (STATE.psionicTraumas) {
+    const traumaBadge = document.getElementById("big-freeze-trauma-status-badge");
+    const activeCount = STATE.psionicTraumas.filter((t) => !t.healed || t.flareUp).length;
+    if (traumaBadge) {
+      traumaBadge.innerText = activeCount === 0 ? "✓ Alle Geheilt" : `${activeCount} Aktiv`;
+      traumaBadge.style.color = activeCount === 0 ? "#10b981" : "#f43f5e";
+    }
+    STATE.psionicTraumas.forEach((t) => {
+      const bar = document.getElementById(`trauma-prog-${t.id}`);
+      if (bar)
+        bar.style.width = `${t.therapyProgress}%`;
+      const val = document.getElementById(`trauma-status-${t.id}`);
+      if (val) {
+        if (t.flareUp) {
+          val.innerText = "⚠️ Rückfall (Einsamkeit)";
+          val.style.color = "#f43f5e";
+        } else if (t.healed) {
+          val.innerText = "✓ Geheilt";
+          val.style.color = "#10b981";
+        } else {
+          val.innerText = `${Math.round(t.therapyProgress)}% Verarbeitet`;
+          val.style.color = "#c084fc";
+        }
+      }
+    });
+  }
 }
 function renderCrewUI(force = false) {
   const modal = document.getElementById("deck-modal");
@@ -35080,6 +35338,46 @@ function renderCrewUI(force = false) {
       synTitle.innerText = "\uD83D\uDCAB Kosmische Harmonie (0% Einsamkeit)";
       synDesc.innerText = "Diverses Trio aktiv! Einsamkeit vollständig beseitigt & passive Bio-/Mentalenergie-Regeneration online!";
     }
+  }
+  const traumaList = document.getElementById("big-freeze-trauma-list");
+  const traumaBadge = document.getElementById("big-freeze-trauma-status-badge");
+  if (traumaList && STATE.psionicTraumas) {
+    const activeCount = STATE.psionicTraumas.filter((t) => !t.healed || t.flareUp).length;
+    if (traumaBadge) {
+      traumaBadge.innerText = activeCount === 0 ? "✓ Alle Geheilt" : `${activeCount} Aktiv`;
+      traumaBadge.style.color = activeCount === 0 ? "#10b981" : "#f43f5e";
+    }
+    traumaList.innerHTML = STATE.psionicTraumas.map((t) => {
+      const isActive = !t.healed || t.flareUp;
+      const isFlare = t.flareUp;
+      let statusText = "✓ Geheilt";
+      let statusColor = "#10b981";
+      if (isFlare) {
+        statusText = "⚠️ Rückfall (Einsamkeit)";
+        statusColor = "#f43f5e";
+      } else if (!t.healed) {
+        statusText = `${Math.round(t.therapyProgress)}% Verarbeitet`;
+        statusColor = "#c084fc";
+      }
+      return `
+                <div class="trauma-item" style="background: rgba(30,41,59,0.6); padding: 5px 7px; border-radius: 4px; border: 1px solid ${isActive ? "rgba(192,132,252,0.3)" : "rgba(16,185,129,0.3)"};">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                        <span style="font-size: 0.68rem; font-weight: 700; color: ${isActive ? "#f8fafc" : "#94a3b8"};">
+                            ${t.icon} ${t.name}
+                        </span>
+                        <span id="trauma-status-${t.id}" style="font-size: 0.60rem; font-weight: bold; color: ${statusColor};">${statusText}</span>
+                    </div>
+                    <div style="font-size: 0.58rem; color: #94a3b8; margin-bottom: 3px;">
+                        ${t.effectDescription}
+                    </div>
+                    ${!t.healed ? `
+                        <div style="height: 3px; background: rgba(0,0,0,0.5); border-radius: 2px; overflow: hidden;">
+                            <div id="trauma-prog-${t.id}" style="width: ${t.therapyProgress}%; height: 100%; background: linear-gradient(90deg, #c084fc, #38bdf8);"></div>
+                        </div>
+                    ` : ""}
+                </div>
+            `;
+    }).join("");
   }
   if (!container)
     return;
@@ -35329,16 +35627,28 @@ function renderSingleCrewMemberHTML(c) {
   const ageMin = Math.floor(currentAge / 60);
   const ageSec = String(currentAge % 60).padStart(2, "0");
   const maxMin = Math.floor(maxLife / 60);
+  let connBadgeHtml = '<span class="deck-connection-badge" style="font-size: 0.6rem; color: #10b981; background: rgba(16,185,129,0.15); padding: 1px 5px; border-radius: 3px;">✓ Verbunden</span>';
+  if (c.crisisActive && c.crisisTimer !== undefined) {
+    connBadgeHtml = `<span class="deck-connection-badge" style="font-size: 0.6rem; color: #fff; background: #ef4444; padding: 1px 5px; border-radius: 3px; font-weight: bold;">⚠️ SABOTAGE IN ${Math.ceil(c.crisisTimer)}s</span>`;
+  } else if (c.connectionStatus === "severed") {
+    connBadgeHtml = '<span class="deck-connection-badge" style="font-size: 0.6rem; color: #ef4444; background: rgba(239,68,68,0.15); padding: 1px 5px; border-radius: 3px;">\uD83D\uDD12 Verbindung gekappt</span>';
+  } else if (c.connectionStatus === "dissonant") {
+    connBadgeHtml = '<span class="deck-connection-badge" style="font-size: 0.6rem; color: #f59e0b; background: rgba(245,158,11,0.15); padding: 1px 5px; border-radius: 3px;">⚡ Dissonant</span>';
+  }
+  const isSevered = c.connectionStatus === "severed";
   return `
         <div id="deck-crew-card-${c.id}" class="${cardClass}" style="margin-bottom: 6px;">
             <div class="crew-header" style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
+                <div style="display: flex; align-items: center; gap: 6px;">
                     <span class="crew-name" style="font-weight: 700; color: #f8fafc; font-size: 0.8rem;">${c.name}</span>
-                    <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">(${speciesTag})</span>
+                    <span style="font-size: 0.65rem; color: #94a3b8;">(${speciesTag})</span>
+                    ${connBadgeHtml}
                 </div>
                 <span class="crew-role-badge">${c.roleIcon || "\uD83D\uDC64"} ${c.roleName || c.role}</span>
             </div>
-            <div class="crew-buff-tag">⚡ ${c.buffDesc || c.perk}</div>
+            <div class="crew-buff-tag" style="${isSevered ? "color: #94a3b8; text-decoration: line-through;" : ""}">
+                ⚡ ${c.buffDesc || c.perk}${isSevered ? " (Inaktiv - Geist getrennt)" : ""}
+            </div>
 
             <!-- Lifespan & Biological Age Bar -->
             <div class="lifespan-container" style="margin: 4px 0; background: rgba(15,23,42,0.6); padding: 4px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
@@ -35410,6 +35720,7 @@ if (typeof window !== "undefined") {
   window.cyclePrimaryParadigm = () => cyclePrimaryParadigm();
   window.setCrewStation = (id, s) => setCrewStation(id, s);
   window.setSpeciesClusterStation = (sp, s) => setSpeciesClusterStation(sp, s);
+  window.performTherapySession = () => performTherapySession();
 }
 var crewDialogueBank = {
   pilot_engineer: [
@@ -42069,6 +42380,12 @@ function initDeckUI() {
       } else {
         addLogEntry("SYSTEM", "Zu wenig Legierungen für Shuttle-Generalüberholung (10 Legierungen benötigt)!");
       }
+    });
+  }
+  const therapyBtn = document.getElementById("therapy-session-btn");
+  if (therapyBtn) {
+    therapyBtn.addEventListener("click", () => {
+      performTherapySession();
     });
   }
 }

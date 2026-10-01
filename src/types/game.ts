@@ -104,6 +104,12 @@ export interface CrewMember {
     avatarIcon?: string;
     criticalAlertTriggered?: boolean;
     speciesColor?: string;
+
+    // Stress Escalation & Telepathic Link
+    connectionStatus?: 'connected' | 'dissonant' | 'severed';
+    escalationStage?: 1 | 2 | 3;
+    crisisTimer?: number;
+    crisisActive?: boolean;
 }
 
 export interface SpeciesData {
@@ -482,6 +488,31 @@ export interface DoctrineTransition {
     duration: number; // in seconds
 }
 
+export type PsionicTraumaId = 'cryo_apathy' | 'echo_paranoia' | 'void_nihilism';
+
+export interface PsionicTrauma {
+    id: PsionicTraumaId;
+    name: string;
+    icon: string;
+    description: string;
+    effectDescription: string;
+    healed: boolean;
+    therapyProgress: number; // 0 - 100
+    flareUp: boolean;
+}
+
+export interface CrewCrisisEvent {
+    id: string;
+    crewId: number;
+    crewName: string;
+    type: 'hull_tear' | 'gland_clog' | 'thruster_sabotage' | 'psionic_scream';
+    title: string;
+    description: string;
+    timer: number;
+    maxTimer: number;
+    resolved: boolean;
+}
+
 export interface GameState {
     // Player Stats
     health: number;
@@ -526,6 +557,10 @@ export interface GameState {
     activeSubCodex: SubCodex;
     paradigmModifiers: ParadigmModifiers;
     doctrineTransition?: DoctrineTransition;
+
+    // Najmafar's Big Freeze Trauma & Psionic Afflictions
+    psionicTraumas?: PsionicTrauma[];
+    activeCrisisEvents?: CrewCrisisEvent[];
 
     // Mutations
     mutations: {

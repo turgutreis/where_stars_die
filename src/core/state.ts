@@ -75,6 +75,41 @@ export const STATE: GameState = {
         duration: 25.0
     },
 
+    // Najmafar's Big Freeze Trauma & Psionic Afflictions
+    psionicTraumas: [
+        {
+            id: 'cryo_apathy',
+            name: 'Kryo-Apathie (Kältetod-Schock)',
+            icon: '❄️',
+            description: 'Najmafar sah das Erkalten aller Sonnen im Big Freeze. Er glaubt, jede Bewegung sei vergebens.',
+            effectDescription: '-15% Schubkraft & Wendigkeit, +20% Trägheitsdrift',
+            healed: false,
+            therapyProgress: 0,
+            flareUp: false
+        },
+        {
+            id: 'echo_paranoia',
+            name: 'Echo-Paranoia (Stimmen der Leere)',
+            icon: '👁️',
+            description: 'Das endlose Vakuum hallt mit Stimmen toter Zivilisationen wider.',
+            effectDescription: '-25% Mentalkraft-Regeneration & sporadische psionische Dissonanzen',
+            healed: false,
+            therapyProgress: 0,
+            flareUp: false
+        },
+        {
+            id: 'void_nihilism',
+            name: 'Nihilistische Zellelastizität',
+            icon: '🕳️',
+            description: 'Tiefe Gleichgültigkeit gegenüber physischem Verfall und Zelltod.',
+            effectDescription: '+50% Silizium-Bedarf bei Chitin-Reparatur & Hüllenregeneration',
+            healed: false,
+            therapyProgress: 0,
+            flareUp: false
+        }
+    ],
+    activeCrisisEvents: [],
+
     // Mutations & Biologischer Synapsen-Baum
     mutations: {
         // Zentrum: Najmafars Herzzelle / Zerebrum
