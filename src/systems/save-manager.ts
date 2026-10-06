@@ -296,7 +296,7 @@ export async function applyLoadedState(data: SerializedGameState): Promise<void>
         STATE.ftueCompleted = data.ftue.completed;
     }
     if (data.reputation) {
-        STATE.reputation = { ...data.reputation };
+        STATE.reputation = { ...data.reputation } as any;
     }
 
     // 6. Navigation & Celestial System

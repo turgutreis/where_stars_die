@@ -323,7 +323,7 @@ export function updateScanning(dt: number) {
     const meshScale = STATE.scanningPlanet.mesh ? STATE.scanningPlanet.mesh.scale.x : 1.0;
     const maxHoldDist = isStation ? 42.0 : (isShip ? 35.0 : Math.max(32.0, (STATE.scanningPlanet.size || 2.5) * meshScale * 4.4));
 
-    const targetPos = STATE.scanningPlanet.mesh ? STATE.scanningPlanet.mesh.position : (STATE.scanningPlanet.position || new THREE.Vector3(0, 0, 0));
+    const targetPos = STATE.scanningPlanet.mesh ? STATE.scanningPlanet.mesh.position : ((STATE.scanningPlanet as any).position || new THREE.Vector3(0, 0, 0));
     const dx = STATE.playerPosition.x - targetPos.x;
     const dz = STATE.playerPosition.z - targetPos.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
@@ -367,7 +367,7 @@ export function completeScanning() {
     const progContainer = document.getElementById('scan-progress-container');
     if (progContainer) progContainer.style.display = 'none';
 
-    const target = STATE.scanningPlanet;
+    const target: any = STATE.scanningPlanet;
     try {
         if (target) {
             const isShip = target.type === 'interceptor' || target.type === 'corvette' || target.type === 'freighter' || target.type === 'heavy_freighter';

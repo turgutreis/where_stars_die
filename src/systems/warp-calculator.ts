@@ -88,7 +88,7 @@ export function calculateJumpPrecision(fromSys: StarSystem, targetSys: StarSyste
         const telepaths = STATE.crew.filter(c => 
             c.role === 'psychologist' || 
             c.trait?.type === 'psionic' || 
-            c.station === 'dream_weaver'
+            c.station === 'dream_core'
         );
         telepathyBonus += Math.min(10, telepaths.length * 3);
     }

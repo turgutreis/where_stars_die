@@ -210,9 +210,14 @@ export function completeAwayMission(mission: AwayMission) {
             species: 'Xeno-Humanoid',
             role: 'engineer',
             roleName: 'Kolonie-Ingenieur',
+            buffDesc: '+15% Reparatur',
             age: 28,
             maxLifespan: 120,
             stress: 40,
+            baseStressRate: 0.1,
+            illusionStability: 100,
+            status: 'Gerettet',
+            thought: 'Ich lebe noch...',
             trait: {
                 name: 'Wrack-Überlebender',
                 desc: '+15% Shuttle-Haltbarkeit & Reparatur',
@@ -254,7 +259,7 @@ export function openShuttleExpeditionModal(planet: PlanetEntry, deposit: Surface
     // Hazards
     if (hazardEl) {
         const hazIcon = deposit.hazardType === 'thermal' ? '🔥 Hitze' : (deposit.hazardType === 'atmosphere' ? '☠️ Atmosphäre' : (deposit.hazardType === 'radiation' ? '☢️ Strahlung' : '🪐 Gravitation'));
-        const hazColor = deposit.hazardSeverity === 'extreme' ? '#f43f5e' : (deposit.hazardSeverity === 'moderate' || deposit.hazardSeverity === 'high' ? '#f59e0b' : '#10b981');
+        const hazColor = deposit.hazardSeverity === 'extreme' ? '#f43f5e' : (deposit.hazardSeverity === 'moderate' ? '#f59e0b' : '#10b981');
         hazardEl.innerHTML = `<span style="color: ${hazColor}; font-weight: bold;">Gefahr: ${hazIcon} (${deposit.hazardSeverity.toUpperCase()})</span>`;
     }
 

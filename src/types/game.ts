@@ -250,9 +250,10 @@ export interface PlanetData {
     archetype?: PlanetArchetypeData;
     atmos?: string;
     temp?: string;
-    bio?: string;
+    bio?: string | number;
     res?: string;
     species?: SpeciesData | null;
+    attributes?: any;
     moons?: MoonData[];
     tidalLock?: boolean;
     magnetosphere?: 'None' | 'Weak' | 'Strong' | 'Hyper-Magnetic';
@@ -260,6 +261,7 @@ export interface PlanetData {
     radiationLevel?: 'Low' | 'Moderate' | 'High' | 'Extreme';
     entangledTwinId?: string | null;
     quantumResonance?: number;
+    silicon?: number;
 }
 
 export type SectorId = 'sector_outer_rim' | 'sector_mid_rim' | 'sector_core';
@@ -346,6 +348,7 @@ export interface PlanetEntry {
     depleted?: boolean;
     harvested?: boolean;
     attributes: PlanetAttributes;
+    [key: string]: any;
 }
 
 export type FleetShipType = 'interceptor' | 'corvette' | 'freighter' | 'heavy_freighter';
@@ -396,6 +399,7 @@ export interface FleetShip {
     health: number;
     maxHealth: number;
     state: FleetShipState;
+    status?: FleetShipState;
     stunTimer?: number;
     stunMaxDuration?: number;
     sparkTimer?: number;
@@ -624,8 +628,8 @@ export interface GameState {
 
     // Scanner, Harvesting & Abduction
     nearestPlanet: PlanetEntry | null;
-    lockedTarget: PlanetEntry | null;
-    scanningPlanet: PlanetEntry | null;
+    lockedTarget: PlanetEntry | any | null;
+    scanningPlanet: PlanetEntry | any | null;
     scanProgress: number;
     scannedPlanets: Record<string, boolean>;
     depletedPlanets: Record<string, boolean>;

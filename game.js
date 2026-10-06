@@ -36894,7 +36894,7 @@ function generateQuantumWalkHistory(systemSeed, bits) {
   });
   return eras;
 }
-function collapseQuantumCivilization2(systemId, planetIndex, seed) {
+function collapseQuantumCivilization(systemId, planetIndex, seed) {
   const random = lcg(seed * 7331 + systemId * 137 + planetIndex * 43);
   const qpu = new QpuSimulator(random);
   const { stateIndex, bits } = qpu.measureWavefunction(random);
@@ -37991,9 +37991,14 @@ function completeAwayMission(mission) {
       species: "Xeno-Humanoid",
       role: "engineer",
       roleName: "Kolonie-Ingenieur",
+      buffDesc: "+15% Reparatur",
       age: 28,
       maxLifespan: 120,
       stress: 40,
+      baseStressRate: 0.1,
+      illusionStability: 100,
+      status: "Gerettet",
+      thought: "Ich lebe noch...",
       trait: {
         name: "Wrack-Überlebender",
         desc: "+15% Shuttle-Haltbarkeit & Reparatur",
@@ -38027,7 +38032,7 @@ function openShuttleExpeditionModal(planet, deposit) {
     descEl.innerText = `${deposit.description} (${planet.name})`;
   if (hazardEl) {
     const hazIcon = deposit.hazardType === "thermal" ? "\uD83D\uDD25 Hitze" : deposit.hazardType === "atmosphere" ? "☠️ Atmosphäre" : deposit.hazardType === "radiation" ? "☢️ Strahlung" : "\uD83E\uDE90 Gravitation";
-    const hazColor = deposit.hazardSeverity === "extreme" ? "#f43f5e" : deposit.hazardSeverity === "moderate" || deposit.hazardSeverity === "high" ? "#f59e0b" : "#10b981";
+    const hazColor = deposit.hazardSeverity === "extreme" ? "#f43f5e" : deposit.hazardSeverity === "moderate" ? "#f59e0b" : "#10b981";
     hazardEl.innerHTML = `<span style="color: ${hazColor}; font-weight: bold;">Gefahr: ${hazIcon} (${deposit.hazardSeverity.toUpperCase()})</span>`;
   }
   if (yieldEl) {
@@ -38122,7 +38127,7 @@ function generatePlanetAttributes(p) {
     bio = hash % 3 === 0 ? "Biolumineszierende Flora" : hash % 3 === 1 ? "Mikrobielle Kolonien" : "Komplexes Ökosystem";
     res = "Reich an Biomasse, Kohlenstoff & O2";
     const pool = generateProceduralCandidates(hash, hash % 2 === 0 ? 2 : 1);
-    const qCiv = collapseQuantumCivilization2(STATE.currentSystemId, hash % 8, hash);
+    const qCiv = collapseQuantumCivilization(STATE.currentSystemId, hash % 8, hash);
     const faction = getFaction(qCiv.factionId);
     species = {
       hasSentient: true,
@@ -43005,11 +43010,6 @@ function updateMinimap() {
         minimapCtx.beginPath();
         minimapCtx.arc(sx, sy, 5.5 + Math.sin(Date.now() * 0.015) * 1.5, 0, Math.PI * 2);
         minimapCtx.stroke();
-      } else if (ship.type === "freighter" || ship.type === "heavy_freighter") {
-        minimapCtx.fillStyle = ship.state === "trade_docked" ? "#facc15" : "#f59e0b";
-        minimapCtx.beginPath();
-        minimapCtx.arc(sx, sy, 3, 0, Math.PI * 2);
-        minimapCtx.fill();
       } else if (ship.state === "returning") {
         minimapCtx.fillStyle = "#06b6d4";
         minimapCtx.beginPath();
@@ -43271,7 +43271,7 @@ function calculateJumpPrecision(fromSys, targetSys) {
   const psioBonusVal = STATE.crewBuffs ? STATE.crewBuffs.psionicBonus || 0 : 0;
   telepathyBonus += Math.min(15, Math.round(psioBonusVal * 0.12));
   if (STATE.crew && STATE.crew.length > 0) {
-    const telepaths = STATE.crew.filter((c) => c.role === "psychologist" || c.trait?.type === "psionic" || c.station === "dream_weaver");
+    const telepaths = STATE.crew.filter((c) => c.role === "psychologist" || c.trait?.type === "psionic" || c.station === "dream_core");
     telepathyBonus += Math.min(10, telepaths.length * 3);
   }
   telepathyBonus = Math.min(20, telepathyBonus);
@@ -45348,7 +45348,7 @@ function setupControls() {
           return pos && STATE.playerPosition.distanceTo(pos) <= 22;
         });
         if (nearbyShip) {
-          if (nearbyShip.status === "stunned") {
+          if (nearbyShip.state === "stunned" || nearbyShip.status === "stunned") {
             abductCrewFromShip(nearbyShip);
             return;
           }
@@ -45552,7 +45552,7 @@ function setupTargetRaycasting() {
     }
     if (STATE.fleetShips) {
       STATE.fleetShips.forEach((s) => {
-        if (s.mesh && s.status !== "disabled")
+        if (s.mesh && s.state !== "disabled" && s.status !== "disabled")
           targetMeshes.push(s.mesh);
       });
     }
@@ -45677,7 +45677,7 @@ function cycleTarget(direction = 1) {
   if (STATE.spaceStations)
     candidates.push(...STATE.spaceStations);
   if (STATE.fleetShips)
-    candidates.push(...STATE.fleetShips.filter((s) => s.status !== "disabled"));
+    candidates.push(...STATE.fleetShips.filter((s) => s.state !== "disabled" && s.status !== "disabled"));
   if (candidates.length === 0)
     return;
   const sorted = [...candidates].sort((a, b) => {
@@ -46297,7 +46297,7 @@ function updatePhysics(dt) {
     }
     if (STATE.fleetShips) {
       for (const sh of STATE.fleetShips) {
-        if (sh.status === "disabled")
+        if (sh.state === "disabled" || sh.status === "disabled")
           continue;
         const pos = sh.mesh ? sh.mesh.position : sh.position;
         if (pos) {

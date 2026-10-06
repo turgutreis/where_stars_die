@@ -261,7 +261,7 @@ export function updatePhysics(dt: number) {
         }
         if (STATE.fleetShips) {
             for (const sh of STATE.fleetShips) {
-                if (sh.status === 'disabled') continue;
+                if (sh.state === 'disabled' || (sh as any).status === 'disabled') continue;
                 const pos = sh.mesh ? sh.mesh.position : sh.position;
                 if (pos) {
                     const dist = STATE.playerPosition.distanceTo(pos);

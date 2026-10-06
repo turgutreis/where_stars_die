@@ -170,7 +170,7 @@ export function spawnSystemSpaceStations(planetsInput?: PlanetEntry[]) {
     } else if (STATE.universe && STATE.universe.systems) {
         const activeSys = STATE.universe.systems.find(s => s.id === STATE.currentSystemId) || STATE.universe.systems[STATE.currentSystemId];
         if (activeSys && activeSys.planets) {
-            planets = activeSys.planets;
+            planets = activeSys.planets as any;
         }
     }
 

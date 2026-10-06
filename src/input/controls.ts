@@ -161,7 +161,7 @@ export function setupControls() {
                     return pos && STATE.playerPosition.distanceTo(pos) <= 22;
                 });
                 if (nearbyShip) {
-                    if (nearbyShip.status === 'stunned') {
+                    if (nearbyShip.state === 'stunned' || (nearbyShip as any).status === 'stunned') {
                         abductCrewFromShip(nearbyShip);
                         return;
                     }
@@ -379,7 +379,7 @@ export function setupTargetRaycasting() {
         }
         if (STATE.fleetShips) {
             STATE.fleetShips.forEach(s => {
-                if (s.mesh && s.status !== 'disabled') targetMeshes.push(s.mesh);
+                if (s.mesh && s.state !== 'disabled' && (s as any).status !== 'disabled') targetMeshes.push(s.mesh);
             });
         }
 
@@ -507,7 +507,7 @@ export function cycleTarget(direction = 1) {
     const candidates: any[] = [];
     if (activePlanets) candidates.push(...activePlanets);
     if (STATE.spaceStations) candidates.push(...STATE.spaceStations);
-    if (STATE.fleetShips) candidates.push(...STATE.fleetShips.filter(s => s.status !== 'disabled'));
+    if (STATE.fleetShips) candidates.push(...STATE.fleetShips.filter(s => s.state !== 'disabled' && (s as any).status !== 'disabled'));
 
     if (candidates.length === 0) return;
 

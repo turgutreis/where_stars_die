@@ -7,6 +7,7 @@ import { empLight } from '../procedural/meshes';
 import { FleetShip, FleetProjectile, PlanetEntry, FactionId, SpaceStation } from '../types/game';
 import { getFaction } from './factions';
 import { generateProceduralCandidates } from './crew-generation';
+import { collapseQuantumCivilization } from '../procedural/quantum-civ';
 
 let shockwaveMesh: THREE.Mesh | null = null;
 let shockwaveTimer = 0;
@@ -24,7 +25,7 @@ export function spawnSystemFleet(planetsInput?: any) {
     } else if (STATE.universe && STATE.universe.systems) {
         const activeSys = STATE.universe.systems.find(s => s.id === STATE.currentSystemId) || STATE.universe.systems[STATE.currentSystemId];
         if (activeSys && activeSys.planets) {
-            planets = activeSys.planets;
+            planets = activeSys.planets as any;
         }
     }
 
@@ -454,7 +455,7 @@ export function updateFleet(dt: number) {
         // 2. Freighter Trade Cruise, Docking & Flee AI
         if (ship.type === 'freighter' || ship.type === 'heavy_freighter') {
             // Uncamouflaged proximity panic check (triggers in cruise, docking, or returning)
-            if (distToPlayer < 28.0 && !STATE.stealthActive && ship.state !== 'flee' && ship.state !== 'stunned' && ship.state !== 'disabled') {
+            if (distToPlayer < 28.0 && !STATE.stealthActive && ship.state !== 'flee' && (ship.state as any) !== 'stunned' && (ship.state as any) !== 'disabled') {
                 ship.state = 'flee';
                 playFleetAlarmSound();
                 addLogEntry("SYSTEM", `🚨 NOTRUF: Ziviler Frachter ${ship.name} meldet ungetarnten Leviathan! Fordert Geleitschutz an!`);
@@ -584,7 +585,7 @@ export function updateFleet(dt: number) {
 
         // 3. Military Combat Ships (Interceptors & Corvettes)
         // System-wide Hunt Response: uncloaked Najmafar draws all military ships across the entire system!
-        if (STATE.systemAlertLevel === 'hunt' && (ship.state === 'patrol' || ship.state === 'returning')) {
+        if (STATE.systemAlertLevel === 'hunt' && (ship.state === 'patrol' || (ship.state as any) === 'returning')) {
             if (!STATE.stealthActive) {
                 ship.state = 'hunt';
                 ship.alertTimer = 35.0;
@@ -915,7 +916,7 @@ export function handleSystemArrivalStealthCheck() {
     if (!activeSys || !activeSys.planets) return;
 
     const hasAdvancedCiv = activeSys.planets.some(p => {
-        const spec = p.species || (p.attributes && p.attributes.species);
+        const spec = p.species || ((p as any).attributes && (p as any).attributes.species);
         return spec && (spec.techLevel === 'Spacefaring' || spec.techLevel === 'Hyper-Advanced');
     });
 
