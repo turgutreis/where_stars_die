@@ -219,7 +219,8 @@ import {
     finishPrologue, 
     recruitJamal, 
     getCurrentPrologueBeatIndex, 
-    isPrologueRunning 
+    isPrologueRunning,
+    getPrologueBeats
 } from '../src/ui/prologue';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
@@ -3775,6 +3776,15 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         STATE.prologueCompleted = false;
         STATE.prologueActive = false;
 
+        // Verify JSON story beats structure
+        const beats = getPrologueBeats();
+        expect(beats.length).toBe(11);
+        expect(beats[0].stage).toBe('office_dream');
+        expect(beats[3].speakerType).toBe('guide');
+        expect(beats[4].speakerType).toBe('thoughts');
+        expect(beats[9].stage).toBe('absorption_sync');
+        expect(beats[10].stage).toBe('breakout_warp');
+
         let completed = false;
         triggerPrologueSequence(() => {
             completed = true;
@@ -3785,6 +3795,10 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.prologueCompleted).toBe(false);
         expect(getCurrentPrologueBeatIndex()).toBe(0);
         expect(STATE.prologueStage).toBe('office_dream');
+
+        // Ship initially parked in menagerie at (0, 0, 0)
+        expect(STATE.playerPosition.x).toBe(0);
+        expect(STATE.playerPosition.z).toBe(0);
 
         // 2. Test Dr. Jamal recruitment logic
         const jamal = recruitJamal();
@@ -3798,13 +3812,17 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.crew[0].name).toBe("Dr. Jamal");
         expect(STATE.loneliness).toBeLessThanOrEqual(50); // Solitude alleviated
 
-        // 3. Test finishPrologue
+        // 3. Test finishPrologue & verify safe standoff orbit
         finishPrologue();
         expect(isPrologueRunning()).toBe(false);
         expect(STATE.prologueActive).toBe(false);
         expect(STATE.prologueCompleted).toBe(true);
         expect(STATE.prologueStage).toBe('completed');
         expect(completed).toBe(true);
+
+        // Ship MUST spawn safely away from the sun (z = 160, tangential velocity = 1.5)
+        expect(STATE.playerPosition.z).toBe(160);
+        expect(STATE.playerVelocity.x).toBe(1.5);
 
         // 4. Verify that having Jamal unlocks crew status for shuttle away missions and deep scan
         expect(hasAwayTeamCrew()).toBe(true);

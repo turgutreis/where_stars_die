@@ -28,6 +28,7 @@ import { initFirstContactModalListeners } from './ui/first-contact-modal';
 import { initSaveModal } from './ui/save-modal';
 import { hideMainMenu, showMainMenu, toggleMainMenu } from './ui/menu-controller';
 import { initQuantumIsingSystem } from './systems/quantum-ising';
+import { updateMenagerieScene } from './procedural/menagerie-scene';
 
 let lastTime = 0;
 let voyagerBeaconTimer = 0;
@@ -54,6 +55,9 @@ function animate(time: number) {
         const timePulse = Math.sin(Date.now() * 0.003 * c.pulseSpeed);
         (c.mesh.material as THREE.Material).opacity = c.baseOpacity + timePulse * (c.baseOpacity * 0.5);
     });
+
+    // Update 3D Menagerie Ceres-9 enclosure if active
+    updateMenagerieScene(dt);
 
     if (STATE.gameStarted) {
         // Unified Keyboard and Gamepad input processing
@@ -188,16 +192,25 @@ function setupMenuListeners() {
             if (resumeBtn) resumeBtn.style.display = 'flex';
 
             if (STATE.universe) {
-                clearActiveSystem();
-                spawnPlanetsAndAsteroids();
-                // Spawn on inbound approach vector facing star and inner planets
-                STATE.playerPosition.set(0, 0, 75);
-                STATE.playerVelocity.set(0, 0, -1.8);
-                STATE.shipHeading = -Math.PI / 2;
-                STATE.progradeVector.set(0, 0, -1);
-                if (STATE.playerGroup) {
-                    STATE.playerGroup.position.set(0, 0, 75);
-                    STATE.playerGroup.rotation.y = -Math.PI / 2;
+                if (STATE.prologueCompleted) {
+                    clearActiveSystem();
+                    spawnPlanetsAndAsteroids();
+                    // Safe standoff orbit (z = 160, tangential velocity 1.5, away from sun)
+                    STATE.playerPosition.set(0, 0, 160);
+                    STATE.playerVelocity.set(1.5, 0, 0);
+                    STATE.shipHeading = 0;
+                    STATE.progradeVector.set(1, 0, 0);
+                    if (STATE.playerGroup) {
+                        STATE.playerGroup.position.set(0, 0, 160);
+                        STATE.playerGroup.rotation.y = 0;
+                    }
+                } else {
+                    // Park inside Menagerie enclosure at (0, 0, 0)
+                    STATE.playerPosition.set(0, 0, 0);
+                    STATE.playerVelocity.set(0, 0, 0);
+                    if (STATE.playerGroup) {
+                        STATE.playerGroup.position.set(0, 0, 0);
+                    }
                 }
             }
 

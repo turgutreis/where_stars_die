@@ -602,7 +602,7 @@ export function spawnPlanetsAndAsteroids() {
         STATE.gravitySources.push(sourceObj);
 
         const orbitSpeed = 0.055 / Math.sqrt(scaledDist);
-        const pColorCss = p.color.replace("0x", "#");
+        const pColorCss = p.color ? String(p.color).replace("0x", "#") : "#38bdf8";
 
         const planetEntry: any = {
             mesh: planetGroup,

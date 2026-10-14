@@ -739,7 +739,7 @@ export interface GameState {
     // Story Prologue: The Menagerie Breakout & Dr. Jamal Recruitment
     prologueCompleted?: boolean;
     prologueActive?: boolean;
-    prologueStage?: 'office_dream' | 'alien_zoo' | 'jamal_contact' | 'breakout_warp' | 'completed';
+    prologueStage?: 'office_dream' | 'alien_zoo' | 'jamal_contact' | 'absorption_sync' | 'breakout_warp' | 'completed';
     prologueStep?: number;
 }
 

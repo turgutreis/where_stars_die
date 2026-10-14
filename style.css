@@ -5150,10 +5150,49 @@ body.game-started .hud-left {
     text-shadow: 0 0 35px rgba(244, 63, 94, 0.5), 0 0 70px rgba(244, 63, 94, 0.25);
 }
 
+.prologue-overlay.stage-sync {
+    background: radial-gradient(circle at 50% 50%, #1e1138 0%, #080214 85%);
+}
+.prologue-overlay.stage-sync .prologue-eyebrow {
+    background: rgba(168, 85, 247, 0.2);
+    border-color: rgba(168, 85, 247, 0.5);
+    color: #c084fc;
+    animation: sync-border-pulse 1.4s infinite alternate;
+}
+.prologue-overlay.stage-sync .prologue-pulse-dot {
+    background: #c084fc;
+    box-shadow: 0 0 14px #c084fc;
+}
+.prologue-overlay.stage-sync .prologue-text {
+    text-shadow: 0 0 35px rgba(168, 85, 247, 0.5), 0 0 70px rgba(168, 85, 247, 0.2);
+}
+
+@keyframes sync-border-pulse {
+    from { box-shadow: 0 0 6px rgba(168, 85, 247, 0.3); }
+    to { box-shadow: 0 0 20px rgba(168, 85, 247, 0.8); }
+}
+
 @keyframes alert-border-pulse {
     from { box-shadow: 0 0 4px rgba(244, 63, 94, 0.2); }
     to { box-shadow: 0 0 16px rgba(244, 63, 94, 0.6); }
 }
+
+.prologue-speaker-badge {
+    display: inline-block;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+.speaker-guide { background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; color: #7dd3fc; }
+.speaker-thoughts { background: rgba(217, 70, 239, 0.15); border: 1px solid #d946ef; color: #f0abfc; }
+.speaker-alert { background: rgba(244, 63, 94, 0.15); border: 1px solid #f43f5e; color: #fda4af; }
+.speaker-character { background: rgba(251, 191, 36, 0.15); border: 1px solid #fbbf24; color: #fde68a; }
+.speaker-harmonize { background: rgba(168, 85, 247, 0.2); border: 1px solid #a855f7; color: #d8b4fe; }
 
 /* Choices Container & Interactive Sci-Fi Buttons */
 .prologue-choices-container {

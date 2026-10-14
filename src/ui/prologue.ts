@@ -14,155 +14,30 @@ import {
 import { addLogEntry } from './hud';
 import { renderCrewUI } from '../systems/crew';
 import { renderDirectives } from './directives';
+import { initMenagerieScene, shatterMenagerie, cleanupMenagerieScene, isMenagerieActive } from '../procedural/menagerie-scene';
+import { scene } from '../engine/scene';
+import { clearActiveSystem, spawnPlanetsAndAsteroids } from '../systems/universe';
+import storyData from '../data/prologue_story.json';
 
 export interface PrologueBeat {
     id: string;
-    stage: 'office_dream' | 'alien_zoo' | 'jamal_contact' | 'breakout_warp';
+    act: string;
+    stage: 'office_dream' | 'alien_zoo' | 'jamal_contact' | 'absorption_sync' | 'breakout_warp';
     eyebrow: string;
     stepCounter: string;
     mainText: string;
     subText: string;
     sound?: 'heartbeat' | 'glitch' | 'sonar' | 'synapse' | 'alarm' | 'warp';
+    speakerType?: 'narrator' | 'character' | 'guide' | 'thoughts' | 'alert' | 'harmonize' | 'climax';
+    speakerName?: string;
     options: {
         label: string;
-        action: 'next' | 'glitch_transition' | 'warp_breakout';
+        action: 'next' | 'glitch_transition' | 'harmonize_sync' | 'warp_breakout';
         keyHint?: string;
     }[];
 }
 
-const PROLOGUE_BEATS: PrologueBeat[] = [
-    // ==========================================
-    // AKT I: DIE TRAUM-EBENE (DAS NÄCHTLICHE BÜRO)
-    // ==========================================
-    {
-        id: 'office_stars',
-        stage: 'office_dream',
-        eyebrow: '🖥️ ASTROPHYSIKALISCHES INSTITUT • 23:47 UHR',
-        stepCounter: 'Szene 1 / 10 • Akt I: Das Büro',
-        mainText: '23:47 Uhr. Das Observatorium liegt im Halbdunkel.',
-        subText: 'Auf deinen holografischen Bildschirmen flackern die Spektren der kosmischen Hintergrundstrahlung. Es ist kein Messfehler: Weit entfernte Galaxienhaufen zeigen keine Rotverschiebung mehr. Das Universum driftet durch die Dunkle Energie unaufhaltsam auseinander. Die Sterne sterben nicht an Altersschwäche – sie sterben, weil ihr Licht kein sehendes Auge mehr erreichen wird. Eine endlose, eisige Einsamkeit breitet sich im Vakuum aus.',
-        sound: 'heartbeat',
-        options: [
-            { label: 'Spektrogramm der Dunklen Energie kalibrieren & Simulation verifizieren', action: 'next', keyHint: '1' }
-        ]
-    },
-    {
-        id: 'office_knock',
-        stage: 'office_dream',
-        eyebrow: '🚪 BÜROTRAKT B • DR. ARIS',
-        stepCounter: 'Szene 2 / 10 • Akt I: Das Büro',
-        mainText: 'Ein trockenes Klopfen zerreißt die Stille.',
-        subText: 'Dein Kollege Dr. Aris schiebt die schwere Glastür auf und mustert deine geröteten Augen. „Immer noch hier? Mach Feierabend. Der Wachdienst schaltet gleich das Hauptlicht im gesamten Trakt ab. ... Und ganz unter uns: Zeig diese Zahlen morgen nicht im Fakultätsrat. Die da oben wollen keine Panik.“ Er nickt dir ernst zu und geht. Hinter ihm erlöschen die Deckenleuchten des Flurs eine nach der anderen.',
-        sound: 'synapse',
-        options: [
-            { label: 'Dr. Aris zunicken & den Schreibtisch aufräumen', action: 'next', keyHint: '1' }
-        ]
-    },
-    {
-        id: 'office_drink',
-        stage: 'office_dream',
-        eyebrow: '🥤 DER SCHREIBTISCH • EINE KÜHLE DOSE',
-        stepCounter: 'Szene 3 / 10 • Akt I: Das Büro',
-        mainText: 'Ein brennender Durst schnürt dir die Kehle zu.',
-        subText: 'Neben der Tastatur steht eine ungeöffnete Dose Energy Drink, an deren Metall kaltes Kondenswasser herabperlt. Du greifst danach, ziehst die Lasche auf und nimmst einen gierigen Schluck. Doch der Geschmack ist unmöglich: Scharf wie Ozon, schneidend wie flüssiges Helium, uralt wie Sternenstaub. Dein Herz rast. Deine Schläfen explodieren im Takt pulsierender Quasare!',
-        sound: 'heartbeat',
-        options: [
-            { label: 'Die Dose fallen lassen & dem Schwindel nachgeben...', action: 'glitch_transition', keyHint: '1' }
-        ]
-    },
-
-    // ==========================================
-    // AKT II: DAS ERWACHEN (DER INTERGALAKTISCHE ZOO)
-    // ==========================================
-    {
-        id: 'zoo_awakening',
-        stage: 'alien_zoo',
-        eyebrow: '🛸 MENAGERIE VON CERES-9 • DÄMPFUNGSKÄFIG 0-ALPHA • ASCHE-GILDE',
-        stepCounter: 'Szene 4 / 10 • Akt II: Der Alien-Zoo',
-        mainText: 'Die Illusion zersplittert. Du bist kein Mensch.',
-        subText: 'Mit einem brutalen Ruck stürzt die echte Realität über dein Bewusstsein ein. Du bist Najmafar. Ein gigantischer, bio-organischer Leviathan aus den Abgründen des Vakuums – über drei Kilometer lang, massiv wie ein imperialer Sternenzerstörer oder Manhattan, mit uralten Chitin-Panzern und glühenden Nervensträngen. Und du schwebst in einem zylindrischen Käfig aus rotierenden Plasma-Dämpfungsfeldern!',
-        sound: 'sonar',
-        options: [
-            { label: 'Die Sinne durch die Plasma-Barriere tasten lassen', action: 'next', keyHint: '1' }
-        ]
-    },
-    {
-        id: 'zoo_fans',
-        stage: 'alien_zoo',
-        eyebrow: '👁️ DIE ZUSCHAUER-TRIBÜNEN • DIE GROSSE ATTRAKTION',
-        stepCounter: 'Szene 5 / 10 • Akt II: Der Alien-Zoo',
-        mainText: 'Zehntausende fremdartige Augen starren auf dich herab.',
-        subText: 'Du bist die Hauptattraktion des intergalaktischen Zirkus. Alien-Enthusiasten und Schaulustige aus jedem Sektor drängen sich auf den schwebenden Aussichtsplattformen hinter den Energieschilden. Lautsprecher dröhnen: „DIE BESTIE DES LEERRAUMS – TELEPATHISCHE SITZUNGEN FÜR 50 CREDITS!“ Doch die Touristen, die sich wagen, telepathisch mit dir in Kontakt zu treten, brechen unter der unermesslichen Tragik deines Wissens zusammen: Ihr Verstand brennt durch, und Stations-Sanitäter schleifen sie als sabbernde Lappen von den Plattformen.',
-        sound: 'synapse',
-        options: [
-            { label: 'Die Schmerzen an deinen Chitin-Flossen spüren', action: 'next', keyHint: '1' }
-        ]
-    },
-    {
-        id: 'zoo_whalers',
-        stage: 'alien_zoo',
-        eyebrow: '🩸 ASCHE-GILDE BIO-HARVESTER • VIVISEKTION',
-        stepCounter: 'Szene 6 / 10 • Akt II: Der Alien-Zoo',
-        mainText: 'Automatische Plasmasägen ritzen an deinen Flossen.',
-        subText: 'Walfänger-Drohnen der Asche-Gilde zapfen dein Rückenmark als Quanten-Kühlmittel ab und schmelzen Chitin für Kriegsschiffe ein. Warum hast du dich fangen lassen? Weil du die Sterne sterben sahst. Weil du deine Heimat nicht mehr erreichen konntest. In deiner bodenlosen kosmischen Depression hattest du dich einfach aufgegeben. Es war dir schlicht egal gewesen – bis jetzt.',
-        sound: 'heartbeat',
-        options: [
-            { label: 'Eine fremde, menschliche Präsenz wahrnehmen...', action: 'next', keyHint: '1' }
-        ]
-    },
-
-    // ==========================================
-    // AKT III: JAMAL & DIE GILDE DER PSIONISCH VERSCHRÄNKTEN
-    // ==========================================
-    {
-        id: 'jamal_voice',
-        stage: 'jamal_contact',
-        eyebrow: '👤 SUBRAUM-RESONANZ • DR. JAMAL',
-        stepCounter: 'Szene 7 / 10 • Akt III: Jamal & Die Gilde',
-        mainText: '„Najmafar! Hörst du mich? Jamal hier!“',
-        subText: 'Direkt vor deinem riesigen Hauptauge steht ein menschlicher Quantenphysiker im verschmierten Techniker-Anzug auf einem Wartungssteg. Auf seiner Brust summt ein modifizierter tragbarer Quantencomputer. Er blickt furchtlos in deine gigantische, glühende Pupille: „Das Melange-Spice in deinem Nährstoffinjektor ... es hat gewirkt! Dein Bewusstsein ist zurück!“',
-        sound: 'synapse',
-        options: [
-            { label: 'Jamals telepathische Frequenz öffnen', action: 'next', keyHint: '1' }
-        ]
-    },
-    {
-        id: 'jamal_echo',
-        stage: 'jamal_contact',
-        eyebrow: '📡 DAS ECHO-SIGNAL • 200 JAHRE VERGANGENHEIT',
-        stepCounter: 'Szene 8 / 10 • Akt III: Jamal & Die Gilde',
-        mainText: '„Wir reisen auf den Schultern deines Volkes!“',
-        subText: '„Vor zweihundert Jahren hat dein Volk – die Mu\'ammirun – das adaptive Echo-Signal gesandt! Die Menschheit hat eure Botschaft nicht verstanden, aber wir haben den Algorithmus ausgeschlachtet. Unsere gesamte interstellare Raumfahrt, meine Quantenrechner, unsere Sprungtore ... alles basiert auf eurer Technologie! Doch jetzt seid ihr fast alle verschwunden.“',
-        sound: 'sonar',
-        options: [
-            { label: '„Warum bist du hier, Jamal? Was droht uns?“', action: 'next', keyHint: '1' }
-        ]
-    },
-    {
-        id: 'jamal_threat',
-        stage: 'jamal_contact',
-        eyebrow: '⚠️ DOCK 7 • ANKUNFT DER SCHLÄCHTER',
-        stepCounter: 'Szene 9 / 10 • Akt III: Jamal & Die Gilde',
-        mainText: '„Sie wollen dein Gehirn lebendig herausschneiden.“',
-        subText: '„Die Gilde der Psionisch Verschränkten hat an Dock 7 angelegt! Sie haben dich der Asche-Gilde abgekauft. Ein Bio-Skalpell-Team ist im Anmarsch, um dein zentrales Nervensystem als biologischen Subraum-Rechner für ihre Flotte auszubauen! Und das ist noch nicht alles: Das Universum stirbt nicht an Ausdehnung – Sagittarius A* drückt auf die Vollbremsung! Tödliche Magnetare grillen ganze Sektoren! Du bist das einzige Wesen, das die Raumzeit falten kann. Jamal braucht dich ... und du brauchst eine Crew, damit du nicht wieder in den Wahn verfällst!“',
-        sound: 'alarm',
-        options: [
-            { label: 'Die Stations-Sirenen heulen auf! Notfall-Alarm!', action: 'next', keyHint: '1' }
-        ]
-    },
-    {
-        id: 'jamal_breakout',
-        stage: 'breakout_warp',
-        eyebrow: '🚨 ROT-ALARM • EINDÄMMUNGS-KOLLAPS • STATION CERES-9',
-        stepCounter: 'Szene 10 / 10 • Akt III: Jamal & Die Gilde',
-        mainText: '„NAJMAFAR! FALTE DEN RAUM! JETZT!“',
-        subText: 'Schwere Ionen-Geschütze der Asche-Gilde feuern auf Dr. Jamal! Er hechtet über das Geländer der Wartungsrampe und klammert sich an die Chitin-Schuppen deiner dorsalen Atemöffnung: „Sie fluten den Käfig mit Neurotoxin! Spring! Wir treffen uns im Perseus-Rand wieder!“ Das Spice brennt in deinem Blut wie flüssiges Plasma. Deine psionischen Flügel spannen sich. Die Raumzeit beginnt zu zersplittern.',
-        sound: 'alarm',
-        options: [
-            { label: '⚡ LEVIATHAN-WILLENSKRAFT BÜNDELN: RAUMFALTUNGS-SPRUNG [LEERTASTE]', action: 'warp_breakout', keyHint: 'LEERTASTE' }
-        ]
-    }
-];
+const PROLOGUE_BEATS: PrologueBeat[] = storyData.beats as PrologueBeat[];
 
 let isPrologueActive = false;
 let currentBeatIndex = 0;
@@ -174,6 +49,10 @@ export function isPrologueRunning(): boolean {
 
 export function getCurrentPrologueBeatIndex(): number {
     return currentBeatIndex;
+}
+
+export function getPrologueBeats(): PrologueBeat[] {
+    return PROLOGUE_BEATS;
 }
 
 export function triggerPrologueSequence(onComplete: () => void) {
@@ -189,6 +68,18 @@ export function triggerPrologueSequence(onComplete: () => void) {
     STATE.prologueCompleted = false;
     onCompleteCallback = onComplete;
     currentBeatIndex = 0;
+
+    // Initialize 3D Menagerie Scene Enclosure around player
+    if (scene) {
+        initMenagerieScene(scene);
+    }
+
+    // Keep ship parked inside menagerie containment
+    STATE.playerPosition.set(0, 0, 0);
+    STATE.playerVelocity.set(0, 0, 0);
+    if (STATE.playerGroup) {
+        STATE.playerGroup.position.set(0, 0, 0);
+    }
 
     overlay.classList.remove('hidden', 'fade-out');
     overlay.classList.add('visible');
@@ -209,18 +100,35 @@ function renderBeat(index: number) {
 
     const overlay = document.getElementById('prologue-overlay');
     const eyebrowText = document.getElementById('prologue-eyebrow-text');
+    const speakerBadge = document.getElementById('prologue-speaker-badge');
     const mainTextEl = document.getElementById('prologue-main-text');
     const subTextEl = document.getElementById('prologue-sub-text');
     const stepCounterEl = document.getElementById('prologue-step-counter');
     const choicesContainer = document.getElementById('prologue-choices-container');
 
     if (overlay) {
-        overlay.classList.remove('stage-office', 'stage-zoo', 'stage-jamal', 'stage-warp');
-        overlay.classList.add(`stage-${beat.stage === 'office_dream' ? 'office' : beat.stage === 'alien_zoo' ? 'zoo' : beat.stage === 'jamal_contact' ? 'jamal' : 'warp'}`);
+        overlay.classList.remove('stage-office', 'stage-zoo', 'stage-jamal', 'stage-sync', 'stage-warp');
+        const stageClass = beat.stage === 'office_dream' ? 'office' 
+            : beat.stage === 'alien_zoo' ? 'zoo' 
+            : beat.stage === 'jamal_contact' ? 'jamal' 
+            : beat.stage === 'absorption_sync' ? 'sync'
+            : 'warp';
+        overlay.classList.add(`stage-${stageClass}`);
     }
 
     if (eyebrowText) eyebrowText.innerText = beat.eyebrow;
     if (stepCounterEl) stepCounterEl.innerText = beat.stepCounter;
+
+    // Speaker Badge
+    if (speakerBadge) {
+        if (beat.speakerName) {
+            speakerBadge.style.display = 'inline-block';
+            speakerBadge.className = `prologue-speaker-badge speaker-${beat.speakerType || 'character'}`;
+            speakerBadge.innerText = beat.speakerName;
+        } else {
+            speakerBadge.style.display = 'none';
+        }
+    }
 
     if (mainTextEl) {
         mainTextEl.classList.remove('fade-in');
@@ -250,9 +158,9 @@ function renderBeat(index: number) {
     if (choicesContainer) {
         choicesContainer.innerHTML = '';
 
-        beat.options.forEach((opt, optIdx) => {
+        beat.options.forEach((opt) => {
             const btn = document.createElement('button');
-            const isClimax = opt.action === 'warp_breakout';
+            const isClimax = opt.action === 'warp_breakout' || opt.action === 'harmonize_sync';
             btn.className = isClimax ? 'prologue-action-btn' : 'prologue-choice-btn';
 
             const badgeHtml = opt.keyHint ? `<span class="prologue-choice-badge">${opt.keyHint}</span>` : '';
@@ -268,7 +176,7 @@ function renderBeat(index: number) {
     }
 }
 
-function handleOptionAction(action: 'next' | 'glitch_transition' | 'warp_breakout') {
+function handleOptionAction(action: 'next' | 'glitch_transition' | 'harmonize_sync' | 'warp_breakout') {
     try {
         playSynapseHoverSound(660);
     } catch (e) {}
@@ -277,6 +185,8 @@ function handleOptionAction(action: 'next' | 'glitch_transition' | 'warp_breakou
         renderBeat(currentBeatIndex + 1);
     } else if (action === 'glitch_transition') {
         triggerGlitchRealityTear();
+    } else if (action === 'harmonize_sync') {
+        triggerHarmonizeSync();
     } else if (action === 'warp_breakout') {
         triggerWarpBreakout();
     }
@@ -306,6 +216,30 @@ function triggerGlitchRealityTear() {
     }, 450);
 }
 
+function triggerHarmonizeSync() {
+    const flash = document.getElementById('prologue-glitch-flash');
+    const overlay = document.getElementById('prologue-overlay');
+
+    try {
+        playSynapseEvolveSound();
+        playSonarChime();
+    } catch (e) {}
+
+    if (flash) {
+        flash.classList.add('flash-active');
+        setTimeout(() => flash.classList.remove('flash-active'), 400);
+    }
+
+    if (overlay) {
+        overlay.classList.add('screen-shake-intense');
+        setTimeout(() => overlay.classList.remove('screen-shake-intense'), 400);
+    }
+
+    setTimeout(() => {
+        renderBeat(currentBeatIndex + 1);
+    }, 350);
+}
+
 function triggerWarpBreakout() {
     const flash = document.getElementById('prologue-glitch-flash');
     const overlay = document.getElementById('prologue-overlay');
@@ -322,6 +256,11 @@ function triggerWarpBreakout() {
 
     if (overlay) {
         overlay.classList.add('screen-shake-intense');
+    }
+
+    // Shatter the 3D Menagerie rings and containment
+    if (scene) {
+        shatterMenagerie(scene);
     }
 
     setTimeout(() => {
@@ -359,7 +298,7 @@ export function recruitJamal(): CrewMember {
         },
         station: 'dream_core',
         stationName: 'Traum-Kern (Neuronale Brücke)',
-        stationActivity: 'Kalibriert Quanten-Sensoren',
+        stationActivity: 'Kalibriert Quanten-Sensoren & stabilisiert Psyche',
         avatarIcon: '👨‍🚀',
         speciesColor: '#38bdf8'
     };
@@ -368,7 +307,7 @@ export function recruitJamal(): CrewMember {
     STATE.loneliness = Math.min(STATE.loneliness, 45); // Jamal cures profound solitude!
     renderCrewUI();
 
-    addLogEntry("CREW", "👨‍🚀 Dr. Jamal hat sich im Synapsen-Kern verankert: „Wir haben es geschafft, Najmafar! Meine Scanner sind online.“");
+    addLogEntry("CREW", "👨‍🚀 Dr. Jamal im Traum-Kern verankert: „Wir haben es geschafft, Najmafar! Meine Scanner sind online.“");
     addLogEntry("SYSTEM", "⚛️ Tiefenscan-Protokolle aktiv: Tech, H₂O, Legierungen & Shuttle-Expeditionen auf Planeten freigeschaltet!");
 
     return jamal;
@@ -380,6 +319,28 @@ export function finishPrologue() {
     STATE.prologueActive = false;
     STATE.prologueCompleted = true;
     STATE.prologueStage = 'completed';
+
+    // Clean up menagerie if still present
+    if (scene && isMenagerieActive()) {
+        cleanupMenagerieScene(scene);
+    }
+
+    // Spawn planets in Perseus-Rand if not spawned
+    if (STATE.universe) {
+        clearActiveSystem();
+        spawnPlanetsAndAsteroids();
+    }
+
+    // Safe standoff spawn orbit (NEVER in the sun at 0,0,0!)
+    // Place ship at z = 160 with tangential orbital velocity (1.5, 0, 0)
+    STATE.playerPosition.set(0, 0, 160);
+    STATE.playerVelocity.set(1.5, 0, 0);
+    STATE.shipHeading = 0;
+    STATE.progradeVector.set(1, 0, 0);
+    if (STATE.playerGroup) {
+        STATE.playerGroup.position.set(0, 0, 160);
+        STATE.playerGroup.rotation.y = 0;
+    }
 
     // Recruit Dr. Jamal as the guaranteed starting co-pilot!
     recruitJamal();
