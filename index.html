@@ -594,20 +594,29 @@
     <!-- The WebGL Canvas for 3D simulation -->
     <div id="canvas-container"></div>
 
-    <!-- Cinematic Prologue Overlay -->
-    <div id="prologue-overlay" class="prologue-overlay hidden">
+    <!-- Cinematic Prologue Overlay: The Menagerie Breakout & Dr. Jamal Recruitment -->
+    <div id="prologue-overlay" class="prologue-overlay hidden stage-office">
         <div class="prologue-stars-backdrop"></div>
+        <div class="prologue-crt-scanlines"></div>
         <div class="prologue-vignette"></div>
+        <div class="prologue-glitch-flash" id="prologue-glitch-flash"></div>
         <div class="prologue-content">
-            <div class="prologue-eyebrow">
+            <div id="prologue-eyebrow" class="prologue-eyebrow">
                 <span class="prologue-pulse-dot"></span>
-                <span>CHRONIK DER LEERE &bull; VOYAGER-ECHO</span>
+                <span id="prologue-eyebrow-text">🖥️ ASTROPHYSIKALISCHES INSTITUT &bull; 23:47 UHR</span>
             </div>
-            <h1 id="prologue-main-text" class="prologue-text">Deine Heimatwelt ist weiter als das Licht entfernt...</h1>
-            <p id="prologue-sub-text" class="prologue-subtext">Milliarden Parsec im toten Vakuum.</p>
+            
+            <div class="prologue-text-card">
+                <h1 id="prologue-main-text" class="prologue-text">23:47 Uhr. Das Observatorium liegt im Halbdunkel.</h1>
+                <p id="prologue-sub-text" class="prologue-subtext">Auf den Monitoren flackern die Spektren der kosmischen Hintergrundstrahlung. Die Daten zeigen etwas Unmögliches.</p>
+            </div>
+
+            <!-- Interactive Choices & Directives -->
+            <div id="prologue-choices-container" class="prologue-choices-container"></div>
+
             <div class="prologue-footer">
-                <span id="prologue-step-counter" class="prologue-counter">1 / 6</span>
-                <button id="skip-prologue-btn" class="prologue-skip-btn">Überspringen [Leertaste / ESC]</button>
+                <span id="prologue-step-counter" class="prologue-counter">Szene 1 / 10 &bull; Akt I: Das Büro</span>
+                <button id="skip-prologue-btn" class="prologue-skip-btn">Prolog überspringen [ESC]</button>
             </div>
         </div>
     </div>

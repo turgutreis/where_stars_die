@@ -70,6 +70,9 @@ export interface SerializedGameState {
         step: number;
         completed: boolean;
     };
+    prologue?: {
+        completed: boolean;
+    };
     reputation?: Record<string, number>;
     quantumChronicle?: {
         galacticCycle: number;
@@ -186,6 +189,9 @@ export function serializeCurrentState(slotId: string, customName?: string): Seri
         ftue: {
             step: STATE.ftueStep || 0,
             completed: Boolean(STATE.ftueCompleted)
+        },
+        prologue: {
+            completed: Boolean(STATE.prologueCompleted)
         },
         reputation: STATE.reputation ? { ...STATE.reputation } : {},
         quantumChronicle: {
@@ -307,6 +313,9 @@ export async function applyLoadedState(data: SerializedGameState): Promise<void>
     if (data.ftue) {
         STATE.ftueStep = data.ftue.step;
         STATE.ftueCompleted = data.ftue.completed;
+    }
+    if (data.prologue) {
+        STATE.prologueCompleted = Boolean(data.prologue.completed);
     }
     if (data.reputation) {
         STATE.reputation = { ...data.reputation } as any;

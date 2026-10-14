@@ -5043,6 +5043,231 @@ body.game-started .hud-left {
 }
 
 /* ==========================================================================
+   PROLOGUE STAGE THEMES, CRT SCANLINES & INTERACTIVE CHOICES
+   ========================================================================== */
+.prologue-crt-scanlines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%, 
+        rgba(0, 0, 0, 0.35) 50%
+    ), linear-gradient(
+        90deg,
+        rgba(255, 0, 0, 0.03),
+        rgba(0, 255, 0, 0.01),
+        rgba(0, 0, 255, 0.03)
+    );
+    background-size: 100% 3px, 6px 100%;
+    opacity: 0.6;
+}
+
+.prologue-glitch-flash {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+    background: rgba(255, 255, 255, 0);
+    transition: background 0.1s ease;
+}
+
+.prologue-glitch-flash.flash-active {
+    background: radial-gradient(circle, rgba(192, 132, 252, 0.85) 0%, rgba(56, 189, 248, 0.75) 40%, rgba(2, 6, 23, 0.95) 100%);
+    animation: glitch-flash-anim 0.45s ease-out forwards;
+}
+
+@keyframes glitch-flash-anim {
+    0% { opacity: 0; transform: scale(0.95); filter: contrast(200%) brightness(180%); }
+    25% { opacity: 1; transform: scale(1.02); filter: hue-rotate(90deg) contrast(250%); }
+    60% { opacity: 0.8; transform: scale(1.0); filter: hue-rotate(180deg) contrast(150%); }
+    100% { opacity: 0; transform: scale(1); filter: none; }
+}
+
+/* Stage-specific Color Grading */
+.prologue-overlay.stage-office {
+    background: radial-gradient(circle at 50% 50%, #06111f 0%, #01040d 85%);
+}
+.prologue-overlay.stage-office .prologue-eyebrow {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.35);
+    color: #38bdf8;
+}
+.prologue-overlay.stage-office .prologue-pulse-dot {
+    background: #38bdf8;
+    box-shadow: 0 0 10px #38bdf8;
+}
+.prologue-overlay.stage-office .prologue-text {
+    text-shadow: 0 0 30px rgba(56, 189, 248, 0.35), 0 0 60px rgba(56, 189, 248, 0.15);
+}
+
+.prologue-overlay.stage-zoo {
+    background: radial-gradient(circle at 50% 50%, #15092a 0%, #03010a 85%);
+}
+.prologue-overlay.stage-zoo .prologue-eyebrow {
+    background: rgba(192, 132, 252, 0.15);
+    border-color: rgba(192, 132, 252, 0.4);
+    color: #c084fc;
+}
+.prologue-overlay.stage-zoo .prologue-pulse-dot {
+    background: #c084fc;
+    box-shadow: 0 0 12px #c084fc;
+}
+.prologue-overlay.stage-zoo .prologue-text {
+    text-shadow: 0 0 30px rgba(192, 132, 252, 0.4), 0 0 60px rgba(192, 132, 252, 0.18);
+}
+
+.prologue-overlay.stage-jamal {
+    background: radial-gradient(circle at 50% 50%, #0c1c2e 0%, #020712 85%);
+}
+.prologue-overlay.stage-jamal .prologue-eyebrow {
+    background: rgba(251, 191, 36, 0.15);
+    border-color: rgba(251, 191, 36, 0.4);
+    color: #fbbf24;
+}
+.prologue-overlay.stage-jamal .prologue-pulse-dot {
+    background: #fbbf24;
+    box-shadow: 0 0 12px #fbbf24;
+}
+.prologue-overlay.stage-jamal .prologue-text {
+    text-shadow: 0 0 30px rgba(251, 191, 36, 0.4), 0 0 60px rgba(251, 191, 36, 0.18);
+}
+
+.prologue-overlay.stage-warp {
+    background: radial-gradient(circle at 50% 50%, #290812 0%, #0a0104 85%);
+}
+.prologue-overlay.stage-warp .prologue-eyebrow {
+    background: rgba(244, 63, 94, 0.2);
+    border-color: rgba(244, 63, 94, 0.5);
+    color: #f43f5e;
+    animation: alert-border-pulse 1s infinite alternate;
+}
+.prologue-overlay.stage-warp .prologue-pulse-dot {
+    background: #f43f5e;
+    box-shadow: 0 0 14px #f43f5e;
+}
+.prologue-overlay.stage-warp .prologue-text {
+    text-shadow: 0 0 35px rgba(244, 63, 94, 0.5), 0 0 70px rgba(244, 63, 94, 0.25);
+}
+
+@keyframes alert-border-pulse {
+    from { box-shadow: 0 0 4px rgba(244, 63, 94, 0.2); }
+    to { box-shadow: 0 0 16px rgba(244, 63, 94, 0.6); }
+}
+
+/* Choices Container & Interactive Sci-Fi Buttons */
+.prologue-choices-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 640px;
+    margin-top: 15px;
+    z-index: 3;
+}
+
+.prologue-choice-btn {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 14px;
+    width: 100%;
+    padding: 12px 20px;
+    background: rgba(15, 23, 42, 0.78);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    color: #e2e8f0;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.98rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    text-align: left;
+}
+
+.prologue-choice-btn:hover {
+    background: rgba(56, 189, 248, 0.18);
+    border-color: rgba(56, 189, 248, 0.5);
+    color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(56, 189, 248, 0.2);
+}
+
+.prologue-choice-btn:active {
+    transform: translateY(0);
+}
+
+.prologue-choice-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #38bdf8;
+    flex-shrink: 0;
+}
+
+.prologue-choice-btn:hover .prologue-choice-badge {
+    background: rgba(56, 189, 248, 0.3);
+    border-color: rgba(56, 189, 248, 0.6);
+    color: #ffffff;
+}
+
+/* Massive High-Impact Climax Action Button */
+.prologue-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    padding: 16px 28px;
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.9) 0%, rgba(225, 29, 72, 0.95) 100%);
+    border: 2px solid #fda4af;
+    border-radius: 12px;
+    color: #ffffff;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    box-shadow: 0 0 30px rgba(244, 63, 94, 0.5), 0 8px 32px rgba(0, 0, 0, 0.6);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: pulse-warp-button 1.8s infinite ease-in-out;
+}
+
+.prologue-action-btn:hover {
+    transform: scale(1.03);
+    box-shadow: 0 0 50px rgba(244, 63, 94, 0.8), 0 12px 40px rgba(0, 0, 0, 0.7);
+    border-color: #ffffff;
+}
+
+@keyframes pulse-warp-button {
+    0% { box-shadow: 0 0 25px rgba(244, 63, 94, 0.4); border-color: rgba(253, 164, 175, 0.7); }
+    50% { box-shadow: 0 0 45px rgba(244, 63, 94, 0.8); border-color: #ffffff; }
+    100% { box-shadow: 0 0 25px rgba(244, 63, 94, 0.4); border-color: rgba(253, 164, 175, 0.7); }
+}
+
+.screen-shake-intense {
+    animation: screen-shake-anim 0.5s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes screen-shake-anim {
+    10%, 90% { transform: translate3d(-3px, 2px, 0) rotate(-0.5deg); }
+    20%, 80% { transform: translate3d(4px, -3px, 0) rotate(0.8deg); }
+    30%, 50%, 70% { transform: translate3d(-6px, 4px, 0) rotate(-1deg); }
+    40%, 60% { transform: translate3d(6px, -4px, 0) rotate(1deg); }
+}
+
+/* ==========================================================================
    FTUE DIRECTIVES & MISSION HUD
    ========================================================================== */
 .hud-directives {

@@ -735,6 +735,12 @@ export interface GameState {
     relativisticMonthsElapsed: number;
     previewGalacticCycle: number | null;
     intervenedSystems: Record<number, boolean>;
+
+    // Story Prologue: The Menagerie Breakout & Dr. Jamal Recruitment
+    prologueCompleted?: boolean;
+    prologueActive?: boolean;
+    prologueStage?: 'office_dream' | 'alien_zoo' | 'jamal_contact' | 'breakout_warp' | 'completed';
+    prologueStep?: number;
 }
 
 export type OrbitLevel = 'solar' | 'planet' | 'moon';

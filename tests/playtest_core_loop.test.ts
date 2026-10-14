@@ -214,6 +214,13 @@ import {
     advanceGalacticTime,
     getCycleTelemetry
 } from '../src/systems/quantum-ising';
+import { 
+    triggerPrologueSequence, 
+    finishPrologue, 
+    recruitJamal, 
+    getCurrentPrologueBeatIndex, 
+    isPrologueRunning 
+} from '../src/ui/prologue';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -3759,6 +3766,48 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(evacArk!.cargo?.type).toBe('passengers');
         expect(evacArk!.crewMembers?.length).toBeGreaterThanOrEqual(3);
         clearFleet();
+    });
+
+    test("49. Dr. Jamal Story Prologue & Menagerie Breakout: Office dream, Melange spice reality tear, Ceres-9 alien zoo escape, and recruitment into crew", () => {
+        // 1. Initial State: Solitary Najmafar with no crew, high loneliness
+        STATE.crew = [];
+        STATE.loneliness = 85;
+        STATE.prologueCompleted = false;
+        STATE.prologueActive = false;
+
+        let completed = false;
+        triggerPrologueSequence(() => {
+            completed = true;
+        });
+
+        expect(isPrologueRunning()).toBe(true);
+        expect(STATE.prologueActive).toBe(true);
+        expect(STATE.prologueCompleted).toBe(false);
+        expect(getCurrentPrologueBeatIndex()).toBe(0);
+        expect(STATE.prologueStage).toBe('office_dream');
+
+        // 2. Test Dr. Jamal recruitment logic
+        const jamal = recruitJamal();
+        expect(jamal).toBeDefined();
+        expect(jamal.name).toBe("Dr. Jamal");
+        expect(jamal.name).not.toContain("Vance");
+        expect(jamal.roleName).toContain("Chef-Quantenphysiker");
+        expect(jamal.ageCategory).toBe("vital");
+        expect(jamal.trait?.name).toBe("Quanten-Theoretiker");
+        expect(STATE.crew.length).toBe(1);
+        expect(STATE.crew[0].name).toBe("Dr. Jamal");
+        expect(STATE.loneliness).toBeLessThanOrEqual(50); // Solitude alleviated
+
+        // 3. Test finishPrologue
+        finishPrologue();
+        expect(isPrologueRunning()).toBe(false);
+        expect(STATE.prologueActive).toBe(false);
+        expect(STATE.prologueCompleted).toBe(true);
+        expect(STATE.prologueStage).toBe('completed');
+        expect(completed).toBe(true);
+
+        // 4. Verify that having Jamal unlocks crew status for shuttle away missions and deep scan
+        expect(hasAwayTeamCrew()).toBe(true);
     });
 });
 

@@ -271,7 +271,13 @@ export const STATE: GameState = {
     galacticYear: 2242.0,
     relativisticMonthsElapsed: 0.0,
     previewGalacticCycle: null,
-    intervenedSystems: {}
+    intervenedSystems: {},
+
+    // Story Prologue: The Menagerie Breakout & Dr. Jamal Recruitment
+    prologueCompleted: false,
+    prologueActive: false,
+    prologueStage: 'office_dream',
+    prologueStep: 0
 };
 
 export const activePlanets: PlanetEntry[] = [];
