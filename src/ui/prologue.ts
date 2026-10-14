@@ -32,7 +32,7 @@ export interface PrologueBeat {
     speakerName?: string;
     options: {
         label: string;
-        action: 'next' | 'glitch_transition' | 'harmonize_sync' | 'warp_breakout';
+        action: string;
         keyHint?: string;
     }[];
 }
@@ -176,7 +176,7 @@ function renderBeat(index: number) {
     }
 }
 
-function handleOptionAction(action: 'next' | 'glitch_transition' | 'harmonize_sync' | 'warp_breakout') {
+function handleOptionAction(action: string) {
     try {
         playSynapseHoverSound(660);
     } catch (e) {}
@@ -189,6 +189,15 @@ function handleOptionAction(action: 'next' | 'glitch_transition' | 'harmonize_sy
         triggerHarmonizeSync();
     } else if (action === 'warp_breakout') {
         triggerWarpBreakout();
+    } else {
+        // Dynamic navigation to target beat by ID!
+        const targetIdx = PROLOGUE_BEATS.findIndex(b => b.id === action);
+        if (targetIdx !== -1) {
+            renderBeat(targetIdx);
+        } else {
+            console.warn(`Prologue: Target beat id '${action}' not found, advancing to next beat.`);
+            renderBeat(currentBeatIndex + 1);
+        }
     }
 }
 
@@ -212,7 +221,9 @@ function triggerGlitchRealityTear() {
     }
 
     setTimeout(() => {
-        renderBeat(currentBeatIndex + 1);
+        const zooIdx = PROLOGUE_BEATS.findIndex(b => b.id === 'zoo_awakening_voices');
+        if (zooIdx !== -1) renderBeat(zooIdx);
+        else renderBeat(currentBeatIndex + 1);
     }, 450);
 }
 
@@ -236,7 +247,9 @@ function triggerHarmonizeSync() {
     }
 
     setTimeout(() => {
-        renderBeat(currentBeatIndex + 1);
+        const breakoutIdx = PROLOGUE_BEATS.findIndex(b => b.id === 'breakout_escape');
+        if (breakoutIdx !== -1) renderBeat(breakoutIdx);
+        else renderBeat(currentBeatIndex + 1);
     }, 350);
 }
 
@@ -385,16 +398,12 @@ export function initPrologueListeners() {
         const beat = PROLOGUE_BEATS[currentBeatIndex];
         if (!beat) return;
 
-        // Number keys 1..3
-        if (e.key === '1' && beat.options.length >= 1) {
+        // Number keys 1..9
+        const keyNum = parseInt(e.key, 10);
+        if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= beat.options.length) {
             e.preventDefault();
-            handleOptionAction(beat.options[0].action);
-        } else if (e.key === '2' && beat.options.length >= 2) {
-            e.preventDefault();
-            handleOptionAction(beat.options[1].action);
-        } else if (e.key === '3' && beat.options.length >= 3) {
-            e.preventDefault();
-            handleOptionAction(beat.options[2].action);
+            handleOptionAction(beat.options[keyNum - 1].action);
+            return;
         } else if (e.key === ' ' || e.key === 'Enter') {
             e.preventDefault();
             const lastOpt = beat.options[beat.options.length - 1];

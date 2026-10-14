@@ -40,7 +40,221 @@
       "options": [
         {
           "label": "Spektrogramm kalibrieren & Simulation verifizieren",
-          "action": "next",
+          "action": "office_knock",
+          "keyHint": "1"
+        },
+        {
+          "label": "☕ Zum Kaffeeautomaten im Flur gehen",
+          "action": "office_coffe",
+          "keyHint": "2"
+        }
+      ]
+    },
+    {
+      "id": "office_coffe",
+      "act": "act_1_office",
+      "stage": "office_dream",
+      "eyebrow": "🥤 KAFFEEAUTOMAT • EINE TASSE BELEBENDES GETRÄNK",
+      "stepCounter": "Szene 2 / 11 • Akt I: Das Büro",
+      "mainText": "Du stehst am Kaffeeautomaten. Es ist eine seltsame Empfindung.",
+      "subText": "Kalter Chrom unter deinen Fingern. Metall. Etwas Greifbares. Die Welt um dich herum verschwimmt im Nebel der Müdigkeit. Aber hier, an diesem Automaten, ist alles scharf. Die winzigen Vertiefungen auf der Oberfläche, der schwache Geruch von geröstetem Kaffeepulver und Ozon in der Luft. Die Menü-Anzeige leuchtet bernsteinfarben auf.",
+      "sound": "synapse",
+      "speakerType": "character",
+      "options": [
+        {
+          "label": "Cappuccino (Dichter Milchschaum & feiner Kakaostaub)",
+          "action": "choose_cappucino",
+          "keyHint": "1"
+        },
+        {
+          "label": "Flat White (Zwei Ristretti mit samtiger Mikromilch)",
+          "action": "choose_flat_white",
+          "keyHint": "2"
+        },
+        {
+          "label": "Latte Macchiato (Dreischichtige Dichte-Trennung)",
+          "action": "choose_latte_macchiato",
+          "keyHint": "3"
+        },
+        {
+          "label": "Doppelter Espresso (Pechschwarz wie ein Ereignishorizont)",
+          "action": "choose_espresso",
+          "keyHint": "4"
+        }
+      ]
+    },
+    {
+      "id": "choose_cappucino",
+      "act": "act_1_office",
+      "stage": "office_dream",
+      "eyebrow": "🥤 KAFFEEAUTOMAT • CAPPUCCINO",
+      "stepCounter": "Szene 2 / 11 • Akt I: Das Büro",
+      "mainText": "Du hast dich für Cappuccino entschieden.",
+      "subText": "Der Automat stößt ein mechanisches Ächzen aus und beginnt zu arbeiten. Bohnen werden gemahlen. Dampf zischt. Flüssige Hitze ergießt sich in eine hitzebeständige Tasse. Der Duft von gerösteten Bohnen vermischt sich mit dem schwachen Geruch von ozonhaltiger Luft. Es ist ein fast beruhigendes Ritual. Fast. Denn als das Geräusch des Mahlwerks einsetzt, bemerkst du etwas Seltsames.",
+      "sound": "synapse",
+      "speakerType": "character",
+      "options": [
+        {
+          "label": "Den Bohnen beim Mahlen zusehen",
+          "action": "show_beans_grinding",
+          "keyHint": "1"
+        },
+        {
+          "label": "Den aufsteigenden Dampf beobachten",
+          "action": "show_steam_rising",
+          "keyHint": "2"
+        }
+      ]
+    },
+    {
+      "id": "choose_flat_white",
+      "act": "act_1_office",
+      "stage": "office_dream",
+      "eyebrow": "🥤 KAFFEEAUTOMAT • FLAT WHITE",
+      "stepCounter": "Szene 2 / 11 • Akt I: Das Büro",
+      "mainText": "Du wählst Flat White. Der samtige Mikroschaum legt sich auf den Espresso.",
+      "subText": "Als die helle Milch in die schwarze Flüssigkeit strömt, entstehen perfekte logarithmische Spiralen. Genau wie die Arme einer rotierenden Galaxie. Für einen Moment glaubst du, die Gezeitenkräfte zweier kollidierender Sonnen zu beobachten, die sich gegenseitig Materie entreißen und Akkretionsscheiben bilden. Du blinzelst benommen. Es ist nur Milchschaum in einer Papptasse.",
+      "sound": "sonar",
+      "speakerType": "character",
+      "options": [
+        {
+          "label": "Den Bohnen im Mahlwerk zusehen",
+          "action": "show_beans_grinding",
+          "keyHint": "1"
+        },
+        {
+          "label": "Den Dampf beobachten",
+          "action": "show_steam_rising",
+          "keyHint": "2"
+        },
+        {
+          "label": "Die Tasse nehmen & zum Schreibtisch zurückkehren",
+          "action": "office_knock",
+          "keyHint": "3"
+        }
+      ]
+    },
+    {
+      "id": "choose_latte_macchiato",
+      "act": "act_1_office",
+      "stage": "office_dream",
+      "eyebrow": "🥤 KAFFEEAUTOMAT • LATTE MACCHIATO",
+      "stepCounter": "Szene 2 / 11 • Akt I: Das Büro",
+      "mainText": "Du wählst Latte Macchiato. Dreischichtige Dichte-Schichtung.",
+      "subText": "Messerscharfe Trennlinien zwischen Milch, Espresso und Schaum. In deinem übermüdeten Verstand berechnen sich sofort die barometrischen Höhenschichten einer Gasriesen-Atmosphäre. Oben dünner Dunst, in der Mitte flüssiger Wasserstoff, unten die unbarmherzige, dichte Kernzone. Wie viele Welten in solchen Atmosphären unter Gravitationsdruck wohl zerdrückt wurden? Deine Finger zittern leicht am Glas.",
+      "sound": "synapse",
+      "speakerType": "character",
+      "options": [
+        {
+          "label": "Das Mahlwerk betrachten",
+          "action": "show_beans_grinding",
+          "keyHint": "1"
+        },
+        {
+          "label": "Den aufsteigenden Dampf beobachten",
+          "action": "show_steam_rising",
+          "keyHint": "2"
+        },
+        {
+          "label": "Die Schichten umrühren & zurück zum Schreibtisch",
+          "action": "office_knock",
+          "keyHint": "3"
+        }
+      ]
+    },
+    {
+      "id": "choose_espresso",
+      "act": "act_1_office",
+      "stage": "office_dream",
+      "eyebrow": "☕ KAFFEEAUTOMAT • DOPPELTER ESPRESSO",
+      "stepCounter": "Szene 2 / 11 • Akt I: Das Büro",
+      "mainText": "Du wählst einen doppelten Espresso. Tiefschwarz.",
+      "subText": "Kein Zucker. Kein Schaum. Eine pechschwarze Oberfläche, so lichtschluckend wie der Ereignishorizont eines supermassereichen Schwarzen Lochs. Wenn du hineinstarrst, scheint das Licht der Neonröhren an den Rändern der Tasse gekrümmt zu werden – wie bei einer Gravitationslinse. 'Ich habe zu lange nicht geschlafen', murmelst du. Doch tief in deinem Inneren weißt du: Das ist keine Übermüdung. Es ist eine uralte, unbegreifliche Erinnerung.",
+      "sound": "sonar",
+      "speakerType": "character",
+      "options": [
+        {
+          "label": "Den bitteren Espresso trinken & zum Schreibtisch",
+          "action": "office_knock",
+          "keyHint": "1"
+        },
+        {
+          "label": "Den Bohnen im Mahlwerk zuschauen",
+          "action": "show_beans_grinding",
+          "keyHint": "2"
+        },
+        {
+          "label": "Den Dampf beobachten",
+          "action": "show_steam_rising",
+          "keyHint": "3"
+        }
+      ]
+    },
+    {
+      "id": "show_beans_grinding",
+      "act": "act_1_office",
+      "stage": "office_dream",
+      "eyebrow": "☕ KAFFEEAUTOMAT • DAS MAHLWERK",
+      "stepCounter": "Szene 2 / 11 • Akt I: Das Büro",
+      "mainText": "Du lehnst dich vor, um die Bohnen zu beobachten.",
+      "subText": "Unter der durchsichtigen Kuppel des Mahlwerks drehen sich die Stahlkegel mit unerbittlicher Präzision. Ganze, geröstete Bohnen werden erfasst, zersplittert und zu feinstem Pulver zermalmt. Wie Himmelskörper, die in die Gezeitenkräfte eines Neutronensterns geraten – Roche-Grenzen, die überschritten werden, bis Planeten in Trümmerfelder zerbersten. Doch als du genauer hinsiehst, formen die Bruchstücke ein Muster...",
+      "sound": "sonar",
+      "speakerType": "character",
+      "options": [
+        {
+          "label": "Das Bohnen-Muster genauer betrachten",
+          "action": "show_beans_pattern",
+          "keyHint": "1"
+        },
+        {
+          "label": "Den Dampf beobachten",
+          "action": "show_steam_rising",
+          "keyHint": "2"
+        },
+        {
+          "label": "Die Tasse nehmen & zum Schreibtisch gehen",
+          "action": "office_knock",
+          "keyHint": "3"
+        }
+      ]
+    },
+    {
+      "id": "show_beans_pattern",
+      "act": "act_1_office",
+      "stage": "office_dream",
+      "eyebrow": "☕ KAFFEE • DAS STERNUMSTER",
+      "stepCounter": "Szene 2 / 11 • Akt I: Das Büro",
+      "mainText": "Das Mahlwerk mahlt die Bohnen.",
+      "subText": "Das Muster, das du siehst, gleicht einem Meer aus Sternen. Wo sind die Spiralnebel? Was ist das für ein Pulsieren? Du schüttelst den Kopf. Es sind nur Kaffeebohnen. Aber sie scheinen sich zu bewegen... wie unzählige Sonnensysteme, die unaufhaltsam in den Schlund eines gigantischen Zentrums gerissen werden. Alles verfällt der Entropie. Alles vergeht.",
+      "sound": "sonar",
+      "speakerType": "character",
+      "options": [
+        {
+          "label": "Mit der Tasse zurück an den Schreibtisch treten",
+          "action": "office_knock",
+          "keyHint": "1"
+        },
+        {
+          "label": "Den aufsteigenden Dampf beobachten",
+          "action": "show_steam_rising",
+          "keyHint": "2"
+        }
+      ]
+    },
+    {
+      "id": "show_steam_rising",
+      "act": "act_1_office",
+      "stage": "office_dream",
+      "eyebrow": "💨 KAFFEEAUTOMAT • DER DAMPF",
+      "stepCounter": "Szene 2 / 11 • Akt I: Das Büro",
+      "mainText": "Der Dampf windet sich in die kühle Laborluft.",
+      "subText": "Weiße Rauchfahnen tanzen über dem Becher wie koronale Massenauswürfe einer sterbenden Sonne. Die Turbulenzen gehorchen den Gesetzen der Magnetohydrodynamik – genau wie die gefürchteten Gammablitze der Magnetare, die ganze Planetenoberflächen einäschern. Ein Hauch von Wärme, der sich im kalten Zimmer verflüchtigt und spurlos im Nichts vergeht.",
+      "sound": "heartbeat",
+      "speakerType": "character",
+      "options": [
+        {
+          "label": "Mit der Tasse zurück an den Arbeitsplatz gehen",
+          "action": "office_knock",
           "keyHint": "1"
         }
       ]
@@ -50,7 +264,7 @@
       "act": "act_1_office",
       "stage": "office_dream",
       "eyebrow": "🚪 BÜROTRAKT B • DR. ARIS",
-      "stepCounter": "Szene 2 / 11 • Akt I: Das Büro",
+      "stepCounter": "Szene 3 / 11 • Akt I: Das Büro",
       "mainText": "Ein trockenes Klopfen zerreißt die Stille.",
       "subText": "Dein Kollege Dr. Aris schiebt die schwere Glastür auf und mustert deine geröteten Augen. „Immer noch hier? Mach Feierabend. Der Wachdienst schaltet gleich das Hauptlicht im gesamten Trakt ab. ... Und ganz unter uns: Zeig diese Zahlen morgen nicht im Fakultätsrat. Die da oben wollen keine Panik.“ Er nickt dir ernst zu und geht. Hinter ihm erlöschen die Deckenleuchten des Flurs eine nach der anderen.",
       "sound": "synapse",
@@ -59,7 +273,7 @@
       "options": [
         {
           "label": "Dr. Aris zunicken & den Schreibtisch aufräumen",
-          "action": "next",
+          "action": "office_drink",
           "keyHint": "1"
         }
       ]
@@ -69,7 +283,7 @@
       "act": "act_1_office",
       "stage": "office_dream",
       "eyebrow": "🥤 DER SCHREIBTISCH • EINE KÜHLE DOSE",
-      "stepCounter": "Szene 3 / 11 • Akt I: Das Büro",
+      "stepCounter": "Szene 4 / 11 • Akt I: Das Büro",
       "mainText": "Ein brennender Durst schnürt dir die Kehle zu.",
       "subText": "Neben der Tastatur steht eine ungeöffnete Dose Energy Drink, an deren Metall kaltes Kondenswasser herabperlt. Du greifst danach, ziehst die Lasche auf und nimmst einen gierigen Schluck. Doch der Geschmack ist unmöglich: Scharf wie Ozon, schneidend wie flüssiges Helium, uralt wie Sternenstaub. Dein Herz rast. Deine Schläfen explodieren im Takt pulsierender Quasare!",
       "sound": "heartbeat",
@@ -87,7 +301,7 @@
       "act": "act_2_zoo",
       "stage": "alien_zoo",
       "eyebrow": "🛸 ORBITALE MENAGERIE CERES-9 • DÄMPFUNGSKÄFIG 0-ALPHA",
-      "stepCounter": "Szene 4 / 11 • Akt II: Der Zoo",
+      "stepCounter": "Szene 5 / 11 • Akt II: Der Zoo",
       "mainText": "Die Illusion bricht entzwei. Stimmen hallen durch die Leere.",
       "subText": "Kein Büro. Kein Stuhl. Nur das Dröhnen gewaltiger Plasma-Emitter, die deinen massiven Körper in einem zylindrischen Kraftfeld gefangen halten. Über Stations-Lautsprecher plärrt eine synthetische Stimme:\n\n„Willkommen auf Aussichtsdeck 4 der Asche-Gilde! Vor Ihnen sehen Sie das Prunkstück unserer interstellaren Menagerie. Unsere Harvester-Flotte benötigte drei Frachter, um diesen Leviathan aus dem toten Vakuum zu bergen. Woher er stammt, weiß niemand.“",
       "sound": "sonar",
@@ -96,7 +310,7 @@
       "options": [
         {
           "label": "Die Gedanken der Besucher auf den Tribünen auffangen",
-          "action": "next",
+          "action": "zoo_visitor_thoughts",
           "keyHint": "1"
         }
       ]
@@ -106,7 +320,7 @@
       "act": "act_2_zoo",
       "stage": "alien_zoo",
       "eyebrow": "👁️ SCHWEBENDE AUSSICHTSPLATTFORMEN • GEDANKEN-ECHO",
-      "stepCounter": "Szene 5 / 11 • Akt II: Der Zoo",
+      "stepCounter": "Szene 6 / 11 • Akt II: Der Zoo",
       "mainText": "„Bei allen Göttern des Orion... es ist wahr. Er ist so groß wie eine MegaCity!“",
       "subText": "Die unkontrollierten Gedanken der zehntausenden Schaulustigen schwappen wie Brandung gegen deine schmerzenden Synapsen:\n\n• Besucher aus Sektor 2: „Schau dir diesen Chitin-Panzer an... in seinen Hohlraum könnten ganze Kampfkreuzer passen!“\n• Ein Kind im Sauerstoffanzug: „Papi, warum bewegt er sich gar nicht? Lebt das Ding überhaupt noch?“\n• Ein Schmuggler: „Wenn man an seine Rückenmarksflüssigkeit rankäme... das reicht für zehn Jahre Hyperraum-Schmiermittel.“",
       "sound": "synapse",
@@ -115,7 +329,7 @@
       "options": [
         {
           "label": "Das Telepathie-Terminal der Plattformen anpeilen",
-          "action": "next",
+          "action": "zoo_telepathy_casualty",
           "keyHint": "1"
         }
       ]
@@ -125,7 +339,7 @@
       "act": "act_2_zoo",
       "stage": "alien_zoo",
       "eyebrow": "⚠️ TELEPATHIE-TERMINAL 9 • NEURONALER SCHOCK",
-      "stepCounter": "Szene 6 / 11 • Akt II: Der Zoo",
+      "stepCounter": "Szene 7 / 11 • Akt II: Der Zoo",
       "mainText": "„DIE BESTIE DES LEERRAUMS – 50 CREDITS FÜR EINE TELEPATHIE-SITZUNG!“",
       "subText": "Ein übermütiger Tourist am Terminal klinkt sich über ein Neuro-Headset in dein Bewusstsein ein. Doch dein Geist ist kein Streichelzoo. Die unendliche Schwere deiner kosmischen Depression, die Kälte der sterbenden Sterne und der nagende Schmerz deines Melange-Entzugs schlagen wie ein Tsunami in sein primitives Gehirn.\n\n„WARTE! NEIN! DA IST NUR KÄLTE! MEIN KOPF-- ARRRGH!“\n\nEin Schrei gellt durch die Halle. Stations-Lautsprecher:\n„Sanitäter zu Terminal 9! Wieder ein neuronaler Kollaps! Schleift den sabbernden Lappen weg!“",
       "sound": "alarm",
@@ -134,7 +348,7 @@
       "options": [
         {
           "label": "Die brennenden Plasmasägen an deinen Flossen spüren",
-          "action": "next",
+          "action": "zoo_harvester_pain",
           "keyHint": "1"
         }
       ]
@@ -144,7 +358,7 @@
       "act": "act_2_zoo",
       "stage": "alien_zoo",
       "eyebrow": "🩸 ASCHE-GILDE BIO-HARVESTER • VIVISEKTION",
-      "stepCounter": "Szene 7 / 11 • Akt II: Der Zoo",
+      "stepCounter": "Szene 8 / 11 • Akt II: Der Zoo",
       "mainText": "Automatische Plasmasägen ritzen an deinen Chitin-Rändern.",
       "subText": "Walfänger-Drohnen der Asche-Gilde trennen routinemäßig Proben deiner Panzerung ab. Du könntest den Käfig mit einem einzigen psionischen Impuls zerfetzen – doch du tust es nicht. Dir fehlte jeder Lebenswille. Der Spice-Entzug lähmt deine Nerven wie Blei. Du hattest dich selbst aufgegeben, als du gesehen hast, dass die Sterne sterben. Es war dir schlicht egal geworden.\n\nBis eine fremdartige, menschliche Stimme direkt an deinem Wartungsgitter auftaucht...",
       "sound": "heartbeat",
@@ -152,7 +366,7 @@
       "options": [
         {
           "label": "Den Mann im Techniker-Anzug fixieren",
-          "action": "next",
+          "action": "jamal_encounter",
           "keyHint": "1"
         }
       ]
@@ -162,7 +376,7 @@
       "act": "act_3_jamal",
       "stage": "jamal_contact",
       "eyebrow": "👤 WARTUNGSRAMPE B-4 • DR. JAMAL",
-      "stepCounter": "Szene 8 / 11 • Akt III: Dr. Jamal",
+      "stepCounter": "Szene 9 / 11 • Akt III: Dr. Jamal",
       "mainText": "„Ich habe keine Zeit für lange Vorträge. Hör mir gut zu.“",
       "subText": "Direkt vor deinem riesigen, trüben Auge steht ein Mann im abgewetzten Technikeranzug: Dr. Jamal. Auf seiner Brust summt ein modifizierter tragbarer Quantencomputer. Er atmet hastig:\n\n„Ich habe alte Daten und astronomische Aufzeichnungen von vor 250 Jahren analysiert, um dich zu finden. Ich suche denjenigen, der für das verantwortlich ist, was auf der Erde und an unseren Sternenkolonien passiert! Ich erkläre dir alles später. Aber fürs Erste musst du nur eins wissen: Ich habe dir vorhin das Spice in den Injektor geschmuggelt. Und wenn du tust, was ich sage, bekommst du MEHR SPICE.“",
       "sound": "synapse",
@@ -171,7 +385,7 @@
       "options": [
         {
           "label": "Vom Verlangen nach dem Spice erfasst werden...",
-          "action": "next",
+          "action": "jamal_consume_proposal",
           "keyHint": "1"
         }
       ]
@@ -181,7 +395,7 @@
       "act": "act_3_jamal",
       "stage": "jamal_contact",
       "eyebrow": "🧬 DER SYMBIOSEN-VORSCHLAG",
-      "stepCounter": "Szene 9 / 11 • Akt III: Dr. Jamal",
+      "stepCounter": "Szene 10 / 11 • Akt III: Dr. Jamal",
       "mainText": "„Schluck mich. Schleus mich in dein Inneres!“",
       "subText": "Dr. Jamal packt seinen Quantencomputer fester und deutet auf die wabernde, zähflüssige Pore deiner dorsalen Chitin-Membran:\n\n„Die Gilde der Psionisch Verschränkten hat an Dock 7 angelegt. Sie wollen dich der Asche-Gilde abkaufen und dein Gehirn als organischen Rechner für ihre Kriegsschiffe sezieren! Ich kann hier draußen nicht überleben, wenn du springst. Du musst mich konsumieren – nimm mich durch deine Außenhaut auf und bette mich in deinen Bio-Kern ein! Manche würden es pervers nennen, aber es ist unsere einzige Chance!“",
       "sound": "sonar",
@@ -190,7 +404,7 @@
       "options": [
         {
           "label": "Die wabernde Hautmembran öffnen & Dr. Jamal einsaugen",
-          "action": "next",
+          "action": "absorption_harmonization",
           "keyHint": "1"
         }
       ]
@@ -200,7 +414,7 @@
       "act": "act_4_absorption",
       "stage": "absorption_sync",
       "eyebrow": "🧠 TRAUM-KERN • NEURONALE HARMONISIERUNG",
-      "stepCounter": "Szene 10 / 11 • Akt IV: Symbiose",
+      "stepCounter": "Szene 11 / 11 • Akt IV: Symbiose",
       "mainText": "Jamal gleitet durch dein Fleisch. Seine Gedanken rasen panisch.",
       "subText": "Deine zähe, organische Membran umschließt den Physiker. Schichten aus pulsierendem Gewebe und Biolumineszenz schleusen ihn tief in dein Inneres – in den geschützten Traum-Kern. Doch der Druck deines gigantischen Bewusstseins droht ihn zu zerquetschen!\n\nWenn du seine Gedanken nicht sofort psionisch an deine Resonanzfrequenz anpasst, wird auch Dr. Jamal wie die Touristen auf den Tribünen als sabbernder Lappen enden! Bündle deine Mentalkraft und harmonisiere die Synapsen-Brücke!",
       "sound": "synapse",

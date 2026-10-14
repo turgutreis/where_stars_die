@@ -3776,14 +3776,14 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         STATE.prologueCompleted = false;
         STATE.prologueActive = false;
 
-        // Verify JSON story beats structure
+        // Verify JSON story beats structure (now 19 beats with rich coffee machine branching!)
         const beats = getPrologueBeats();
-        expect(beats.length).toBe(11);
+        expect(beats.length).toBe(19);
         expect(beats[0].stage).toBe('office_dream');
-        expect(beats[3].speakerType).toBe('guide');
-        expect(beats[4].speakerType).toBe('thoughts');
-        expect(beats[9].stage).toBe('absorption_sync');
-        expect(beats[10].stage).toBe('breakout_warp');
+        expect(beats.find(b => b.id === 'zoo_awakening_voices')?.speakerType).toBe('guide');
+        expect(beats.find(b => b.id === 'zoo_visitor_thoughts')?.speakerType).toBe('thoughts');
+        expect(beats.find(b => b.id === 'absorption_harmonization')?.stage).toBe('absorption_sync');
+        expect(beats.find(b => b.id === 'breakout_escape')?.stage).toBe('breakout_warp');
 
         let completed = false;
         triggerPrologueSequence(() => {
