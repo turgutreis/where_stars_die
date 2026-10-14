@@ -3776,9 +3776,9 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         STATE.prologueCompleted = false;
         STATE.prologueActive = false;
 
-        // Verify JSON story beats structure (now 19 beats with rich coffee machine branching!)
+        // Verify JSON story beats structure (now 21 beats with intermediate coffee steps: selection -> grinding -> brewing -> steam -> finished cup!)
         const beats = getPrologueBeats();
-        expect(beats.length).toBe(19);
+        expect(beats.length).toBe(21);
         expect(beats[0].stage).toBe('office_dream');
         expect(beats.find(b => b.id === 'zoo_awakening_voices')?.speakerType).toBe('guide');
         expect(beats.find(b => b.id === 'zoo_visitor_thoughts')?.speakerType).toBe('thoughts');

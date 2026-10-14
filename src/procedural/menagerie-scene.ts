@@ -21,13 +21,13 @@ export function initMenagerieScene(targetScene: THREE.Scene = scene): THREE.Grou
     harvesterBeams = [];
 
     // 1. Massive Glowing Plasma Containment Torus Rings
-    const ringRadii = [32, 38, 44, 50];
+    const ringRadii = [18, 24, 30, 36];
     ringRadii.forEach((r, idx) => {
-        const ringGeo = new THREE.TorusGeometry(r, 0.45, 12, 64);
+        const ringGeo = new THREE.TorusGeometry(r, 0.65, 16, 80);
         const ringMat = new THREE.MeshBasicMaterial({
             color: idx % 2 === 0 ? 0x06b6d4 : 0xd946ef,
             transparent: true,
-            opacity: 0.75,
+            opacity: 0.85,
             wireframe: idx % 2 === 1
         });
         const ring = new THREE.Mesh(ringGeo, ringMat);
@@ -38,11 +38,11 @@ export function initMenagerieScene(targetScene: THREE.Scene = scene): THREE.Grou
     });
 
     // 2. Hexagonal Cylindrical Containment Forcefield
-    const cylGeo = new THREE.CylinderGeometry(40, 40, 50, 24, 6, true);
+    const cylGeo = new THREE.CylinderGeometry(28, 28, 30, 24, 6, true);
     const cylMat = new THREE.MeshBasicMaterial({
         color: 0x38bdf8,
         transparent: true,
-        opacity: 0.18,
+        opacity: 0.22,
         wireframe: true,
         side: THREE.DoubleSide
     });
@@ -54,15 +54,15 @@ export function initMenagerieScene(targetScene: THREE.Scene = scene): THREE.Grou
     const podCount = 8;
     for (let i = 0; i < podCount; i++) {
         const angle = (i / podCount) * Math.PI * 2;
-        const dist = 54 + Math.sin(i * 1.5) * 6;
-        const height = (i % 2 === 0 ? 12 : -12) + Math.cos(i) * 4;
+        const dist = 38 + Math.sin(i * 1.5) * 3;
+        const height = (i % 2 === 0 ? 8 : -8) + Math.cos(i) * 2;
 
         const podGroup = new THREE.Group();
         podGroup.position.set(Math.cos(angle) * dist, height, Math.sin(angle) * dist);
         podGroup.lookAt(0, 0, 0); // Face inward at Najmafar!
 
         // Platform Hull
-        const hullGeo = new THREE.BoxGeometry(6, 2.5, 4);
+        const hullGeo = new THREE.BoxGeometry(4.5, 2.0, 3.0);
         const hullMat = new THREE.MeshStandardMaterial({
             color: 0x1e293b,
             roughness: 0.4,
@@ -72,7 +72,7 @@ export function initMenagerieScene(targetScene: THREE.Scene = scene): THREE.Grou
         podGroup.add(hull);
 
         // Holographic Observation Windows
-        const winGeo = new THREE.PlaneGeometry(5.4, 1.8);
+        const winGeo = new THREE.PlaneGeometry(4.0, 1.4);
         const winMat = new THREE.MeshBasicMaterial({
             color: 0xfacc15,
             transparent: true,
@@ -80,14 +80,14 @@ export function initMenagerieScene(targetScene: THREE.Scene = scene): THREE.Grou
             side: THREE.DoubleSide
         });
         const win = new THREE.Mesh(winGeo, winMat);
-        win.position.set(0, 0, -2.05);
+        win.position.set(0, 0, -1.55);
         podGroup.add(win);
 
         // Blinking Navigation Lights
-        const lightGeo = new THREE.SphereGeometry(0.35, 8, 8);
+        const lightGeo = new THREE.SphereGeometry(0.3, 8, 8);
         const lightMat = new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0xef4444 : 0x38bdf8 });
         const beacon = new THREE.Mesh(lightGeo, lightMat);
-        beacon.position.set(2.8, 1.4, 0);
+        beacon.position.set(2.0, 1.1, 0);
         podGroup.add(beacon);
 
         menagerieGroup.add(podGroup);
@@ -97,13 +97,13 @@ export function initMenagerieScene(targetScene: THREE.Scene = scene): THREE.Grou
     // 4. Automated Harvester Plasma Saws (targeting lasers)
     const beamAngles = [0.8, 2.3, 3.9, 5.2];
     beamAngles.forEach(ang => {
-        const startX = Math.cos(ang) * 48;
-        const startZ = Math.sin(ang) * 48;
-        const startY = 8;
+        const startX = Math.cos(ang) * 35;
+        const startZ = Math.sin(ang) * 35;
+        const startY = 6;
 
-        const targetX = (Math.random() - 0.5) * 8;
-        const targetZ = (Math.random() - 0.5) * 8;
-        const targetY = 0;
+        const targetX = (Math.random() - 0.5) * 3;
+        const targetZ = (Math.random() - 0.5) * 3;
+        const targetY = 0.5;
 
         const points = [
             new THREE.Vector3(startX, startY, startZ),

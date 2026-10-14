@@ -78,11 +78,12 @@ export function triggerPrologueSequence(onComplete: () => void) {
         }
     }
 
-    // Keep ship parked inside menagerie containment
+    // Keep ship parked inside menagerie containment at leviathan scale
     STATE.playerPosition.set(0, 0, 0);
     STATE.playerVelocity.set(0, 0, 0);
     if (STATE.playerGroup) {
         STATE.playerGroup.position.set(0, 0, 0);
+        STATE.playerGroup.scale.set(2.4, 2.4, 2.4);
     }
 
     overlay.classList.remove('hidden', 'fade-out');
@@ -361,6 +362,7 @@ export function finishPrologue() {
     if (STATE.playerGroup) {
         STATE.playerGroup.position.set(0, 0, 160);
         STATE.playerGroup.rotation.y = 0;
+        STATE.playerGroup.scale.set(0.42, 0.42, 0.42);
     }
 
     // Recruit Dr. Jamal as the guaranteed starting co-pilot!

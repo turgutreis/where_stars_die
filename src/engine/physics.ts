@@ -466,10 +466,15 @@ export function updatePhysics(dt: number) {
     if (STATE.playerGroup) {
         STATE.playerGroup.position.copy(STATE.playerPosition);
 
-        // Dynamic Ship Scaling: Ship gracefully scales down from 0.42 to 0.20 as you approach colossal worlds
-        const targetShipScale = 0.42 - 0.22 * combinedApproach;
-        const curShipScale = THREE.MathUtils.lerp(STATE.playerGroup.scale.x, targetShipScale, Math.min(1.0, dt * 5.0));
-        STATE.playerGroup.scale.set(curShipScale, curShipScale, curShipScale);
+        if (STATE.prologueActive) {
+            // Leviathan Proportions inside Menagerie: Fill the containment enclosure majestically
+            STATE.playerGroup.scale.set(2.4, 2.4, 2.4);
+        } else {
+            // Dynamic Ship Scaling: Ship gracefully scales down from 0.42 to 0.20 as you approach colossal worlds
+            const targetShipScale = 0.42 - 0.22 * combinedApproach;
+            const curShipScale = THREE.MathUtils.lerp(STATE.playerGroup.scale.x, targetShipScale, Math.min(1.0, dt * 5.0));
+            STATE.playerGroup.scale.set(curShipScale, curShipScale, curShipScale);
+        }
     }
 
     // 6.5 Continuous Distance-Based Camera Altitude & Responsive Following
@@ -493,13 +498,10 @@ export function updatePhysics(dt: number) {
     STATE.targetCameraHeight = targetHeight;
     if (camera) {
         if (STATE.prologueActive && STATE.prologueStage !== 'office_dream') {
-            // Cinematic 3D Menagerie Camera: gentle tilt & orbit showcasing the plasma containment rings & observation decks
-            const t = Date.now() * 0.0003;
-            camera.position.x = Math.sin(t) * 20;
-            camera.position.y = 44 + Math.sin(t * 1.4) * 3;
-            camera.position.z = 52 + Math.cos(t) * 12;
-            camera.lookAt(0, 6, 0);
+            // Stable, beautifully framed 3D Menagerie Camera: elevated 45° angle, rock-solid framing
             camera.up.set(0, 1, 0);
+            camera.position.set(0, 42, 48);
+            camera.lookAt(0, 4, 0);
         } else {
             const camLerpSpeed = STATE.systemArrivalActive ? 2.5 : 4.0;
             camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetHeight, Math.min(1.0, dt * camLerpSpeed));

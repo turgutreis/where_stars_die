@@ -47253,9 +47253,13 @@ function updatePhysics(dt) {
   }
   if (STATE.playerGroup) {
     STATE.playerGroup.position.copy(STATE.playerPosition);
-    const targetShipScale = 0.42 - 0.22 * combinedApproach;
-    const curShipScale = MathUtils.lerp(STATE.playerGroup.scale.x, targetShipScale, Math.min(1, dt * 5));
-    STATE.playerGroup.scale.set(curShipScale, curShipScale, curShipScale);
+    if (STATE.prologueActive) {
+      STATE.playerGroup.scale.set(2.4, 2.4, 2.4);
+    } else {
+      const targetShipScale = 0.42 - 0.22 * combinedApproach;
+      const curShipScale = MathUtils.lerp(STATE.playerGroup.scale.x, targetShipScale, Math.min(1, dt * 5));
+      STATE.playerGroup.scale.set(curShipScale, curShipScale, curShipScale);
+    }
   }
   const planetAltitudeOffset = 18 * planetApproachFactor;
   const moonAltitudeOffset = 16 * moonApproachFactor;
@@ -47272,12 +47276,9 @@ function updatePhysics(dt) {
   STATE.targetCameraHeight = targetHeight;
   if (camera) {
     if (STATE.prologueActive && STATE.prologueStage !== "office_dream") {
-      const t = Date.now() * 0.0003;
-      camera.position.x = Math.sin(t) * 20;
-      camera.position.y = 44 + Math.sin(t * 1.4) * 3;
-      camera.position.z = 52 + Math.cos(t) * 12;
-      camera.lookAt(0, 6, 0);
       camera.up.set(0, 1, 0);
+      camera.position.set(0, 42, 48);
+      camera.lookAt(0, 4, 0);
     } else {
       const camLerpSpeed = STATE.systemArrivalActive ? 2.5 : 4;
       camera.position.y = MathUtils.lerp(camera.position.y, targetHeight, Math.min(1, dt * camLerpSpeed));
@@ -47382,13 +47383,13 @@ function initMenagerieScene(targetScene = scene) {
   containmentRings = [];
   observationPods = [];
   harvesterBeams = [];
-  const ringRadii = [32, 38, 44, 50];
+  const ringRadii = [18, 24, 30, 36];
   ringRadii.forEach((r, idx) => {
-    const ringGeo = new TorusGeometry(r, 0.45, 12, 64);
+    const ringGeo = new TorusGeometry(r, 0.65, 16, 80);
     const ringMat = new MeshBasicMaterial({
       color: idx % 2 === 0 ? 440020 : 14239471,
       transparent: true,
-      opacity: 0.75,
+      opacity: 0.85,
       wireframe: idx % 2 === 1
     });
     const ring = new Mesh(ringGeo, ringMat);
@@ -47397,11 +47398,11 @@ function initMenagerieScene(targetScene = scene) {
     menagerieGroup.add(ring);
     containmentRings.push(ring);
   });
-  const cylGeo = new CylinderGeometry(40, 40, 50, 24, 6, true);
+  const cylGeo = new CylinderGeometry(28, 28, 30, 24, 6, true);
   const cylMat = new MeshBasicMaterial({
     color: 3718648,
     transparent: true,
-    opacity: 0.18,
+    opacity: 0.22,
     wireframe: true,
     side: DoubleSide
   });
@@ -47411,12 +47412,12 @@ function initMenagerieScene(targetScene = scene) {
   const podCount = 8;
   for (let i = 0;i < podCount; i++) {
     const angle = i / podCount * Math.PI * 2;
-    const dist = 54 + Math.sin(i * 1.5) * 6;
-    const height = (i % 2 === 0 ? 12 : -12) + Math.cos(i) * 4;
+    const dist = 38 + Math.sin(i * 1.5) * 3;
+    const height = (i % 2 === 0 ? 8 : -8) + Math.cos(i) * 2;
     const podGroup = new Group;
     podGroup.position.set(Math.cos(angle) * dist, height, Math.sin(angle) * dist);
     podGroup.lookAt(0, 0, 0);
-    const hullGeo = new BoxGeometry(6, 2.5, 4);
+    const hullGeo = new BoxGeometry(4.5, 2, 3);
     const hullMat = new MeshStandardMaterial({
       color: 1976635,
       roughness: 0.4,
@@ -47424,7 +47425,7 @@ function initMenagerieScene(targetScene = scene) {
     });
     const hull = new Mesh(hullGeo, hullMat);
     podGroup.add(hull);
-    const winGeo = new PlaneGeometry(5.4, 1.8);
+    const winGeo = new PlaneGeometry(4, 1.4);
     const winMat = new MeshBasicMaterial({
       color: 16436245,
       transparent: true,
@@ -47432,24 +47433,24 @@ function initMenagerieScene(targetScene = scene) {
       side: DoubleSide
     });
     const win = new Mesh(winGeo, winMat);
-    win.position.set(0, 0, -2.05);
+    win.position.set(0, 0, -1.55);
     podGroup.add(win);
-    const lightGeo = new SphereGeometry(0.35, 8, 8);
+    const lightGeo = new SphereGeometry(0.3, 8, 8);
     const lightMat = new MeshBasicMaterial({ color: i % 2 === 0 ? 15680580 : 3718648 });
     const beacon = new Mesh(lightGeo, lightMat);
-    beacon.position.set(2.8, 1.4, 0);
+    beacon.position.set(2, 1.1, 0);
     podGroup.add(beacon);
     menagerieGroup.add(podGroup);
     observationPods.push(podGroup);
   }
   const beamAngles = [0.8, 2.3, 3.9, 5.2];
   beamAngles.forEach((ang) => {
-    const startX = Math.cos(ang) * 48;
-    const startZ = Math.sin(ang) * 48;
-    const startY = 8;
-    const targetX = (Math.random() - 0.5) * 8;
-    const targetZ = (Math.random() - 0.5) * 8;
-    const targetY = 0;
+    const startX = Math.cos(ang) * 35;
+    const startZ = Math.sin(ang) * 35;
+    const startY = 6;
+    const targetX = (Math.random() - 0.5) * 3;
+    const targetZ = (Math.random() - 0.5) * 3;
+    const targetY = 0.5;
     const points = [
       new Vector3(startX, startY, startZ),
       new Vector3(targetX, targetY, targetZ)
@@ -47629,21 +47630,21 @@ var prologue_story_default = {
       id: "choose_cappucino",
       act: "act_1_office",
       stage: "office_dream",
-      eyebrow: "🥤 KAFFEEAUTOMAT • CAPPUCCINO",
-      stepCounter: "Szene 2 / 11 • Akt I: Das Büro",
-      mainText: "Du hast dich für Cappuccino entschieden.",
-      subText: "Der Automat stößt ein mechanisches Ächzen aus und beginnt zu arbeiten. Bohnen werden gemahlen. Dampf zischt. Flüssige Hitze ergießt sich in eine hitzebeständige Tasse. Der Duft von gerösteten Bohnen vermischt sich mit dem schwachen Geruch von ozonhaltiger Luft. Es ist ein fast beruhigendes Ritual. Fast. Denn als das Geräusch des Mahlwerks einsetzt, bemerkst du etwas Seltsames.",
+      eyebrow: "🥤 KAFFEEAUTOMAT • CAPPUCCINO-AUSWAHL",
+      stepCounter: "Szene 2a / 11 • Akt I: Das Büro",
+      mainText: "Du drückst auf 'Cappuccino'. Die Maschine erwacht zum Leben.",
+      subText: "Ein leises Quittierungs-Piepen ertönt. Tief im Gehäuse setzt ein mechanisches Rucken ein. Oben im transparenten Vorratsbehälter beginnen die dunkel gerösteten Bohnen zu rutschen und fallen in den rotierenden Einzugstrichter. Das Mahlwerk setzt an.",
       sound: "synapse",
       speakerType: "character",
       options: [
         {
-          label: "Den Bohnen beim Mahlen zusehen",
-          action: "show_beans_grinding",
+          label: "Das Mahlwerk beobachten (Bohnen werden zermalmt)",
+          action: "coffee_grinding",
           keyHint: "1"
         },
         {
-          label: "Den aufsteigenden Dampf beobachten",
-          action: "show_steam_rising",
+          label: "Direkt die Brühung einleiten (9 Bar Druck)",
+          action: "coffee_brewing",
           keyHint: "2"
         }
       ]
@@ -47652,27 +47653,22 @@ var prologue_story_default = {
       id: "choose_flat_white",
       act: "act_1_office",
       stage: "office_dream",
-      eyebrow: "🥤 KAFFEEAUTOMAT • FLAT WHITE",
-      stepCounter: "Szene 2 / 11 • Akt I: Das Büro",
-      mainText: "Du wählst Flat White. Der samtige Mikroschaum legt sich auf den Espresso.",
-      subText: "Als die helle Milch in die schwarze Flüssigkeit strömt, entstehen perfekte logarithmische Spiralen. Genau wie die Arme einer rotierenden Galaxie. Für einen Moment glaubst du, die Gezeitenkräfte zweier kollidierender Sonnen zu beobachten, die sich gegenseitig Materie entreißen und Akkretionsscheiben bilden. Du blinzelst benommen. Es ist nur Milchschaum in einer Papptasse.",
+      eyebrow: "🥤 KAFFEEAUTOMAT • FLAT WHITE-AUSWAHL",
+      stepCounter: "Szene 2a / 11 • Akt I: Das Büro",
+      mainText: "Du wählst 'Flat White'. Die Mechanik schlägt an.",
+      subText: "Zwei Ristretto-Shots erfordern die feinste Mahlung. Ein sanfter Servomotor schiebt die Förderschnecke an. Die ersten Bohnen fallen mit trockenem Klappern in die Mahlkammer. Die gehärteten Stahlkegel laufen surrend an.",
       sound: "sonar",
       speakerType: "character",
       options: [
         {
-          label: "Den Bohnen im Mahlwerk zusehen",
-          action: "show_beans_grinding",
+          label: "Dem Mahlvorgang zusehen",
+          action: "coffee_grinding",
           keyHint: "1"
         },
         {
-          label: "Den Dampf beobachten",
-          action: "show_steam_rising",
+          label: "Direkt die Brühung einleiten",
+          action: "coffee_brewing",
           keyHint: "2"
-        },
-        {
-          label: "Die Tasse nehmen & zum Schreibtisch zurückkehren",
-          action: "office_knock",
-          keyHint: "3"
         }
       ]
     },
@@ -47680,27 +47676,22 @@ var prologue_story_default = {
       id: "choose_latte_macchiato",
       act: "act_1_office",
       stage: "office_dream",
-      eyebrow: "🥤 KAFFEEAUTOMAT • LATTE MACCHIATO",
-      stepCounter: "Szene 2 / 11 • Akt I: Das Büro",
-      mainText: "Du wählst Latte Macchiato. Dreischichtige Dichte-Schichtung.",
-      subText: "Messerscharfe Trennlinien zwischen Milch, Espresso und Schaum. In deinem übermüdeten Verstand berechnen sich sofort die barometrischen Höhenschichten einer Gasriesen-Atmosphäre. Oben dünner Dunst, in der Mitte flüssiger Wasserstoff, unten die unbarmherzige, dichte Kernzone. Wie viele Welten in solchen Atmosphären unter Gravitationsdruck wohl zerdrückt wurden? Deine Finger zittern leicht am Glas.",
+      eyebrow: "🥤 KAFFEEAUTOMAT • LATTE MACCHIATO-AUSWAHL",
+      stepCounter: "Szene 2a / 11 • Akt I: Das Büro",
+      mainText: "Du wählst 'Latte Macchiato'. Der Automat summt auf.",
+      subText: "Dreifache Dichte-Schichtung erfordert absolute Präzision. Doch bevor überhaupt Wasser oder Milch erhitzt werden, greifen die Mahlkegel nach den ganzen Bohnen. Die ersten Splitter wirbeln durch den transparenten Trichter.",
       sound: "synapse",
       speakerType: "character",
       options: [
         {
-          label: "Das Mahlwerk betrachten",
-          action: "show_beans_grinding",
+          label: "Das Mahlwerk beobachten",
+          action: "coffee_grinding",
           keyHint: "1"
         },
         {
-          label: "Den aufsteigenden Dampf beobachten",
-          action: "show_steam_rising",
+          label: "Direkt die Brühung einleiten",
+          action: "coffee_brewing",
           keyHint: "2"
-        },
-        {
-          label: "Die Schichten umrühren & zurück zum Schreibtisch",
-          action: "office_knock",
-          keyHint: "3"
         }
       ]
     },
@@ -47708,94 +47699,120 @@ var prologue_story_default = {
       id: "choose_espresso",
       act: "act_1_office",
       stage: "office_dream",
-      eyebrow: "☕ KAFFEEAUTOMAT • DOPPELTER ESPRESSO",
-      stepCounter: "Szene 2 / 11 • Akt I: Das Büro",
-      mainText: "Du wählst einen doppelten Espresso. Tiefschwarz.",
-      subText: "Kein Zucker. Kein Schaum. Eine pechschwarze Oberfläche, so lichtschluckend wie der Ereignishorizont eines supermassereichen Schwarzen Lochs. Wenn du hineinstarrst, scheint das Licht der Neonröhren an den Rändern der Tasse gekrümmt zu werden – wie bei einer Gravitationslinse. 'Ich habe zu lange nicht geschlafen', murmelst du. Doch tief in deinem Inneren weißt du: Das ist keine Übermüdung. Es ist eine uralte, unbegreifliche Erinnerung.",
+      eyebrow: "☕ KAFFEEAUTOMAT • DOPPELTER ESPRESSO-AUSWAHL",
+      stepCounter: "Szene 2a / 11 • Akt I: Das Büro",
+      mainText: "Du wählst 'Doppelter Espresso'. Reine Essenz.",
+      subText: "Pures Konzentrat ohne jede Beschönigung. Die Maschine kalibriert den Mahlgrad auf maximale Partikeldichte. Die Bohnen werden mit unerbittlicher Härte in den Einzug gezogen, als stürzten sie in einen Gravitationsschlund.",
       sound: "sonar",
       speakerType: "character",
       options: [
         {
-          label: "Den bitteren Espresso trinken & zum Schreibtisch",
-          action: "office_knock",
+          label: "Dem Mahlwerk zuschauen",
+          action: "coffee_grinding",
           keyHint: "1"
         },
         {
-          label: "Den Bohnen im Mahlwerk zuschauen",
-          action: "show_beans_grinding",
-          keyHint: "2"
-        },
-        {
-          label: "Den Dampf beobachten",
-          action: "show_steam_rising",
-          keyHint: "3"
-        }
-      ]
-    },
-    {
-      id: "show_beans_grinding",
-      act: "act_1_office",
-      stage: "office_dream",
-      eyebrow: "☕ KAFFEEAUTOMAT • DAS MAHLWERK",
-      stepCounter: "Szene 2 / 11 • Akt I: Das Büro",
-      mainText: "Du lehnst dich vor, um die Bohnen zu beobachten.",
-      subText: "Unter der durchsichtigen Kuppel des Mahlwerks drehen sich die Stahlkegel mit unerbittlicher Präzision. Ganze, geröstete Bohnen werden erfasst, zersplittert und zu feinstem Pulver zermalmt. Wie Himmelskörper, die in die Gezeitenkräfte eines Neutronensterns geraten – Roche-Grenzen, die überschritten werden, bis Planeten in Trümmerfelder zerbersten. Doch als du genauer hinsiehst, formen die Bruchstücke ein Muster...",
-      sound: "sonar",
-      speakerType: "character",
-      options: [
-        {
-          label: "Das Bohnen-Muster genauer betrachten",
-          action: "show_beans_pattern",
-          keyHint: "1"
-        },
-        {
-          label: "Den Dampf beobachten",
-          action: "show_steam_rising",
-          keyHint: "2"
-        },
-        {
-          label: "Die Tasse nehmen & zum Schreibtisch gehen",
-          action: "office_knock",
-          keyHint: "3"
-        }
-      ]
-    },
-    {
-      id: "show_beans_pattern",
-      act: "act_1_office",
-      stage: "office_dream",
-      eyebrow: "☕ KAFFEE • DAS STERNUMSTER",
-      stepCounter: "Szene 2 / 11 • Akt I: Das Büro",
-      mainText: "Das Mahlwerk mahlt die Bohnen.",
-      subText: "Das Muster, das du siehst, gleicht einem Meer aus Sternen. Wo sind die Spiralnebel? Was ist das für ein Pulsieren? Du schüttelst den Kopf. Es sind nur Kaffeebohnen. Aber sie scheinen sich zu bewegen... wie unzählige Sonnensysteme, die unaufhaltsam in den Schlund eines gigantischen Zentrums gerissen werden. Alles verfällt der Entropie. Alles vergeht.",
-      sound: "sonar",
-      speakerType: "character",
-      options: [
-        {
-          label: "Mit der Tasse zurück an den Schreibtisch treten",
-          action: "office_knock",
-          keyHint: "1"
-        },
-        {
-          label: "Den aufsteigenden Dampf beobachten",
-          action: "show_steam_rising",
+          label: "Direkt die Brühung einleiten",
+          action: "coffee_brewing",
           keyHint: "2"
         }
       ]
     },
     {
-      id: "show_steam_rising",
+      id: "coffee_grinding",
       act: "act_1_office",
       stage: "office_dream",
-      eyebrow: "💨 KAFFEEAUTOMAT • DER DAMPF",
-      stepCounter: "Szene 2 / 11 • Akt I: Das Büro",
-      mainText: "Der Dampf windet sich in die kühle Laborluft.",
-      subText: "Weiße Rauchfahnen tanzen über dem Becher wie koronale Massenauswürfe einer sterbenden Sonne. Die Turbulenzen gehorchen den Gesetzen der Magnetohydrodynamik – genau wie die gefürchteten Gammablitze der Magnetare, die ganze Planetenoberflächen einäschern. Ein Hauch von Wärme, der sich im kalten Zimmer verflüchtigt und spurlos im Nichts vergeht.",
+      eyebrow: "⚙️ ZWISCHENSCHRITT • DAS MAHLWERK & DIE ROCHE-GRENZE",
+      stepCounter: "Szene 2b / 11 • Akt I: Das Büro",
+      mainText: "Die Bohnen zerbersten unter unbarmherzigen Scherkräften.",
+      subText: "Unter der transparenten Kuppel greifen die rotierenden Stahlkegel nach den gerösteten Bohnen. Sie splittern, knacken und zerfallen in mikroskopische Fragmente. In deinem übermüdeten Geist überlagert sich das Bild: Es sind keine Bohnen, sondern Himmelskörper, die in die Gezeitenkräfte eines Neutronensterns geraten. Die unbarmherzige Roche-Grenze – der Moment, in dem die eigene Gravitation eines Planeten der Zerreißkraft nicht mehr standhält und feste Welten zu Trümmerringen zermahlen werden.",
+      sound: "sonar",
+      speakerType: "character",
+      options: [
+        {
+          label: "Das wirbelnde Staubmuster im Trichter fixieren",
+          action: "coffee_beans_pattern",
+          keyHint: "1"
+        },
+        {
+          label: "Die Hochdruck-Brühung starten (Heißes Wasser)",
+          action: "coffee_brewing",
+          keyHint: "2"
+        }
+      ]
+    },
+    {
+      id: "coffee_beans_pattern",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "🌌 ZWISCHENSCHRITT • DAS SPIRAL-MUSTER",
+      stepCounter: "Szene 2c / 11 • Akt I: Das Büro",
+      mainText: "Das Kaffeemehl formt ein wirbelndes Sternenmeer.",
+      subText: "Im Auffangtrichter zeichnen die zirkulierenden Pulverströme verblüffend exakte logarithmische Spiralen. Wie zwei ineinanderstürzende Galaxien, deren Arme sich verflechten, bevor sie im gravitativen Zentrum verlöschen. Ein kalter Schauder läuft dir über den Rücken. Wie kann etwas so Alltägliches wie Kaffeepulver dich an das Sterben von Milliarden Sternen erinnern? Du blinzelst benommen.",
+      sound: "sonar",
+      speakerType: "character",
+      options: [
+        {
+          label: "Zur Hochdruck-Extraktion übergehen",
+          action: "coffee_brewing",
+          keyHint: "1"
+        }
+      ]
+    },
+    {
+      id: "coffee_brewing",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "☕ ZWISCHENSCHRITT • DIE HOCHDRUCK-EXTRAKTION",
+      stepCounter: "Szene 2d / 11 • Akt I: Das Büro",
+      mainText: "Neun Bar Druck. Kochende Hitze schießt durch das Pulver.",
+      subText: "Die massive Brühkammer verriegelt hydraulisch mit einem satten Klicken. Mit lautem Zischen wird kochendes Wasser durch das komprimierte Kaffeebett gepresst. Ein sattes, dunkles Rinnsal ergießt sich in die bereitstehende Tasse, während feiner Dampf die Scheibe des Automaten beschlägt. Die dichte Crema schimmert wie frisch erstarrte basaltische Lava auf einer neugeborenen Welt.",
+      sound: "synapse",
+      speakerType: "character",
+      options: [
+        {
+          label: "Den aufsteigenden Dampf beobachten (Koronale Schleifen)",
+          action: "coffee_steam",
+          keyHint: "1"
+        },
+        {
+          label: "Die fertige Tasse greifen",
+          action: "coffee_finished",
+          keyHint: "2"
+        }
+      ]
+    },
+    {
+      id: "coffee_steam",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "💨 ZWISCHENSCHRITT • KORONALER DAMPF",
+      stepCounter: "Szene 2e / 11 • Akt I: Das Büro",
+      mainText: "Dampf tanzt über der Tasse wie koronale Eruptionen.",
+      subText: "Weiße Wirbelfäden steigen in die kühle Flurluft empor. Die magnetohydrodynamischen Verwirbelungen gleichen den gefürchteten Plasma-Schleifen eines Magnetars – Sonnenflares, die Lichtjahre ins Vakuum peitschen, bevor sie abkühlen und vergehen. Ein Hauch von Wärme, der sich im kalten Institutsflur verflüchtigt.",
       sound: "heartbeat",
       speakerType: "character",
       options: [
         {
-          label: "Mit der Tasse zurück an den Arbeitsplatz gehen",
+          label: "Die warme Tasse nehmen & zum Schreibtisch gehen",
+          action: "coffee_finished",
+          keyHint: "1"
+        }
+      ]
+    },
+    {
+      id: "coffee_finished",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "☕ DIE FERTIGE TASSE • ZURÜCK ZUM ARBEITSPLATZ",
+      stepCounter: "Szene 2f / 11 • Akt I: Das Büro",
+      mainText: "Deine Tasse steht vollendet in der Ausgabebucht.",
+      subText: "Du nimmst den warmen Becher in beide Hände. Die Hitze tut deinen tauben Fingern gut. Ein vertrauter, erdender Geruch von dunkler Röstung und Zivilisation. Du atmest tief durch, nimmst einen vorsichtigen Schluck und kehrst mit der Tasse durch den dämmrigen Flur an deinen Schreibtisch zurück.",
+      sound: "synapse",
+      speakerType: "character",
+      options: [
+        {
+          label: "Zurück an den Schreibtisch treten...",
           action: "office_knock",
           keyHint: "1"
         }
@@ -48042,6 +48059,7 @@ function triggerPrologueSequence(onComplete) {
   STATE.playerVelocity.set(0, 0, 0);
   if (STATE.playerGroup) {
     STATE.playerGroup.position.set(0, 0, 0);
+    STATE.playerGroup.scale.set(2.4, 2.4, 2.4);
   }
   overlay.classList.remove("hidden", "fade-out");
   overlay.classList.add("visible");
@@ -48273,6 +48291,7 @@ function finishPrologue() {
   if (STATE.playerGroup) {
     STATE.playerGroup.position.set(0, 0, 160);
     STATE.playerGroup.rotation.y = 0;
+    STATE.playerGroup.scale.set(0.42, 0.42, 0.42);
   }
   recruitJamal();
   const overlay = document.getElementById("prologue-overlay");
