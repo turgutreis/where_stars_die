@@ -9,6 +9,7 @@ import { addLogEntry, updateHUDStats } from '../ui/hud';
 import { updateScannerUI } from '../systems/scanner';
 import { updateMutationUI } from '../ui/deck';
 import { triggerGameOver } from './game-over';
+import { calculateRelativisticTimeShift, advanceGalacticTime } from '../systems/quantum-ising';
 
 // Cached vectors for zero GC pressure
 const _predPos = new THREE.Vector3();
@@ -185,33 +186,7 @@ export function updatePhysics(dt: number) {
         }
     });
 
-    // 2. Update 3D Target Reticle
-    const focusTarget = STATE.lockedTarget || ((STATE.orbitLevel === 'moon' && STATE.activeMoonOrbit) ? STATE.activeMoonOrbit : (STATE.isInPlanetOrbit && STATE.orbitPlanet ? STATE.orbitPlanet : null));
-
-    if (focusTarget && focusTarget.mesh) {
-        if (!targetReticleGroup) createTargetReticle();
-        if (targetReticleGroup) {
-            targetReticleGroup.visible = true;
-            targetReticleGroup.position.set(
-                focusTarget.mesh.position.x,
-                0.25,
-                focusTarget.mesh.position.z
-            );
-            
-            const curVisualScale = focusTarget.mesh.scale.x || 1.0;
-            const baseSize = focusTarget.size || 2.5;
-            // Frame cleanly outside the planet body (1.28x) without slicing the equator
-            const scale = baseSize * curVisualScale * 1.28;
-            const pulse = 1.0 + Math.sin(Date.now() * 0.005) * 0.03;
-            targetReticleGroup.scale.set(scale * pulse, scale * pulse, scale * pulse);
-
-            updateTargetReticleState(focusTarget, dt);
-        }
-    } else {
-        if (targetReticleGroup) targetReticleGroup.visible = false;
-    }
-
-    // 3. Calculate closest or locked planet/vessel distance & update Scanner UI
+    // 2. Calculate closest or locked planet/vessel distance
     let targetPlanet: any = null;
     let targetDist = Infinity;
 
@@ -277,7 +252,35 @@ export function updatePhysics(dt: number) {
     if (targetPlanet && !targetPlanet.isStation && !targetPlanet.isShip && !targetPlanet.stationType && !targetPlanet.shipType) {
         STATE.nearestPlanet = targetPlanet;
     }
-    updateScannerUI(targetPlanet, targetDist);
+
+    // 3. Update 3D Target Reticle (Locked target, active orbit, or proximity planet < 28 AE)
+    const focusTarget = STATE.lockedTarget
+        || ((STATE.orbitLevel === 'moon' && STATE.activeMoonOrbit) ? STATE.activeMoonOrbit : null)
+        || ((STATE.isInPlanetOrbit && STATE.orbitPlanet) ? STATE.orbitPlanet : null)
+        || ((targetPlanet && targetDist <= 26 && (targetPlanet.scanned || STATE.scannedPlanets?.[targetPlanet.name])) ? targetPlanet : null);
+
+    if (focusTarget && focusTarget.mesh) {
+        if (!targetReticleGroup) createTargetReticle();
+        if (targetReticleGroup) {
+            targetReticleGroup.visible = true;
+            targetReticleGroup.position.set(
+                focusTarget.mesh.position.x,
+                0.25,
+                focusTarget.mesh.position.z
+            );
+            
+            const curVisualScale = focusTarget.mesh.scale.x || 1.0;
+            const baseSize = focusTarget.size || 2.5;
+            // Frame cleanly outside the planet body (1.28x) without slicing the equator
+            const scale = baseSize * curVisualScale * 1.28;
+            const pulse = 1.0 + Math.sin(Date.now() * 0.005) * 0.03;
+            targetReticleGroup.scale.set(scale * pulse, scale * pulse, scale * pulse);
+
+            updateTargetReticleState(focusTarget, dt);
+        }
+    } else {
+        if (targetReticleGroup) targetReticleGroup.visible = false;
+    }
 
     // 4. Multi-Body Gravity Calculation (Inverse-square law with Softening)
     let netGx = 0;
@@ -367,12 +370,15 @@ export function updatePhysics(dt: number) {
             }
 
             if (actualSys) {
+                const jumpDist = fromSys ? Math.hypot(actualSys.x - fromSys.x, actualSys.z - fromSys.z) : 45.0;
+                const relShift = calculateRelativisticTimeShift(jumpDist, fromSys?.star?.type, actualSys?.star?.type);
                 STATE.currentSystemId = actualSys.id;
                 STATE.systemsVisited++;
                 if (!STATE.visitedSystemIds) STATE.visitedSystemIds = [];
                 if (!STATE.visitedSystemIds.includes(actualSys.id)) {
                     STATE.visitedSystemIds.push(actualSys.id);
                 }
+                advanceGalacticTime(relShift.monthsDelta, relShift.loreReason);
                 clearActiveSystem();
                 spawnPlanetsAndAsteroids();
                 initiateSystemArrival(fromSys, actualSys, resolution);
@@ -504,6 +510,8 @@ export function updatePhysics(dt: number) {
     } else {
         STATE.cameraHeight = targetHeight;
     }
+
+    updateScannerUI(targetPlanet, targetDist);
 
     // Check for Critical Biological Collapse (Game Over)
     if (STATE.health <= 0 && !STATE.isGameOver && STATE.gameStarted) {

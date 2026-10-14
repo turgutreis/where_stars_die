@@ -4,3 +4,6 @@ dist/
 *.log
 legacy_verse/
 *.tif
+
+__pycache__/
+*.pyc

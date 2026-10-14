@@ -19,6 +19,7 @@ import { loadPlanetTexture, getTemplateForBody, resolveArchetypeTemplate, PLANET
 import { applySystemLighting } from '../engine/postprocessing';
 import { triggerAutoSave } from './save-manager';
 import { JumpResolution } from '../types/game';
+import { syncActivePlanetsIsingEpochs, updateHudChronicleBadge } from './quantum-ising';
 
 export const activeCoronaMeshes: THREE.Object3D[] = [];
 export const activeCoronaUpdaters: ((dt: number) => void)[] = [];
@@ -802,6 +803,8 @@ export function spawnPlanetsAndAsteroids() {
         STATE.asteroids.push(sourceObj);
     });
 
+    syncActivePlanetsIsingEpochs();
+    updateHudChronicleBadge();
     spawnSystemSpaceStations(activePlanets);
     initPlanetDefenseFleets();
 

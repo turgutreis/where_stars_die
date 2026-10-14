@@ -1,5 +1,6 @@
 import { STATE } from '../core/state';
 import { StarSystem, UniverseData, JumpTelemetry, JumpResolution, JumpStability, JumpHazard } from '../types/game';
+import { calculateRelativisticTimeShift } from './quantum-ising';
 
 /**
  * Returns the baseline safe harmonic warp range in light-years.
@@ -33,6 +34,7 @@ export function calculateJumpPrecision(fromSys: StarSystem, targetSys: StarSyste
     const canReach = dist <= maxRange;
 
     const costMult = STATE.mutations.folddrive && STATE.mutations.folddrive.purchased ? 0.7 : 1.0;
+    const relShift = calculateRelativisticTimeShift(dist, fromSys.star?.type, targetSys.star?.type);
 
     if (inSafeRange) {
         const mentalCost = Math.round((18 + dist * 0.18) * costMult);
@@ -49,7 +51,8 @@ export function calculateJumpPrecision(fromSys: StarSystem, targetSys: StarSyste
             stability: 'stable',
             telepathyBonus: 0,
             mentalClarityBonus: 0,
-            mutationBonus: 0
+            mutationBonus: 0,
+            relativisticMonthsDelta: relShift.monthsDelta
         };
     }
 
@@ -69,7 +72,8 @@ export function calculateJumpPrecision(fromSys: StarSystem, targetSys: StarSyste
             stability: 'unreachable',
             telepathyBonus: 0,
             mentalClarityBonus: 0,
-            mutationBonus: 0
+            mutationBonus: 0,
+            relativisticMonthsDelta: relShift.monthsDelta
         };
     }
 
@@ -143,7 +147,8 @@ export function calculateJumpPrecision(fromSys: StarSystem, targetSys: StarSyste
         stability,
         telepathyBonus,
         mentalClarityBonus,
-        mutationBonus
+        mutationBonus,
+        relativisticMonthsDelta: relShift.monthsDelta
     };
 }
 

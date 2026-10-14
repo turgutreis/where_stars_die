@@ -10,7 +10,10 @@ import { SpeciesData, PlanetAttributes, FleetShip, SpaceStation, PlanetaryHazard
 import { generateProceduralCandidates } from './crew-generation';
 import { advanceFtueStep, triggerVoyagerSignalDetection } from '../ui/directives';
 import { abductCrewFromShip } from './abduction';
-import { openShuttleExpeditionModal } from './shuttle-expeditions';
+import { triggerHarvestStart } from './harvesting';
+import { openShuttleExpeditionModal, hasAwayTeamCrew } from './shuttle-expeditions';
+import { getSystemIsingEpoch } from './quantum-ising';
+import { camera } from '../engine/scene';
 
 export function generatePlanetAttributes(p: any): PlanetAttributes {
     const sysId = STATE.currentSystemId || 0;
@@ -47,7 +50,17 @@ export function generatePlanetAttributes(p: any): PlanetAttributes {
 
     let atmos: string, temp: string, bio: string, res: string, species: any;
 
-    if (p.atmos && p.temp && p.bio && p.res && (p.type !== 'Habitable' || (p.species && p.species.candidates && p.species.candidates.length > 0))) {
+    const existingSpecies = (p.attributes && p.attributes.species) || p.species;
+    if (existingSpecies && existingSpecies.techLevel && existingSpecies.population > 0) {
+        atmos = (p.attributes && p.attributes.atmos) || p.atmos || "Stickstoff & Sauerstoff (Klasse M)";
+        temp = (p.attributes && p.attributes.temp) || p.temp || "20°C";
+        bio = (p.attributes && p.attributes.bio) || p.bio || "Komplexes Ökosystem";
+        res = (p.attributes && p.attributes.res) || p.res || "Reich an Biomasse, Kohlenstoff & O2";
+        if (!existingSpecies.candidates || existingSpecies.candidates.length === 0) {
+            existingSpecies.candidates = generateProceduralCandidates(hash, 2);
+        }
+        species = existingSpecies;
+    } else if (p.atmos && p.temp && p.bio && p.res && (p.type !== 'Habitable' || (p.species && p.species.candidates && p.species.candidates.length > 0))) {
         atmos = p.atmos;
         temp = p.temp;
         bio = p.bio;
@@ -196,6 +209,31 @@ export function generatePlanetAttributes(p: any): PlanetAttributes {
         }
     }
 
+    const isingEpoch = getSystemIsingEpoch(sysId);
+    if (isingEpoch.stateId === 'gamma_surge') {
+        surfaceDeposits.push({
+            id: `dep-${hash}-spice`,
+            name: 'Kristallisiertes Magnetar-Spice (Melange-Ader)',
+            type: 'crystal_caverns',
+            description: 'Durch Gammablitz-Strahlung frisch kristallisierte psionische Materie (Spice) mit extremem Resonanzwert.',
+            yieldResource: 'tech',
+            yieldAmount: 45 + (isingEpoch.spiceYieldBonus || 35),
+            hazardType: 'radiation',
+            hazardSeverity: 'moderate'
+        });
+    } else if (isingEpoch.stateId === 'djinn_resonance') {
+        surfaceDeposits.push({
+            id: `dep-${hash}-djinn`,
+            name: 'Aktiver Dschinn-Resonanz-Knoten',
+            type: 'ruins',
+            description: 'Ein erwachtes Mu\'ammirun-Relais, das Quanten-Signale von Sagittarius A* empfängt.',
+            yieldResource: 'tech',
+            yieldAmount: 38 + (hash % 15),
+            hazardType: 'radiation',
+            hazardSeverity: 'low'
+        });
+    }
+
     return { 
         atmos, 
         temp, 
@@ -209,7 +247,8 @@ export function generatePlanetAttributes(p: any): PlanetAttributes {
         entangledTwinId,
         quantumResonance,
         hazards,
-        surfaceDeposits
+        surfaceDeposits,
+        isingEpoch
     };
 }
 
@@ -435,6 +474,7 @@ export function completeScanning() {
 
 let manuallyDismissedTarget: string | null = null;
 let lastDepositsCacheKey = '';
+let lastOrbitalHudCacheKey = '';
 
 export function dismissScannerPanel(): void {
     const scannerPanel = document.getElementById('left-deck-panel');
@@ -451,6 +491,7 @@ export function dismissScannerPanel(): void {
 export function resetDismissedScanner(): void {
     manuallyDismissedTarget = null;
     lastDepositsCacheKey = '';
+    lastOrbitalHudCacheKey = '';
 }
 
 if (typeof window !== 'undefined') {
@@ -466,21 +507,26 @@ export function updateScannerUI(planet: any, dist: number) {
     const harvestBtn = document.getElementById('start-harvest-btn');
     const abductBtn = document.getElementById('start-abduct-btn');
     const scannerPanel = document.getElementById('left-deck-panel');
+    const orbitalHud = document.getElementById('planet-orbital-hud');
 
     if (!planet) {
         if (scannerPanel) scannerPanel.classList.remove('visible');
+        if (orbitalHud) orbitalHud.style.display = 'none';
         return;
     }
 
     // Reset manual dismissal if target changed
     if (manuallyDismissedTarget && manuallyDismissedTarget !== planet.name) {
         manuallyDismissedTarget = null;
-    }
+        }
+
+    const isShip = planet && (planet.type === 'interceptor' || planet.type === 'corvette' || planet.type === 'freighter' || planet.type === 'heavy_freighter');
+    const isStation = planet && (planet.type === 'citadel' || planet.type === 'trade_hub' || planet.type === 'mining_relay');
 
     const isLocked = STATE.lockedTarget && STATE.lockedTarget.name === planet.name;
     const isInOrbit = (STATE.orbitPlanet && STATE.orbitPlanet.name === planet.name) ||
                       (STATE.activeMoonOrbit && STATE.activeMoonOrbit.name === planet.name);
-    const isCurrentlyVisible = scannerPanel ? scannerPanel.classList.contains('visible') : false;
+    const isCurrentlyVisible = (scannerPanel && scannerPanel.classList.contains('visible')) || (orbitalHud && orbitalHud.style.display !== 'none');
     const isDismissed = manuallyDismissedTarget === planet.name;
 
     let shouldShow = false;
@@ -488,9 +534,9 @@ export function updateScannerUI(planet: any, dist: number) {
         if (isInOrbit || isLocked) {
             shouldShow = true;
         } else if (isCurrentlyVisible) {
-            shouldShow = dist <= 30; // Keep open while within 30 units
+            shouldShow = dist <= 32; // Keep open while within 32 units
         } else {
-            shouldShow = dist <= 25; // Auto-open only when actually within interaction range
+            shouldShow = dist <= 26; // Auto-open when within interaction range
         }
     }
 
@@ -501,9 +547,6 @@ export function updateScannerUI(planet: any, dist: number) {
             scannerPanel.classList.remove('visible');
         }
     }
-
-    const isShip = planet && (planet.type === 'interceptor' || planet.type === 'corvette' || planet.type === 'freighter' || planet.type === 'heavy_freighter');
-    const isStation = planet && (planet.type === 'citadel' || planet.type === 'trade_hub' || planet.type === 'mining_relay');
 
     if (nameEl) {
         if (isShip) {
@@ -692,6 +735,7 @@ export function updateScannerUI(planet: any, dist: number) {
             if (fleetRow) fleetRow.style.display = 'none';
 
             if (resEl) {
+                if (resEl.parentElement) resEl.parentElement.style.display = 'flex';
                 resEl.innerText = planet.cargo
                     ? `Erbeutbare Fracht: +${planet.cargo.amount} ${planet.cargo.type === 'silicon' ? 'Silizium' : 'Biomasse'}`
                     : (isStation ? 'Handelsgüter & Flottentreibstoff' : 'Silizium-Legierungen & Schiffsschrott');
@@ -769,7 +813,10 @@ export function updateScannerUI(planet: any, dist: number) {
                 }
             }
 
-            if (resEl) resEl.innerText = attrs.res || '-';
+            if (resEl) {
+                resEl.innerText = attrs.res || '-';
+                if (resEl.parentElement) resEl.parentElement.style.display = 'none';
+            }
 
             const spec = attrs.species;
             const hasSentient = spec && spec.population > 0;
@@ -804,7 +851,20 @@ export function updateScannerUI(planet: any, dist: number) {
                     if (spec.techLevel === 'Industrial') icon = '🏭';
                     if (spec.techLevel === 'Spacefaring') icon = '🚀';
                     if (spec.techLevel === 'Hyper-Advanced') icon = '🌌';
-                    techEl.innerText = `${icon} ${spec.techLevel} (${spec.fleetDisposition || 'Defensiv'})`;
+
+                    const liveEpoch = getSystemIsingEpoch(STATE.currentSystemId);
+                    attrs.isingEpoch = liveEpoch;
+                    planet.isingEpoch = liveEpoch;
+                    const branchTag = liveEpoch.quantumBranch === 1 ? '|1⟩ Interveniert' : '|0⟩ Naturpfad';
+
+                    techEl.innerHTML = `
+                        <div>${icon} ${spec.techLevel} (${spec.fleetDisposition || 'Defensiv'})</div>
+                        <div style="margin-top: 4px; padding: 4px 7px; border-radius: 5px; background: rgba(15, 23, 42, 0.85); border: 1px solid ${liveEpoch.color}; font-size: 0.72rem;">
+                            <div style="color: ${liveEpoch.color}; font-weight: 700;">${liveEpoch.icon} Epoche (Zyklus ${STATE.galacticCycle || 1}/36): ${liveEpoch.shortLabel}</div>
+                            <div style="color: #94a3b8; font-size: 0.66rem; margin-top: 2px;">Qubit #${liveEpoch.qubitIndex} • ⟨Z⟩=${liveEpoch.spinMagnetization.toFixed(2)} • ⟨ZZ⟩=${liveEpoch.neighborCorrelation.toFixed(2)} • ${branchTag}</div>
+                            <div style="color: #cbd5e1; font-size: 0.66rem; margin-top: 2px;">${liveEpoch.gameplayEffect}</div>
+                        </div>
+                    `;
                 } else {
                     techRow.style.display = 'none';
                 }
@@ -822,84 +882,11 @@ export function updateScannerUI(planet: any, dist: number) {
                 }
             }
 
-            // Surface Deposits & Shuttle Expeditions List
+            // Surface Deposits & Resources are now displayed directly around the planet in the game world (#planet-orbital-hud),
+            // so we keep #scanner-deposits-container hidden in the left panel to declutter it.
             const depositsBox = document.getElementById('scanner-deposits-container');
-            const depositsList = document.getElementById('scanner-deposits-list');
-            const shuttleBadge = document.getElementById('shuttle-status-badge');
-
-            if (shuttleBadge) {
-                if (!STATE.bioShuttle.ready && STATE.activeAwayMission) {
-                    const pct = Math.round((STATE.activeAwayMission.progress || 0) * 100);
-                    shuttleBadge.innerText = `Lander aktiv (${pct}%)`;
-                    shuttleBadge.style.color = '#38bdf8';
-                } else if (!STATE.bioShuttle.ready) {
-                    shuttleBadge.innerText = `Lander regeneriert...`;
-                    shuttleBadge.style.color = '#f59e0b';
-                } else {
-                    shuttleBadge.innerText = `Lander bereit`;
-                    shuttleBadge.style.color = '#10b981';
-                }
-            }
-
-            if (depositsBox && depositsList) {
-                if (isShip || isStation) {
-                    depositsBox.style.display = 'none';
-                } else if (attrs.surfaceDeposits && attrs.surfaceDeposits.length > 0) {
-                    depositsBox.style.display = 'block';
-
-                    const activeDepId = STATE.activeAwayMission ? STATE.activeAwayMission.targetDeposit.id : '';
-                    const missionPct = STATE.activeAwayMission ? Math.round(STATE.activeAwayMission.progress * 100) : -1;
-                    const cacheKey = `${planet.name}_${attrs.surfaceDeposits.map((d: any) => `${d.id}:${d.depleted}`).join(',')}_${activeDepId}_${missionPct}`;
-
-                    if (lastDepositsCacheKey !== cacheKey) {
-                        lastDepositsCacheKey = cacheKey;
-                        depositsList.innerHTML = '';
-
-                        attrs.surfaceDeposits.forEach((dep: any) => {
-                            const card = document.createElement('div');
-                            card.className = `surface-deposit-card ${dep.depleted ? 'depleted' : ''}`;
-                            card.style.cssText = `padding: 8px 10px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; cursor: ${dep.depleted ? 'default' : 'pointer'};`;
-
-                            const resLabel = dep.yieldResource === 'water' ? '💧 Wasser' : (dep.yieldResource === 'alloys' ? '🛡️ Titan' : (dep.yieldResource === 'tech' ? '⚙️ Tech' : (dep.yieldResource === 'food' ? '🌾 Nahrung' : '💎 Silizium')));
-                            const hazIcon = dep.hazardType === 'thermal' ? '🔥 Hitze' : (dep.hazardType === 'atmosphere' ? '☠️ Gas' : '☢️ Rad');
-
-                            const isMissionActive = !!(STATE.activeAwayMission && STATE.activeAwayMission.targetDeposit.id === dep.id);
-
-                            let actionHtml = '';
-                            if (dep.depleted) {
-                                actionHtml = '<span style="font-size: 0.7rem; color: #64748b; font-weight: bold;">Erschöpft ✕</span>';
-                            } else if (isMissionActive) {
-                                const pct = Math.round((STATE.activeAwayMission?.progress || 0) * 100);
-                                actionHtml = `<span style="font-size: 0.72rem; color: #38bdf8; font-weight: bold;">Lander aktiv (${pct}%)</span>`;
-                            } else {
-                                actionHtml = `<button class="shuttle-dep-btn" style="padding: 4px 10px; font-size: 0.72rem; background: linear-gradient(135deg, #0284c7, #38bdf8); color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">🚀 Lander starten</button>`;
-                            }
-
-                            card.innerHTML = `
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-                                    <div style="font-weight: bold; font-size: 0.8rem; color: #f8fafc;">${dep.name}</div>
-                                    <div>${actionHtml}</div>
-                                </div>
-                                <div style="font-size: 0.7rem; color: #94a3b8; margin-bottom: 4px;">${dep.description}</div>
-                                <div style="display: flex; gap: 8px; font-size: 0.7rem;">
-                                    <span style="color: #38bdf8; font-weight: 600;">~${dep.yieldAmount}x ${resLabel}</span>
-                                    <span style="color: #f59e0b;">${hazIcon} (${dep.hazardSeverity})</span>
-                                </div>
-                            `;
-
-                            if (!dep.depleted && !isMissionActive) {
-                                card.onclick = (e) => {
-                                    e.stopPropagation();
-                                    openShuttleExpeditionModal(planet, dep);
-                                };
-                            }
-
-                            depositsList.appendChild(card);
-                        });
-                    }
-                } else {
-                    depositsBox.style.display = 'none';
-                }
+            if (depositsBox) {
+                depositsBox.style.display = 'none';
             }
 
             if (commsBtn) {
@@ -935,4 +922,228 @@ export function updateScannerUI(planet: any, dist: number) {
         const depositsBox = document.getElementById('scanner-deposits-container');
         if (depositsBox) depositsBox.style.display = 'none';
     }
+
+    updateOrbitalPlanetHUD(planet, dist, shouldShow && !isShip && !isStation && isScanned, inRange);
 }
+
+type OrbitalQuadrant = 'tech' | 'water' | 'leg' | 'bio';
+
+function setOrbitalQuadrant(
+    key: OrbitalQuadrant,
+    present: boolean,
+    title = '',
+    val = '',
+    sub = '',
+    onClick: ((e: MouseEvent) => void) | null = null
+): void {
+    const node = document.getElementById(`orbital-node-${key}`);
+    const arc = document.getElementById(`orbital-arc-group-${key}`);
+    if (arc) arc.style.display = present ? '' : 'none';
+    if (!node) return;
+    node.style.display = present ? 'flex' : 'none';
+    if (!present) {
+        node.onclick = null;
+        return;
+    }
+    const titleEl = node.querySelector('.orbital-node-title') as HTMLElement | null;
+    const valEl = document.getElementById(`orbital-val-${key}`);
+    const subEl = document.getElementById(`orbital-sub-${key}`);
+    if (titleEl && title) titleEl.innerText = title;
+    if (valEl) valEl.innerText = val;
+    if (subEl) subEl.innerText = sub;
+    node.classList.toggle('clickable', Boolean(onClick));
+    node.onclick = onClick;
+}
+
+/**
+ * Orbital Resource Extension (#planet-orbital-hud).
+ * Extends the existing 3D target reticle around scanned planets:
+ * - Normal resources (Biomasse & Silizium via Bio-Siphon [E]) are ALWAYS detected by Najmafar after scanning
+ *   (until harvested/depleted) and shown on the bottom-right (Biomasse) and bottom-left (Silizium) arcs.
+ * - Additional deep-scan resources (Tech, H2O, Leg/Alloys, Nahrung/Food) and Crew Mission (▽▽▽)
+ *   are ONLY detected when Najmafar has a crew on board (hasAwayTeamCrew() === true) and the resource is present.
+ */
+export function updateOrbitalPlanetHUD(planet: any, dist: number, visible: boolean, inRange: boolean): void {
+    if (typeof document === 'undefined') return;
+    const orbitalHud = document.getElementById('planet-orbital-hud');
+    if (!orbitalHud) return;
+
+    if (!visible || !planet) {
+        orbitalHud.style.display = 'none';
+        lastOrbitalHudCacheKey = '';
+        return;
+    }
+
+    if (!planet.attributes || !planet.attributes.surfaceDeposits || planet.attributes.surfaceDeposits.length === 0) {
+        planet.attributes = generatePlanetAttributes(planet);
+    }
+    const attrs = planet.attributes || {};
+    const deposits: SurfaceDeposit[] = attrs.surfaceDeposits || [];
+    const avail = deposits.filter(d => !d.depleted);
+    const isDepleted = Boolean(planet.depleted || planet.harvested || (STATE.depletedPlanets && STATE.depletedPlanets[planet.name]));
+    const crewReady = hasAwayTeamCrew();
+
+    // Normal base resources that Najmafar always detects on any un-depleted planet via his own sensory organs
+    const bioMult = (STATE.crewBuffs ? STATE.crewBuffs.bioGain : 1.0);
+    const normalBioGain = Math.round((planet.type === 'Habitable' ? 65 : (planet.type === 'Gas Giant' ? 35 : 25)) * bioMult);
+    const normalSilGain = Math.round((planet.type === 'Rocky' || planet.isMoon ? 50 : 20) * bioMult);
+    const hasNormalResources = !isDepleted;
+
+    // Additional surface resources (Tech, H2O, Leg, Food) require a Crew to perform deep planetary scans
+    const techDep = crewReady ? avail.find(d => d.yieldResource === 'tech') : undefined;
+    const waterDep = crewReady ? avail.find(d => d.yieldResource === 'water') : undefined;
+    const legDep = crewReady ? avail.find(d => d.yieldResource === 'alloys' || d.yieldResource === 'silicon') : undefined;
+    const foodDep = crewReady ? avail.find(d => d.yieldResource === 'food') : undefined;
+
+    const hasTech = Boolean(techDep);
+    const hasWater = Boolean(waterDep);
+    const hasLegOrSil = Boolean(legDep) || hasNormalResources;
+    const hasFoodOrBio = Boolean(foodDep) || hasNormalResources;
+    const hasMission = (crewReady && avail.length > 0) || Boolean(STATE.activeAwayMission);
+
+    if (!hasTech && !hasWater && !hasLegOrSil && !hasFoodOrBio && !hasMission) {
+        orbitalHud.style.display = 'none';
+        lastOrbitalHudCacheKey = '';
+        return;
+    }
+
+    orbitalHud.style.display = 'block';
+
+    // 1. Project planet onto screen space and size the ring to sit just outside the existing 3D reticle
+    const worldPos = planet.mesh ? planet.mesh.position : (planet.position || new THREE.Vector3());
+    if (camera && typeof window !== 'undefined' && window.innerWidth > 0 && window.innerHeight > 0) {
+        camera.updateMatrixWorld();
+        const centerNDC = worldPos.clone().project(camera);
+        if (centerNDC.z > 1.0) {
+            orbitalHud.style.display = 'none';
+            return;
+        }
+        const screenX = (centerNDC.x * 0.5 + 0.5) * window.innerWidth;
+        const screenY = (-(centerNDC.y * 0.5) + 0.5) * window.innerHeight;
+
+        // Existing 3D reticle radius = baseR(1.25) * size * meshScale * 1.28
+        const meshScale = planet.mesh ? (planet.mesh.scale.x || 1.0) : 1.0;
+        const reticleRadius = (planet.size || 2.5) * meshScale * 1.28 * 1.25;
+        const edgeNDC = worldPos.clone().add(new THREE.Vector3(reticleRadius, 0, 0)).project(camera);
+        const edgeX = (edgeNDC.x * 0.5 + 0.5) * window.innerWidth;
+        const edgeY = (-(edgeNDC.y * 0.5) + 0.5) * window.innerHeight;
+        const reticlePx = Math.hypot(edgeX - screenX, edgeY - screenY);
+
+        // viewBox 320: r=96 ≙ reticle edge → box = reticlePx * 320 / 96
+        const boxSize = Math.max(200, Math.min(460, Math.round(reticlePx * 3.33)));
+        orbitalHud.style.left = `${screenX.toFixed(1)}px`;
+        orbitalHud.style.top = `${screenY.toFixed(1)}px`;
+        orbitalHud.style.width = `${boxSize}px`;
+        orbitalHud.style.height = `${boxSize}px`;
+    }
+
+    // 2. Live mission or Bio-Siphon progress text (every frame)
+    const missionSubEl = document.getElementById('orbital-mission-sub');
+    if (STATE.activeAwayMission && missionSubEl) {
+        const pct = Math.round((STATE.activeAwayMission.progress || 0) * 100);
+        missionSubEl.innerText = `🚀 ${STATE.activeAwayMission.targetDeposit.name} (${pct}%)`;
+    }
+    const isExtractingThis = Boolean(STATE.extractingPlanet && STATE.extractingPlanet.name === planet.name);
+    if (isExtractingThis) {
+        const pct = Math.round(STATE.harvestProgress || 0);
+        const subLegEl = document.getElementById('orbital-sub-leg');
+        const subBioEl = document.getElementById('orbital-sub-bio');
+        if (subLegEl && !legDep) subLegEl.innerText = `⚡ Bio-Siphon läuft: ${pct}%`;
+        if (subBioEl && !foodDep) subBioEl.innerText = `⚡ Bio-Siphon läuft: ${pct}%`;
+    }
+
+    // 3. Cache-gated DOM rebuild (keeps click handlers stable)
+    const cacheKey = `${planet.name}_${inRange}_${isDepleted}_${isExtractingThis}_${avail.map(d => d.id).join(',')}_${STATE.activeAwayMission ? STATE.activeAwayMission.targetDeposit.id : ''}_${crewReady}_${normalBioGain}_${normalSilGain}`;
+    if (lastOrbitalHudCacheKey === cacheKey) return;
+    lastOrbitalHudCacheKey = cacheKey;
+
+    const openDep = (dep: SurfaceDeposit) => (e: MouseEvent) => {
+        e.stopPropagation();
+        openShuttleExpeditionModal(planet, dep);
+    };
+    const startSiphon = inRange
+        ? (e: MouseEvent) => {
+            e.stopPropagation();
+            triggerHarvestStart();
+        }
+        : null;
+
+    // Top-Left (Purple): Tech (Crew deep-scan only)
+    setOrbitalQuadrant(
+        'tech',
+        hasTech,
+        'Tech',
+        techDep ? `⚙️ +${techDep.yieldAmount} Tech` : '',
+        techDep ? `🚀 ${techDep.name}` : '',
+        techDep ? openDep(techDep) : null
+    );
+
+    // Top-Right (Blue): H2O (Crew deep-scan only)
+    setOrbitalQuadrant(
+        'water',
+        hasWater,
+        'H₂O',
+        waterDep ? `💧 +${waterDep.yieldAmount} H₂O` : '',
+        waterDep ? `🚀 ${waterDep.name}` : '',
+        waterDep ? openDep(waterDep) : null
+    );
+
+    // Bottom-Left (Silver): Leg (Crew deep-scan) + Normal Silizium (Najmafar base scan)
+    if (legDep) {
+        const depIcon = legDep.yieldResource === 'alloys' ? '🛡️' : '💎';
+        const depLabel = legDep.yieldResource === 'alloys' ? 'Leg' : 'Sil';
+        const valText = hasNormalResources
+            ? `${depIcon} +${legDep.yieldAmount} ${depLabel} • 💎 +${normalSilGain} Sil`
+            : `${depIcon} +${legDep.yieldAmount} ${depLabel}`;
+        const subText = hasNormalResources && inRange
+            ? `🚀 ${legDep.name} • [E] Siphon`
+            : `🚀 ${legDep.name}`;
+        setOrbitalQuadrant('leg', true, hasNormalResources ? 'Leg / Sil' : 'Leg', valText, subText, openDep(legDep));
+    } else if (hasNormalResources) {
+        const subText = isExtractingThis
+            ? `⚡ Bio-Siphon läuft: ${Math.round(STATE.harvestProgress || 0)}%`
+            : (inRange ? '🌿 Klick / [E] Bio-Siphon' : 'Näher fliegen für Bio-Siphon [E]');
+        setOrbitalQuadrant('leg', true, 'Silizium', `💎 +${normalSilGain} Silizium`, subText, startSiphon);
+    } else {
+        setOrbitalQuadrant('leg', false);
+    }
+
+    // Bottom-Right (Green): Food / Nahrung (Crew deep-scan) + Normal Biomasse (Najmafar base scan)
+    if (foodDep) {
+        const valText = hasNormalResources
+            ? `🌾 +${foodDep.yieldAmount} Nhr • 🧬 +${normalBioGain} Bio`
+            : `🌾 +${foodDep.yieldAmount} Nahrung`;
+        const subText = hasNormalResources && inRange
+            ? `🚀 ${foodDep.name} • [E] Siphon`
+            : `🚀 ${foodDep.name}`;
+        setOrbitalQuadrant('bio', true, hasNormalResources ? 'Nahrung / Bio' : 'Nahrung', valText, subText, openDep(foodDep));
+    } else if (hasNormalResources) {
+        const subText = isExtractingThis
+            ? `⚡ Bio-Siphon läuft: ${Math.round(STATE.harvestProgress || 0)}%`
+            : (inRange ? '🌿 Klick / [E] Bio-Siphon' : String(attrs.bio || 'Bio-Vorkommen'));
+        setOrbitalQuadrant('bio', true, 'Biomasse', `🧬 +${normalBioGain} Biomasse`, subText, startSiphon);
+    } else {
+        setOrbitalQuadrant('bio', false);
+    }
+
+    // Top: Crew Mission (only if Crew is on board and a landing mission is available or running)
+    const missionWrap = document.getElementById('orbital-crew-mission');
+    const missionPill = document.getElementById('orbital-mission-pill');
+    if (missionWrap) missionWrap.style.display = hasMission ? 'flex' : 'none';
+    if (hasMission && missionPill && missionSubEl) {
+        if (STATE.activeAwayMission) {
+            const pct = Math.round((STATE.activeAwayMission.progress || 0) * 100);
+            missionSubEl.innerText = `🚀 ${STATE.activeAwayMission.targetDeposit.name} (${pct}%)`;
+            missionPill.onclick = null;
+        } else {
+            const next = avail[0];
+            missionSubEl.innerText = avail.length > 1
+                ? `🚀 ${avail.length} Landeziele verfügbar`
+                : `🚀 ${next.name}`;
+            missionPill.onclick = openDep(next);
+        }
+    }
+
+    void dist;
+}
+

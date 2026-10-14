@@ -4,6 +4,7 @@ import { playSiliconCollectSound, playCrashSound, setThrusterSound } from '../en
 import { addLogEntry } from '../ui/hud';
 import { clearActiveSystem, spawnPlanetsAndAsteroids, initiateSystemArrival, initiateSystemDeparture } from './universe';
 import { calculateJumpPrecision, getEffectiveSafeWarpRange, getEffectiveMaxWarpRange, resolveJumpOutcome } from './warp-calculator';
+import { getSystemIsingEpoch, getCycleTelemetry, getIsingDataset } from './quantum-ising';
 
 let mapOpen = false;
 let selectedSystem: StarSystem | null = null;
@@ -41,6 +42,7 @@ export function toggleGalaxyMap() {
 
     mapOpen = !mapOpen;
     if (mapOpen) {
+        STATE.previewGalacticCycle = null;
         overlay.style.display = 'flex';
         renderGalaxyMap();
         startGalaxyMapLoop();
@@ -48,6 +50,7 @@ export function toggleGalaxyMap() {
         // Focus search input on Ctrl+F or slash
         setupMapKeyboardShortcuts();
     } else {
+        STATE.previewGalacticCycle = null;
         overlay.style.display = 'none';
         stopGalaxyMapLoop();
     }
@@ -182,6 +185,41 @@ export function renderGalaxyMap() {
         ctx.stroke();
         ctx.setLineDash([]);
 
+        // 2b. Sagittarius A* Cosmic Brake / Magnetar Gamma Wavefront (IBM QPU Ising Telemetry)
+        const activeOrPreviewCycle = STATE.previewGalacticCycle || STATE.galacticCycle || 1;
+        const cycleTelem = getCycleTelemetry(activeOrPreviewCycle);
+        if (cycleTelem) {
+            const waveRadius = Math.max(40, cycleTelem.gammaWaveFrontRadius) * currentScale;
+            const brakePct = Math.min(100, Math.round((cycleTelem.transverseFieldH / 1.4) * 100));
+            const waveGrad = ctx.createRadialGradient(centerX, centerY, Math.max(0, waveRadius - 28), centerX, centerY, waveRadius + 6);
+            waveGrad.addColorStop(0, 'rgba(244, 63, 94, 0)');
+            waveGrad.addColorStop(0.8, 'rgba(244, 63, 94, 0.14)');
+            waveGrad.addColorStop(1, 'rgba(244, 63, 94, 0)');
+            ctx.fillStyle = waveGrad;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, waveRadius + 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = STATE.previewGalacticCycle ? 'rgba(250, 204, 21, 0.55)' : 'rgba(244, 63, 94, 0.5)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([10, 6]);
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, waveRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            if (mapZoom > 0.65) {
+                ctx.font = 'bold 8.5px Orbitron, sans-serif';
+                ctx.textAlign = 'right';
+                ctx.fillStyle = STATE.previewGalacticCycle ? 'rgba(250, 204, 21, 0.85)' : 'rgba(244, 63, 94, 0.8)';
+                ctx.fillText(
+                    `☢️ MU'AMMIRUN BREMS-WELLENFRONT (Zyklus ${cycleTelem.cycle}/36 • ${brakePct}%)`,
+                    centerX - 10,
+                    centerY - waveRadius + 14
+                );
+            }
+        }
+
         // Sector Labels
         if (mapZoom > 0.7) {
             ctx.font = 'bold 9px Orbitron, sans-serif';
@@ -249,13 +287,13 @@ export function renderGalaxyMap() {
             let strokeColor = 'rgba(56, 189, 248, 0.65)';
             let pulseColor = '#38bdf8';
             let badgeTextColor = '#38bdf8';
-            let badgeText = `${telemetry.dist} LJ • 100% Stabil • -${telemetry.mentalCost} Psi`;
+            let badgeText = `${telemetry.dist} LJ • +${telemetry.relativisticMonthsDelta} Mon. • -${telemetry.mentalCost} Psi`;
 
             if (!telemetry.inSafeRange && telemetry.canReach) {
                 strokeColor = telemetry.stability === 'moderate' ? 'rgba(245, 158, 11, 0.75)' : 'rgba(239, 68, 68, 0.8)';
                 pulseColor = telemetry.stability === 'moderate' ? '#f59e0b' : '#ef4444';
                 badgeTextColor = telemetry.stability === 'moderate' ? '#fbbf24' : '#f87171';
-                badgeText = `${telemetry.dist} LJ • ${telemetry.precision}% Präzision • -${telemetry.mentalCost} Psi`;
+                badgeText = `${telemetry.dist} LJ • ${telemetry.precision}% Präz. • +${telemetry.relativisticMonthsDelta} Mon.`;
             } else if (!telemetry.canReach) {
                 strokeColor = 'rgba(239, 68, 68, 0.45)';
                 pulseColor = '#ef4444';
@@ -355,11 +393,11 @@ export function renderGalaxyMap() {
             const isVisited = visitedIds.includes(sys.id);
             const hasSentient = sys.planets.some(p => p.type === 'Habitable' || (p.species && p.species.hasSentient));
 
-            const showLifeBeacon = hasSentient && inPsionicRange;
+            const showLifeBeacon = hasSentient && (inPsionicRange || STATE.previewGalacticCycle !== null);
 
             if (filterLifeOnly && !showLifeBeacon && !isActive && !isSelected) {
                 ctx.globalAlpha = 0.05;
-            } else if (!inWarpRange && !isActive && !isSelected && !sys.isCoreAnchor) {
+            } else if (!inWarpRange && !isActive && !isSelected && !sys.isCoreAnchor && STATE.previewGalacticCycle === null) {
                 ctx.globalAlpha = isVisited ? 0.6 : 0.35;
             } else {
                 ctx.globalAlpha = 1.0;
@@ -374,16 +412,25 @@ export function renderGalaxyMap() {
                 baseSize += 2.5;
             }
 
-            // Life Beacon Glow
+            // Life Beacon & Quantum Ising Epoch Glow
             if (showLifeBeacon) {
+                const sysEpoch = getSystemIsingEpoch(sys.id, activeOrPreviewCycle);
                 const glowR = (baseSize + 12) * Math.min(1.4, Math.max(0.8, mapZoom));
                 const glowGrad = ctx.createRadialGradient(screenX, screenY, baseSize, screenX, screenY, glowR);
-                glowGrad.addColorStop(0, 'rgba(217, 70, 239, 0.4)');
+                glowGrad.addColorStop(0, sysEpoch.color + '66');
                 glowGrad.addColorStop(1, 'rgba(217, 70, 239, 0)');
                 ctx.fillStyle = glowGrad;
                 ctx.beginPath();
                 ctx.arc(screenX, screenY, glowR, 0, Math.PI * 2);
                 ctx.fill();
+
+                if (STATE.intervenedSystems && STATE.intervenedSystems[sys.id]) {
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 1.2;
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, baseSize + 3.5, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
             }
 
             // Star Colors
@@ -456,6 +503,7 @@ export function renderGalaxyMap() {
             const tooltipX = mouseX + 15;
             const tooltipY = mouseY - 15;
             const hasSentient = hoverSystem.planets.some(p => p.type === 'Habitable' || (p.species && p.species.hasSentient));
+            const hEpoch = getSystemIsingEpoch(hoverSystem.id, activeOrPreviewCycle);
 
             let anomalyIcon = '';
             if (hoverSystem.anomalyType === 'flare_star') anomalyIcon = ' ⚡';
@@ -464,7 +512,7 @@ export function renderGalaxyMap() {
             else if (hoverSystem.anomalyType === 'pulsar') anomalyIcon = ' 💫';
             else if (hoverSystem.isCoreAnchor) anomalyIcon = ' 🕳️';
 
-            const text = `${hoverSystem.name} (${hoverSystem.star.type})${anomalyIcon}${hasSentient ? ' 🧠' : ''}`;
+            const text = `${hoverSystem.name} (${hoverSystem.star.type})${anomalyIcon}${hasSentient ? ` ${hEpoch.icon} ${hEpoch.label}` : ''}`;
 
             ctx.font = '9.5px Orbitron, sans-serif';
             const textWidth = ctx.measureText(text).width;
@@ -716,6 +764,89 @@ function setupSearchAndNavigationControls() {
             }
         });
     }
+
+    // Jamals Quantum Ising Time Projection Slider (Cycles 1..36)
+    const slider = document.getElementById('ising-cycle-slider') as HTMLInputElement;
+    const resetBtn = document.getElementById('ising-reset-live-btn') as HTMLButtonElement;
+
+    if (slider) {
+        const currentActiveCycle = STATE.previewGalacticCycle || STATE.galacticCycle || 1;
+        slider.value = String(currentActiveCycle);
+
+        if (!slider.dataset.listenerAttached) {
+            slider.dataset.listenerAttached = 'true';
+            slider.addEventListener('input', () => {
+                const val = parseInt(slider.value || '1', 10);
+                if (val === (STATE.galacticCycle || 1)) {
+                    STATE.previewGalacticCycle = null;
+                } else {
+                    STATE.previewGalacticCycle = val;
+                }
+                updateChronicleBarUI();
+                updateSystemDetails(selectedSystem);
+                populateQuickBeaconsList();
+            });
+        }
+    }
+
+    if (resetBtn && !resetBtn.dataset.listenerAttached) {
+        resetBtn.dataset.listenerAttached = 'true';
+        resetBtn.addEventListener('click', () => {
+            STATE.previewGalacticCycle = null;
+            if (slider) slider.value = String(STATE.galacticCycle || 1);
+            updateChronicleBarUI();
+            updateSystemDetails(selectedSystem);
+            populateQuickBeaconsList();
+        });
+    }
+
+    updateChronicleBarUI();
+}
+
+export function updateChronicleBarUI() {
+    const titleEl = document.getElementById('ising-chronicle-title');
+    const subEl = document.getElementById('ising-chronicle-sub');
+    const sliderValEl = document.getElementById('ising-slider-val');
+    const resetBtn = document.getElementById('ising-reset-live-btn');
+
+    const liveCycle = STATE.galacticCycle || 1;
+    const displayCycle = STATE.previewGalacticCycle || liveCycle;
+    const isPreview = STATE.previewGalacticCycle !== null && STATE.previewGalacticCycle !== liveCycle;
+    const telem = getCycleTelemetry(displayCycle);
+    const dataset = getIsingDataset();
+
+    const year = telem ? telem.year : (2242.0 + (displayCycle - 1) * 0.5);
+    const brakePct = telem ? Math.min(100, (telem.transverseFieldH / 1.4) * 100).toFixed(1) : '8.5';
+    const jobIdStr = dataset?.meta?.jobId ? dataset.meta.jobId.slice(0, 8) : 'qpu';
+    const backendName = dataset?.meta ? `${dataset.meta.backendName} (Job ${jobIdStr}…)` : 'ibm_kingston (120 Qubits)';
+
+    if (titleEl) {
+        if (isPreview) {
+            titleEl.innerHTML = `🔮 JAMALS ZUKUNFTS-PROJEKTION: ZYKLUS ${displayCycle}/36 &bull; JAHR ${year.toFixed(1)} <span style="color:#facc15; font-size:0.65rem;">(VORSCHAU — LIVE: ZYKLUS ${liveCycle})</span>`;
+            titleEl.style.color = '#facc15';
+        } else {
+            titleEl.innerHTML = `⏱️ KOSMISCHE CHRONIK (LIVE): ZYKLUS ${liveCycle}/36 &bull; JAHR ${(STATE.galacticYear || year).toFixed(1)}`;
+            titleEl.style.color = '#38bdf8';
+        }
+    }
+
+    if (subEl) {
+        if (telem && telem.stateDistribution) {
+            const sc = telem.stateDistribution;
+            subEl.innerText = `QPU: ${backendName} • Vollbremsung: ${brakePct}% • ✨${sc.prosperity || 0} 📡${sc.djinn_resonance || 0} 🥀${sc.famine_crisis || 0} ☢️${sc.gamma_surge || 0} ⚔️${sc.civil_conflict || 0} 🛡️${sc.isolation_bunker || 0}`;
+        } else {
+            subEl.innerText = `QPU: ${backendName} • Vollbremsung: ${brakePct}% • ${(STATE.relativisticMonthsElapsed || 0).toFixed(1)} Monate relativistische Reisezeit`;
+        }
+    }
+
+    if (sliderValEl) {
+        sliderValEl.innerText = `Zyklus ${displayCycle} (${year.toFixed(1)})`;
+        sliderValEl.style.color = isPreview ? '#facc15' : '#38bdf8';
+    }
+
+    if (resetBtn) {
+        resetBtn.style.display = isPreview ? 'inline-block' : 'none';
+    }
 }
 
 function setupMapKeyboardShortcuts() {
@@ -754,6 +885,7 @@ export function populateQuickBeaconsList() {
     if (!listEl || !STATE.universe) return;
 
     const currentSys = STATE.universe.systems.find(s => s.id === STATE.currentSystemId) || STATE.universe.systems[0];
+    const displayCycle = STATE.previewGalacticCycle || STATE.galacticCycle || 1;
 
     const livingSystems = STATE.universe.systems
         .map(s => {
@@ -783,6 +915,7 @@ export function populateQuickBeaconsList() {
         }
         const isSel = selectedSystem && selectedSystem.id === sys.id;
         const inWarp = entry.dist <= STATE.warpRange;
+        const epoch = getSystemIsingEpoch(sys.id, displayCycle);
         
         html += `
             <li class="beacon-quick-item ${isSel ? 'active-item' : ''}" data-sys-id="${sys.id}">
@@ -790,7 +923,10 @@ export function populateQuickBeaconsList() {
                     <span class="beacon-sys-name">✨ ${sys.name}</span>
                     <span style="font-size: 0.65rem; color: ${inWarp ? '#38bdf8' : '#f87171'};">${entry.dist.toFixed(0)} LJ</span>
                 </div>
-                <span class="beacon-species-tag">${specName}</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+                    <span class="beacon-species-tag">${specName}</span>
+                    <span style="font-size: 0.63rem; color: ${epoch.color}; font-weight: 600;">${epoch.icon} ${epoch.shortLabel}</span>
+                </div>
             </li>
         `;
     });
@@ -835,6 +971,8 @@ export function updateSystemDetails(sys: StarSystem | null) {
     const sectorEl = document.getElementById('val-sector-name');
     const anomalyRow = document.getElementById('row-anomaly');
     const anomalyEl = document.getElementById('val-anomaly-type');
+    const isingRow = document.getElementById('row-ising-epoch');
+    const isingEl = document.getElementById('val-ising-epoch');
     const coordXEl = document.getElementById('val-coord-x');
     const coordZEl = document.getElementById('val-coord-z');
     const starTypeEl = document.getElementById('val-star-type');
@@ -862,6 +1000,16 @@ export function updateSystemDetails(sys: StarSystem | null) {
         } else {
             anomalyRow.style.display = 'none';
         }
+    }
+
+    // Quantum Ising Epoch display
+    const displayCycle = STATE.previewGalacticCycle || STATE.galacticCycle || 1;
+    const sysEpoch = getSystemIsingEpoch(sys.id, displayCycle);
+    if (isingRow && isingEl) {
+        isingRow.style.display = 'flex';
+        isingEl.style.color = sysEpoch.color;
+        isingEl.innerHTML = `${sysEpoch.icon} ${sysEpoch.shortLabel} <span style="color:#94a3b8; font-weight:normal; font-size:0.65rem;">(Q#${sysEpoch.qubitIndex} • ⟨Z⟩=${sysEpoch.spinMagnetization >= 0 ? '+' : ''}${sysEpoch.spinMagnetization.toFixed(2)} • |${sysEpoch.quantumBranch}⟩)</span>`;
+        isingEl.title = sysEpoch.description;
     }
 
     if (coordXEl) coordXEl.innerText = String(sys.x);
@@ -913,6 +1061,17 @@ export function updateSystemDetails(sys: StarSystem | null) {
     const distEl = document.getElementById('val-jump-dist');
     if (distEl) {
         distEl.innerText = `${telemetry.dist} LJ` + (telemetry.overreachLY > 0 ? ` (+${telemetry.overreachLY} LJ Überdehnung)` : '');
+    }
+
+    // Update Relativistic Time Shift Telemetry
+    const timeEl = document.getElementById('val-jump-time');
+    if (timeEl) {
+        if (sys.id === STATE.currentSystemId) {
+            timeEl.innerText = '0.0 Monate (Aktueller Orbit)';
+        } else {
+            const cycShift = (telemetry.relativisticMonthsDelta / 6.0).toFixed(1);
+            timeEl.innerHTML = `<span style="color:#38bdf8; font-weight:bold;">+${telemetry.relativisticMonthsDelta.toFixed(1)} Monate</span> <span style="color:#94a3b8; font-size:0.65rem;">(+${cycShift} Ising-Zyklen)</span>`;
+        }
     }
 
     // Update Psionic Precision Telemetry

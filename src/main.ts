@@ -27,6 +27,7 @@ import { updateAwayMissions } from './systems/shuttle-expeditions';
 import { initFirstContactModalListeners } from './ui/first-contact-modal';
 import { initSaveModal } from './ui/save-modal';
 import { hideMainMenu, showMainMenu, toggleMainMenu } from './ui/menu-controller';
+import { initQuantumIsingSystem } from './systems/quantum-ising';
 
 let lastTime = 0;
 let voyagerBeaconTimer = 0;
@@ -152,7 +153,8 @@ function init() {
     renderCrewUI();
     updateMutationUI();
 
-    // 4. Universe Initialization
+    // 4. Universe & IBM QPU 36-Cycle Ising Initialization
+    initQuantumIsingSystem();
     checkUniverseData();
 
     // 5. Setup Menu Listeners

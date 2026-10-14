@@ -201,10 +201,19 @@ import {
     createDeepVoidSystem 
 } from '../src/systems/warp-calculator';
 import { warpToSystem } from '../src/systems/galaxy-map';
-import { launchAwayMission, updateAwayMissions, completeAwayMission } from '../src/systems/shuttle-expeditions';
+import { launchAwayMission, updateAwayMissions, completeAwayMission, openShuttleExpeditionModal, hasAwayTeamCrew } from '../src/systems/shuttle-expeditions';
 import { SurfaceDeposit } from '../src/types/game';
 import { openDiplomacyComms, closeDiplomacyComms } from '../src/systems/diplomacy';
 import { initDeckUI } from '../src/ui/deck';
+import {
+    initQuantumIsingSystem,
+    getIsingDataset,
+    getSystemIsingEpoch,
+    collapseSystemQuantumBranch,
+    calculateRelativisticTimeShift,
+    advanceGalacticTime,
+    getCycleTelemetry
+} from '../src/systems/quantum-ising';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -3095,7 +3104,17 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
             stress: 40,
             trait: { name: 'Artefakt-Fokus', desc: '+Tech-Ausbeute', type: 'efficiency' }
         };
+        // Without any crew, away missions are impossible: modal must not open, launch must fail
+        STATE.crew = [];
+        expect(hasAwayTeamCrew()).toBe(false);
+        const shuttleModal = document.getElementById('shuttle-expedition-modal') as any;
+        shuttleModal.style.display = 'none';
+        openShuttleExpeditionModal(testPlanet, targetDeposit);
+        expect(shuttleModal.style.display).toBe('none');
+        expect(launchAwayMission(testPlanet, targetDeposit, ['crew-eng'])).toBe(false);
+
         STATE.crew = [engCrew, sciCrew];
+        expect(hasAwayTeamCrew()).toBe(true);
 
         // Empty team should fail launch
         expect(launchAwayMission(testPlanet, targetDeposit, [])).toBe(false);
@@ -3630,6 +3649,116 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         updateCrewSimulation(1.0);
         expect(cryo!.flareUp).toBe(false);
         expect(isTraumaActive('cryo_apathy')).toBe(false); // Restored to healed!
+    });
+
+    test("48. IBM Quantum QPU 36-Cycle Ising Civilization Simulation (ibm_kingston, 18 Years) & Relativistic Warp Time Dilation", () => {
+        // 1. Initialize and verify real IBM Quantum Heron r2 (ibm_kingston) 36-cycle dataset
+        initQuantumIsingSystem();
+        const dataset = getIsingDataset();
+        expect(dataset).toBeDefined();
+        expect(dataset.meta.cycles).toBe(36);
+        expect(dataset.meta.qubits).toBe(120);
+        expect(dataset.meta.backendName).toBe("ibm_kingston");
+        expect(dataset.meta.jobId).toBe("db6cgu2mb58s738bj5r0");
+        expect(dataset.cycles.length).toBe(36);
+
+        // 2. Verify Cosmic Brake Progression across 36 cycles (Year 2242.0 -> 2259.5)
+        const c1 = getCycleTelemetry(1)!;
+        const c18 = getCycleTelemetry(18)!;
+        const c36 = getCycleTelemetry(36)!;
+        expect(c1.year).toBe(2242.0);
+        expect(c18.year).toBe(2250.5);
+        expect(c36.year).toBe(2259.5);
+        expect(c36.transverseFieldH).toBeGreaterThan(c1.transverseFieldH);
+        expect(c36.gammaWaveFrontRadius).toBeGreaterThan(c1.gammaWaveFrontRadius);
+        expect(c36.stateDistribution.gamma_surge).toBeGreaterThan(c1.stateDistribution.gamma_surge);
+
+        // 3. Reset player state to Cycle 1 (2242.0)
+        STATE.galacticCycle = 1;
+        STATE.galacticYear = 2242.0;
+        STATE.relativisticMonthsElapsed = 0;
+        STATE.intervenedSystems = {};
+
+        const sys1EpochC1 = getSystemIsingEpoch(1, 1);
+        expect(sys1EpochC1.quantumBranch).toBe(0);
+        expect(sys1EpochC1.qubitIndex).toBeGreaterThanOrEqual(0);
+        expect(sys1EpochC1.qubitIndex).toBeLessThan(120);
+
+        // 4. Relativistic Time Shift during Spacetime Fold Jumps
+        const originSys: any = { id: 1, name: "Perseus Alpha", x: 250, z: 120, star: { type: "Yellow Dwarf", mass: 1.0 }, planets: [] };
+        const targetSys: any = { id: 2, name: "Sagittarius Gate", x: 100, z: 40, star: { type: "Black Hole", mass: 4.5 }, planets: [] };
+        const distLY = Math.hypot(targetSys.x - originSys.x, targetSys.z - originSys.z);
+
+        const timeShift = calculateRelativisticTimeShift(distLY, originSys.star.type, targetSys.star.type);
+        // Should be > 6 months due to distance + Black Hole general relativistic dilation
+        expect(timeShift.monthsDelta).toBeGreaterThan(6.0);
+
+        const advanceRes = advanceGalacticTime(timeShift.monthsDelta, targetSys.name);
+        expect(advanceRes.newCycle).toBeGreaterThan(1);
+        expect(STATE.galacticCycle).toBe(advanceRes.newCycle);
+        expect(STATE.galacticYear).toBeGreaterThan(2242.0);
+
+        // 5. Wavefunction Branch Collapse (|0⟩ -> |1⟩) on Player Intervention
+        expect(getSystemIsingEpoch(2).quantumBranch).toBe(0);
+        collapseSystemQuantumBranch(2, 'abduct', 'Arrakis-Prime');
+        const collapsedEpoch = getSystemIsingEpoch(2);
+        expect(collapsedEpoch.quantumBranch).toBe(1);
+        expect(STATE.intervenedSystems[2]).toBe(true);
+
+        // 6. Verify Gamma Surge / Djinn Resonance special surface deposits & fleets
+        // Find a system & cycle where state is gamma_surge
+        let gammaSysId = 0;
+        for (let sysId = 0; sysId < 120; sysId++) {
+            if (getSystemIsingEpoch(sysId, 36).stateId === 'gamma_surge') {
+                gammaSysId = sysId;
+                break;
+            }
+        }
+        STATE.currentSystemId = gammaSysId;
+        STATE.galacticCycle = 36;
+        const gammaPlanet: any = {
+            name: "Magnetar-Prime",
+            type: "Habitable",
+            size: 5.0,
+            distance: 90,
+            mesh: new THREE.Group(),
+            source: { position: new THREE.Vector3(90, 0, 0), mass: 150, radius: 5, gravityRange: 50, name: "Magnetar-Prime", type: "planet" },
+            attributes: {
+                atmos: "N2/O2",
+                temp: "22°C",
+                bio: "Komplex",
+                res: "Silizium",
+                species: {
+                    name: "Mu'ammirun-Erben",
+                    hasSentient: true,
+                    population: 5000000,
+                    techLevel: "Spacefaring",
+                    defenseRating: 70,
+                    factionId: "free_traders"
+                }
+            }
+        };
+        activePlanets.length = 0;
+        activePlanets.push(gammaPlanet);
+        STATE.scannedPlanets = {};
+
+        STATE.scanningPlanet = gammaPlanet;
+        completeScanning();
+
+        // Should have Ising Epoch attached and Magnetar-Spice deposit spawned!
+        expect(gammaPlanet.attributes.isingEpoch).toBeDefined();
+        expect(gammaPlanet.attributes.isingEpoch.stateId).toBe('gamma_surge');
+        const spiceDeposit = gammaPlanet.attributes.surfaceDeposits.find((d: any) => d.id.includes('-spice') || d.name.includes('Magnetar-Spice'));
+        expect(spiceDeposit).toBeDefined();
+
+        // Fleet spawning during gamma_surge should include Evacuation Ark with passengers
+        clearFleet();
+        spawnSystemFleet([gammaPlanet]);
+        const evacArk = STATE.fleetShips.find(s => s.name && s.name.includes("Evakuierungs-Arche"));
+        expect(evacArk).toBeDefined();
+        expect(evacArk!.cargo?.type).toBe('passengers');
+        expect(evacArk!.crewMembers?.length).toBeGreaterThanOrEqual(3);
+        clearFleet();
     });
 });
 

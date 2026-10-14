@@ -174,6 +174,32 @@ export interface AwayMission {
     shuttleDamageTaken?: number;
 }
 
+export type CivilizationIsingStateId =
+    | 'prosperity'
+    | 'djinn_resonance'
+    | 'famine_crisis'
+    | 'gamma_surge'
+    | 'civil_conflict'
+    | 'isolation_bunker';
+
+export interface CivilizationEpochState {
+    stateId: CivilizationIsingStateId;
+    label: string;
+    shortLabel: string;
+    icon: string;
+    color: string;
+    description: string;
+    gameplayEffect: string;
+    spinMagnetization: number; // <Z_i> in [-1, 1]
+    neighborCorrelation: number; // <Z_i Z_{i+1}> in [-1, 1]
+    qubitIndex: number;
+    quantumBranch: 0 | 1; // 0 = |0> natural timeline, 1 = |1> player-intervened timeline
+    fleetMultiplier: number;
+    tradeMultiplier: number;
+    spiceYieldBonus: number;
+    evacuationActive: boolean;
+}
+
 export interface PlanetAttributes {
     atmos: string;
     temp: string;
@@ -188,6 +214,7 @@ export interface PlanetAttributes {
     quantumResonance?: number;
     hazards?: PlanetaryHazards;
     surfaceDeposits?: SurfaceDeposit[];
+    isingEpoch?: CivilizationEpochState | null;
 }
 
 export interface MoonArchetypeData {
@@ -701,6 +728,13 @@ export interface GameState {
     stealthDrainRate: number;
     systemAlertLevel: 'peace' | 'alert' | 'hunt';
     systemAlertTimer: number;
+
+    // Quantum Ising Civilization Cycles & Relativistic Time System (36 Cycles = 18 Years)
+    galacticCycle: number;
+    galacticYear: number;
+    relativisticMonthsElapsed: number;
+    previewGalacticCycle: number | null;
+    intervenedSystems: Record<number, boolean>;
 }
 
 export type OrbitLevel = 'solar' | 'planet' | 'moon';
@@ -722,6 +756,7 @@ export interface JumpTelemetry {
     telepathyBonus: number;
     mentalClarityBonus: number;
     mutationBonus: number;
+    relativisticMonthsDelta?: number;
 }
 
 export interface JumpResolution {

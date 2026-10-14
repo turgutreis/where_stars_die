@@ -264,7 +264,14 @@ export const STATE: GameState = {
     stealthActive: false,
     stealthDrainRate: 2.0,
     systemAlertLevel: 'peace',
-    systemAlertTimer: 0
+    systemAlertTimer: 0,
+
+    // Quantum Ising Civilization Cycles & Relativistic Time System (36 Cycles = 18 Years)
+    galacticCycle: 1,
+    galacticYear: 2242.0,
+    relativisticMonthsElapsed: 0.0,
+    previewGalacticCycle: null,
+    intervenedSystems: {}
 };
 
 export const activePlanets: PlanetEntry[] = [];

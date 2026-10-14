@@ -29664,7 +29664,12 @@ var STATE = {
   stealthActive: false,
   stealthDrainRate: 2,
   systemAlertLevel: "peace",
-  systemAlertTimer: 0
+  systemAlertTimer: 0,
+  galacticCycle: 1,
+  galacticYear: 2242,
+  relativisticMonthsElapsed: 0,
+  previewGalacticCycle: null,
+  intervenedSystems: {}
 };
 var activePlanets = [];
 
@@ -36958,6 +36963,406 @@ function collapseQuantumCivilization(systemId, planetIndex, seed) {
   };
 }
 
+// src/systems/quantum-ising.ts
+var ISING_STATE_IDS = [
+  "prosperity",
+  "djinn_resonance",
+  "famine_crisis",
+  "gamma_surge",
+  "civil_conflict",
+  "isolation_bunker"
+];
+var ISING_STATE_CATALOG = {
+  prosperity: {
+    stateId: "prosperity",
+    label: "Handels-Blüte (Goldenes Zeitalter)",
+    shortLabel: "Handels-Blüte",
+    icon: "\uD83D\uDFE2",
+    color: "#10b981",
+    description: "Stabile Ferromagnetische Spin-Ordnung: Florierende Orbitalwirtschaft, hohes Frachtaufkommen und volle Rohstofflager.",
+    gameplayEffect: "+50% Handelsfrachter | Reiche Wasser-, Nahrungs- & Legierungs-Konvois",
+    fleetMultiplier: 1,
+    tradeMultiplier: 1.5,
+    spiceYieldBonus: 0,
+    freeScientists: false,
+    evacuationActive: false
+  },
+  djinn_resonance: {
+    stateId: "djinn_resonance",
+    label: "Dschinn-Durchbruch (Quanten-Resonanz)",
+    shortLabel: "Dschinn-Durchbruch",
+    icon: "\uD83D\uDD2C",
+    color: "#a855f7",
+    description: "Wissenschaftler haben ein altes Mu'ammirun-Datenpaket entschlüsselt. Hohe Dichte an Quantenphysikern und Psychologen.",
+    gameplayEffect: "+40% Tech-Ausbeute | Spezial-Wissenschaftler zur Trauma-Heilung im Orbit",
+    fleetMultiplier: 1,
+    tradeMultiplier: 1.25,
+    spiceYieldBonus: 15,
+    evacuationActive: false
+  },
+  famine_crisis: {
+    stateId: "famine_crisis",
+    label: "Versorgungs-Krise (SOS-Notstand)",
+    shortLabel: "Versorgungs-Krise",
+    icon: "\uD83C\uDD98",
+    color: "#f59e0b",
+    description: "Zusammenbruch der planetaren Biosphären-Versorgung. Die Kolonie sendet verzweifelte Notrufe nach Wasser und Nahrung.",
+    gameplayEffect: "Geschwächte Orbitalabwehr (-30%) | Hoher Ruf-Bonus bei Hilfslieferungen",
+    fleetMultiplier: 0.7,
+    tradeMultiplier: 0.6,
+    spiceYieldBonus: 0,
+    evacuationActive: false
+  },
+  gamma_surge: {
+    stateId: "gamma_surge",
+    label: "Magnetar-Sturm (Gammablitz-Welle)",
+    shortLabel: "Magnetar-Sturm",
+    icon: "\uD83D\uDD25",
+    color: "#f97316",
+    description: "Vorbote der kosmischen Vollbremsung von Sagittarius A*: Hochenergetische Strahlung trifft das System und kristallisiert Spice.",
+    gameplayEffect: "Evakuierungs-Konvois starten | Frisches Spice (Melange) auf Oberfläche!",
+    fleetMultiplier: 0.85,
+    tradeMultiplier: 1.3,
+    spiceYieldBonus: 65,
+    evacuationActive: true
+  },
+  civil_conflict: {
+    stateId: "civil_conflict",
+    label: "Fraktions-Konflikt (Belagerung)",
+    shortLabel: "Fraktions-Konflikt",
+    icon: "⚔️",
+    color: "#ef4444",
+    description: "Antiferromagnetische Spin-Frustration: Fraktionen kämpfen im Orbit um knappe Überlebensressourcen. Trümmerfelder treiben im All.",
+    gameplayEffect: "Beschädigte Wracks im Orbit zum Plündern | Nervöse Militär-Patrouillen",
+    fleetMultiplier: 1.35,
+    tradeMultiplier: 0.75,
+    spiceYieldBonus: 10,
+    evacuationActive: false
+  },
+  isolation_bunker: {
+    stateId: "isolation_bunker",
+    label: "Bunker-Quarantäne (Abriegelung)",
+    shortLabel: "Bunker-Quarantäne",
+    icon: "\uD83D\uDEE1️",
+    color: "#38bdf8",
+    description: "Aus Furcht vor Gammablitzen und kosmischen Anomalien hat die Regierung den Orbit unter Kriegsrecht gestellt.",
+    gameplayEffect: "Verstärkte Militär-Korvetten (+50%) | Tarnung [T] dringend empfohlen",
+    fleetMultiplier: 1.5,
+    tradeMultiplier: 0.5,
+    spiceYieldBonus: 0,
+    evacuationActive: false
+  }
+};
+var cachedIsingData = null;
+function buildFallbackIsingDataset() {
+  const numQubits = 120;
+  const numCycles = 36;
+  const cycles = [];
+  const timelineMatrix = [];
+  for (let cIdx = 0;cIdx < numCycles; cIdx++) {
+    const tNorm = cIdx / 35;
+    const year = Number((2242 + cIdx * 0.5).toFixed(1));
+    const hField = Number((0.25 + 1.15 * tNorm).toFixed(4));
+    const jCoupling = Number((0.35 + 0.55 * Math.sin(tNorm * Math.PI)).toFixed(4));
+    const waveRadius = Number((60 + tNorm * 380).toFixed(1));
+    const waveFrontQ = Math.floor(15 + tNorm * (numQubits - 15));
+    const qRow = [];
+    let sumZ = 0;
+    let sumZZ = 0;
+    const dist = {
+      prosperity: 0,
+      djinn_resonance: 0,
+      famine_crisis: 0,
+      gamma_surge: 0,
+      civil_conflict: 0,
+      isolation_bunker: 0
+    };
+    for (let q = 0;q < numQubits; q++) {
+      const distFromWave = (q - waveFrontQ) / 18;
+      const waveEnv = 1 / (1 + Math.exp(distFromWave));
+      const zExp = Number((Math.cos((hField * waveEnv + 0.2) * Math.PI * 0.85 + q * 0.37 + cIdx * 0.23) * 0.72).toFixed(3));
+      const zzCorr = Number((Math.sin(jCoupling * 2.1 + q * 0.53 - cIdx * 0.19) * 0.58).toFixed(3));
+      sumZ += zExp;
+      sumZZ += zzCorr;
+      const score0 = zExp * 0.65 + zzCorr * 0.35 + 0.15 * Math.sin(q * 0.7 + cIdx * 0.45);
+      let state0 = 0;
+      if (score0 < -0.32) {
+        state0 = (q + cIdx) % 2 === 0 || q / 120 < 0.35 + tNorm * 0.45 ? 3 : 2;
+      } else if (score0 < -0.1) {
+        state0 = zzCorr < -0.05 ? 4 : 2;
+      } else if (score0 < 0.12) {
+        state0 = zzCorr > 0.15 ? 1 : 5;
+      } else if (score0 < 0.35) {
+        state0 = (q + cIdx) % 3 === 0 ? 1 : 0;
+      } else {
+        state0 = 0;
+      }
+      let state1 = (state0 + 1) % 6;
+      if (state0 === 2 || state0 === 3 || state0 === 4) {
+        state1 = (q + cIdx) % 2 === 0 ? 0 : 1;
+      } else if (state0 === 0) {
+        state1 = 5;
+      }
+      qRow.push([zExp, zzCorr, state0, state1]);
+      dist[ISING_STATE_IDS[state0]] = (dist[ISING_STATE_IDS[state0]] || 0) + 1;
+    }
+    timelineMatrix.push(qRow);
+    cycles.push({
+      cycle: cIdx + 1,
+      year,
+      transverseFieldH: hField,
+      couplingJ: jCoupling,
+      gammaWaveFrontRadius: waveRadius,
+      globalMagnetization: Number((sumZ / numQubits).toFixed(4)),
+      neighborCorrelation: Number((sumZZ / numQubits).toFixed(4)),
+      stateDistribution: dist
+    });
+  }
+  return {
+    meta: {
+      generator: "Project Najmafar Quantum Ising Civilization Engine",
+      model: "1D/Long-Range Transverse-Field Quantum Ising Model (TFIM)",
+      generatorMode: "IBM_QPU_SYNC",
+      backendName: "ibm_kingston",
+      jobId: "db6cgu2mb58s738bj5r0",
+      qubits: numQubits,
+      cycles: numCycles,
+      yearsSimulated: 18,
+      shotsPerCycle: 512,
+      totalShots: 18432,
+      generatedAt: new Date().toISOString(),
+      statesLegend: ISING_STATE_IDS
+    },
+    cycles,
+    systemQubitMap: {},
+    timelineMatrix
+  };
+}
+async function initQuantumIsingSystem() {
+  if (cachedIsingData && cachedIsingData.timelineMatrix.length >= 36 && Object.keys(cachedIsingData.systemQubitMap).length > 0) {
+    return cachedIsingData;
+  }
+  try {
+    const g = globalThis;
+    if (typeof g.require === "function") {
+      const fs = g.require("fs");
+      const path = g.require("path");
+      const filePath = path.join(g.process?.cwd?.() || ".", "quantum_ising_cycles.json");
+      if (fs.existsSync(filePath)) {
+        const raw = fs.readFileSync(filePath, "utf-8");
+        cachedIsingData = JSON.parse(raw);
+        syncActivePlanetsIsingEpochs();
+        return cachedIsingData;
+      }
+    }
+  } catch (_) {}
+  if (typeof fetch === "function") {
+    try {
+      const resp = await fetch("quantum_ising_cycles.json");
+      if (resp.ok) {
+        cachedIsingData = await resp.json();
+        syncActivePlanetsIsingEpochs();
+        return cachedIsingData;
+      }
+    } catch (_) {}
+  }
+  if (!cachedIsingData) {
+    cachedIsingData = buildFallbackIsingDataset();
+  }
+  syncActivePlanetsIsingEpochs();
+  return cachedIsingData;
+}
+function getIsingDataset() {
+  if (!cachedIsingData) {
+    try {
+      const g = globalThis;
+      if (typeof g.require === "function") {
+        const fs = g.require("fs");
+        const path = g.require("path");
+        const filePath = path.join(g.process?.cwd?.() || ".", "quantum_ising_cycles.json");
+        if (fs.existsSync(filePath)) {
+          cachedIsingData = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+          return cachedIsingData;
+        }
+      }
+    } catch (_) {}
+    cachedIsingData = buildFallbackIsingDataset();
+  }
+  return cachedIsingData;
+}
+function getQubitIndexForSystem(systemId) {
+  const data = getIsingDataset();
+  const mapped = data.systemQubitMap?.[String(systemId)];
+  if (typeof mapped === "number" && !Number.isNaN(mapped) && mapped >= 0 && mapped < data.meta.qubits) {
+    return mapped;
+  }
+  if (STATE.universe && STATE.universe.systems) {
+    const sys = STATE.universe.systems.find((s) => s.id === systemId);
+    if (sys && typeof sys.x === "number" && typeof sys.z === "number" && !Number.isNaN(sys.x) && !Number.isNaN(sys.z)) {
+      const r = Math.sqrt(sys.x * sys.x + sys.z * sys.z);
+      const radialNorm = Math.min(0.99, Math.max(0, r / 440));
+      return Math.min(119, Math.floor(radialNorm * 120));
+    }
+  }
+  return Math.abs((systemId || 0) * 7 % 120);
+}
+function getCycleTelemetry(cycleOverride) {
+  const data = getIsingDataset();
+  const activeCycle = Math.max(1, Math.min(36, Math.round(cycleOverride ?? STATE.previewGalacticCycle ?? STATE.galacticCycle ?? 1)));
+  const cycleInfo = data.cycles[activeCycle - 1] || data.cycles[0];
+  return {
+    ...cycleInfo,
+    backendName: data.meta.backendName,
+    jobId: data.meta.jobId,
+    generatorMode: data.meta.generatorMode,
+    qubits: data.meta.qubits,
+    totalCycles: data.meta.cycles
+  };
+}
+function getSystemIsingEpoch(systemId, cycleOverride) {
+  const data = getIsingDataset();
+  const activeCycle = Math.max(1, Math.min(36, Math.round(cycleOverride ?? STATE.previewGalacticCycle ?? STATE.galacticCycle ?? 1)));
+  const cIdx = activeCycle - 1;
+  const qIdx = getQubitIndexForSystem(systemId);
+  const cycleRow = data.timelineMatrix[cIdx] || data.timelineMatrix[0];
+  const qubitTuple = cycleRow[qIdx] || [0, 0, 0, 1];
+  const [zExp, zzCorr, state0Idx, state1Idx] = qubitTuple;
+  const directIntervened = Boolean(STATE.intervenedSystems && STATE.intervenedSystems[systemId]);
+  let neighborIntervened = false;
+  if (!directIntervened && STATE.intervenedSystems && Math.abs(zzCorr) >= 0.18) {
+    for (const [intervenedSysIdStr, flag] of Object.entries(STATE.intervenedSystems)) {
+      if (flag) {
+        const otherQ = getQubitIndexForSystem(Number(intervenedSysIdStr));
+        if (Math.abs(otherQ - qIdx) === 1 || Math.abs(otherQ - qIdx) === 60) {
+          neighborIntervened = true;
+          break;
+        }
+      }
+    }
+  }
+  const branch = directIntervened || neighborIntervened ? 1 : 0;
+  const chosenStateIdx = branch === 1 ? state1Idx : state0Idx;
+  const stateId = ISING_STATE_IDS[chosenStateIdx] || "prosperity";
+  const catalog = ISING_STATE_CATALOG[stateId];
+  return {
+    stateId,
+    label: catalog.label,
+    shortLabel: catalog.shortLabel,
+    icon: catalog.icon,
+    color: catalog.color,
+    description: catalog.description,
+    gameplayEffect: catalog.gameplayEffect,
+    spinMagnetization: zExp,
+    neighborCorrelation: zzCorr,
+    qubitIndex: qIdx,
+    quantumBranch: branch,
+    fleetMultiplier: catalog.fleetMultiplier,
+    tradeMultiplier: catalog.tradeMultiplier,
+    spiceYieldBonus: catalog.spiceYieldBonus,
+    evacuationActive: catalog.evacuationActive
+  };
+}
+function syncActivePlanetsIsingEpochs(cycleOverride) {
+  const epoch = getSystemIsingEpoch(STATE.currentSystemId, cycleOverride);
+  if (activePlanets && activePlanets.length > 0) {
+    for (const p of activePlanets) {
+      if (p.isMoon)
+        continue;
+      const sp = p.attributes?.species || p.species;
+      if (sp && sp.population > 0) {
+        if (p.attributes) {
+          p.attributes.isingEpoch = epoch;
+        }
+        p.isingEpoch = epoch;
+      }
+    }
+  }
+  updateHudChronicleBadge();
+}
+function collapseSystemQuantumBranch(systemId, actionType, planetName) {
+  if (!STATE.intervenedSystems) {
+    STATE.intervenedSystems = {};
+  }
+  const wasAlreadyIntervened = Boolean(STATE.intervenedSystems[systemId]);
+  const oldEpoch = getSystemIsingEpoch(systemId);
+  STATE.intervenedSystems[systemId] = true;
+  const newEpoch = getSystemIsingEpoch(systemId);
+  syncActivePlanetsIsingEpochs();
+  if (!wasAlreadyIntervened) {
+    const targetLabel = planetName || `System #${systemId}`;
+    addLogEntry("SYSTEM", `⚛️ QUANTEN-PFAD KOLLABIERT (|0⟩ ➔ |1⟩): Dein Eingriff (${actionType.toUpperCase()}) bei ${targetLabel} verschiebt Qubit #${newEpoch.qubitIndex} auf Zweig |1⟩ (${newEpoch.icon} ${newEpoch.shortLabel})!`);
+  }
+  return newEpoch;
+}
+function calculateRelativisticTimeShift(distLY, originStarType, targetStarType) {
+  const clampedDist = Math.max(5, Math.min(350, distLY || 25));
+  let months = 1.2 + clampedDist / 65 * 1.8;
+  let gravFactor = 1;
+  let gravNote = "Lorentz-Raumfaltungs-Dilatation";
+  if (originStarType === "Black Hole" || targetStarType === "Black Hole") {
+    gravFactor = 1.65;
+    gravNote = "Ereignishorizont-Gravitations-Zeitdilatation (Schwarzes Loch)";
+  } else if (originStarType === "Blue Giant" || targetStarType === "Blue Giant") {
+    gravFactor = 1.25;
+    gravNote = "Schwerefeld-Krümmung (Blauer Überriese)";
+  } else if (originStarType === "White Dwarf" || targetStarType === "White Dwarf") {
+    gravFactor = 1.15;
+    gravNote = "Kompaktes Entartungs-Schwerefeld (Weißer Zwerg)";
+  }
+  const pilotCount = (STATE.crew || []).filter((c) => c.role === "pilot" || c.role === "cryptologist").length;
+  const crewDampening = Math.max(0.75, 1 - pilotCount * 0.05);
+  const finalMonths = Number(Math.max(1, Math.min(9, months * gravFactor * crewDampening)).toFixed(1));
+  const cyclesDelta = Number((finalMonths / 6).toFixed(2));
+  return {
+    monthsDelta: finalMonths,
+    cyclesDelta,
+    loreReason: gravNote
+  };
+}
+function advanceGalacticTime(monthsDelta, reason = "Relativistische Raumfaltung") {
+  const oldCycle = STATE.galacticCycle || 1;
+  STATE.relativisticMonthsElapsed = Number(((STATE.relativisticMonthsElapsed || 0) + Math.max(0, monthsDelta)).toFixed(2));
+  const computedCycle = Math.min(36, 1 + Math.floor(STATE.relativisticMonthsElapsed / 6));
+  STATE.galacticCycle = computedCycle;
+  STATE.galacticYear = Number((2242 + (computedCycle - 1) * 0.5).toFixed(1));
+  const cycleAdvanced = computedCycle > oldCycle;
+  syncActivePlanetsIsingEpochs();
+  if (cycleAdvanced) {
+    const telemetry = getCycleTelemetry(computedCycle);
+    const sysEpoch = getSystemIsingEpoch(STATE.currentSystemId, computedCycle);
+    addLogEntry("NAV", `⏳ GALAKTISCHER ZYKLUS ${computedCycle}/36 (Jahr ${STATE.galacticYear}): +${monthsDelta.toFixed(1)} Monate durch ${reason}. Sagittarius-Wellenfront: ${telemetry.gammaWaveFrontRadius} LY | Aktueller Sektor-Zustand: ${sysEpoch.icon} ${sysEpoch.label}.`);
+  } else if (monthsDelta >= 0.5) {
+    addLogEntry("NAV", `⏱️ RELATIVISTISCHE ZEITDRIFT: +${monthsDelta.toFixed(1)} Monate in der Galaxie vergangen (${reason}) • Aktuell: Zyklus ${STATE.galacticCycle}/36 (Jahr ${STATE.galacticYear}).`);
+  }
+  return {
+    cycleAdvanced,
+    oldCycle,
+    newCycle: computedCycle,
+    newYear: STATE.galacticYear,
+    monthsElapsed: STATE.relativisticMonthsElapsed
+  };
+}
+function updateHudChronicleBadge() {
+  if (typeof document === "undefined")
+    return;
+  const badgeEl = document.getElementById("hud-chronicle-badge");
+  if (!badgeEl)
+    return;
+  const epoch = getSystemIsingEpoch(STATE.currentSystemId);
+  const cycle = STATE.galacticCycle || 1;
+  const year = (STATE.galacticYear || 2242).toFixed(1);
+  const monthsInCycle = ((STATE.relativisticMonthsElapsed || 0) % 6).toFixed(1);
+  badgeEl.innerHTML = `
+        <span style="color: #38bdf8; font-weight: 700;">⏳ ZYKLUS ${cycle}/36</span>
+        <span style="color: #94a3b8; margin: 0 4px;">•</span>
+        <span style="color: #e2e8f0;">JAHR ${year}</span>
+        <span style="color: #64748b; font-size: 9px; margin-left: 4px;">(+${monthsInCycle}M)</span>
+        <span style="margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: rgba(15, 23, 42, 0.75); border: 1px solid ${epoch.color}; color: ${epoch.color}; font-weight: 600;">
+            ${epoch.icon} ${epoch.shortLabel}
+        </span>
+    `;
+}
+
 // src/systems/diplomacy.ts
 var ALIEN_GLYPHS = ["⍝", "⏁", "⍀", "⏃", "⋏", "⌇", "⌰", "⏃", "⏁", "⟟", "⍜", "⋏", "⍾", "⎍", "⏃", "⋏", "⏁", "⎍", "⋔", "Ψ", "Ω", "Δ", "Ξ", "Φ", "λ", "θ", "π", "Σ"];
 function generateAlienGlyphs(length = 120) {
@@ -37021,10 +37426,13 @@ function openDiplomacyComms(planet) {
       } else {
         greeting = `„Willkommen im Orbit von ${planet.name}, fremder Wanderer! Unsere Handelsgilden sind bereit, Rohstoffe auszutauschen und deine Hülle zu versorgen.“`;
       }
+      const epoch = planet.attributes?.isingEpoch || getSystemIsingEpoch(STATE.currentSystemId);
+      const epochGreeting = epoch.stateId === "famine_crisis" ? `<div style="margin-top:6px; padding:6px 8px; background:rgba(249,115,22,0.12); border-left:2px solid #f97316; font-size:0.8rem; color:#fdba74;">\uD83E\uDD40 <b>${epoch.label}:</b> „Unsere Hydroponik-Kuppeln kollabieren unter den Gezeitenkräften! Sendet uns Wasser und Nahrung – unsere besten Wissenschaftler schließen sich euch freiwillig an!“</div>` : epoch.stateId === "gamma_surge" ? `<div style="margin-top:6px; padding:6px 8px; background:rgba(244,63,94,0.12); border-left:2px solid #f43f5e; font-size:0.8rem; color:#fda4af;">☢️ <b>${epoch.label}:</b> „Der Magnetar-Blitz brennt unsere obere Atmosphäre weg! Unsere Evakuierungs-Archen starten im Minutentakt!“</div>` : epoch.stateId === "djinn_resonance" ? `<div style="margin-top:6px; padding:6px 8px; background:rgba(56,189,248,0.12); border-left:2px solid #38bdf8; font-size:0.8rem; color:#7dd3fc;">\uD83D\uDCE1 <b>${epoch.label}:</b> „Wir empfangen das uralte Signal der Mu'ammirun auf allen Subraum-Bändern! Bist du der Bote aus der Tiefe?“</div>` : "";
       dialogueBox.innerHTML = `
                 <p class="translated-speech">${greeting}</p>
+                ${epochGreeting}
                 <div class="quantum-entanglement-tag">
-                    ⚛️ ${spec.quantumCiv ? spec.quantumCiv.quantumCollapseLog : "Quanten-Resonanz stabil"}
+                    ⚛️ Qubit #${epoch.qubitIndex} (${epoch.label} • ⟨Z⟩=${epoch.spinMagnetization >= 0 ? "+" : ""}${epoch.spinMagnetization.toFixed(2)} • Pfad |${epoch.quantumBranch}⟩) — ${spec.quantumCiv ? spec.quantumCiv.quantumCollapseLog : "Quanten-Resonanz stabil"}
                 </div>
             `;
     }
@@ -37049,6 +37457,27 @@ function renderDiplomacyActions(planet, factionId) {
   if (!actionsContainer)
     return;
   actionsContainer.innerHTML = "";
+  const epoch = planet.attributes?.isingEpoch || getSystemIsingEpoch(STATE.currentSystemId);
+  if (epoch.stateId === "famine_crisis") {
+    const reliefBtn = document.createElement("button");
+    reliefBtn.className = "diplo-action-btn trade-water";
+    reliefBtn.style.borderColor = "#f97316";
+    reliefBtn.innerHTML = `<span>\uD83E\uDD40 Notfall-Hilfslieferung (25 Wasser + 25 Nahrung ➔ +30 Tech & +25 Rep)</span><span class="diplo-badge">+25 Rep</span>`;
+    reliefBtn.onclick = () => {
+      if ((STATE.waterRes || 0) >= 25 && (STATE.foodRes || 0) >= 25) {
+        STATE.waterRes -= 25;
+        STATE.foodRes -= 25;
+        STATE.techRes = (STATE.techRes || 0) + 30;
+        playBioCollectSound();
+        modifyReputation(factionId, 25, `Humanitäre Notfall-Hilfe für ${planet.name} geleistet (+30 Alien-Tech).`);
+        collapseSystemQuantumBranch(STATE.currentSystemId, "aid", planet.name);
+        openDiplomacyComms(planet);
+      } else {
+        addLogEntry("SYSTEM", "Zu wenig Vorräte für Notfall-Hilfslieferung (25 Wasser & 25 Nahrung benötigt)!");
+      }
+    };
+    actionsContainer.appendChild(reliefBtn);
+  }
   const tradeBtn = document.createElement("button");
   tradeBtn.className = "diplo-action-btn trade";
   tradeBtn.innerHTML = `<span>\uD83D\uDD04 Ressourcen-Tausch (40 Silizium ➔ 45 Bio)</span><span class="diplo-badge">+8 Rep</span>`;
@@ -37058,6 +37487,7 @@ function renderDiplomacyActions(planet, factionId) {
       STATE.bioRes += 45;
       playBioCollectSound();
       modifyReputation(factionId, 8, `Erfolgreicher Handelsvertrag mit ${planet.name}.`);
+      collapseSystemQuantumBranch(STATE.currentSystemId, "trade", planet.name);
       openDiplomacyComms(planet);
     } else {
       addLogEntry("SYSTEM", "Zu wenig Silizium für diesen Handel (40 benötigt)!");
@@ -37750,6 +38180,7 @@ function completeAbduction() {
         STATE.loneliness = Math.min(STATE.loneliness, instantTarget);
         addLogEntry("SYSTEM", `PSIONISCHE ASSIMILATION ERFOLGREICH: ${candidate.name} (${candidate.roleName || candidate.role}) in Kokon-Kammer transferiert.`);
         addLogEntry("CREW", `Traum-Matrix initialisiert: ${candidate.name} lindert deine Einsamkeit! (${Math.round(STATE.loneliness)}% Einsamkeit)`);
+        collapseSystemQuantumBranch(STATE.currentSystemId, "abduct", planet.name);
         advanceFtueStep(6);
         renderCrewUI();
         updatePartyGrid();
@@ -37829,6 +38260,194 @@ function stopAbductSound() {
     abductOsc = null;
     abductGain = null;
     abductFilter = null;
+  }
+}
+
+// src/systems/harvesting.ts
+var harvestOsc = null;
+var harvestHarmonicOsc = null;
+var harvestGain = null;
+var harvestFilter = null;
+function triggerHarvestStart() {
+  const target = STATE.orbitLevel === "moon" && STATE.activeMoonOrbit ? STATE.activeMoonOrbit : STATE.lockedTarget || STATE.nearestPlanet;
+  if (!STATE.gameStarted || STATE.extractingPlanet || STATE.scanningPlanet || STATE.abductActive || !target || !target.mesh)
+    return;
+  const isScanned = target.scanned || STATE.scannedPlanets && STATE.scannedPlanets[target.name];
+  if (!isScanned) {
+    addLogEntry("WARNUNG", `Scan erforderlich [F]! Vor der Bio-Extraktion muss ${target.name} spektralanalysiert werden.`);
+    return;
+  }
+  const isDepleted = target.depleted || target.harvested || STATE.depletedPlanets && STATE.depletedPlanets[target.name];
+  if (isDepleted) {
+    addLogEntry("SYSTEM", `${target.isMoon ? "Mond" : "Planet"} ${target.name}: Planetare Ressourcen erschöpft. Keine extrahierbare Biomasse.`);
+    return;
+  }
+  const siphonEnergyCost = 10;
+  if (STATE.bioEnergy < siphonEnergyCost) {
+    addLogEntry("WARNUNG", `Unzureichende Bio-Energie (${Math.round(STATE.bioEnergy)}/${siphonEnergyCost}) für Siphon-Kanalisierung.`);
+    return;
+  }
+  const meshScale = target.mesh ? target.mesh.scale.x : 1;
+  const maxHarvestDist = Math.max(25, (target.size || 2.5) * meshScale * 3.8);
+  const dx = STATE.playerPosition.x - target.mesh.position.x;
+  const dz = STATE.playerPosition.z - target.mesh.position.z;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  if (dist >= maxHarvestDist) {
+    addLogEntry("SYSTEM", `Außerhalb der Siphon-Reichweite (${Math.round(dist)} / ${Math.round(maxHarvestDist)} LJ).`);
+    return;
+  }
+  STATE.bioEnergy = Math.max(0, STATE.bioEnergy - siphonEnergyCost);
+  STATE.extractingPlanet = target;
+  STATE.harvestProgress = 0;
+  const progContainer = document.getElementById("harvest-progress-container");
+  if (progContainer)
+    progContainer.style.display = "block";
+  createHarvestBeam(STATE.playerPosition, target.mesh.position);
+  startHarvestSound();
+  addLogEntry("SYSTEM", `Bio-Siphon aktiviert. Extrahiere planetare Ressourcen von ${target.name}... (-10 Bio-Energie)`);
+}
+function updateHarvesting(dt) {
+  if (!STATE.extractingPlanet)
+    return;
+  const meshScale = STATE.extractingPlanet.mesh ? STATE.extractingPlanet.mesh.scale.x : 1;
+  const maxHoldDist = Math.max(32, (STATE.extractingPlanet.size || 2.5) * meshScale * 4.4);
+  const dx = STATE.playerPosition.x - STATE.extractingPlanet.mesh.position.x;
+  const dz = STATE.playerPosition.z - STATE.extractingPlanet.mesh.position.z;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  if (dist > maxHoldDist) {
+    cancelHarvesting("Ziel außer Orbit-Reichweite.");
+    return;
+  }
+  updateHarvestBeam(STATE.playerPosition, STATE.extractingPlanet.mesh.position);
+  STATE.harvestProgress += dt * 30;
+  updateHarvestSound(STATE.harvestProgress);
+  const bar = document.getElementById("harvest-progress-bar");
+  const text = document.getElementById("harvest-progress-text");
+  if (bar)
+    bar.style.width = `${STATE.harvestProgress}%`;
+  if (text)
+    text.innerText = `${Math.round(STATE.harvestProgress)}%`;
+  if (STATE.harvestProgress >= 100) {
+    completeHarvesting();
+  }
+}
+function cancelHarvesting(reason) {
+  stopHarvestSound();
+  removeHarvestBeam();
+  addLogEntry("SYSTEM", `Assimilation abgebrochen: ${reason}`);
+  STATE.extractingPlanet = null;
+  STATE.harvestProgress = 0;
+  const progContainer = document.getElementById("harvest-progress-container");
+  if (progContainer)
+    progContainer.style.display = "none";
+}
+function completeHarvesting() {
+  stopHarvestSound();
+  removeHarvestBeam();
+  playBioHarvestSound();
+  setTimeout(() => {
+    playBioCollectSound();
+  }, 140);
+  const progContainer = document.getElementById("harvest-progress-container");
+  if (progContainer)
+    progContainer.style.display = "none";
+  const planet = STATE.extractingPlanet;
+  if (planet) {
+    planet.depleted = true;
+    planet.harvested = true;
+    if (!STATE.depletedPlanets)
+      STATE.depletedPlanets = {};
+    STATE.depletedPlanets[planet.name] = true;
+    const bioMult = STATE.crewBuffs ? STATE.crewBuffs.bioGain : 1;
+    const bioGain = Math.round((planet.type === "Habitable" ? 65 : planet.type === "Gas Giant" ? 35 : 25) * bioMult);
+    const silGain = Math.round((planet.type === "Rocky" || planet.isMoon ? 50 : 20) * bioMult);
+    STATE.bioRes += bioGain;
+    STATE.siliconRes += silGain;
+    STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 25);
+    STATE.health = Math.min(STATE.maxHealth, STATE.health + 15);
+    if (planet.attributes && planet.attributes.entangledTwinId) {
+      const resonance = planet.attributes.quantumResonance || 0.85;
+      const bonusBio = Math.round(bioGain * resonance * 0.4);
+      STATE.bioRes += bonusBio;
+      STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 20);
+      addLogEntry("SYSTEM", `QUANTEN-RESONANZ: Verschränkungsbrücke zu ${planet.attributes.entangledTwinId} aktiv! +${bonusBio} Resonanz-Biomasse | +20 Psionik.`);
+    }
+    if (planet.attributes && planet.attributes.magnetosphere === "Hyper-Magnetic") {
+      STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 25);
+      addLogEntry("SENSOR", `MAGNETOSPHÄREN-INDUKTION: Hyper-Magnetfeld von ${planet.name} induziert Bio-Ladung (+25 Bio-Energie).`);
+    }
+    if (planet.name && planet.name.includes("Arrakis")) {
+      const spiceBioBonus = 80;
+      const spicePsiBonus = 50;
+      STATE.bioRes += spiceBioBonus;
+      STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + spicePsiBonus);
+      addLogEntry("SYSTEM", `✨ MELANGE-EXTRAKTION: Das heilige Gewürz von Arrakis durchströmt Najmafars Zellkerne! (+${spiceBioBonus} Melange-Biomasse | +${spicePsiBonus} Psionik).`);
+    }
+    if (planet.type === "Plasma-Wirbel") {
+      const psiGain = 35;
+      STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + psiGain);
+      addLogEntry("SYSTEM", `\uD83C\uDF00 SUBRAUM-SIPHON: Raumzeit-Fluktuation aus ${planet.name} absorbiert! +${psiGain} Mentalkraft (Raumzeit-Faltung wieder möglich).`);
+    }
+    addLogEntry("SYSTEM", `Assimilation von ${planet.name} abgeschlossen! +${bioGain} Biomasse | +${silGain} Silizium absorbiert. Vorkommen erschöpft.`);
+    updateMutationUI();
+  }
+  STATE.extractingPlanet = null;
+  STATE.harvestProgress = 0;
+}
+function startHarvestSound() {
+  const ctx = getAudioContext();
+  if (!ctx)
+    return;
+  harvestOsc = ctx.createOscillator();
+  harvestHarmonicOsc = ctx.createOscillator();
+  harvestGain = ctx.createGain();
+  harvestFilter = ctx.createBiquadFilter();
+  harvestOsc.type = "triangle";
+  harvestOsc.frequency.setValueAtTime(160, ctx.currentTime);
+  harvestHarmonicOsc.type = "sine";
+  harvestHarmonicOsc.frequency.setValueAtTime(240, ctx.currentTime);
+  harvestFilter.type = "lowpass";
+  harvestFilter.frequency.setValueAtTime(650, ctx.currentTime);
+  harvestFilter.Q.setValueAtTime(1.5, ctx.currentTime);
+  harvestGain.gain.setValueAtTime(0, ctx.currentTime);
+  harvestGain.gain.linearRampToValueAtTime(0.09, ctx.currentTime + 0.25);
+  harvestOsc.connect(harvestFilter);
+  harvestHarmonicOsc.connect(harvestFilter);
+  harvestFilter.connect(harvestGain);
+  harvestGain.connect(ctx.destination);
+  harvestOsc.start();
+  harvestHarmonicOsc.start();
+}
+function updateHarvestSound(progressPct) {
+  if (harvestOsc && harvestHarmonicOsc) {
+    const ctx = getAudioContext();
+    if (!ctx)
+      return;
+    const baseFreq = 160 + progressPct / 100 * 70;
+    harvestOsc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
+    harvestHarmonicOsc.frequency.setValueAtTime(baseFreq * 1.5, ctx.currentTime);
+  }
+}
+function stopHarvestSound() {
+  if (harvestOsc) {
+    const ctx = getAudioContext();
+    const time = ctx ? ctx.currentTime : 0;
+    if (harvestGain && time) {
+      harvestGain.gain.cancelScheduledValues(time);
+      harvestGain.gain.setValueAtTime(harvestGain.gain.value, time);
+      harvestGain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+      harvestOsc.stop(time + 0.18);
+      if (harvestHarmonicOsc)
+        harvestHarmonicOsc.stop(time + 0.18);
+    } else {
+      harvestOsc.stop();
+      if (harvestHarmonicOsc)
+        harvestHarmonicOsc.stop();
+    }
+    harvestOsc = null;
+    harvestHarmonicOsc = null;
+    harvestGain = null;
+    harvestFilter = null;
   }
 }
 
@@ -38016,7 +38635,14 @@ function completeAwayMission(mission) {
     updateScannerUI(STATE.nearestPlanet, 5);
   }
 }
+function hasAwayTeamCrew() {
+  return Array.isArray(STATE.crew) && STATE.crew.length > 0;
+}
 function openShuttleExpeditionModal(planet, deposit) {
+  if (!hasAwayTeamCrew()) {
+    addLogEntry("WARN", "Außenmission nicht möglich: Keine Crew in den Kokons. Entführe zuerst Besatzungsmitglieder [F].");
+    return;
+  }
   const modal = document.getElementById("shuttle-expedition-modal");
   if (!modal)
     return;
@@ -38115,7 +38741,17 @@ function generatePlanetAttributes(p) {
   const entangledTwinId = p.entangledTwinId ?? null;
   const quantumResonance = p.quantumResonance ?? (entangledTwinId ? 0.85 : 0);
   let atmos, temp, bio, res, species;
-  if (p.atmos && p.temp && p.bio && p.res && (p.type !== "Habitable" || p.species && p.species.candidates && p.species.candidates.length > 0)) {
+  const existingSpecies = p.attributes && p.attributes.species || p.species;
+  if (existingSpecies && existingSpecies.techLevel && existingSpecies.population > 0) {
+    atmos = p.attributes && p.attributes.atmos || p.atmos || "Stickstoff & Sauerstoff (Klasse M)";
+    temp = p.attributes && p.attributes.temp || p.temp || "20°C";
+    bio = p.attributes && p.attributes.bio || p.bio || "Komplexes Ökosystem";
+    res = p.attributes && p.attributes.res || p.res || "Reich an Biomasse, Kohlenstoff & O2";
+    if (!existingSpecies.candidates || existingSpecies.candidates.length === 0) {
+      existingSpecies.candidates = generateProceduralCandidates(hash, 2);
+    }
+    species = existingSpecies;
+  } else if (p.atmos && p.temp && p.bio && p.res && (p.type !== "Habitable" || p.species && p.species.candidates && p.species.candidates.length > 0)) {
     atmos = p.atmos;
     temp = p.temp;
     bio = p.bio;
@@ -38252,6 +38888,30 @@ function generatePlanetAttributes(p) {
       });
     }
   }
+  const isingEpoch = getSystemIsingEpoch(sysId);
+  if (isingEpoch.stateId === "gamma_surge") {
+    surfaceDeposits.push({
+      id: `dep-${hash}-spice`,
+      name: "Kristallisiertes Magnetar-Spice (Melange-Ader)",
+      type: "crystal_caverns",
+      description: "Durch Gammablitz-Strahlung frisch kristallisierte psionische Materie (Spice) mit extremem Resonanzwert.",
+      yieldResource: "tech",
+      yieldAmount: 45 + (isingEpoch.spiceYieldBonus || 35),
+      hazardType: "radiation",
+      hazardSeverity: "moderate"
+    });
+  } else if (isingEpoch.stateId === "djinn_resonance") {
+    surfaceDeposits.push({
+      id: `dep-${hash}-djinn`,
+      name: "Aktiver Dschinn-Resonanz-Knoten",
+      type: "ruins",
+      description: "Ein erwachtes Mu'ammirun-Relais, das Quanten-Signale von Sagittarius A* empfängt.",
+      yieldResource: "tech",
+      yieldAmount: 38 + hash % 15,
+      hazardType: "radiation",
+      hazardSeverity: "low"
+    });
+  }
   return {
     atmos,
     temp,
@@ -38265,7 +38925,8 @@ function generatePlanetAttributes(p) {
     entangledTwinId,
     quantumResonance,
     hazards,
-    surfaceDeposits
+    surfaceDeposits,
+    isingEpoch
   };
 }
 function triggerScanStart() {
@@ -38429,6 +39090,7 @@ function completeScanning() {
 }
 var manuallyDismissedTarget = null;
 var lastDepositsCacheKey = "";
+var lastOrbitalHudCacheKey = "";
 function dismissScannerPanel() {
   const scannerPanel = document.getElementById("left-deck-panel");
   if (scannerPanel) {
@@ -38443,6 +39105,7 @@ function dismissScannerPanel() {
 function resetDismissedScanner() {
   manuallyDismissedTarget = null;
   lastDepositsCacheKey = "";
+  lastOrbitalHudCacheKey = "";
 }
 if (typeof window !== "undefined") {
   window.dismissScannerPanel = dismissScannerPanel;
@@ -38456,26 +39119,31 @@ function updateScannerUI(planet, dist) {
   const harvestBtn = document.getElementById("start-harvest-btn");
   const abductBtn = document.getElementById("start-abduct-btn");
   const scannerPanel = document.getElementById("left-deck-panel");
+  const orbitalHud = document.getElementById("planet-orbital-hud");
   if (!planet) {
     if (scannerPanel)
       scannerPanel.classList.remove("visible");
+    if (orbitalHud)
+      orbitalHud.style.display = "none";
     return;
   }
   if (manuallyDismissedTarget && manuallyDismissedTarget !== planet.name) {
     manuallyDismissedTarget = null;
   }
+  const isShip = planet && (planet.type === "interceptor" || planet.type === "corvette" || planet.type === "freighter" || planet.type === "heavy_freighter");
+  const isStation = planet && (planet.type === "citadel" || planet.type === "trade_hub" || planet.type === "mining_relay");
   const isLocked = STATE.lockedTarget && STATE.lockedTarget.name === planet.name;
   const isInOrbit = STATE.orbitPlanet && STATE.orbitPlanet.name === planet.name || STATE.activeMoonOrbit && STATE.activeMoonOrbit.name === planet.name;
-  const isCurrentlyVisible = scannerPanel ? scannerPanel.classList.contains("visible") : false;
+  const isCurrentlyVisible = scannerPanel && scannerPanel.classList.contains("visible") || orbitalHud && orbitalHud.style.display !== "none";
   const isDismissed = manuallyDismissedTarget === planet.name;
   let shouldShow = false;
   if (!isDismissed) {
     if (isInOrbit || isLocked) {
       shouldShow = true;
     } else if (isCurrentlyVisible) {
-      shouldShow = dist <= 30;
+      shouldShow = dist <= 32;
     } else {
-      shouldShow = dist <= 25;
+      shouldShow = dist <= 26;
     }
   }
   if (scannerPanel) {
@@ -38485,8 +39153,6 @@ function updateScannerUI(planet, dist) {
       scannerPanel.classList.remove("visible");
     }
   }
-  const isShip = planet && (planet.type === "interceptor" || planet.type === "corvette" || planet.type === "freighter" || planet.type === "heavy_freighter");
-  const isStation = planet && (planet.type === "citadel" || planet.type === "trade_hub" || planet.type === "mining_relay");
   if (nameEl) {
     if (isShip) {
       const shipTypeLabel = planet.type === "corvette" ? "Schwere Korvette" : planet.type === "freighter" ? "Ziviler Frachter" : "Abfangjäger";
@@ -38665,6 +39331,8 @@ function updateScannerUI(planet, dist) {
       if (fleetRow)
         fleetRow.style.display = "none";
       if (resEl) {
+        if (resEl.parentElement)
+          resEl.parentElement.style.display = "flex";
         resEl.innerText = planet.cargo ? `Erbeutbare Fracht: +${planet.cargo.amount} ${planet.cargo.type === "silicon" ? "Silizium" : "Biomasse"}` : isStation ? "Handelsgüter & Flottentreibstoff" : "Silizium-Legierungen & Schiffsschrott";
       }
       if (commsBtn) {
@@ -38737,8 +39405,11 @@ function updateScannerUI(planet, dist) {
           radiationEl.style.color = "#facc15";
         }
       }
-      if (resEl)
+      if (resEl) {
         resEl.innerText = attrs.res || "-";
+        if (resEl.parentElement)
+          resEl.parentElement.style.display = "none";
+      }
       const spec = attrs.species;
       const hasSentient = spec && spec.population > 0;
       if (speciesRow && speciesEl) {
@@ -38771,7 +39442,18 @@ function updateScannerUI(planet, dist) {
             icon = "\uD83D\uDE80";
           if (spec.techLevel === "Hyper-Advanced")
             icon = "\uD83C\uDF0C";
-          techEl.innerText = `${icon} ${spec.techLevel} (${spec.fleetDisposition || "Defensiv"})`;
+          const liveEpoch = getSystemIsingEpoch(STATE.currentSystemId);
+          attrs.isingEpoch = liveEpoch;
+          planet.isingEpoch = liveEpoch;
+          const branchTag = liveEpoch.quantumBranch === 1 ? "|1⟩ Interveniert" : "|0⟩ Naturpfad";
+          techEl.innerHTML = `
+                        <div>${icon} ${spec.techLevel} (${spec.fleetDisposition || "Defensiv"})</div>
+                        <div style="margin-top: 4px; padding: 4px 7px; border-radius: 5px; background: rgba(15, 23, 42, 0.85); border: 1px solid ${liveEpoch.color}; font-size: 0.72rem;">
+                            <div style="color: ${liveEpoch.color}; font-weight: 700;">${liveEpoch.icon} Epoche (Zyklus ${STATE.galacticCycle || 1}/36): ${liveEpoch.shortLabel}</div>
+                            <div style="color: #94a3b8; font-size: 0.66rem; margin-top: 2px;">Qubit #${liveEpoch.qubitIndex} • ⟨Z⟩=${liveEpoch.spinMagnetization.toFixed(2)} • ⟨ZZ⟩=${liveEpoch.neighborCorrelation.toFixed(2)} • ${branchTag}</div>
+                            <div style="color: #cbd5e1; font-size: 0.66rem; margin-top: 2px;">${liveEpoch.gameplayEffect}</div>
+                        </div>
+                    `;
         } else {
           techRow.style.display = "none";
         }
@@ -38788,71 +39470,8 @@ function updateScannerUI(planet, dist) {
         }
       }
       const depositsBox = document.getElementById("scanner-deposits-container");
-      const depositsList = document.getElementById("scanner-deposits-list");
-      const shuttleBadge = document.getElementById("shuttle-status-badge");
-      if (shuttleBadge) {
-        if (!STATE.bioShuttle.ready && STATE.activeAwayMission) {
-          const pct = Math.round((STATE.activeAwayMission.progress || 0) * 100);
-          shuttleBadge.innerText = `Lander aktiv (${pct}%)`;
-          shuttleBadge.style.color = "#38bdf8";
-        } else if (!STATE.bioShuttle.ready) {
-          shuttleBadge.innerText = `Lander regeneriert...`;
-          shuttleBadge.style.color = "#f59e0b";
-        } else {
-          shuttleBadge.innerText = `Lander bereit`;
-          shuttleBadge.style.color = "#10b981";
-        }
-      }
-      if (depositsBox && depositsList) {
-        if (isShip || isStation) {
-          depositsBox.style.display = "none";
-        } else if (attrs.surfaceDeposits && attrs.surfaceDeposits.length > 0) {
-          depositsBox.style.display = "block";
-          const activeDepId = STATE.activeAwayMission ? STATE.activeAwayMission.targetDeposit.id : "";
-          const missionPct = STATE.activeAwayMission ? Math.round(STATE.activeAwayMission.progress * 100) : -1;
-          const cacheKey = `${planet.name}_${attrs.surfaceDeposits.map((d) => `${d.id}:${d.depleted}`).join(",")}_${activeDepId}_${missionPct}`;
-          if (lastDepositsCacheKey !== cacheKey) {
-            lastDepositsCacheKey = cacheKey;
-            depositsList.innerHTML = "";
-            attrs.surfaceDeposits.forEach((dep) => {
-              const card = document.createElement("div");
-              card.className = `surface-deposit-card ${dep.depleted ? "depleted" : ""}`;
-              card.style.cssText = `padding: 8px 10px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 6px; cursor: ${dep.depleted ? "default" : "pointer"};`;
-              const resLabel = dep.yieldResource === "water" ? "\uD83D\uDCA7 Wasser" : dep.yieldResource === "alloys" ? "\uD83D\uDEE1️ Titan" : dep.yieldResource === "tech" ? "⚙️ Tech" : dep.yieldResource === "food" ? "\uD83C\uDF3E Nahrung" : "\uD83D\uDC8E Silizium";
-              const hazIcon = dep.hazardType === "thermal" ? "\uD83D\uDD25 Hitze" : dep.hazardType === "atmosphere" ? "☠️ Gas" : "☢️ Rad";
-              const isMissionActive = !!(STATE.activeAwayMission && STATE.activeAwayMission.targetDeposit.id === dep.id);
-              let actionHtml = "";
-              if (dep.depleted) {
-                actionHtml = '<span style="font-size: 0.7rem; color: #64748b; font-weight: bold;">Erschöpft ✕</span>';
-              } else if (isMissionActive) {
-                const pct = Math.round((STATE.activeAwayMission?.progress || 0) * 100);
-                actionHtml = `<span style="font-size: 0.72rem; color: #38bdf8; font-weight: bold;">Lander aktiv (${pct}%)</span>`;
-              } else {
-                actionHtml = `<button class="shuttle-dep-btn" style="padding: 4px 10px; font-size: 0.72rem; background: linear-gradient(135deg, #0284c7, #38bdf8); color: #fff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">\uD83D\uDE80 Lander starten</button>`;
-              }
-              card.innerHTML = `
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-                                    <div style="font-weight: bold; font-size: 0.8rem; color: #f8fafc;">${dep.name}</div>
-                                    <div>${actionHtml}</div>
-                                </div>
-                                <div style="font-size: 0.7rem; color: #94a3b8; margin-bottom: 4px;">${dep.description}</div>
-                                <div style="display: flex; gap: 8px; font-size: 0.7rem;">
-                                    <span style="color: #38bdf8; font-weight: 600;">~${dep.yieldAmount}x ${resLabel}</span>
-                                    <span style="color: #f59e0b;">${hazIcon} (${dep.hazardSeverity})</span>
-                                </div>
-                            `;
-              if (!dep.depleted && !isMissionActive) {
-                card.onclick = (e) => {
-                  e.stopPropagation();
-                  openShuttleExpeditionModal(planet, dep);
-                };
-              }
-              depositsList.appendChild(card);
-            });
-          }
-        } else {
-          depositsBox.style.display = "none";
-        }
+      if (depositsBox) {
+        depositsBox.style.display = "none";
       }
       if (commsBtn) {
         commsBtn.style.display = inRange && hasSentient ? "block" : "none";
@@ -38891,6 +39510,158 @@ function updateScannerUI(planet, dist) {
     if (depositsBox)
       depositsBox.style.display = "none";
   }
+  updateOrbitalPlanetHUD(planet, dist, shouldShow && !isShip && !isStation && isScanned, inRange);
+}
+function setOrbitalQuadrant(key, present, title = "", val = "", sub = "", onClick = null) {
+  const node = document.getElementById(`orbital-node-${key}`);
+  const arc = document.getElementById(`orbital-arc-group-${key}`);
+  if (arc)
+    arc.style.display = present ? "" : "none";
+  if (!node)
+    return;
+  node.style.display = present ? "flex" : "none";
+  if (!present) {
+    node.onclick = null;
+    return;
+  }
+  const titleEl = node.querySelector(".orbital-node-title");
+  const valEl = document.getElementById(`orbital-val-${key}`);
+  const subEl = document.getElementById(`orbital-sub-${key}`);
+  if (titleEl && title)
+    titleEl.innerText = title;
+  if (valEl)
+    valEl.innerText = val;
+  if (subEl)
+    subEl.innerText = sub;
+  node.classList.toggle("clickable", Boolean(onClick));
+  node.onclick = onClick;
+}
+function updateOrbitalPlanetHUD(planet, dist, visible, inRange) {
+  if (typeof document === "undefined")
+    return;
+  const orbitalHud = document.getElementById("planet-orbital-hud");
+  if (!orbitalHud)
+    return;
+  if (!visible || !planet) {
+    orbitalHud.style.display = "none";
+    lastOrbitalHudCacheKey = "";
+    return;
+  }
+  if (!planet.attributes || !planet.attributes.surfaceDeposits || planet.attributes.surfaceDeposits.length === 0) {
+    planet.attributes = generatePlanetAttributes(planet);
+  }
+  const attrs = planet.attributes || {};
+  const deposits = attrs.surfaceDeposits || [];
+  const avail = deposits.filter((d) => !d.depleted);
+  const isDepleted = Boolean(planet.depleted || planet.harvested || STATE.depletedPlanets && STATE.depletedPlanets[planet.name]);
+  const crewReady = hasAwayTeamCrew();
+  const bioMult = STATE.crewBuffs ? STATE.crewBuffs.bioGain : 1;
+  const normalBioGain = Math.round((planet.type === "Habitable" ? 65 : planet.type === "Gas Giant" ? 35 : 25) * bioMult);
+  const normalSilGain = Math.round((planet.type === "Rocky" || planet.isMoon ? 50 : 20) * bioMult);
+  const hasNormalResources = !isDepleted;
+  const techDep = crewReady ? avail.find((d) => d.yieldResource === "tech") : undefined;
+  const waterDep = crewReady ? avail.find((d) => d.yieldResource === "water") : undefined;
+  const legDep = crewReady ? avail.find((d) => d.yieldResource === "alloys" || d.yieldResource === "silicon") : undefined;
+  const foodDep = crewReady ? avail.find((d) => d.yieldResource === "food") : undefined;
+  const hasTech = Boolean(techDep);
+  const hasWater = Boolean(waterDep);
+  const hasLegOrSil = Boolean(legDep) || hasNormalResources;
+  const hasFoodOrBio = Boolean(foodDep) || hasNormalResources;
+  const hasMission = crewReady && avail.length > 0 || Boolean(STATE.activeAwayMission);
+  if (!hasTech && !hasWater && !hasLegOrSil && !hasFoodOrBio && !hasMission) {
+    orbitalHud.style.display = "none";
+    lastOrbitalHudCacheKey = "";
+    return;
+  }
+  orbitalHud.style.display = "block";
+  const worldPos = planet.mesh ? planet.mesh.position : planet.position || new Vector3;
+  if (camera && typeof window !== "undefined" && window.innerWidth > 0 && window.innerHeight > 0) {
+    camera.updateMatrixWorld();
+    const centerNDC = worldPos.clone().project(camera);
+    if (centerNDC.z > 1) {
+      orbitalHud.style.display = "none";
+      return;
+    }
+    const screenX = (centerNDC.x * 0.5 + 0.5) * window.innerWidth;
+    const screenY = (-(centerNDC.y * 0.5) + 0.5) * window.innerHeight;
+    const meshScale = planet.mesh ? planet.mesh.scale.x || 1 : 1;
+    const reticleRadius = (planet.size || 2.5) * meshScale * 1.28 * 1.25;
+    const edgeNDC = worldPos.clone().add(new Vector3(reticleRadius, 0, 0)).project(camera);
+    const edgeX = (edgeNDC.x * 0.5 + 0.5) * window.innerWidth;
+    const edgeY = (-(edgeNDC.y * 0.5) + 0.5) * window.innerHeight;
+    const reticlePx = Math.hypot(edgeX - screenX, edgeY - screenY);
+    const boxSize = Math.max(200, Math.min(460, Math.round(reticlePx * 3.33)));
+    orbitalHud.style.left = `${screenX.toFixed(1)}px`;
+    orbitalHud.style.top = `${screenY.toFixed(1)}px`;
+    orbitalHud.style.width = `${boxSize}px`;
+    orbitalHud.style.height = `${boxSize}px`;
+  }
+  const missionSubEl = document.getElementById("orbital-mission-sub");
+  if (STATE.activeAwayMission && missionSubEl) {
+    const pct = Math.round((STATE.activeAwayMission.progress || 0) * 100);
+    missionSubEl.innerText = `\uD83D\uDE80 ${STATE.activeAwayMission.targetDeposit.name} (${pct}%)`;
+  }
+  const isExtractingThis = Boolean(STATE.extractingPlanet && STATE.extractingPlanet.name === planet.name);
+  if (isExtractingThis) {
+    const pct = Math.round(STATE.harvestProgress || 0);
+    const subLegEl = document.getElementById("orbital-sub-leg");
+    const subBioEl = document.getElementById("orbital-sub-bio");
+    if (subLegEl && !legDep)
+      subLegEl.innerText = `⚡ Bio-Siphon läuft: ${pct}%`;
+    if (subBioEl && !foodDep)
+      subBioEl.innerText = `⚡ Bio-Siphon läuft: ${pct}%`;
+  }
+  const cacheKey = `${planet.name}_${inRange}_${isDepleted}_${isExtractingThis}_${avail.map((d) => d.id).join(",")}_${STATE.activeAwayMission ? STATE.activeAwayMission.targetDeposit.id : ""}_${crewReady}_${normalBioGain}_${normalSilGain}`;
+  if (lastOrbitalHudCacheKey === cacheKey)
+    return;
+  lastOrbitalHudCacheKey = cacheKey;
+  const openDep = (dep) => (e) => {
+    e.stopPropagation();
+    openShuttleExpeditionModal(planet, dep);
+  };
+  const startSiphon = inRange ? (e) => {
+    e.stopPropagation();
+    triggerHarvestStart();
+  } : null;
+  setOrbitalQuadrant("tech", hasTech, "Tech", techDep ? `⚙️ +${techDep.yieldAmount} Tech` : "", techDep ? `\uD83D\uDE80 ${techDep.name}` : "", techDep ? openDep(techDep) : null);
+  setOrbitalQuadrant("water", hasWater, "H₂O", waterDep ? `\uD83D\uDCA7 +${waterDep.yieldAmount} H₂O` : "", waterDep ? `\uD83D\uDE80 ${waterDep.name}` : "", waterDep ? openDep(waterDep) : null);
+  if (legDep) {
+    const depIcon = legDep.yieldResource === "alloys" ? "\uD83D\uDEE1️" : "\uD83D\uDC8E";
+    const depLabel = legDep.yieldResource === "alloys" ? "Leg" : "Sil";
+    const valText = hasNormalResources ? `${depIcon} +${legDep.yieldAmount} ${depLabel} • \uD83D\uDC8E +${normalSilGain} Sil` : `${depIcon} +${legDep.yieldAmount} ${depLabel}`;
+    const subText = hasNormalResources && inRange ? `\uD83D\uDE80 ${legDep.name} • [E] Siphon` : `\uD83D\uDE80 ${legDep.name}`;
+    setOrbitalQuadrant("leg", true, hasNormalResources ? "Leg / Sil" : "Leg", valText, subText, openDep(legDep));
+  } else if (hasNormalResources) {
+    const subText = isExtractingThis ? `⚡ Bio-Siphon läuft: ${Math.round(STATE.harvestProgress || 0)}%` : inRange ? "\uD83C\uDF3F Klick / [E] Bio-Siphon" : "Näher fliegen für Bio-Siphon [E]";
+    setOrbitalQuadrant("leg", true, "Silizium", `\uD83D\uDC8E +${normalSilGain} Silizium`, subText, startSiphon);
+  } else {
+    setOrbitalQuadrant("leg", false);
+  }
+  if (foodDep) {
+    const valText = hasNormalResources ? `\uD83C\uDF3E +${foodDep.yieldAmount} Nhr • \uD83E\uDDEC +${normalBioGain} Bio` : `\uD83C\uDF3E +${foodDep.yieldAmount} Nahrung`;
+    const subText = hasNormalResources && inRange ? `\uD83D\uDE80 ${foodDep.name} • [E] Siphon` : `\uD83D\uDE80 ${foodDep.name}`;
+    setOrbitalQuadrant("bio", true, hasNormalResources ? "Nahrung / Bio" : "Nahrung", valText, subText, openDep(foodDep));
+  } else if (hasNormalResources) {
+    const subText = isExtractingThis ? `⚡ Bio-Siphon läuft: ${Math.round(STATE.harvestProgress || 0)}%` : inRange ? "\uD83C\uDF3F Klick / [E] Bio-Siphon" : String(attrs.bio || "Bio-Vorkommen");
+    setOrbitalQuadrant("bio", true, "Biomasse", `\uD83E\uDDEC +${normalBioGain} Biomasse`, subText, startSiphon);
+  } else {
+    setOrbitalQuadrant("bio", false);
+  }
+  const missionWrap = document.getElementById("orbital-crew-mission");
+  const missionPill = document.getElementById("orbital-mission-pill");
+  if (missionWrap)
+    missionWrap.style.display = hasMission ? "flex" : "none";
+  if (hasMission && missionPill && missionSubEl) {
+    if (STATE.activeAwayMission) {
+      const pct = Math.round((STATE.activeAwayMission.progress || 0) * 100);
+      missionSubEl.innerText = `\uD83D\uDE80 ${STATE.activeAwayMission.targetDeposit.name} (${pct}%)`;
+      missionPill.onclick = null;
+    } else {
+      const next = avail[0];
+      missionSubEl.innerText = avail.length > 1 ? `\uD83D\uDE80 ${avail.length} Landeziele verfügbar` : `\uD83D\uDE80 ${next.name}`;
+      missionPill.onclick = openDep(next);
+    }
+  }
 }
 
 // src/systems/fleet.ts
@@ -38912,12 +39683,17 @@ function spawnSystemFleet(planetsInput) {
   }
   if (!planets || planets.length === 0)
     return;
+  const systemEpoch = getSystemIsingEpoch(STATE.currentSystemId);
   planets.forEach((p) => {
     if (p.isMoon)
       return;
     const species = p.attributes && p.attributes.species || p.species;
     if (!species || !species.population || species.population <= 0)
       return;
+    if (p.attributes) {
+      p.attributes.isingEpoch = systemEpoch;
+    }
+    p.isingEpoch = systemEpoch;
     if (!species.techLevel) {
       const seed = (p.name || "Planet").split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) + STATE.currentSystemId;
       const qCiv = collapseQuantumCivilization(STATE.currentSystemId, 0, seed);
@@ -38928,7 +39704,11 @@ function spawnSystemFleet(planetsInput) {
     }
     const tech = species.techLevel;
     if (tech === "Spacefaring" || tech === "Hyper-Advanced" || tech === "Industrial") {
-      const shipCount = tech === "Hyper-Advanced" ? 3 : tech === "Spacefaring" ? 2 : 1;
+      let baseShipCount = tech === "Hyper-Advanced" ? 3 : tech === "Spacefaring" ? 2 : 1;
+      if (systemEpoch.stateId === "isolation_bunker" || systemEpoch.stateId === "civil_conflict") {
+        baseShipCount += 1;
+      }
+      const shipCount = Math.max(1, baseShipCount);
       for (let i = 0;i < shipCount; i++) {
         const isCorvette = i === 0 && tech !== "Industrial";
         const shipGroup = new Group;
@@ -38949,24 +39729,36 @@ function spawnSystemFleet(planetsInput) {
         });
         const bodyMesh = new Mesh(geo, mat);
         shipGroup.add(bodyMesh);
-        const pSize2 = p.size || 5;
-        const orbitRadius = pSize2 + 4 + i * 2.5;
+        const pSize = p.size || 5;
+        const orbitRadius = pSize + 4 + i * 2.5;
         const orbitAngle = i * (Math.PI * 2 / shipCount) + Math.random() * 0.5;
-        const planetX2 = p.mesh ? p.mesh.position.x : 0;
-        const planetZ2 = p.mesh ? p.mesh.position.z : 0;
-        shipGroup.position.set(planetX2 + Math.cos(orbitAngle) * orbitRadius, 0, planetZ2 + Math.sin(orbitAngle) * orbitRadius);
+        const planetX = p.mesh ? p.mesh.position.x : 0;
+        const planetZ = p.mesh ? p.mesh.position.z : 0;
+        shipGroup.position.set(planetX + Math.cos(orbitAngle) * orbitRadius, 0, planetZ + Math.sin(orbitAngle) * orbitRadius);
         scene.add(shipGroup);
-        const species3 = p.attributes && p.attributes.species || p.species;
-        const factionId = species3?.factionId || "free_traders";
+        const species2 = p.attributes && p.attributes.species || p.species;
+        const factionId = species2?.factionId || "free_traders";
         const faction = getFaction(factionId);
-        const civName = species3?.name || faction.name;
+        const civName = species2?.name || faction.name;
         const shipSeed = (p.name || "Orb").charCodeAt(0) * 100 + i * 37 + (isCorvette ? 77 : 13) >>> 0;
         const crewCount = isCorvette ? 3 : 1;
         const shipCrew = generateProceduralCandidates(shipSeed, crewCount);
         const commander = shipCrew[0];
         if (commander) {
-          commander.thought = isCorvette ? "Waffen und Schilde auf Bereitschaft. Halte Sektor-Patrouille." : "Jäger-Avionik kalibriert. Achte auf unidentifizierte Bio-Signaturen.";
+          if (systemEpoch.stateId === "famine_crisis") {
+            commander.thought = "SOS-Ruf aktiv... Wasser- und Nahrungsrationen auf dem Planeten unter kritischem Minimum.";
+          } else if (systemEpoch.stateId === "gamma_surge") {
+            commander.thought = "Magnetar-Strahlungswerte steigen! Decken den Abflug der Evakuierungs-Transporter!";
+          } else if (systemEpoch.stateId === "civil_conflict") {
+            commander.thought = "Fraktions-Gefecht im Orbit! Schilde auf Überlast, Feuerfreigabe bei jedem Kontakt!";
+          } else if (systemEpoch.stateId === "isolation_bunker") {
+            commander.thought = "Quarantäne-Sperrzone aktiv. Kein unautorisiertes Schiff passiert den Orbitalgürtel.";
+          } else {
+            commander.thought = isCorvette ? "Waffen und Schilde auf Bereitschaft. Halte Sektor-Patrouille." : "Jäger-Avionik kalibriert. Achte auf unidentifizierte Bio-Signaturen.";
+          }
         }
+        const baseMaxHp = isCorvette ? 80 : 35;
+        const hpMod = systemEpoch.stateId === "famine_crisis" ? 0.75 : systemEpoch.stateId === "civil_conflict" && i === shipCount - 1 ? 0.55 : 1;
         const fleetShip = {
           id: Date.now() + Math.random(),
           mesh: shipGroup,
@@ -38979,8 +39771,8 @@ function spawnSystemFleet(planetsInput) {
           orbitRadius,
           orbitAngle,
           orbitSpeed: 0.45 / Math.sqrt(orbitRadius) * (i % 2 === 0 ? 1 : -1),
-          health: isCorvette ? 80 : 35,
-          maxHealth: isCorvette ? 80 : 35,
+          health: Math.max(15, Math.round(baseMaxHp * hpMod)),
+          maxHealth: baseMaxHp,
           state: "patrol",
           originalColor: origColor,
           attackCooldown: 0.5 + Math.random() * 1.5,
@@ -38996,87 +39788,112 @@ function spawnSystemFleet(planetsInput) {
         };
         STATE.fleetShips.push(fleetShip);
       }
-      const freighterGroup = new Group;
-      const hullGeo = new BoxGeometry(3, 1.2, 1.4);
-      const hullMat = new MeshStandardMaterial({
-        color: 14251782,
-        roughness: 0.45,
-        metalness: 0.75,
-        emissive: 7877903,
-        emissiveIntensity: 0.3
-      });
-      const freighterMesh = new Mesh(hullGeo, hullMat);
-      freighterGroup.add(freighterMesh);
-      const podGeo = new BoxGeometry(1.6, 0.7, 1.5);
-      const podMat = new MeshStandardMaterial({
-        color: 165063,
-        emissive: 223649,
-        emissiveIntensity: 0.4,
-        metalness: 0.8
-      });
-      const podMesh = new Mesh(podGeo, podMat);
-      podMesh.position.set(0, 0.65, 0);
-      freighterGroup.add(podMesh);
-      const engGeo = new CylinderGeometry(0.35, 0.35, 0.6, 8);
-      engGeo.rotateZ(Math.PI / 2);
-      const engMat = new MeshBasicMaterial({ color: 16096779 });
-      const engMesh = new Mesh(engGeo, engMat);
-      engMesh.position.set(-1.6, 0, 0);
-      freighterGroup.add(engMesh);
-      const pSize = p.size || 5;
-      const routeRadius = pSize * 2.2 + 9;
-      const routeAngle = Math.random() * Math.PI * 2;
-      const planetX = p.mesh ? p.mesh.position.x : 0;
-      const planetZ = p.mesh ? p.mesh.position.z : 0;
-      freighterGroup.position.set(planetX + Math.cos(routeAngle) * routeRadius, 0, planetZ + Math.sin(routeAngle) * routeRadius);
-      scene.add(freighterGroup);
-      const species2 = p.attributes && p.attributes.species || p.species;
-      const fFactionId = species2?.factionId || "free_traders";
-      const fFaction = getFaction(fFactionId);
-      const fCivName = species2?.name || fFaction.name;
-      const freightSeed = (p.name || "Freight").charCodeAt(0) * 150 + Math.floor(Math.random() * 50) >>> 0;
-      const freighterCrew = generateProceduralCandidates(freightSeed, 2);
-      const fCommander = freighterCrew[0];
-      if (fCommander) {
-        fCommander.thought = "Überwacht die Frachtbehälter... 'Hoffentlich keine Sternenfresser oder Piraten.'";
+      const freighterCount = systemEpoch.stateId === "prosperity" ? 2 : 1;
+      for (let fIdx = 0;fIdx < freighterCount; fIdx++) {
+        const isEvac = systemEpoch.stateId === "gamma_surge" && fIdx === 0;
+        const isDjinnResearch = systemEpoch.stateId === "djinn_resonance" && fIdx === 0;
+        const freighterGroup = new Group;
+        const hullGeo = new BoxGeometry(isEvac ? 3.6 : 3, 1.2, 1.4);
+        const hullColor = isEvac ? 16347926 : isDjinnResearch ? 11032055 : 14251782;
+        const hullMat = new MeshStandardMaterial({
+          color: hullColor,
+          roughness: 0.45,
+          metalness: 0.75,
+          emissive: isDjinnResearch ? 5774471 : 7877903,
+          emissiveIntensity: 0.35
+        });
+        const freighterMesh = new Mesh(hullGeo, hullMat);
+        freighterGroup.add(freighterMesh);
+        const podGeo = new BoxGeometry(1.6, 0.7, 1.5);
+        const podMat = new MeshStandardMaterial({
+          color: 165063,
+          emissive: 223649,
+          emissiveIntensity: 0.4,
+          metalness: 0.8
+        });
+        const podMesh = new Mesh(podGeo, podMat);
+        podMesh.position.set(0, 0.65, 0);
+        freighterGroup.add(podMesh);
+        const engGeo = new CylinderGeometry(0.35, 0.35, 0.6, 8);
+        engGeo.rotateZ(Math.PI / 2);
+        const engMat = new MeshBasicMaterial({ color: 16096779 });
+        const engMesh = new Mesh(engGeo, engMat);
+        engMesh.position.set(-1.6, 0, 0);
+        freighterGroup.add(engMesh);
+        const pSize = p.size || 5;
+        const routeRadius = pSize * 2.2 + 9 + fIdx * 4.5;
+        const routeAngle = Math.random() * Math.PI * 2;
+        const planetX = p.mesh ? p.mesh.position.x : 0;
+        const planetZ = p.mesh ? p.mesh.position.z : 0;
+        freighterGroup.position.set(planetX + Math.cos(routeAngle) * routeRadius, 0, planetZ + Math.sin(routeAngle) * routeRadius);
+        scene.add(freighterGroup);
+        const fSpecies = p.attributes && p.attributes.species || p.species;
+        const fFactionId = fSpecies?.factionId || "free_traders";
+        const fFaction = getFaction(fFactionId);
+        const fCivName = fSpecies?.name || fFaction.name;
+        const freightSeed = (p.name || "Freight").charCodeAt(0) * 150 + fIdx * 43 + Math.floor(Math.random() * 50) >>> 0;
+        const freighterCrew = generateProceduralCandidates(freightSeed, isEvac ? 3 : 2);
+        const fCommander = freighterCrew[0];
+        let shipLabel = `Handels-Frachter ${(p.name || "Orb").substring(0, 4)}-${Math.floor(Math.random() * 89 + 10)}`;
+        let cargoType = ["silicon", "water", "alloys", "tech", "food", "passengers"][Math.floor(Math.random() * 6)];
+        let cargoAmount = Math.floor((40 + Math.random() * 45) * systemEpoch.tradeMultiplier);
+        if (isEvac) {
+          shipLabel = `Evakuierungs-Arche ${(p.name || "Orb").substring(0, 4)}-EV${fIdx + 1}`;
+          cargoType = "passengers";
+          cargoAmount = 65;
+          if (fCommander) {
+            fCommander.thought = "NOT-EVAKUIERUNG! Magnetar-Gammablitz nähert sich – bringen Familien zum Sprungtor!";
+          }
+        } else if (isDjinnResearch) {
+          shipLabel = `Dschinn-Forschungsschiff ${(p.name || "Orb").substring(0, 4)}-Q${fIdx + 1}`;
+          cargoType = "tech";
+          cargoAmount = 70;
+          if (fCommander) {
+            fCommander.role = "cryptologist";
+            fCommander.roleName = "\uD83D\uDD2C Dschinn-Quantenforscher";
+            fCommander.thought = "Dschinn-Protokoll von Sagittarius A* empfangen! Unsere Quanten-Register glühen!";
+          }
+        } else if (fCommander) {
+          fCommander.thought = systemEpoch.stateId === "prosperity" ? "Handels-Blüte im Sektor! Frachträume bis unter die Decke mit Vorräten gefüllt." : "Überwacht die Frachtbehälter... 'Hoffentlich keine Sternenfresser oder Piraten.'";
+        }
+        const freighter = {
+          id: Date.now() + Math.random() + 500 + fIdx,
+          mesh: freighterGroup,
+          bodyMesh: freighterMesh,
+          type: isEvac ? "heavy_freighter" : "freighter",
+          name: shipLabel,
+          position: freighterGroup.position,
+          velocity: new Vector3(0, 0, 0),
+          homePlanet: p,
+          orbitRadius: routeRadius,
+          orbitAngle: routeAngle,
+          orbitSpeed: 0.14,
+          health: isEvac ? 65 : 45,
+          maxHealth: isEvac ? 65 : 45,
+          state: "trade_cruise",
+          originalColor: hullColor,
+          attackCooldown: 999,
+          alertTimer: 0,
+          cargo: {
+            type: cargoType,
+            amount: cargoAmount
+          },
+          factionId: fFactionId,
+          civilizationName: fCivName,
+          factionName: fFaction.shortName,
+          scanned: false,
+          crewMembers: freighterCrew,
+          commanderName: fCommander ? `${fCommander.name} (${fCommander.roleName || fCommander.role})` : "Frachtkapitän",
+          commanderRole: fCommander ? fCommander.role : "engineer",
+          commanderThought: fCommander?.thought
+        };
+        assignNextTradeDestination(freighter);
+        STATE.fleetShips.push(freighter);
       }
-      const freighter = {
-        id: Date.now() + Math.random() + 500,
-        mesh: freighterGroup,
-        bodyMesh: freighterMesh,
-        type: "freighter",
-        name: `Handels-Frachter ${(p.name || "Orb").substring(0, 4)}-${Math.floor(Math.random() * 89 + 10)}`,
-        position: freighterGroup.position,
-        velocity: new Vector3(0, 0, 0),
-        homePlanet: p,
-        orbitRadius: routeRadius,
-        orbitAngle: routeAngle,
-        orbitSpeed: 0.14,
-        health: 45,
-        maxHealth: 45,
-        state: "trade_cruise",
-        originalColor: 14251782,
-        attackCooldown: 999,
-        alertTimer: 0,
-        cargo: {
-          type: ["silicon", "water", "alloys", "tech", "food", "passengers"][Math.floor(Math.random() * 6)],
-          amount: Math.floor(40 + Math.random() * 45)
-        },
-        factionId: fFactionId,
-        civilizationName: fCivName,
-        factionName: fFaction.shortName,
-        scanned: false,
-        crewMembers: freighterCrew,
-        commanderName: fCommander ? `${fCommander.name} (${fCommander.roleName || fCommander.role})` : "Frachtkapitän",
-        commanderRole: fCommander ? fCommander.role : "engineer",
-        commanderThought: fCommander?.thought
-      };
-      assignNextTradeDestination(freighter);
-      STATE.fleetShips.push(freighter);
     }
   });
   if (STATE.fleetShips.length > 0) {
-    addLogEntry("SYSTEM", `Sensoren geortet: ${STATE.fleetShips.length} planetare Schiffe (Jäger & Handels-Konvois) im Sektor aktiv.`);
+    addLogEntry("SYSTEM", `Sensoren geortet: ${STATE.fleetShips.length} planetare Schiffe im Sektor aktiv | Sektor-Epoche: ${systemEpoch.icon} ${systemEpoch.label}.`);
   }
 }
 function assignNextTradeDestination(ship) {
@@ -39581,6 +40398,7 @@ function salvageNearestWreck() {
         addLogEntry("SYSTEM", `Schiff von ${ship.name} assimiliert: +${silBonus} Silizium & +${bioBonus} Bio-Energie gewonnen!`);
       }
       playSiliconCollectSound();
+      collapseSystemQuantumBranch(STATE.currentSystemId, "combat", ship.homePlanet?.name);
       const idx = STATE.fleetShips.findIndex((s) => s.id === ship.id);
       if (idx !== -1) {
         STATE.fleetShips.splice(idx, 1);
@@ -41696,6 +42514,8 @@ function spawnPlanetsAndAsteroids() {
     STATE.gravitySources.push(sourceObj);
     STATE.asteroids.push(sourceObj);
   });
+  syncActivePlanetsIsingEpochs();
+  updateHudChronicleBadge();
   spawnSystemSpaceStations(activePlanets);
   initPlanetDefenseFleets();
   if (STATE.currentSystemId === 1 || STATE.currentSystemId === 0) {
@@ -41930,7 +42750,13 @@ function serializeCurrentState(slotId, customName) {
       step: STATE.ftueStep || 0,
       completed: Boolean(STATE.ftueCompleted)
     },
-    reputation: STATE.reputation ? { ...STATE.reputation } : {}
+    reputation: STATE.reputation ? { ...STATE.reputation } : {},
+    quantumChronicle: {
+      galacticCycle: STATE.galacticCycle || 1,
+      galacticYear: STATE.galacticYear || 2242,
+      relativisticMonthsElapsed: STATE.relativisticMonthsElapsed || 0,
+      intervenedSystems: STATE.intervenedSystems ? { ...STATE.intervenedSystems } : {}
+    }
   };
 }
 async function saveToSlot(slotId, customName) {
@@ -42026,6 +42852,12 @@ async function applyLoadedState(data) {
   if (data.reputation) {
     STATE.reputation = { ...data.reputation };
   }
+  if (data.quantumChronicle) {
+    STATE.galacticCycle = data.quantumChronicle.galacticCycle || 1;
+    STATE.galacticYear = data.quantumChronicle.galacticYear || 2242;
+    STATE.relativisticMonthsElapsed = data.quantumChronicle.relativisticMonthsElapsed || 0;
+    STATE.intervenedSystems = data.quantumChronicle.intervenedSystems ? { ...data.quantumChronicle.intervenedSystems } : {};
+  }
   const targetSysId = data.navigation ? data.navigation.currentSystemId : 1;
   STATE.visitedSystemIds = data.navigation && data.navigation.visitedSystemIds ? data.navigation.visitedSystemIds : [targetSysId];
   STATE.systemsVisited = data.navigation ? data.navigation.systemsVisited : 1;
@@ -42044,8 +42876,11 @@ async function applyLoadedState(data) {
     STATE.currentSystemId = targetSysId;
     clearActiveSystem();
     spawnPlanetsAndAsteroids();
+  } else {
+    syncActivePlanetsIsingEpochs();
   }
   reapplyAllMutations();
+  updateHudChronicleBadge();
   updatePartyGrid();
   renderCrewUI(true);
   updateHUDStats();
@@ -43229,6 +44064,7 @@ function calculateJumpPrecision(fromSys, targetSys) {
   const inSafeRange = dist <= safeRange;
   const canReach = dist <= maxRange;
   const costMult = STATE.mutations.folddrive && STATE.mutations.folddrive.purchased ? 0.7 : 1;
+  const relShift = calculateRelativisticTimeShift(dist, fromSys.star?.type, targetSys.star?.type);
   if (inSafeRange) {
     const mentalCost2 = Math.round((18 + dist * 0.18) * costMult);
     return {
@@ -43244,7 +44080,8 @@ function calculateJumpPrecision(fromSys, targetSys) {
       stability: "stable",
       telepathyBonus: 0,
       mentalClarityBonus: 0,
-      mutationBonus: 0
+      mutationBonus: 0,
+      relativisticMonthsDelta: relShift.monthsDelta
     };
   }
   const overreachLY = dist - safeRange;
@@ -43262,7 +44099,8 @@ function calculateJumpPrecision(fromSys, targetSys) {
       stability: "unreachable",
       telepathyBonus: 0,
       mentalClarityBonus: 0,
-      mutationBonus: 0
+      mutationBonus: 0,
+      relativisticMonthsDelta: relShift.monthsDelta
     };
   }
   const k = Math.min(1, Math.max(0, overreachLY / Math.max(1, maxRange - safeRange)));
@@ -43315,7 +44153,8 @@ function calculateJumpPrecision(fromSys, targetSys) {
     stability,
     telepathyBonus,
     mentalClarityBonus,
-    mutationBonus
+    mutationBonus,
+    relativisticMonthsDelta: relShift.monthsDelta
   };
 }
 function createDeepVoidSystem(originSys, targetSys, universe) {
@@ -43521,11 +44360,13 @@ function toggleGalaxyMap() {
     return;
   mapOpen = !mapOpen;
   if (mapOpen) {
+    STATE.previewGalacticCycle = null;
     overlay.style.display = "flex";
     renderGalaxyMap();
     startGalaxyMapLoop();
     setupMapKeyboardShortcuts();
   } else {
+    STATE.previewGalacticCycle = null;
     overlay.style.display = "none";
     stopGalaxyMapLoop();
   }
@@ -43642,6 +44483,33 @@ function renderGalaxyMap() {
     ctx.arc(centerX, centerY, outerR, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
+    const activeOrPreviewCycle = STATE.previewGalacticCycle || STATE.galacticCycle || 1;
+    const cycleTelem = getCycleTelemetry(activeOrPreviewCycle);
+    if (cycleTelem) {
+      const waveRadius = Math.max(40, cycleTelem.gammaWaveFrontRadius) * currentScale;
+      const brakePct = Math.min(100, Math.round(cycleTelem.transverseFieldH / 1.4 * 100));
+      const waveGrad = ctx.createRadialGradient(centerX, centerY, Math.max(0, waveRadius - 28), centerX, centerY, waveRadius + 6);
+      waveGrad.addColorStop(0, "rgba(244, 63, 94, 0)");
+      waveGrad.addColorStop(0.8, "rgba(244, 63, 94, 0.14)");
+      waveGrad.addColorStop(1, "rgba(244, 63, 94, 0)");
+      ctx.fillStyle = waveGrad;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, waveRadius + 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = STATE.previewGalacticCycle ? "rgba(250, 204, 21, 0.55)" : "rgba(244, 63, 94, 0.5)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([10, 6]);
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, waveRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if (mapZoom > 0.65) {
+        ctx.font = "bold 8.5px Orbitron, sans-serif";
+        ctx.textAlign = "right";
+        ctx.fillStyle = STATE.previewGalacticCycle ? "rgba(250, 204, 21, 0.85)" : "rgba(244, 63, 94, 0.8)";
+        ctx.fillText(`☢️ MU'AMMIRUN BREMS-WELLENFRONT (Zyklus ${cycleTelem.cycle}/36 • ${brakePct}%)`, centerX - 10, centerY - waveRadius + 14);
+      }
+    }
     if (mapZoom > 0.7) {
       ctx.font = "bold 9px Orbitron, sans-serif";
       ctx.textAlign = "left";
@@ -43693,12 +44561,12 @@ function renderGalaxyMap() {
       let strokeColor = "rgba(56, 189, 248, 0.65)";
       let pulseColor = "#38bdf8";
       let badgeTextColor = "#38bdf8";
-      let badgeText = `${telemetry.dist} LJ • 100% Stabil • -${telemetry.mentalCost} Psi`;
+      let badgeText = `${telemetry.dist} LJ • +${telemetry.relativisticMonthsDelta} Mon. • -${telemetry.mentalCost} Psi`;
       if (!telemetry.inSafeRange && telemetry.canReach) {
         strokeColor = telemetry.stability === "moderate" ? "rgba(245, 158, 11, 0.75)" : "rgba(239, 68, 68, 0.8)";
         pulseColor = telemetry.stability === "moderate" ? "#f59e0b" : "#ef4444";
         badgeTextColor = telemetry.stability === "moderate" ? "#fbbf24" : "#f87171";
-        badgeText = `${telemetry.dist} LJ • ${telemetry.precision}% Präzision • -${telemetry.mentalCost} Psi`;
+        badgeText = `${telemetry.dist} LJ • ${telemetry.precision}% Präz. • +${telemetry.relativisticMonthsDelta} Mon.`;
       } else if (!telemetry.canReach) {
         strokeColor = "rgba(239, 68, 68, 0.45)";
         pulseColor = "#ef4444";
@@ -43777,10 +44645,10 @@ function renderGalaxyMap() {
       const isHovered = hoverSystem && hoverSystem.id === sys.id;
       const isVisited = visitedIds.includes(sys.id);
       const hasSentient = sys.planets.some((p) => p.type === "Habitable" || p.species && p.species.hasSentient);
-      const showLifeBeacon = hasSentient && inPsionicRange;
+      const showLifeBeacon = hasSentient && (inPsionicRange || STATE.previewGalacticCycle !== null);
       if (filterLifeOnly && !showLifeBeacon && !isActive && !isSelected) {
         ctx.globalAlpha = 0.05;
-      } else if (!inWarpRange && !isActive && !isSelected && !sys.isCoreAnchor) {
+      } else if (!inWarpRange && !isActive && !isSelected && !sys.isCoreAnchor && STATE.previewGalacticCycle === null) {
         ctx.globalAlpha = isVisited ? 0.6 : 0.35;
       } else {
         ctx.globalAlpha = 1;
@@ -43796,14 +44664,22 @@ function renderGalaxyMap() {
         baseSize += 2.5;
       }
       if (showLifeBeacon) {
+        const sysEpoch = getSystemIsingEpoch(sys.id, activeOrPreviewCycle);
         const glowR = (baseSize + 12) * Math.min(1.4, Math.max(0.8, mapZoom));
         const glowGrad = ctx.createRadialGradient(screenX, screenY, baseSize, screenX, screenY, glowR);
-        glowGrad.addColorStop(0, "rgba(217, 70, 239, 0.4)");
+        glowGrad.addColorStop(0, sysEpoch.color + "66");
         glowGrad.addColorStop(1, "rgba(217, 70, 239, 0)");
         ctx.fillStyle = glowGrad;
         ctx.beginPath();
         ctx.arc(screenX, screenY, glowR, 0, Math.PI * 2);
         ctx.fill();
+        if (STATE.intervenedSystems && STATE.intervenedSystems[sys.id]) {
+          ctx.strokeStyle = "#38bdf8";
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.arc(screenX, screenY, baseSize + 3.5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
       }
       let starColor = "#f59e0b";
       if (sys.star.type === "Blue Giant")
@@ -43870,6 +44746,7 @@ function renderGalaxyMap() {
       const tooltipX = mouseX + 15;
       const tooltipY = mouseY - 15;
       const hasSentient = hoverSystem.planets.some((p) => p.type === "Habitable" || p.species && p.species.hasSentient);
+      const hEpoch = getSystemIsingEpoch(hoverSystem.id, activeOrPreviewCycle);
       let anomalyIcon = "";
       if (hoverSystem.anomalyType === "flare_star")
         anomalyIcon = " ⚡";
@@ -43881,7 +44758,7 @@ function renderGalaxyMap() {
         anomalyIcon = " \uD83D\uDCAB";
       else if (hoverSystem.isCoreAnchor)
         anomalyIcon = " \uD83D\uDD73️";
-      const text = `${hoverSystem.name} (${hoverSystem.star.type})${anomalyIcon}${hasSentient ? " \uD83E\uDDE0" : ""}`;
+      const text = `${hoverSystem.name} (${hoverSystem.star.type})${anomalyIcon}${hasSentient ? ` ${hEpoch.icon} ${hEpoch.label}` : ""}`;
       ctx.font = "9.5px Orbitron, sans-serif";
       const textWidth = ctx.measureText(text).width;
       ctx.beginPath();
@@ -44101,6 +44978,77 @@ function setupSearchAndNavigationControls() {
       }
     });
   }
+  const slider = document.getElementById("ising-cycle-slider");
+  const resetBtn = document.getElementById("ising-reset-live-btn");
+  if (slider) {
+    const currentActiveCycle = STATE.previewGalacticCycle || STATE.galacticCycle || 1;
+    slider.value = String(currentActiveCycle);
+    if (!slider.dataset.listenerAttached) {
+      slider.dataset.listenerAttached = "true";
+      slider.addEventListener("input", () => {
+        const val = parseInt(slider.value || "1", 10);
+        if (val === (STATE.galacticCycle || 1)) {
+          STATE.previewGalacticCycle = null;
+        } else {
+          STATE.previewGalacticCycle = val;
+        }
+        updateChronicleBarUI();
+        updateSystemDetails(selectedSystem);
+        populateQuickBeaconsList();
+      });
+    }
+  }
+  if (resetBtn && !resetBtn.dataset.listenerAttached) {
+    resetBtn.dataset.listenerAttached = "true";
+    resetBtn.addEventListener("click", () => {
+      STATE.previewGalacticCycle = null;
+      if (slider)
+        slider.value = String(STATE.galacticCycle || 1);
+      updateChronicleBarUI();
+      updateSystemDetails(selectedSystem);
+      populateQuickBeaconsList();
+    });
+  }
+  updateChronicleBarUI();
+}
+function updateChronicleBarUI() {
+  const titleEl = document.getElementById("ising-chronicle-title");
+  const subEl = document.getElementById("ising-chronicle-sub");
+  const sliderValEl = document.getElementById("ising-slider-val");
+  const resetBtn = document.getElementById("ising-reset-live-btn");
+  const liveCycle = STATE.galacticCycle || 1;
+  const displayCycle = STATE.previewGalacticCycle || liveCycle;
+  const isPreview = STATE.previewGalacticCycle !== null && STATE.previewGalacticCycle !== liveCycle;
+  const telem = getCycleTelemetry(displayCycle);
+  const dataset = getIsingDataset();
+  const year = telem ? telem.year : 2242 + (displayCycle - 1) * 0.5;
+  const brakePct = telem ? Math.min(100, telem.transverseFieldH / 1.4 * 100).toFixed(1) : "8.5";
+  const jobIdStr = dataset?.meta?.jobId ? dataset.meta.jobId.slice(0, 8) : "qpu";
+  const backendName = dataset?.meta ? `${dataset.meta.backendName} (Job ${jobIdStr}…)` : "ibm_kingston (120 Qubits)";
+  if (titleEl) {
+    if (isPreview) {
+      titleEl.innerHTML = `\uD83D\uDD2E JAMALS ZUKUNFTS-PROJEKTION: ZYKLUS ${displayCycle}/36 &bull; JAHR ${year.toFixed(1)} <span style="color:#facc15; font-size:0.65rem;">(VORSCHAU — LIVE: ZYKLUS ${liveCycle})</span>`;
+      titleEl.style.color = "#facc15";
+    } else {
+      titleEl.innerHTML = `⏱️ KOSMISCHE CHRONIK (LIVE): ZYKLUS ${liveCycle}/36 &bull; JAHR ${(STATE.galacticYear || year).toFixed(1)}`;
+      titleEl.style.color = "#38bdf8";
+    }
+  }
+  if (subEl) {
+    if (telem && telem.stateDistribution) {
+      const sc = telem.stateDistribution;
+      subEl.innerText = `QPU: ${backendName} • Vollbremsung: ${brakePct}% • ✨${sc.prosperity || 0} \uD83D\uDCE1${sc.djinn_resonance || 0} \uD83E\uDD40${sc.famine_crisis || 0} ☢️${sc.gamma_surge || 0} ⚔️${sc.civil_conflict || 0} \uD83D\uDEE1️${sc.isolation_bunker || 0}`;
+    } else {
+      subEl.innerText = `QPU: ${backendName} • Vollbremsung: ${brakePct}% • ${(STATE.relativisticMonthsElapsed || 0).toFixed(1)} Monate relativistische Reisezeit`;
+    }
+  }
+  if (sliderValEl) {
+    sliderValEl.innerText = `Zyklus ${displayCycle} (${year.toFixed(1)})`;
+    sliderValEl.style.color = isPreview ? "#facc15" : "#38bdf8";
+  }
+  if (resetBtn) {
+    resetBtn.style.display = isPreview ? "inline-block" : "none";
+  }
 }
 function setupMapKeyboardShortcuts() {
   window.addEventListener("keydown", (e) => {
@@ -44139,6 +45087,7 @@ function populateQuickBeaconsList() {
   if (!listEl || !STATE.universe)
     return;
   const currentSys = STATE.universe.systems.find((s) => s.id === STATE.currentSystemId) || STATE.universe.systems[0];
+  const displayCycle = STATE.previewGalacticCycle || STATE.galacticCycle || 1;
   const livingSystems = STATE.universe.systems.map((s) => {
     const dx = s.x - currentSys.x;
     const dz = s.z - currentSys.z;
@@ -44162,13 +45111,17 @@ function populateQuickBeaconsList() {
     }
     const isSel = selectedSystem && selectedSystem.id === sys.id;
     const inWarp = entry.dist <= STATE.warpRange;
+    const epoch = getSystemIsingEpoch(sys.id, displayCycle);
     html += `
             <li class="beacon-quick-item ${isSel ? "active-item" : ""}" data-sys-id="${sys.id}">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span class="beacon-sys-name">✨ ${sys.name}</span>
                     <span style="font-size: 0.65rem; color: ${inWarp ? "#38bdf8" : "#f87171"};">${entry.dist.toFixed(0)} LJ</span>
                 </div>
-                <span class="beacon-species-tag">${specName}</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+                    <span class="beacon-species-tag">${specName}</span>
+                    <span style="font-size: 0.63rem; color: ${epoch.color}; font-weight: 600;">${epoch.icon} ${epoch.shortLabel}</span>
+                </div>
             </li>
         `;
   });
@@ -44211,6 +45164,8 @@ function updateSystemDetails(sys) {
   const sectorEl = document.getElementById("val-sector-name");
   const anomalyRow = document.getElementById("row-anomaly");
   const anomalyEl = document.getElementById("val-anomaly-type");
+  const isingRow = document.getElementById("row-ising-epoch");
+  const isingEl = document.getElementById("val-ising-epoch");
   const coordXEl = document.getElementById("val-coord-x");
   const coordZEl = document.getElementById("val-coord-z");
   const starTypeEl = document.getElementById("val-star-type");
@@ -44245,6 +45200,14 @@ function updateSystemDetails(sys) {
     } else {
       anomalyRow.style.display = "none";
     }
+  }
+  const displayCycle = STATE.previewGalacticCycle || STATE.galacticCycle || 1;
+  const sysEpoch = getSystemIsingEpoch(sys.id, displayCycle);
+  if (isingRow && isingEl) {
+    isingRow.style.display = "flex";
+    isingEl.style.color = sysEpoch.color;
+    isingEl.innerHTML = `${sysEpoch.icon} ${sysEpoch.shortLabel} <span style="color:#94a3b8; font-weight:normal; font-size:0.65rem;">(Q#${sysEpoch.qubitIndex} • ⟨Z⟩=${sysEpoch.spinMagnetization >= 0 ? "+" : ""}${sysEpoch.spinMagnetization.toFixed(2)} • |${sysEpoch.quantumBranch}⟩)</span>`;
+    isingEl.title = sysEpoch.description;
   }
   if (coordXEl)
     coordXEl.innerText = String(sys.x);
@@ -44297,6 +45260,15 @@ function updateSystemDetails(sys) {
   const distEl = document.getElementById("val-jump-dist");
   if (distEl) {
     distEl.innerText = `${telemetry.dist} LJ` + (telemetry.overreachLY > 0 ? ` (+${telemetry.overreachLY} LJ Überdehnung)` : "");
+  }
+  const timeEl = document.getElementById("val-jump-time");
+  if (timeEl) {
+    if (sys.id === STATE.currentSystemId) {
+      timeEl.innerText = "0.0 Monate (Aktueller Orbit)";
+    } else {
+      const cycShift = (telemetry.relativisticMonthsDelta / 6).toFixed(1);
+      timeEl.innerHTML = `<span style="color:#38bdf8; font-weight:bold;">+${telemetry.relativisticMonthsDelta.toFixed(1)} Monate</span> <span style="color:#94a3b8; font-size:0.65rem;">(+${cycShift} Ising-Zyklen)</span>`;
+    }
   }
   const precEl = document.getElementById("val-jump-precision");
   if (precEl) {
@@ -44384,194 +45356,6 @@ function warpToSystem(systemId) {
     addLogEntry("SYSTEM", `⚡ ÜBERDEHNTE PSIONISCHE FALTUNG: Kurs auf ${targetSys.name} (${telemetry.dist} LJ). Präzision: ${telemetry.precision}%. -${telemetry.mentalCost} Mentalkraft.`);
   }
   initiateSystemDeparture(currentSys, targetSys, resolution);
-}
-
-// src/systems/harvesting.ts
-var harvestOsc = null;
-var harvestHarmonicOsc = null;
-var harvestGain = null;
-var harvestFilter = null;
-function triggerHarvestStart() {
-  const target = STATE.orbitLevel === "moon" && STATE.activeMoonOrbit ? STATE.activeMoonOrbit : STATE.lockedTarget || STATE.nearestPlanet;
-  if (!STATE.gameStarted || STATE.extractingPlanet || STATE.scanningPlanet || STATE.abductActive || !target || !target.mesh)
-    return;
-  const isScanned = target.scanned || STATE.scannedPlanets && STATE.scannedPlanets[target.name];
-  if (!isScanned) {
-    addLogEntry("WARNUNG", `Scan erforderlich [F]! Vor der Bio-Extraktion muss ${target.name} spektralanalysiert werden.`);
-    return;
-  }
-  const isDepleted = target.depleted || target.harvested || STATE.depletedPlanets && STATE.depletedPlanets[target.name];
-  if (isDepleted) {
-    addLogEntry("SYSTEM", `${target.isMoon ? "Mond" : "Planet"} ${target.name}: Planetare Ressourcen erschöpft. Keine extrahierbare Biomasse.`);
-    return;
-  }
-  const siphonEnergyCost = 10;
-  if (STATE.bioEnergy < siphonEnergyCost) {
-    addLogEntry("WARNUNG", `Unzureichende Bio-Energie (${Math.round(STATE.bioEnergy)}/${siphonEnergyCost}) für Siphon-Kanalisierung.`);
-    return;
-  }
-  const meshScale = target.mesh ? target.mesh.scale.x : 1;
-  const maxHarvestDist = Math.max(25, (target.size || 2.5) * meshScale * 3.8);
-  const dx = STATE.playerPosition.x - target.mesh.position.x;
-  const dz = STATE.playerPosition.z - target.mesh.position.z;
-  const dist = Math.sqrt(dx * dx + dz * dz);
-  if (dist >= maxHarvestDist) {
-    addLogEntry("SYSTEM", `Außerhalb der Siphon-Reichweite (${Math.round(dist)} / ${Math.round(maxHarvestDist)} LJ).`);
-    return;
-  }
-  STATE.bioEnergy = Math.max(0, STATE.bioEnergy - siphonEnergyCost);
-  STATE.extractingPlanet = target;
-  STATE.harvestProgress = 0;
-  const progContainer = document.getElementById("harvest-progress-container");
-  if (progContainer)
-    progContainer.style.display = "block";
-  createHarvestBeam(STATE.playerPosition, target.mesh.position);
-  startHarvestSound();
-  addLogEntry("SYSTEM", `Bio-Siphon aktiviert. Extrahiere planetare Ressourcen von ${target.name}... (-10 Bio-Energie)`);
-}
-function updateHarvesting(dt) {
-  if (!STATE.extractingPlanet)
-    return;
-  const meshScale = STATE.extractingPlanet.mesh ? STATE.extractingPlanet.mesh.scale.x : 1;
-  const maxHoldDist = Math.max(32, (STATE.extractingPlanet.size || 2.5) * meshScale * 4.4);
-  const dx = STATE.playerPosition.x - STATE.extractingPlanet.mesh.position.x;
-  const dz = STATE.playerPosition.z - STATE.extractingPlanet.mesh.position.z;
-  const dist = Math.sqrt(dx * dx + dz * dz);
-  if (dist > maxHoldDist) {
-    cancelHarvesting("Ziel außer Orbit-Reichweite.");
-    return;
-  }
-  updateHarvestBeam(STATE.playerPosition, STATE.extractingPlanet.mesh.position);
-  STATE.harvestProgress += dt * 30;
-  updateHarvestSound(STATE.harvestProgress);
-  const bar = document.getElementById("harvest-progress-bar");
-  const text = document.getElementById("harvest-progress-text");
-  if (bar)
-    bar.style.width = `${STATE.harvestProgress}%`;
-  if (text)
-    text.innerText = `${Math.round(STATE.harvestProgress)}%`;
-  if (STATE.harvestProgress >= 100) {
-    completeHarvesting();
-  }
-}
-function cancelHarvesting(reason) {
-  stopHarvestSound();
-  removeHarvestBeam();
-  addLogEntry("SYSTEM", `Assimilation abgebrochen: ${reason}`);
-  STATE.extractingPlanet = null;
-  STATE.harvestProgress = 0;
-  const progContainer = document.getElementById("harvest-progress-container");
-  if (progContainer)
-    progContainer.style.display = "none";
-}
-function completeHarvesting() {
-  stopHarvestSound();
-  removeHarvestBeam();
-  playBioHarvestSound();
-  setTimeout(() => {
-    playBioCollectSound();
-  }, 140);
-  const progContainer = document.getElementById("harvest-progress-container");
-  if (progContainer)
-    progContainer.style.display = "none";
-  const planet = STATE.extractingPlanet;
-  if (planet) {
-    planet.depleted = true;
-    planet.harvested = true;
-    if (!STATE.depletedPlanets)
-      STATE.depletedPlanets = {};
-    STATE.depletedPlanets[planet.name] = true;
-    const bioMult = STATE.crewBuffs ? STATE.crewBuffs.bioGain : 1;
-    const bioGain = Math.round((planet.type === "Habitable" ? 65 : planet.type === "Gas Giant" ? 35 : 25) * bioMult);
-    const silGain = Math.round((planet.type === "Rocky" || planet.isMoon ? 50 : 20) * bioMult);
-    STATE.bioRes += bioGain;
-    STATE.siliconRes += silGain;
-    STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 25);
-    STATE.health = Math.min(STATE.maxHealth, STATE.health + 15);
-    if (planet.attributes && planet.attributes.entangledTwinId) {
-      const resonance = planet.attributes.quantumResonance || 0.85;
-      const bonusBio = Math.round(bioGain * resonance * 0.4);
-      STATE.bioRes += bonusBio;
-      STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 20);
-      addLogEntry("SYSTEM", `QUANTEN-RESONANZ: Verschränkungsbrücke zu ${planet.attributes.entangledTwinId} aktiv! +${bonusBio} Resonanz-Biomasse | +20 Psionik.`);
-    }
-    if (planet.attributes && planet.attributes.magnetosphere === "Hyper-Magnetic") {
-      STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 25);
-      addLogEntry("SENSOR", `MAGNETOSPHÄREN-INDUKTION: Hyper-Magnetfeld von ${planet.name} induziert Bio-Ladung (+25 Bio-Energie).`);
-    }
-    if (planet.name && planet.name.includes("Arrakis")) {
-      const spiceBioBonus = 80;
-      const spicePsiBonus = 50;
-      STATE.bioRes += spiceBioBonus;
-      STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + spicePsiBonus);
-      addLogEntry("SYSTEM", `✨ MELANGE-EXTRAKTION: Das heilige Gewürz von Arrakis durchströmt Najmafars Zellkerne! (+${spiceBioBonus} Melange-Biomasse | +${spicePsiBonus} Psionik).`);
-    }
-    if (planet.type === "Plasma-Wirbel") {
-      const psiGain = 35;
-      STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + psiGain);
-      addLogEntry("SYSTEM", `\uD83C\uDF00 SUBRAUM-SIPHON: Raumzeit-Fluktuation aus ${planet.name} absorbiert! +${psiGain} Mentalkraft (Raumzeit-Faltung wieder möglich).`);
-    }
-    addLogEntry("SYSTEM", `Assimilation von ${planet.name} abgeschlossen! +${bioGain} Biomasse | +${silGain} Silizium absorbiert. Vorkommen erschöpft.`);
-    updateMutationUI();
-  }
-  STATE.extractingPlanet = null;
-  STATE.harvestProgress = 0;
-}
-function startHarvestSound() {
-  const ctx = getAudioContext();
-  if (!ctx)
-    return;
-  harvestOsc = ctx.createOscillator();
-  harvestHarmonicOsc = ctx.createOscillator();
-  harvestGain = ctx.createGain();
-  harvestFilter = ctx.createBiquadFilter();
-  harvestOsc.type = "triangle";
-  harvestOsc.frequency.setValueAtTime(160, ctx.currentTime);
-  harvestHarmonicOsc.type = "sine";
-  harvestHarmonicOsc.frequency.setValueAtTime(240, ctx.currentTime);
-  harvestFilter.type = "lowpass";
-  harvestFilter.frequency.setValueAtTime(650, ctx.currentTime);
-  harvestFilter.Q.setValueAtTime(1.5, ctx.currentTime);
-  harvestGain.gain.setValueAtTime(0, ctx.currentTime);
-  harvestGain.gain.linearRampToValueAtTime(0.09, ctx.currentTime + 0.25);
-  harvestOsc.connect(harvestFilter);
-  harvestHarmonicOsc.connect(harvestFilter);
-  harvestFilter.connect(harvestGain);
-  harvestGain.connect(ctx.destination);
-  harvestOsc.start();
-  harvestHarmonicOsc.start();
-}
-function updateHarvestSound(progressPct) {
-  if (harvestOsc && harvestHarmonicOsc) {
-    const ctx = getAudioContext();
-    if (!ctx)
-      return;
-    const baseFreq = 160 + progressPct / 100 * 70;
-    harvestOsc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
-    harvestHarmonicOsc.frequency.setValueAtTime(baseFreq * 1.5, ctx.currentTime);
-  }
-}
-function stopHarvestSound() {
-  if (harvestOsc) {
-    const ctx = getAudioContext();
-    const time = ctx ? ctx.currentTime : 0;
-    if (harvestGain && time) {
-      harvestGain.gain.cancelScheduledValues(time);
-      harvestGain.gain.setValueAtTime(harvestGain.gain.value, time);
-      harvestGain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
-      harvestOsc.stop(time + 0.18);
-      if (harvestHarmonicOsc)
-        harvestHarmonicOsc.stop(time + 0.18);
-    } else {
-      harvestOsc.stop();
-      if (harvestHarmonicOsc)
-        harvestHarmonicOsc.stop();
-    }
-    harvestOsc = null;
-    harvestHarmonicOsc = null;
-    harvestGain = null;
-    harvestFilter = null;
-  }
 }
 
 // src/ui/options.ts
@@ -46233,24 +47017,6 @@ function updatePhysics(dt) {
       s.mesh.rotation.z += s.rotSpeed.z * dt;
     }
   });
-  const focusTarget = STATE.lockedTarget || (STATE.orbitLevel === "moon" && STATE.activeMoonOrbit ? STATE.activeMoonOrbit : STATE.isInPlanetOrbit && STATE.orbitPlanet ? STATE.orbitPlanet : null);
-  if (focusTarget && focusTarget.mesh) {
-    if (!targetReticleGroup)
-      createTargetReticle();
-    if (targetReticleGroup) {
-      targetReticleGroup.visible = true;
-      targetReticleGroup.position.set(focusTarget.mesh.position.x, 0.25, focusTarget.mesh.position.z);
-      const curVisualScale = focusTarget.mesh.scale.x || 1;
-      const baseSize = focusTarget.size || 2.5;
-      const scale = baseSize * curVisualScale * 1.28;
-      const pulse = 1 + Math.sin(Date.now() * 0.005) * 0.03;
-      targetReticleGroup.scale.set(scale * pulse, scale * pulse, scale * pulse);
-      updateTargetReticleState(focusTarget, dt);
-    }
-  } else {
-    if (targetReticleGroup)
-      targetReticleGroup.visible = false;
-  }
   let targetPlanet = null;
   let targetDist = Infinity;
   if (STATE.lockedTarget && (STATE.lockedTarget.mesh || STATE.lockedTarget.position)) {
@@ -46313,7 +47079,24 @@ function updatePhysics(dt) {
   if (targetPlanet && !targetPlanet.isStation && !targetPlanet.isShip && !targetPlanet.stationType && !targetPlanet.shipType) {
     STATE.nearestPlanet = targetPlanet;
   }
-  updateScannerUI(targetPlanet, targetDist);
+  const focusTarget = STATE.lockedTarget || (STATE.orbitLevel === "moon" && STATE.activeMoonOrbit ? STATE.activeMoonOrbit : null) || (STATE.isInPlanetOrbit && STATE.orbitPlanet ? STATE.orbitPlanet : null) || (targetPlanet && targetDist <= 26 && (targetPlanet.scanned || STATE.scannedPlanets?.[targetPlanet.name]) ? targetPlanet : null);
+  if (focusTarget && focusTarget.mesh) {
+    if (!targetReticleGroup)
+      createTargetReticle();
+    if (targetReticleGroup) {
+      targetReticleGroup.visible = true;
+      targetReticleGroup.position.set(focusTarget.mesh.position.x, 0.25, focusTarget.mesh.position.z);
+      const curVisualScale = focusTarget.mesh.scale.x || 1;
+      const baseSize = focusTarget.size || 2.5;
+      const scale = baseSize * curVisualScale * 1.28;
+      const pulse = 1 + Math.sin(Date.now() * 0.005) * 0.03;
+      targetReticleGroup.scale.set(scale * pulse, scale * pulse, scale * pulse);
+      updateTargetReticleState(focusTarget, dt);
+    }
+  } else {
+    if (targetReticleGroup)
+      targetReticleGroup.visible = false;
+  }
   let netGx = 0;
   let netGz = 0;
   const sources = STATE.gravitySources;
@@ -46383,6 +47166,8 @@ function updatePhysics(dt) {
         }, 60);
       }
       if (actualSys) {
+        const jumpDist = fromSys ? Math.hypot(actualSys.x - fromSys.x, actualSys.z - fromSys.z) : 45;
+        const relShift = calculateRelativisticTimeShift(jumpDist, fromSys?.star?.type, actualSys?.star?.type);
         STATE.currentSystemId = actualSys.id;
         STATE.systemsVisited++;
         if (!STATE.visitedSystemIds)
@@ -46390,6 +47175,7 @@ function updatePhysics(dt) {
         if (!STATE.visitedSystemIds.includes(actualSys.id)) {
           STATE.visitedSystemIds.push(actualSys.id);
         }
+        advanceGalacticTime(relShift.monthsDelta, relShift.loreReason);
         clearActiveSystem();
         spawnPlanetsAndAsteroids();
         initiateSystemArrival(fromSys, actualSys, resolution);
@@ -46489,6 +47275,7 @@ function updatePhysics(dt) {
   } else {
     STATE.cameraHeight = targetHeight;
   }
+  updateScannerUI(targetPlanet, targetDist);
   if (STATE.health <= 0 && !STATE.isGameOver && STATE.gameStarted) {
     triggerGameOver("Biologischer Zellkern kollabiert durch extreme Umwelteinflüsse & Hüllenschaden.");
     return;
@@ -46815,6 +47602,7 @@ function init() {
   initFirstContactModalListeners();
   renderCrewUI();
   updateMutationUI();
+  initQuantumIsingSystem();
   checkUniverseData();
   setupMenuListeners();
   requestAnimationFrame(animate);

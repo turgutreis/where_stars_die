@@ -166,6 +166,30 @@
                             AUS</button>
                     </div>
                 </div>
+
+                <!-- Jamals Holographic Quantum Ising Time Simulator (36 Cycles / 18 Years on ibm_kingston) -->
+                <div id="ising-chronicle-bar" style="margin-top: 8px; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.3); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 1.05rem;">⚛️</span>
+                        <div>
+                            <div id="ising-chronicle-title" style="font-family: 'Orbitron', sans-serif; font-size: 0.74rem; font-weight: 700; color: #38bdf8;">
+                                KOSMISCHE CHRONIK: ZYKLUS 1/36 &bull; JAHR 2242.0
+                            </div>
+                            <div id="ising-chronicle-sub" style="font-size: 0.68rem; color: #94a3b8;">
+                                IBM Heron r2 (ibm_kingston, 120 Qubits) &bull; Vollbremsungs-Faktor: 8.5% &bull; 0.0 Monate relativistische Reisezeit
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 8px; flex: 1; max-width: 460px; justify-content: flex-end;">
+                        <label for="ising-cycle-slider" style="font-size: 0.68rem; color: #cbd5e1; font-family: 'Orbitron', sans-serif; white-space: nowrap;">
+                            🔮 Jamals Projektion:
+                        </label>
+                        <input type="range" id="ising-cycle-slider" min="1" max="36" value="1" style="flex: 1; accent-color: #38bdf8; cursor: pointer;" title="Scrubbe durch alle 36 vom echten IBM QPU berechneten Zivilisations-Zyklen (2242.0 - 2259.5)" />
+                        <span id="ising-slider-val" style="font-family: 'Orbitron', sans-serif; font-size: 0.7rem; color: #facc15; min-width: 78px; text-align: right;">Zyklus 1</span>
+                        <button id="ising-reset-live-btn" class="quick-nav-btn" style="padding: 3px 8px; font-size: 0.65rem; display: none; border-color: rgba(250, 204, 21, 0.5); color: #facc15;">⏱️ Live</button>
+                    </div>
+                </div>
             </header>
 
             <div class="map-main">
@@ -182,6 +206,8 @@
                         <div class="detail-row" id="row-anomaly" style="display: none;"><span class="label">Kosmische
                                 Anomalie:</span> <span id="val-anomaly-type" class="val"
                                 style="color: #f59e0b; font-weight: bold;">-</span></div>
+                        <div class="detail-row" id="row-ising-epoch"><span class="label">Ising-Epoche (QPU):</span> <span
+                                id="val-ising-epoch" class="val" style="font-weight: bold;">-</span></div>
                         <div class="detail-row"><span class="label">Koordinaten:</span> <span class="val">[<span
                                     id="val-coord-x">0</span>, <span id="val-coord-z">0</span>]</span></div>
                         <div class="detail-row"><span class="label">Sternentyp:</span> <span id="val-star-type"
@@ -193,6 +219,7 @@
                         <div class="detail-row"><span class="label">Gedanken-Echo:</span> <span
                                 id="detail-psionic-resonance" class="val">-</span></div>
                         <div class="detail-row" id="row-jump-dist"><span class="label">Sprungdistanz:</span> <span id="val-jump-dist" class="val">-</span></div>
+                        <div class="detail-row" id="row-jump-time"><span class="label">Relativ. Zeitverschiebung:</span> <span id="val-jump-time" class="val" style="color: #38bdf8;">-</span></div>
                         <div class="detail-row" id="row-jump-precision"><span class="label">Faltungs-Präzision:</span> <span id="val-jump-precision" class="val">-</span></div>
                         <div class="detail-row" id="row-jump-hazard" style="display: none;"><span class="label">Instabilitäts-Risiko:</span> <span id="val-jump-hazard" class="val" style="color: #f87171;">-</span></div>
 
@@ -686,6 +713,11 @@
             <button id="hud-options-btn" class="mini-music-btn" title="Audio- & Spieloptionen [O]">⚙️</button>
         </div>
 
+        <!-- 2b. Top-Right Quantum Ising Chronicle Sub-Pill -->
+        <div id="hud-chronicle-badge" class="hud-chronicle-pill glass-capsule" title="Kosmische Chronik & IBM QPU Zivilisations-Zyklus (Relativistische Zeitdilatation)">
+            ⏱️ Zyklus 1/36 • 2242.0
+        </div>
+
         <!-- FTUE Directives / Mission Log (Top-Right under system pill) -->
         <aside id="hud-directives" class="hud-directives glass-panel">
             <div class="directives-header">
@@ -716,6 +748,66 @@
             <div class="control-key-pill"><span class="key-badge">A / D</span> Ausrichten</div>
             <div class="control-key-pill"><span class="key-badge">S</span> Bremsen</div>
             <div class="control-key-pill"><span class="key-badge">F</span> Voyager-Scan / Resonanz</div>
+        </div>
+
+        <!-- Orbital Resource Extension (extends the existing 3D target reticle; only visible after scan & only for present resources) -->
+        <div id="planet-orbital-hud" class="planet-orbital-hud" style="display: none;">
+            <svg class="orbital-hud-svg" viewBox="0 0 320 320" aria-hidden="true">
+                <!-- Top-Left: Tech (Purple) -->
+                <g id="orbital-arc-group-tech">
+                    <path d="M 59.9 119.5 A 108 108 0 0 1 119.5 59.9" fill="none" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round" />
+                    <line x1="83.6" y1="83.6" x2="71.0" y2="71.0" stroke="#a855f7" stroke-width="2" />
+                </g>
+                <!-- Top-Right: H2O (Blue) -->
+                <g id="orbital-arc-group-water">
+                    <path d="M 200.5 59.9 A 108 108 0 0 1 260.1 119.5" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" />
+                    <line x1="236.4" y1="83.6" x2="249.0" y2="71.0" stroke="#38bdf8" stroke-width="2" />
+                </g>
+                <!-- Bottom-Left: Leg (Silver) -->
+                <g id="orbital-arc-group-leg">
+                    <path d="M 119.5 260.1 A 108 108 0 0 1 59.9 200.5" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" />
+                    <line x1="83.6" y1="236.4" x2="71.0" y2="249.0" stroke="#94a3b8" stroke-width="2" />
+                </g>
+                <!-- Bottom-Right: Food / Bio (Green) -->
+                <g id="orbital-arc-group-bio">
+                    <path d="M 260.1 200.5 A 108 108 0 0 1 200.5 260.1" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" />
+                    <line x1="236.4" y1="236.4" x2="249.0" y2="249.0" stroke="#22c55e" stroke-width="2" />
+                </g>
+            </svg>
+
+            <!-- Top (12 o'clock): Crew Mission & Red Downward Chevrons -->
+            <div id="orbital-crew-mission" class="orbital-crew-mission">
+                <div id="orbital-mission-pill" class="orbital-mission-pill">
+                    <span id="orbital-mission-title" class="orbital-mission-title">CREW MISSION</span>
+                    <span id="orbital-mission-sub" class="orbital-mission-sub"></span>
+                </div>
+                <div class="orbital-chevrons" aria-hidden="true">
+                    <span class="orbital-chevron c1">▽</span>
+                    <span class="orbital-chevron c2">▽</span>
+                    <span class="orbital-chevron c3">▽</span>
+                </div>
+            </div>
+
+            <div id="orbital-node-tech" class="orbital-quadrant-node node-tech">
+                <div class="orbital-node-title">Tech</div>
+                <div id="orbital-val-tech" class="orbital-node-val">-</div>
+                <div id="orbital-sub-tech" class="orbital-node-sub"></div>
+            </div>
+            <div id="orbital-node-water" class="orbital-quadrant-node node-water">
+                <div class="orbital-node-title">H₂O</div>
+                <div id="orbital-val-water" class="orbital-node-val">-</div>
+                <div id="orbital-sub-water" class="orbital-node-sub"></div>
+            </div>
+            <div id="orbital-node-leg" class="orbital-quadrant-node node-leg">
+                <div class="orbital-node-title">Leg</div>
+                <div id="orbital-val-leg" class="orbital-node-val">-</div>
+                <div id="orbital-sub-leg" class="orbital-node-sub"></div>
+            </div>
+            <div id="orbital-node-bio" class="orbital-quadrant-node node-bio">
+                <div class="orbital-node-title">Food / Bio</div>
+                <div id="orbital-val-bio" class="orbital-node-val">-</div>
+                <div id="orbital-sub-bio" class="orbital-node-sub"></div>
+            </div>
         </div>
 
         <!-- 3. Contextual Slide-In Sensor Hologram (Left side, only slides in on orbit / target / proximity) -->

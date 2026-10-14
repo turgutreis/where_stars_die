@@ -8,6 +8,7 @@ import { FleetShip, FleetProjectile, PlanetEntry, FactionId, SpaceStation } from
 import { getFaction } from './factions';
 import { generateProceduralCandidates } from './crew-generation';
 import { collapseQuantumCivilization } from '../procedural/quantum-civ';
+import { getSystemIsingEpoch, collapseSystemQuantumBranch } from './quantum-ising';
 
 let shockwaveMesh: THREE.Mesh | null = null;
 let shockwaveTimer = 0;
@@ -31,10 +32,17 @@ export function spawnSystemFleet(planetsInput?: any) {
 
     if (!planets || planets.length === 0) return;
 
+    const systemEpoch = getSystemIsingEpoch(STATE.currentSystemId);
+
     planets.forEach((p: PlanetEntry) => {
         if (p.isMoon) return;
         const species = (p.attributes && p.attributes.species) || p.species;
         if (!species || !species.population || species.population <= 0) return;
+
+        if (p.attributes) {
+            p.attributes.isingEpoch = systemEpoch;
+        }
+        p.isingEpoch = systemEpoch;
 
         // If techLevel is missing, deterministically derive it via Quantum Civ
         if (!species.techLevel) {
@@ -49,7 +57,11 @@ export function spawnSystemFleet(planetsInput?: any) {
         const tech = species.techLevel;
 
         if (tech === 'Spacefaring' || tech === 'Hyper-Advanced' || tech === 'Industrial') {
-            const shipCount = tech === 'Hyper-Advanced' ? 3 : (tech === 'Spacefaring' ? 2 : 1);
+            let baseShipCount = tech === 'Hyper-Advanced' ? 3 : (tech === 'Spacefaring' ? 2 : 1);
+            if (systemEpoch.stateId === 'isolation_bunker' || systemEpoch.stateId === 'civil_conflict') {
+                baseShipCount += 1;
+            }
+            const shipCount = Math.max(1, baseShipCount);
 
             for (let i = 0; i < shipCount; i++) {
                 const isCorvette = i === 0 && tech !== 'Industrial';
@@ -104,10 +116,23 @@ export function spawnSystemFleet(planetsInput?: any) {
                 const shipCrew = generateProceduralCandidates(shipSeed, crewCount);
                 const commander = shipCrew[0];
                 if (commander) {
-                    commander.thought = isCorvette
-                        ? "Waffen und Schilde auf Bereitschaft. Halte Sektor-Patrouille."
-                        : "Jäger-Avionik kalibriert. Achte auf unidentifizierte Bio-Signaturen.";
+                    if (systemEpoch.stateId === 'famine_crisis') {
+                        commander.thought = "SOS-Ruf aktiv... Wasser- und Nahrungsrationen auf dem Planeten unter kritischem Minimum.";
+                    } else if (systemEpoch.stateId === 'gamma_surge') {
+                        commander.thought = "Magnetar-Strahlungswerte steigen! Decken den Abflug der Evakuierungs-Transporter!";
+                    } else if (systemEpoch.stateId === 'civil_conflict') {
+                        commander.thought = "Fraktions-Gefecht im Orbit! Schilde auf Überlast, Feuerfreigabe bei jedem Kontakt!";
+                    } else if (systemEpoch.stateId === 'isolation_bunker') {
+                        commander.thought = "Quarantäne-Sperrzone aktiv. Kein unautorisiertes Schiff passiert den Orbitalgürtel.";
+                    } else {
+                        commander.thought = isCorvette
+                            ? "Waffen und Schilde auf Bereitschaft. Halte Sektor-Patrouille."
+                            : "Jäger-Avionik kalibriert. Achte auf unidentifizierte Bio-Signaturen.";
+                    }
                 }
+
+                const baseMaxHp = isCorvette ? 80 : 35;
+                const hpMod = systemEpoch.stateId === 'famine_crisis' ? 0.75 : (systemEpoch.stateId === 'civil_conflict' && i === shipCount - 1 ? 0.55 : 1.0);
 
                 const fleetShip: FleetShip = {
                     id: Date.now() + Math.random(),
@@ -121,8 +146,8 @@ export function spawnSystemFleet(planetsInput?: any) {
                     orbitRadius: orbitRadius,
                     orbitAngle: orbitAngle,
                     orbitSpeed: (0.45 / Math.sqrt(orbitRadius)) * (i % 2 === 0 ? 1 : -1),
-                    health: isCorvette ? 80 : 35,
-                    maxHealth: isCorvette ? 80 : 35,
+                    health: Math.max(15, Math.round(baseMaxHp * hpMod)),
+                    maxHealth: baseMaxHp,
                     state: 'patrol',
                     originalColor: origColor,
                     attackCooldown: 0.5 + Math.random() * 1.5,
@@ -140,103 +165,133 @@ export function spawnSystemFleet(planetsInput?: any) {
                 STATE.fleetShips.push(fleetShip);
             }
 
-            // Spawn Civilian Freighters on Active Trade Routes
-            const freighterGroup = new THREE.Group();
-            const hullGeo = new THREE.BoxGeometry(3.0, 1.2, 1.4);
-            const hullMat = new THREE.MeshStandardMaterial({
-                color: 0xd97706,
-                roughness: 0.45,
-                metalness: 0.75,
-                emissive: 0x78350f,
-                emissiveIntensity: 0.3
-            });
-            const freighterMesh = new THREE.Mesh(hullGeo, hullMat);
-            freighterGroup.add(freighterMesh);
+            // Spawn Civilian / Epoch-Specific Vessels on Active Trade Routes
+            const freighterCount = systemEpoch.stateId === 'prosperity' ? 2 : 1;
+            for (let fIdx = 0; fIdx < freighterCount; fIdx++) {
+                const isEvac = systemEpoch.stateId === 'gamma_surge' && fIdx === 0;
+                const isDjinnResearch = systemEpoch.stateId === 'djinn_resonance' && fIdx === 0;
 
-            const podGeo = new THREE.BoxGeometry(1.6, 0.7, 1.5);
-            const podMat = new THREE.MeshStandardMaterial({
-                color: 0x0284c7,
-                emissive: 0x0369a1,
-                emissiveIntensity: 0.4,
-                metalness: 0.8
-            });
-            const podMesh = new THREE.Mesh(podGeo, podMat);
-            podMesh.position.set(0, 0.65, 0);
-            freighterGroup.add(podMesh);
+                const freighterGroup = new THREE.Group();
+                const hullGeo = new THREE.BoxGeometry(isEvac ? 3.6 : 3.0, 1.2, 1.4);
+                const hullColor = isEvac ? 0xf97316 : (isDjinnResearch ? 0xa855f7 : 0xd97706);
+                const hullMat = new THREE.MeshStandardMaterial({
+                    color: hullColor,
+                    roughness: 0.45,
+                    metalness: 0.75,
+                    emissive: isDjinnResearch ? 0x581c87 : 0x78350f,
+                    emissiveIntensity: 0.35
+                });
+                const freighterMesh = new THREE.Mesh(hullGeo, hullMat);
+                freighterGroup.add(freighterMesh);
 
-            const engGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.6, 8);
-            engGeo.rotateZ(Math.PI / 2);
-            const engMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
-            const engMesh = new THREE.Mesh(engGeo, engMat);
-            engMesh.position.set(-1.6, 0, 0);
-            freighterGroup.add(engMesh);
+                const podGeo = new THREE.BoxGeometry(1.6, 0.7, 1.5);
+                const podMat = new THREE.MeshStandardMaterial({
+                    color: 0x0284c7,
+                    emissive: 0x0369a1,
+                    emissiveIntensity: 0.4,
+                    metalness: 0.8
+                });
+                const podMesh = new THREE.Mesh(podGeo, podMat);
+                podMesh.position.set(0, 0.65, 0);
+                freighterGroup.add(podMesh);
 
-            const pSize = p.size || 5.0;
-            const routeRadius = pSize * 2.2 + 9.0;
-            const routeAngle = Math.random() * Math.PI * 2;
+                const engGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.6, 8);
+                engGeo.rotateZ(Math.PI / 2);
+                const engMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+                const engMesh = new THREE.Mesh(engGeo, engMat);
+                engMesh.position.set(-1.6, 0, 0);
+                freighterGroup.add(engMesh);
 
-            const planetX = p.mesh ? p.mesh.position.x : 0;
-            const planetZ = p.mesh ? p.mesh.position.z : 0;
+                const pSize = p.size || 5.0;
+                const routeRadius = pSize * 2.2 + 9.0 + fIdx * 4.5;
+                const routeAngle = Math.random() * Math.PI * 2;
 
-            freighterGroup.position.set(
-                planetX + Math.cos(routeAngle) * routeRadius,
-                0,
-                planetZ + Math.sin(routeAngle) * routeRadius
-            );
+                const planetX = p.mesh ? p.mesh.position.x : 0;
+                const planetZ = p.mesh ? p.mesh.position.z : 0;
 
-            scene.add(freighterGroup);
+                freighterGroup.position.set(
+                    planetX + Math.cos(routeAngle) * routeRadius,
+                    0,
+                    planetZ + Math.sin(routeAngle) * routeRadius
+                );
 
-            const species = (p.attributes && p.attributes.species) || (p as any).species;
-            const fFactionId: FactionId = (species?.factionId as FactionId) || 'free_traders';
-            const fFaction = getFaction(fFactionId);
-            const fCivName = species?.name || fFaction.name;
+                scene.add(freighterGroup);
 
-            const freightSeed = ((p.name || 'Freight').charCodeAt(0) * 150 + Math.floor(Math.random() * 50)) >>> 0;
-            const freighterCrew = generateProceduralCandidates(freightSeed, 2);
-            const fCommander = freighterCrew[0];
-            if (fCommander) {
-                fCommander.thought = "Überwacht die Frachtbehälter... 'Hoffentlich keine Sternenfresser oder Piraten.'";
+                const fSpecies = (p.attributes && p.attributes.species) || (p as any).species;
+                const fFactionId: FactionId = (fSpecies?.factionId as FactionId) || 'free_traders';
+                const fFaction = getFaction(fFactionId);
+                const fCivName = fSpecies?.name || fFaction.name;
+
+                const freightSeed = ((p.name || 'Freight').charCodeAt(0) * 150 + fIdx * 43 + Math.floor(Math.random() * 50)) >>> 0;
+                const freighterCrew = generateProceduralCandidates(freightSeed, isEvac ? 3 : 2);
+                const fCommander = freighterCrew[0];
+
+                let shipLabel = `Handels-Frachter ${(p.name || 'Orb').substring(0, 4)}-${Math.floor(Math.random() * 89 + 10)}`;
+                let cargoType: any = (['silicon', 'water', 'alloys', 'tech', 'food', 'passengers'][Math.floor(Math.random() * 6)]);
+                let cargoAmount = Math.floor((40 + Math.random() * 45) * systemEpoch.tradeMultiplier);
+
+                if (isEvac) {
+                    shipLabel = `Evakuierungs-Arche ${(p.name || 'Orb').substring(0, 4)}-EV${fIdx + 1}`;
+                    cargoType = 'passengers';
+                    cargoAmount = 65;
+                    if (fCommander) {
+                        fCommander.thought = "NOT-EVAKUIERUNG! Magnetar-Gammablitz nähert sich – bringen Familien zum Sprungtor!";
+                    }
+                } else if (isDjinnResearch) {
+                    shipLabel = `Dschinn-Forschungsschiff ${(p.name || 'Orb').substring(0, 4)}-Q${fIdx + 1}`;
+                    cargoType = 'tech';
+                    cargoAmount = 70;
+                    if (fCommander) {
+                        fCommander.role = 'cryptologist';
+                        fCommander.roleName = '🔬 Dschinn-Quantenforscher';
+                        fCommander.thought = "Dschinn-Protokoll von Sagittarius A* empfangen! Unsere Quanten-Register glühen!";
+                    }
+                } else if (fCommander) {
+                    fCommander.thought = systemEpoch.stateId === 'prosperity'
+                        ? "Handels-Blüte im Sektor! Frachträume bis unter die Decke mit Vorräten gefüllt."
+                        : "Überwacht die Frachtbehälter... 'Hoffentlich keine Sternenfresser oder Piraten.'";
+                }
+
+                const freighter: FleetShip = {
+                    id: Date.now() + Math.random() + 500 + fIdx,
+                    mesh: freighterGroup,
+                    bodyMesh: freighterMesh,
+                    type: isEvac ? 'heavy_freighter' : 'freighter',
+                    name: shipLabel,
+                    position: freighterGroup.position,
+                    velocity: new THREE.Vector3(0, 0, 0),
+                    homePlanet: p,
+                    orbitRadius: routeRadius,
+                    orbitAngle: routeAngle,
+                    orbitSpeed: 0.14,
+                    health: isEvac ? 65 : 45,
+                    maxHealth: isEvac ? 65 : 45,
+                    state: 'trade_cruise',
+                    originalColor: hullColor,
+                    attackCooldown: 999,
+                    alertTimer: 0,
+                    cargo: {
+                        type: cargoType,
+                        amount: cargoAmount
+                    },
+                    factionId: fFactionId,
+                    civilizationName: fCivName,
+                    factionName: fFaction.shortName,
+                    scanned: false,
+                    crewMembers: freighterCrew,
+                    commanderName: fCommander ? `${fCommander.name} (${fCommander.roleName || fCommander.role})` : 'Frachtkapitän',
+                    commanderRole: fCommander ? fCommander.role : 'engineer',
+                    commanderThought: fCommander?.thought
+                };
+
+                assignNextTradeDestination(freighter);
+                STATE.fleetShips.push(freighter);
             }
-
-            const freighter: FleetShip = {
-                id: Date.now() + Math.random() + 500,
-                mesh: freighterGroup,
-                bodyMesh: freighterMesh,
-                type: 'freighter',
-                name: `Handels-Frachter ${(p.name || 'Orb').substring(0, 4)}-${Math.floor(Math.random() * 89 + 10)}`,
-                position: freighterGroup.position,
-                velocity: new THREE.Vector3(0, 0, 0),
-                homePlanet: p,
-                orbitRadius: routeRadius,
-                orbitAngle: routeAngle,
-                orbitSpeed: 0.14,
-                health: 45,
-                maxHealth: 45,
-                state: 'trade_cruise',
-                originalColor: 0xd97706,
-                attackCooldown: 999,
-                alertTimer: 0,
-                cargo: {
-                    type: (['silicon', 'water', 'alloys', 'tech', 'food', 'passengers'][Math.floor(Math.random() * 6)]) as any,
-                    amount: Math.floor(40 + Math.random() * 45)
-                },
-                factionId: fFactionId,
-                civilizationName: fCivName,
-                factionName: fFaction.shortName,
-                scanned: false,
-                crewMembers: freighterCrew,
-                commanderName: fCommander ? `${fCommander.name} (${fCommander.roleName || fCommander.role})` : 'Frachtkapitän',
-                commanderRole: fCommander ? fCommander.role : 'engineer',
-                commanderThought: fCommander?.thought
-            };
-
-            assignNextTradeDestination(freighter);
-            STATE.fleetShips.push(freighter);
         }
     });
 
     if (STATE.fleetShips.length > 0) {
-        addLogEntry("SYSTEM", `Sensoren geortet: ${STATE.fleetShips.length} planetare Schiffe (Jäger & Handels-Konvois) im Sektor aktiv.`);
+        addLogEntry("SYSTEM", `Sensoren geortet: ${STATE.fleetShips.length} planetare Schiffe im Sektor aktiv | Sektor-Epoche: ${systemEpoch.icon} ${systemEpoch.label}.`);
     }
 }
 
@@ -878,6 +933,7 @@ export function salvageNearestWreck(): boolean {
                 addLogEntry("SYSTEM", `Schiff von ${ship.name} assimiliert: +${silBonus} Silizium & +${bioBonus} Bio-Energie gewonnen!`);
             }
             playSiliconCollectSound();
+            collapseSystemQuantumBranch(STATE.currentSystemId, 'combat', ship.homePlanet?.name);
 
             const idx = STATE.fleetShips.findIndex(s => s.id === ship.id);
             if (idx !== -1) {

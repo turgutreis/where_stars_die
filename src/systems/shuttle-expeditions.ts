@@ -242,7 +242,16 @@ export function completeAwayMission(mission: AwayMission) {
 /**
  * Open Modal to configure and launch an expedition
  */
+export function hasAwayTeamCrew(): boolean {
+    return Array.isArray(STATE.crew) && STATE.crew.length > 0;
+}
+
 export function openShuttleExpeditionModal(planet: PlanetEntry, deposit: SurfaceDeposit) {
+    if (!hasAwayTeamCrew()) {
+        addLogEntry("WARN", "Außenmission nicht möglich: Keine Crew in den Kokons. Entführe zuerst Besatzungsmitglieder [F].");
+        return;
+    }
+
     const modal = document.getElementById('shuttle-expedition-modal');
     if (!modal) return;
 

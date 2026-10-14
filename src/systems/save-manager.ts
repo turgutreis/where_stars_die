@@ -6,6 +6,7 @@ import { updatePartyGrid } from '../ui/party-grid';
 import { updateHUDStats, addLogEntry } from '../ui/hud';
 import { reapplyAllMutations } from '../ui/deck';
 import { clearActiveSystem, spawnPlanetsAndAsteroids } from './universe';
+import { syncActivePlanetsIsingEpochs, updateHudChronicleBadge } from './quantum-ising';
 
 export interface SaveMeta {
     slotId: string;
@@ -70,6 +71,12 @@ export interface SerializedGameState {
         completed: boolean;
     };
     reputation?: Record<string, number>;
+    quantumChronicle?: {
+        galacticCycle: number;
+        galacticYear: number;
+        relativisticMonthsElapsed: number;
+        intervenedSystems: Record<number, boolean>;
+    };
 }
 
 const SAVE_STORAGE_PREFIX = 'najmafar_save_';
@@ -180,7 +187,13 @@ export function serializeCurrentState(slotId: string, customName?: string): Seri
             step: STATE.ftueStep || 0,
             completed: Boolean(STATE.ftueCompleted)
         },
-        reputation: STATE.reputation ? { ...STATE.reputation } : {}
+        reputation: STATE.reputation ? { ...STATE.reputation } : {},
+        quantumChronicle: {
+            galacticCycle: STATE.galacticCycle || 1,
+            galacticYear: STATE.galacticYear || 2242.0,
+            relativisticMonthsElapsed: STATE.relativisticMonthsElapsed || 0,
+            intervenedSystems: STATE.intervenedSystems ? { ...STATE.intervenedSystems } : {}
+        }
     };
 }
 
@@ -298,6 +311,12 @@ export async function applyLoadedState(data: SerializedGameState): Promise<void>
     if (data.reputation) {
         STATE.reputation = { ...data.reputation } as any;
     }
+    if (data.quantumChronicle) {
+        STATE.galacticCycle = data.quantumChronicle.galacticCycle || 1;
+        STATE.galacticYear = data.quantumChronicle.galacticYear || 2242.0;
+        STATE.relativisticMonthsElapsed = data.quantumChronicle.relativisticMonthsElapsed || 0;
+        STATE.intervenedSystems = data.quantumChronicle.intervenedSystems ? { ...data.quantumChronicle.intervenedSystems } : {};
+    }
 
     // 6. Navigation & Celestial System
     const targetSysId = data.navigation ? data.navigation.currentSystemId : 1;
@@ -330,12 +349,15 @@ export async function applyLoadedState(data: SerializedGameState): Promise<void>
         STATE.currentSystemId = targetSysId;
         clearActiveSystem();
         spawnPlanetsAndAsteroids();
+    } else {
+        syncActivePlanetsIsingEpochs();
     }
 
     // Reapply passive mutation perks
     reapplyAllMutations();
 
     // 7. Refresh UI
+    updateHudChronicleBadge();
     updatePartyGrid();
     renderCrewUI(true);
     updateHUDStats();

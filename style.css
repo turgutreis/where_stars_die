@@ -118,27 +118,35 @@ html {
 /* 1. Top-Left Vital Cluster */
 .hud-vital-cluster {
     position: absolute;
-    top: 16px;
+    top: 14px;
     left: 16px;
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 8px 18px;
+    gap: 12px;
+    padding: 7px 15px;
+    max-width: calc(48vw - 24px);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.hud-vital-cluster::-webkit-scrollbar {
+    display: none;
 }
 
 .vital-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    flex-shrink: 0;
 }
 
 .vital-icon {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.4));
 }
 
 .vital-bar-track {
-    width: 75px;
+    width: 58px;
     height: 7px;
     background: rgba(255, 255, 255, 0.08);
     border-radius: 4px;
@@ -174,15 +182,15 @@ html {
 
 .vital-val {
     font-family: 'Orbitron', sans-serif;
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 700;
     color: #f8fafc;
-    min-width: 36px;
+    min-width: 32px;
 }
 
 .vital-val-pill {
     font-family: 'Outfit', sans-serif;
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 600;
     color: #ec4899;
     white-space: nowrap;
@@ -191,14 +199,38 @@ html {
 /* 2. Top-Right System Pill */
 .hud-system-pill {
     position: absolute;
-    top: 16px;
+    top: 14px;
     right: 16px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 8px 16px;
+    gap: 10px;
+    padding: 7px 15px;
     font-family: 'Orbitron', sans-serif;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    max-width: calc(52vw - 24px);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.hud-system-pill::-webkit-scrollbar {
+    display: none;
+}
+
+/* 2b. Top-Right Quantum Ising Chronicle Sub-Pill */
+.hud-chronicle-pill {
+    position: absolute;
+    top: 52px;
+    right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.68rem;
+    white-space: nowrap;
+    border-color: rgba(56, 189, 248, 0.3);
+    z-index: 25;
 }
 
 .sys-name {
@@ -5015,8 +5047,8 @@ body.game-started .hud-left {
    ========================================================================== */
 .hud-directives {
     position: absolute;
-    top: 76px;
-    right: 20px;
+    top: 90px;
+    right: 16px;
     width: 320px;
     z-index: 95;
     pointer-events: auto;
@@ -7140,4 +7172,305 @@ body.game-started .hud-left {
 
 .shuttle-dep-btn:disabled {
     cursor: not-allowed;
+}
+
+/* ==========================================================================
+   DIEGETIC ORBITAL PLANET SCAN RING HUD (Radial Environmental Telemetry)
+   ========================================================================== */
+.planet-orbital-hud {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 280px;
+    height: 280px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 18;
+    user-select: none;
+}
+
+.orbital-hud-svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.75));
+}
+
+#orbital-arcs-group {
+    transition: opacity 0.35s ease, transform 0.35s ease;
+    transform-origin: 160px 160px;
+}
+
+.planet-orbital-hud.unscanned #orbital-arcs-group {
+    opacity: 0.25;
+}
+
+.planet-orbital-hud.scanned #orbital-arcs-group {
+    opacity: 1;
+}
+
+/* Top (12 o'clock): Crew Mission & Red Downward Chevrons */
+.orbital-crew-mission {
+    position: absolute;
+    bottom: 85%;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    pointer-events: auto;
+    white-space: nowrap;
+}
+
+.orbital-mission-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4px 12px;
+    background: rgba(15, 23, 42, 0.86);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(244, 63, 94, 0.55);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.65), 0 0 14px rgba(244, 63, 94, 0.25);
+    cursor: pointer;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.orbital-mission-pill:hover {
+    transform: translateY(-2px) scale(1.03);
+    border-color: #fb7185;
+    box-shadow: 0 4px 20px rgba(244, 63, 94, 0.45);
+}
+
+.orbital-mission-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #fb7185;
+    text-shadow: 0 0 8px rgba(244, 63, 94, 0.55);
+}
+
+.orbital-mission-sub {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.66rem;
+    font-weight: 600;
+    color: #f8fafc;
+}
+
+.orbital-mission-actions {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 2px;
+}
+
+.orbital-mini-btn {
+    padding: 3px 8px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.60rem;
+    font-weight: 700;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(15, 23, 42, 0.88);
+    color: #f8fafc;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    pointer-events: auto;
+}
+
+.orbital-mini-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: brightness(1.2);
+}
+
+.orbital-mini-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.orbital-chevrons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 0.62;
+    margin-top: 1px;
+    pointer-events: none;
+}
+
+.orbital-chevron {
+    font-size: 0.72rem;
+    color: #f43f5e;
+    text-shadow: 0 0 8px rgba(244, 63, 94, 0.85);
+    animation: chevronPulseDown 1.35s infinite ease-in-out;
+}
+
+.orbital-chevron.c1 { animation-delay: 0s; }
+.orbital-chevron.c2 { animation-delay: 0.22s; }
+.orbital-chevron.c3 { animation-delay: 0.44s; }
+
+@keyframes chevronPulseDown {
+    0%, 100% { opacity: 0.28; transform: translateY(-1px); }
+    50% { opacity: 1.0; transform: translateY(2px); }
+}
+
+/* 4 Radial Quadrant Telemetry Nodes */
+.orbital-quadrant-node {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 5px 10px;
+    background: rgba(10, 16, 30, 0.84);
+    backdrop-filter: blur(8px);
+    border-radius: 7px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.65);
+    pointer-events: auto;
+    white-space: nowrap;
+    transition: opacity 0.3s ease, transform 0.22s ease, border-color 0.22s ease;
+    min-width: 96px;
+}
+
+.orbital-quadrant-node.clickable {
+    cursor: pointer;
+}
+
+.orbital-quadrant-node.clickable:hover {
+    transform: scale(1.05);
+}
+
+.orbital-node-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.orbital-node-val {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.70rem;
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+.orbital-node-sub {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.62rem;
+    color: #94a3b8;
+}
+
+/* Top-Left: Tech (Purple) */
+.orbital-quadrant-node.node-tech {
+    right: 77%;
+    bottom: 75%;
+    align-items: flex-end;
+    text-align: right;
+    border: 1px solid rgba(168, 85, 247, 0.5);
+    border-right: 3px solid #a855f7;
+}
+.orbital-quadrant-node.node-tech .orbital-node-title {
+    color: #c084fc;
+    text-shadow: 0 0 8px rgba(168, 85, 247, 0.5);
+}
+
+/* Top-Right: H2O (Blue) */
+.orbital-quadrant-node.node-water {
+    left: 77%;
+    bottom: 75%;
+    align-items: flex-start;
+    text-align: left;
+    border: 1px solid rgba(56, 189, 248, 0.5);
+    border-left: 3px solid #38bdf8;
+}
+.orbital-quadrant-node.node-water .orbital-node-title {
+    color: #38bdf8;
+    text-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+}
+
+/* Bottom-Left: Leg / Alloys & Silicon (Silver) */
+.orbital-quadrant-node.node-leg {
+    right: 77%;
+    top: 75%;
+    align-items: flex-end;
+    text-align: right;
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    border-right: 3px solid #94a3b8;
+}
+.orbital-quadrant-node.node-leg .orbital-node-title {
+    color: #cbd5e1;
+    text-shadow: 0 0 8px rgba(148, 163, 184, 0.5);
+}
+
+/* Bottom-Right: Food / Bio (Green) */
+.orbital-quadrant-node.node-bio {
+    left: 77%;
+    top: 75%;
+    align-items: flex-start;
+    text-align: left;
+    border: 1px solid rgba(34, 197, 94, 0.5);
+    border-left: 3px solid #22c55e;
+}
+.orbital-quadrant-node.node-bio .orbital-node-title {
+    color: #4ade80;
+    text-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+}
+
+/* Bottom (6 o'clock): Planet Name, Epoch & Quick Actions */
+.orbital-planet-footer {
+    position: absolute;
+    top: 86%;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    pointer-events: auto;
+    white-space: nowrap;
+}
+
+.orbital-planet-header-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    background: rgba(10, 16, 30, 0.88);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    border-radius: 20px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+}
+
+.orbital-planet-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #f8fafc;
+    letter-spacing: 0.06em;
+}
+
+.orbital-planet-dist {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.64rem;
+    font-weight: 600;
+    color: #38bdf8;
+}
+
+.orbital-planet-epoch {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.orbital-footer-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
 }

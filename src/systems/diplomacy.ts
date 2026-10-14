@@ -3,6 +3,7 @@ import { STATE } from '../core/state';
 import { getFaction, modifyReputation, getReputationTitle } from './factions';
 import { addLogEntry } from '../ui/hud';
 import { playSiliconCollectSound, playBioCollectSound } from '../engine/audio';
+import { getSystemIsingEpoch, collapseSystemQuantumBranch } from './quantum-ising';
 
 const ALIEN_GLYPHS = ["⍝", "⏁", "⍀", "⏃", "⋏", "⌇", "⌰", "⏃", "⏁", "⟟", "⍜", "⋏", "⍾", "⎍", "⏃", "⋏", "⏁", "⎍", "⋔", "Ψ", "Ω", "Δ", "Ξ", "Φ", "λ", "θ", "π", "Σ"];
 
@@ -74,10 +75,20 @@ export function openDiplomacyComms(planet: PlanetEntry) {
                 greeting = `„Willkommen im Orbit von ${planet.name}, fremder Wanderer! Unsere Handelsgilden sind bereit, Rohstoffe auszutauschen und deine Hülle zu versorgen.“`;
             }
 
+            const epoch = planet.attributes?.isingEpoch || getSystemIsingEpoch(STATE.currentSystemId);
+            const epochGreeting = epoch.stateId === 'famine_crisis'
+                ? `<div style="margin-top:6px; padding:6px 8px; background:rgba(249,115,22,0.12); border-left:2px solid #f97316; font-size:0.8rem; color:#fdba74;">🥀 <b>${epoch.label}:</b> „Unsere Hydroponik-Kuppeln kollabieren unter den Gezeitenkräften! Sendet uns Wasser und Nahrung – unsere besten Wissenschaftler schließen sich euch freiwillig an!“</div>`
+                : epoch.stateId === 'gamma_surge'
+                ? `<div style="margin-top:6px; padding:6px 8px; background:rgba(244,63,94,0.12); border-left:2px solid #f43f5e; font-size:0.8rem; color:#fda4af;">☢️ <b>${epoch.label}:</b> „Der Magnetar-Blitz brennt unsere obere Atmosphäre weg! Unsere Evakuierungs-Archen starten im Minutentakt!“</div>`
+                : epoch.stateId === 'djinn_resonance'
+                ? `<div style="margin-top:6px; padding:6px 8px; background:rgba(56,189,248,0.12); border-left:2px solid #38bdf8; font-size:0.8rem; color:#7dd3fc;">📡 <b>${epoch.label}:</b> „Wir empfangen das uralte Signal der Mu'ammirun auf allen Subraum-Bändern! Bist du der Bote aus der Tiefe?“</div>`
+                : '';
+
             dialogueBox.innerHTML = `
                 <p class="translated-speech">${greeting}</p>
+                ${epochGreeting}
                 <div class="quantum-entanglement-tag">
-                    ⚛️ ${spec.quantumCiv ? spec.quantumCiv.quantumCollapseLog : 'Quanten-Resonanz stabil'}
+                    ⚛️ Qubit #${epoch.qubitIndex} (${epoch.label} • ⟨Z⟩=${epoch.spinMagnetization >= 0 ? '+' : ''}${epoch.spinMagnetization.toFixed(2)} • Pfad |${epoch.quantumBranch}⟩) — ${spec.quantumCiv ? spec.quantumCiv.quantumCollapseLog : 'Quanten-Resonanz stabil'}
                 </div>
             `;
         }
@@ -106,6 +117,29 @@ function renderDiplomacyActions(planet: PlanetEntry, factionId: FactionId) {
     if (!actionsContainer) return;
 
     actionsContainer.innerHTML = "";
+    const epoch = planet.attributes?.isingEpoch || getSystemIsingEpoch(STATE.currentSystemId);
+
+    // Special Action during Famine Crisis: Humanitarian Relief Aid
+    if (epoch.stateId === 'famine_crisis') {
+        const reliefBtn = document.createElement('button');
+        reliefBtn.className = 'diplo-action-btn trade-water';
+        reliefBtn.style.borderColor = '#f97316';
+        reliefBtn.innerHTML = `<span>🥀 Notfall-Hilfslieferung (25 Wasser + 25 Nahrung ➔ +30 Tech & +25 Rep)</span><span class="diplo-badge">+25 Rep</span>`;
+        reliefBtn.onclick = () => {
+            if ((STATE.waterRes || 0) >= 25 && (STATE.foodRes || 0) >= 25) {
+                STATE.waterRes -= 25;
+                STATE.foodRes -= 25;
+                STATE.techRes = (STATE.techRes || 0) + 30;
+                playBioCollectSound();
+                modifyReputation(factionId, 25, `Humanitäre Notfall-Hilfe für ${planet.name} geleistet (+30 Alien-Tech).`);
+                collapseSystemQuantumBranch(STATE.currentSystemId, 'aid', planet.name);
+                openDiplomacyComms(planet);
+            } else {
+                addLogEntry("SYSTEM", "Zu wenig Vorräte für Notfall-Hilfslieferung (25 Wasser & 25 Nahrung benötigt)!");
+            }
+        };
+        actionsContainer.appendChild(reliefBtn);
+    }
 
     // Action 1: Peaceful Resource Trade
     const tradeBtn = document.createElement('button');
@@ -117,6 +151,7 @@ function renderDiplomacyActions(planet: PlanetEntry, factionId: FactionId) {
             STATE.bioRes += 45;
             playBioCollectSound();
             modifyReputation(factionId, 8, `Erfolgreicher Handelsvertrag mit ${planet.name}.`);
+            collapseSystemQuantumBranch(STATE.currentSystemId, 'trade', planet.name);
             openDiplomacyComms(planet);
         } else {
             addLogEntry("SYSTEM", "Zu wenig Silizium für diesen Handel (40 benötigt)!");
