@@ -492,16 +492,26 @@ export function updatePhysics(dt: number) {
 
     STATE.targetCameraHeight = targetHeight;
     if (camera) {
-        const camLerpSpeed = STATE.systemArrivalActive ? 2.5 : 4.0;
-        camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetHeight, Math.min(1.0, dt * camLerpSpeed));
-        STATE.cameraHeight = camera.position.y;
+        if (STATE.prologueActive && STATE.prologueStage !== 'office_dream') {
+            // Cinematic 3D Menagerie Camera: gentle tilt & orbit showcasing the plasma containment rings & observation decks
+            const t = Date.now() * 0.0003;
+            camera.position.x = Math.sin(t) * 20;
+            camera.position.y = 44 + Math.sin(t * 1.4) * 3;
+            camera.position.z = 52 + Math.cos(t) * 12;
+            camera.lookAt(0, 6, 0);
+            camera.up.set(0, 1, 0);
+        } else {
+            const camLerpSpeed = STATE.systemArrivalActive ? 2.5 : 4.0;
+            camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetHeight, Math.min(1.0, dt * camLerpSpeed));
+            STATE.cameraHeight = camera.position.y;
 
-        camera.position.x = THREE.MathUtils.lerp(camera.position.x, STATE.playerPosition.x, Math.min(1.0, dt * 7.5));
-        camera.position.z = THREE.MathUtils.lerp(camera.position.z, STATE.playerPosition.z, Math.min(1.0, dt * 7.5));
+            camera.position.x = THREE.MathUtils.lerp(camera.position.x, STATE.playerPosition.x, Math.min(1.0, dt * 7.5));
+            camera.position.z = THREE.MathUtils.lerp(camera.position.z, STATE.playerPosition.z, Math.min(1.0, dt * 7.5));
 
-        // Rock-solid fixed orientation: strictly prevent any camera rotation when ship moves or turns
-        camera.rotation.set(-Math.PI / 2, 0, 0);
-        camera.up.set(0, 0, -1);
+            // Rock-solid fixed orientation: strictly prevent any camera rotation when ship moves or turns
+            camera.rotation.set(-Math.PI / 2, 0, 0);
+            camera.up.set(0, 0, -1);
+        }
 
         if (camera.fov !== 60.0) {
             camera.fov = 60.0;

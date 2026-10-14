@@ -14,7 +14,7 @@ import {
 import { addLogEntry } from './hud';
 import { renderCrewUI } from '../systems/crew';
 import { renderDirectives } from './directives';
-import { initMenagerieScene, shatterMenagerie, cleanupMenagerieScene, isMenagerieActive } from '../procedural/menagerie-scene';
+import { initMenagerieScene, shatterMenagerie, cleanupMenagerieScene, isMenagerieActive, menagerieGroup } from '../procedural/menagerie-scene';
 import { scene } from '../engine/scene';
 import { clearActiveSystem, spawnPlanetsAndAsteroids } from '../systems/universe';
 import storyData from '../data/prologue_story.json';
@@ -69,9 +69,13 @@ export function triggerPrologueSequence(onComplete: () => void) {
     onCompleteCallback = onComplete;
     currentBeatIndex = 0;
 
-    // Initialize 3D Menagerie Scene Enclosure around player
+    // Clear any previous star system and initialize 3D Menagerie Scene Enclosure around player
     if (scene) {
+        clearActiveSystem();
         initMenagerieScene(scene);
+        if (menagerieGroup) {
+            menagerieGroup.visible = false; // Hidden during Act I (office dream)
+        }
     }
 
     // Keep ship parked inside menagerie containment
@@ -114,6 +118,10 @@ function renderBeat(index: number) {
             : beat.stage === 'absorption_sync' ? 'sync'
             : 'warp';
         overlay.classList.add(`stage-${stageClass}`);
+    }
+
+    if (menagerieGroup) {
+        menagerieGroup.visible = beat.stage !== 'office_dream';
     }
 
     if (eyebrowText) eyebrowText.innerText = beat.eyebrow;

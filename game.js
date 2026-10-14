@@ -47271,13 +47271,22 @@ function updatePhysics(dt) {
   }
   STATE.targetCameraHeight = targetHeight;
   if (camera) {
-    const camLerpSpeed = STATE.systemArrivalActive ? 2.5 : 4;
-    camera.position.y = MathUtils.lerp(camera.position.y, targetHeight, Math.min(1, dt * camLerpSpeed));
-    STATE.cameraHeight = camera.position.y;
-    camera.position.x = MathUtils.lerp(camera.position.x, STATE.playerPosition.x, Math.min(1, dt * 7.5));
-    camera.position.z = MathUtils.lerp(camera.position.z, STATE.playerPosition.z, Math.min(1, dt * 7.5));
-    camera.rotation.set(-Math.PI / 2, 0, 0);
-    camera.up.set(0, 0, -1);
+    if (STATE.prologueActive && STATE.prologueStage !== "office_dream") {
+      const t = Date.now() * 0.0003;
+      camera.position.x = Math.sin(t) * 20;
+      camera.position.y = 44 + Math.sin(t * 1.4) * 3;
+      camera.position.z = 52 + Math.cos(t) * 12;
+      camera.lookAt(0, 6, 0);
+      camera.up.set(0, 1, 0);
+    } else {
+      const camLerpSpeed = STATE.systemArrivalActive ? 2.5 : 4;
+      camera.position.y = MathUtils.lerp(camera.position.y, targetHeight, Math.min(1, dt * camLerpSpeed));
+      STATE.cameraHeight = camera.position.y;
+      camera.position.x = MathUtils.lerp(camera.position.x, STATE.playerPosition.x, Math.min(1, dt * 7.5));
+      camera.position.z = MathUtils.lerp(camera.position.z, STATE.playerPosition.z, Math.min(1, dt * 7.5));
+      camera.rotation.set(-Math.PI / 2, 0, 0);
+      camera.up.set(0, 0, -1);
+    }
     if (camera.fov !== 60) {
       camera.fov = 60;
       camera.updateProjectionMatrix();
@@ -48023,7 +48032,11 @@ function triggerPrologueSequence(onComplete) {
   onCompleteCallback = onComplete;
   currentBeatIndex = 0;
   if (scene) {
+    clearActiveSystem();
     initMenagerieScene(scene);
+    if (menagerieGroup) {
+      menagerieGroup.visible = false;
+    }
   }
   STATE.playerPosition.set(0, 0, 0);
   STATE.playerVelocity.set(0, 0, 0);
@@ -48054,6 +48067,9 @@ function renderBeat(index) {
     overlay.classList.remove("stage-office", "stage-zoo", "stage-jamal", "stage-sync", "stage-warp");
     const stageClass = beat.stage === "office_dream" ? "office" : beat.stage === "alien_zoo" ? "zoo" : beat.stage === "jamal_contact" ? "jamal" : beat.stage === "absorption_sync" ? "sync" : "warp";
     overlay.classList.add(`stage-${stageClass}`);
+  }
+  if (menagerieGroup) {
+    menagerieGroup.visible = beat.stage !== "office_dream";
   }
   if (eyebrowText)
     eyebrowText.innerText = beat.eyebrow;

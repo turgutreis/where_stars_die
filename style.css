@@ -4898,7 +4898,7 @@ body.game-started .hud-left {
     opacity: 1;
     transition: opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1), visibility 1.2s;
     user-select: none;
-    cursor: pointer;
+    cursor: default;
 }
 
 .prologue-overlay.hidden {
@@ -5101,9 +5101,46 @@ body.game-started .hud-left {
     text-shadow: 0 0 30px rgba(56, 189, 248, 0.35), 0 0 60px rgba(56, 189, 248, 0.15);
 }
 
-.prologue-overlay.stage-zoo {
-    background: radial-gradient(circle at 50% 50%, #15092a 0%, #03010a 85%);
+/* 3D Menagerie Stages (Alien Zoo, Jamal Contact, Bio-Sync, Breakout):
+   Semi-transparent background so the spinning 3D containment rings & observation pods are clearly visible! */
+.prologue-overlay.stage-zoo,
+.prologue-overlay.stage-jamal,
+.prologue-overlay.stage-sync,
+.prologue-overlay.stage-warp {
+    background: radial-gradient(circle at 50% 45%, rgba(2, 6, 23, 0.22) 0%, rgba(2, 6, 23, 0.68) 100%);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
 }
+
+.prologue-overlay.stage-zoo .prologue-stars-backdrop,
+.prologue-overlay.stage-jamal .prologue-stars-backdrop,
+.prologue-overlay.stage-sync .prologue-stars-backdrop,
+.prologue-overlay.stage-warp .prologue-stars-backdrop {
+    opacity: 0 !important;
+    pointer-events: none;
+}
+
+.prologue-overlay.stage-zoo .prologue-vignette,
+.prologue-overlay.stage-jamal .prologue-vignette,
+.prologue-overlay.stage-sync .prologue-vignette,
+.prologue-overlay.stage-warp .prologue-vignette {
+    box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.65);
+}
+
+/* Sleek Sci-Fi Frosted Glass Dialogue Card */
+.prologue-overlay.stage-zoo .prologue-content,
+.prologue-overlay.stage-jamal .prologue-content,
+.prologue-overlay.stage-sync .prologue-content,
+.prologue-overlay.stage-warp .prologue-content {
+    background: rgba(8, 12, 28, 0.76);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(192, 132, 252, 0.35);
+    border-radius: 20px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 35px rgba(192, 132, 252, 0.15);
+    padding: 36px 42px;
+}
+
 .prologue-overlay.stage-zoo .prologue-eyebrow {
     background: rgba(192, 132, 252, 0.15);
     border-color: rgba(192, 132, 252, 0.4);
@@ -5117,8 +5154,9 @@ body.game-started .hud-left {
     text-shadow: 0 0 30px rgba(192, 132, 252, 0.4), 0 0 60px rgba(192, 132, 252, 0.18);
 }
 
-.prologue-overlay.stage-jamal {
-    background: radial-gradient(circle at 50% 50%, #0c1c2e 0%, #020712 85%);
+.prologue-overlay.stage-jamal .prologue-content {
+    border-color: rgba(251, 191, 36, 0.4);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 35px rgba(251, 191, 36, 0.18);
 }
 .prologue-overlay.stage-jamal .prologue-eyebrow {
     background: rgba(251, 191, 36, 0.15);
@@ -5133,8 +5171,9 @@ body.game-started .hud-left {
     text-shadow: 0 0 30px rgba(251, 191, 36, 0.4), 0 0 60px rgba(251, 191, 36, 0.18);
 }
 
-.prologue-overlay.stage-warp {
-    background: radial-gradient(circle at 50% 50%, #290812 0%, #0a0104 85%);
+.prologue-overlay.stage-warp .prologue-content {
+    border-color: rgba(244, 63, 94, 0.55);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 45px rgba(244, 63, 94, 0.3);
 }
 .prologue-overlay.stage-warp .prologue-eyebrow {
     background: rgba(244, 63, 94, 0.2);
@@ -5150,8 +5189,9 @@ body.game-started .hud-left {
     text-shadow: 0 0 35px rgba(244, 63, 94, 0.5), 0 0 70px rgba(244, 63, 94, 0.25);
 }
 
-.prologue-overlay.stage-sync {
-    background: radial-gradient(circle at 50% 50%, #1e1138 0%, #080214 85%);
+.prologue-overlay.stage-sync .prologue-content {
+    border-color: rgba(217, 70, 239, 0.45);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 35px rgba(217, 70, 239, 0.22);
 }
 .prologue-overlay.stage-sync .prologue-eyebrow {
     background: rgba(168, 85, 247, 0.2);
