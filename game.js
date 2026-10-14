@@ -48048,6 +48048,9 @@ function triggerPrologueSequence(onComplete) {
   STATE.prologueCompleted = false;
   onCompleteCallback = onComplete;
   currentBeatIndex = 0;
+  if (typeof document !== "undefined" && document.body) {
+    document.body.classList.add("prologue-mode");
+  }
   if (scene) {
     clearActiveSystem();
     initMenagerieScene(scene);
@@ -48277,6 +48280,9 @@ function finishPrologue() {
   STATE.prologueActive = false;
   STATE.prologueCompleted = true;
   STATE.prologueStage = "completed";
+  if (typeof document !== "undefined" && document.body) {
+    document.body.classList.remove("prologue-mode");
+  }
   if (scene && isMenagerieActive()) {
     cleanupMenagerieScene(scene);
   }
@@ -48359,36 +48365,52 @@ function animate(time) {
   if (starfieldController) {
     starfieldController.update(dt, camera ? camera.position : STATE.playerPosition, STATE.playerVelocity);
   }
-  updateUniverseShaders(dt, camera);
-  gravityCircles.forEach((c) => {
-    const timePulse = Math.sin(Date.now() * 0.003 * c.pulseSpeed);
-    c.mesh.material.opacity = c.baseOpacity + timePulse * (c.baseOpacity * 0.5);
-  });
+  if (!STATE.prologueActive) {
+    updateUniverseShaders(dt, camera);
+    gravityCircles.forEach((c) => {
+      const timePulse = Math.sin(Date.now() * 0.003 * c.pulseSpeed);
+      c.mesh.material.opacity = c.baseOpacity + timePulse * (c.baseOpacity * 0.5);
+    });
+  }
   updateMenagerieScene(dt);
   if (STATE.gameStarted) {
-    processInput(dt);
-    updatePhysics(dt);
-    updateHUDStats(STATE.telepathyActive);
-    updateScanning(dt);
-    updateHarvesting(dt);
-    updateAbduction(dt);
-    updateFleet(dt);
-    updateStealth(dt);
-    updateCrewSimulation(dt);
-    updatePartyGrid();
-    updateSonarWave(dt);
-    updateExplosionEffects(dt);
-    updateAwayMissions(dt);
-    updateTrajectory();
-    updateMinimap();
-    updateVoyagerHUDTracker();
-    if (STATE.voyagerProbe && STATE.voyagerSignalDetected && !STATE.voyagerScanned) {
-      const probeDist = STATE.playerPosition.distanceTo(STATE.voyagerProbe.position);
-      if (probeDist < 85) {
-        voyagerBeaconTimer += dt;
-        if (voyagerBeaconTimer >= 3.8) {
-          voyagerBeaconTimer = 0;
-          playVoyagerBeaconPing();
+    if (!STATE.prologueActive) {
+      processInput(dt);
+      updatePhysics(dt);
+      updateHUDStats(STATE.telepathyActive);
+      updateScanning(dt);
+      updateHarvesting(dt);
+      updateAbduction(dt);
+      updateFleet(dt);
+      updateStealth(dt);
+      updateCrewSimulation(dt);
+      updatePartyGrid();
+      updateSonarWave(dt);
+      updateExplosionEffects(dt);
+      updateAwayMissions(dt);
+      updateTrajectory();
+      updateMinimap();
+      updateVoyagerHUDTracker();
+      if (STATE.voyagerProbe && STATE.voyagerSignalDetected && !STATE.voyagerScanned) {
+        const probeDist = STATE.playerPosition.distanceTo(STATE.voyagerProbe.position);
+        if (probeDist < 85) {
+          voyagerBeaconTimer += dt;
+          if (voyagerBeaconTimer >= 3.8) {
+            voyagerBeaconTimer = 0;
+            playVoyagerBeaconPing();
+          }
+        }
+      }
+    } else {
+      if (camera) {
+        if (STATE.prologueStage === "office_dream") {
+          camera.up.set(0, 1, 0);
+          camera.position.set(0, 40, 50);
+          camera.lookAt(0, 0, 0);
+        } else {
+          camera.up.set(0, 1, 0);
+          camera.position.set(6.5, 38, 46);
+          camera.lookAt(-3.5, 1, 0);
         }
       }
     }
@@ -48396,7 +48418,7 @@ function animate(time) {
       alienShipController.update(dt);
     }
     if (thrustLight) {
-      const isThrusting = STATE.keys.w;
+      const isThrusting = !STATE.prologueActive && STATE.keys.w;
       const targetThrust = isThrusting ? 2.6 + Math.random() * 0.5 : 0;
       thrustLight.intensity += (targetThrust - thrustLight.intensity) * Math.min(1, dt * 12);
     }

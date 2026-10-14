@@ -47,57 +47,75 @@ function animate(time: number) {
         starfieldController.update(dt, camera ? camera.position : STATE.playerPosition, STATE.playerVelocity);
     }
 
-    // Update active procedural shaders (solar corona, volumetric sun rays, and lens flares)
-    updateUniverseShaders(dt, camera);
+    if (!STATE.prologueActive) {
+        // Update active procedural shaders (solar corona, volumetric sun rays, and lens flares)
+        updateUniverseShaders(dt, camera);
 
-    // Pulse gravity rings
-    gravityCircles.forEach(c => {
-        const timePulse = Math.sin(Date.now() * 0.003 * c.pulseSpeed);
-        (c.mesh.material as THREE.Material).opacity = c.baseOpacity + timePulse * (c.baseOpacity * 0.5);
-    });
+        // Pulse gravity rings
+        gravityCircles.forEach(c => {
+            const timePulse = Math.sin(Date.now() * 0.003 * c.pulseSpeed);
+            (c.mesh.material as THREE.Material).opacity = c.baseOpacity + timePulse * (c.baseOpacity * 0.5);
+        });
+    }
 
     // Update 3D Menagerie Ceres-9 enclosure if active
     updateMenagerieScene(dt);
 
     if (STATE.gameStarted) {
-        // Unified Keyboard and Gamepad input processing
-        processInput(dt);
+        if (!STATE.prologueActive) {
+            // Unified Keyboard and Gamepad input processing
+            processInput(dt);
 
-        // Core Physics simulation (orbits, gravity, collisions)
-        updatePhysics(dt);
+            // Core Physics simulation (orbits, gravity, collisions)
+            updatePhysics(dt);
 
-        // Real-time HUD and status updates
-        updateHUDStats(STATE.telepathyActive);
+            // Real-time HUD and status updates
+            updateHUDStats(STATE.telepathyActive);
 
-        // Subsystems updates
-        updateScanning(dt);
-        updateHarvesting(dt);
-        updateAbduction(dt);
-        updateFleet(dt);
-        updateStealth(dt);
-        updateCrewSimulation(dt);
-        updatePartyGrid();
-        updateSonarWave(dt);
-        updateExplosionEffects(dt);
-        updateAwayMissions(dt);
+            // Subsystems updates
+            updateScanning(dt);
+            updateHarvesting(dt);
+            updateAbduction(dt);
+            updateFleet(dt);
+            updateStealth(dt);
+            updateCrewSimulation(dt);
+            updatePartyGrid();
+            updateSonarWave(dt);
+            updateExplosionEffects(dt);
+            updateAwayMissions(dt);
 
-        // Trajectory prediction
-        updateTrajectory();
+            // Trajectory prediction
+            updateTrajectory();
 
-        // Minimap 2D radar
-        updateMinimap();
+            // Minimap 2D radar
+            updateMinimap();
 
-        // FTUE & Voyager 2 directional tracking
-        updateVoyagerHUDTracker();
+            // FTUE & Voyager 2 directional tracking
+            updateVoyagerHUDTracker();
 
-        // Periodic Voyager 2 archaic carrier beacon chirp (when signal detected, within 85 AE and not scanned)
-        if (STATE.voyagerProbe && STATE.voyagerSignalDetected && !STATE.voyagerScanned) {
-            const probeDist = STATE.playerPosition.distanceTo(STATE.voyagerProbe.position);
-            if (probeDist < 85) {
-                voyagerBeaconTimer += dt;
-                if (voyagerBeaconTimer >= 3.8) {
-                    voyagerBeaconTimer = 0;
-                    playVoyagerBeaconPing();
+            // Periodic Voyager 2 archaic carrier beacon chirp (when signal detected, within 85 AE and not scanned)
+            if (STATE.voyagerProbe && STATE.voyagerSignalDetected && !STATE.voyagerScanned) {
+                const probeDist = STATE.playerPosition.distanceTo(STATE.voyagerProbe.position);
+                if (probeDist < 85) {
+                    voyagerBeaconTimer += dt;
+                    if (voyagerBeaconTimer >= 3.8) {
+                        voyagerBeaconTimer = 0;
+                        playVoyagerBeaconPing();
+                    }
+                }
+            }
+        } else {
+            // PROLOGUE MODE: All space physics, input, fleets & HUD loops are completely frozen!
+            if (camera) {
+                if (STATE.prologueStage === 'office_dream') {
+                    camera.up.set(0, 1, 0);
+                    camera.position.set(0, 40, 50);
+                    camera.lookAt(0, 0, 0);
+                } else {
+                    // Frame Menagerie in the open left area (camera x = 6.5, target x = -3.5)
+                    camera.up.set(0, 1, 0);
+                    camera.position.set(6.5, 38, 46);
+                    camera.lookAt(-3.5, 1.0, 0);
                 }
             }
         }
@@ -109,7 +127,7 @@ function animate(time: number) {
 
         // Dynamic Ship, Thrust, and EMP PointLights
         if (thrustLight) {
-            const isThrusting = STATE.keys.w;
+            const isThrusting = !STATE.prologueActive && STATE.keys.w;
             const targetThrust = isThrusting ? (2.6 + Math.random() * 0.5) : 0.0;
             thrustLight.intensity += (targetThrust - thrustLight.intensity) * Math.min(1.0, dt * 12.0);
         }

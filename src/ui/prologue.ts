@@ -69,6 +69,11 @@ export function triggerPrologueSequence(onComplete: () => void) {
     onCompleteCallback = onComplete;
     currentBeatIndex = 0;
 
+    // Completely hide all in-game space UI / HUD elements during prologue
+    if (typeof document !== 'undefined' && document.body) {
+        document.body.classList.add('prologue-mode');
+    }
+
     // Clear any previous star system and initialize 3D Menagerie Scene Enclosure around player
     if (scene) {
         clearActiveSystem();
@@ -341,6 +346,11 @@ export function finishPrologue() {
     STATE.prologueActive = false;
     STATE.prologueCompleted = true;
     STATE.prologueStage = 'completed';
+
+    // Restore in-game space HUD
+    if (typeof document !== 'undefined' && document.body) {
+        document.body.classList.remove('prologue-mode');
+    }
 
     // Clean up menagerie if still present
     if (scene && isMenagerieActive()) {
