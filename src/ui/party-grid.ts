@@ -1,6 +1,7 @@
 import { STATE } from '../core/state';
 import { CrewMember } from '../types/game';
 import { addLogEntry } from './hud';
+import { openNpcDialogue } from './jamal-dialog';
 import {
     rejuvenateCrewMember,
     getSpeciesClusters,
@@ -327,6 +328,17 @@ function attachPartyGridEvents(): void {
             const species = btn.getAttribute('data-cluster-toggle');
             if (species) {
                 toggleClusterExpansion(species);
+            }
+        };
+    });
+
+    const partyCards = document.querySelectorAll<HTMLElement>('.party-card');
+    partyCards.forEach(card => {
+        card.onclick = (e) => {
+            const id = Number(card.getAttribute('data-crew-id'));
+            const member = STATE.crew.find(c => c.id === id);
+            if (member && (member.id === 101 || member.name.includes('Jamal'))) {
+                openNpcDialogue('jamal_orbit_intro');
             }
         };
     });

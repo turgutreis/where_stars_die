@@ -98,9 +98,11 @@ export function renderDirectives() {
                     <div class="directive-instruction">
                         ${isJamalDone 
                             ? 'Forschungsschiff "ISS Ibn Battuta" geborgen (+50 Melange) & Sensoren gekoppelt.' 
-                            : 'Fliege zum Planeten & befreie das Schiff von der KI-Abschleppdrohne mit [F] oder [E]'}
+                            : (STATE.jamalMissionDiscovered 
+                                ? 'Untersuche die Insan-Parkkralle an Jamals Schiff [Dialog rechts]' 
+                                : 'Fliege zum Planeten & scanne Jamals Forschungsschiff im Orbit mit [F]')}
                     </div>
-                    ${!isJamalDone ? '<div class="directive-hint">Die Parkraum-KI hält das Schiff im Traktorstrahl. Nähere dich auf &lt; 25 AE und zerstöre die Parkkralle!</div>' : ''}
+                    ${!isJamalDone ? `<div class="directive-hint">${STATE.jamalMissionDiscovered ? 'Wähle im Dialog rechts: Parkkralle zerschmettern, Parkbuße zahlen oder Insan-Depot hacken.' : 'Jamal hat sein Schiff vor den Insan-Drohnen im Planetenorbit versteckt. Nähere dich auf &lt; 25 AE.'}</div>` : ''}
                 </div>
             </div>
         `;

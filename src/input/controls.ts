@@ -14,7 +14,14 @@ import { toggleDeckModal, isDeckOpen } from '../ui/deck';
 import { toggleOptionsModal, isOptionsModalOpen, closeOptionsModal } from '../ui/options';
 import { advanceFtueStep } from '../ui/directives';
 import { openVoyagerDialog, closeVoyagerDialog, isVoyagerDialogOpen } from '../ui/voyager-dialog';
-import { liberateJamalShip, initJamalDialogListeners } from '../ui/jamal-dialog';
+import { 
+    liberateJamalShip, 
+    initJamalDialogListeners, 
+    openNpcDialogue, 
+    triggerJamalShipScannedDialogue, 
+    isJamalDialogOpen, 
+    closeJamalDialog 
+} from '../ui/jamal-dialog';
 import { isSaveModalOpen, closeSaveModal } from '../ui/save-modal';
 import { toggleMainMenu } from '../ui/menu-controller';
 import { toggleStealth } from '../systems/stealth';
@@ -107,6 +114,12 @@ export function setupControls() {
                 return;
             }
 
+            // 5b. Close Jamal / NPC Dialogue if open
+            if (isJamalDialogOpen()) {
+                closeJamalDialog();
+                return;
+            }
+
             // 6. Close Galaxy Map if open
             if (isMapOpen()) {
                 toggleGalaxyMap();
@@ -126,13 +139,28 @@ export function setupControls() {
                 (window as any).api.closeApp();
             }
         }
+        if (key === 'j') {
+            if (isJamalDialogOpen()) {
+                closeJamalDialog();
+            } else {
+                openNpcDialogue('jamal_orbit_intro');
+            }
+            return;
+        }
         if (key === 'f') {
             // 0. Proximity interaction with Dr. Jamal's Research Shuttle / Towing Drone (< 25 AE)
             if (STATE.jamalShip && STATE.jamalShip.position) {
                 const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
                 if (jamalDist <= 25) {
-                    if (!STATE.jamalShipLiberated) {
-                        liberateJamalShip();
+                    if (!STATE.jamalShip.scanned) {
+                        STATE.scanningPlanet = STATE.jamalShip;
+                        triggerScanStart();
+                        return;
+                    } else if (!STATE.jamalShipLiberated) {
+                        triggerJamalShipScannedDialogue();
+                        return;
+                    } else {
+                        openNpcDialogue('jamal_orbit_intro');
                         return;
                     }
                 }
@@ -374,7 +402,7 @@ export function setupTargetRaycasting() {
         const dy = e.clientY - pointerDownPos.y;
         if (Math.sqrt(dx * dx + dy * dy) > 8) return;
 
-        if (e.target && (e.target as HTMLElement).closest('#hud-container, #galaxy-map-overlay, #main-menu, #how-to-play-modal, #voyager-dialog-modal, #diplomacy-overlay')) {
+        if (e.target && (e.target as HTMLElement).closest('#hud-container, #galaxy-map-overlay, #main-menu, #how-to-play-modal, #voyager-dialog-modal, #diplomacy-overlay, #npc-dialog-card')) {
             return;
         }
 
@@ -430,13 +458,16 @@ export function setupTargetRaycasting() {
                 setLockedTarget(STATE.jamalShip);
                 const dist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
                 if (dist <= 25) {
-                    if (!STATE.jamalShipLiberated) {
-                        liberateJamalShip();
+                    if (!STATE.jamalShip.scanned) {
+                        STATE.scanningPlanet = STATE.jamalShip;
+                        triggerScanStart();
+                    } else if (!STATE.jamalShipLiberated) {
+                        triggerJamalShipScannedDialogue();
                     } else {
-                        addLogEntry("JAMAL", "„Die ISS Ibn Battuta ist sicher geborgen. Alle Sensordaten sind synchronisiert!“");
+                        openNpcDialogue('jamal_orbit_intro');
                     }
                 } else {
-                    addLogEntry("JAMAL", `„Da ist mein Schiff! Anvisiert (${dist.toFixed(1)} AE). Fliege heran (< 25 AE) und befreie es mit [F] oder [E]!“`);
+                    addLogEntry("JAMAL", `„Da ist mein Schiff! Anvisiert (${dist.toFixed(1)} AE). Fliege heran (< 25 AE) und scanne es mit [F]!“`);
                 }
                 return;
             }

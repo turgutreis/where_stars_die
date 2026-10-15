@@ -6063,179 +6063,98 @@ body.prologue-mode .hud-fading-log-stream {
 }
 
 /* ==========================================================================
-   DR. JAMAL TELEPATHIC STORY QUEST MODAL
+   RIGHT-DOCKED IN-GAME NPC & STORY DIALOGUE PANEL
    ========================================================================== */
-.jamal-dialog-content {
-    max-width: 680px;
-    width: 90%;
-    background: rgba(9, 14, 30, 0.96);
-    border: 1px solid rgba(168, 85, 247, 0.45);
-    box-shadow: 0 0 50px rgba(168, 85, 247, 0.25), 0 0 100px rgba(0, 0, 0, 0.9);
-    border-radius: 16px;
-    padding: 24px 28px;
-    position: relative;
+.npc-dialog-card {
+    position: fixed;
+    right: 48px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1080;
+    width: 480px;
+    max-width: 45vw;
+    min-width: 360px;
     max-height: 88vh;
     overflow-y: auto;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-}
-
-.jamal-dialog-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding-bottom: 14px;
-    margin-bottom: 18px;
-}
-
-.jamal-header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.jamal-emblem {
-    font-size: 2rem;
-    filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.7));
-}
-
-.jamal-dialog-header h2 {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 1.12rem;
-    font-weight: 800;
-    color: #f8fafc;
-    letter-spacing: 0.6px;
-    margin: 0;
-}
-
-.jamal-header-sub {
-    font-size: 0.74rem;
-    color: #94a3b8;
-}
-
-.jamal-status-badge {
-    padding: 4px 10px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    border-radius: 20px;
-    letter-spacing: 0.5px;
-}
-.jamal-status-badge.alert {
-    background: rgba(239, 68, 68, 0.2);
-    border: 1px solid rgba(239, 68, 68, 0.6);
-    color: #fca5a5;
-    animation: pulseGlow 1.8s infinite;
-}
-.jamal-status-badge.success {
-    background: rgba(16, 185, 129, 0.2);
-    border: 1px solid rgba(16, 185, 129, 0.6);
-    color: #6ee7b7;
-}
-
-.jamal-dialog-portrait-row {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 12px 16px;
-    background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(168, 85, 247, 0.2);
-    border-radius: 12px;
-    margin-bottom: 18px;
-}
-
-.jamal-portrait-ring {
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(168, 85, 247, 0.3), rgba(15, 23, 42, 0.9));
-    border: 2px solid #a855f7;
-    box-shadow: 0 0 16px rgba(168, 85, 247, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.8rem;
-    flex-shrink: 0;
-}
-
-.jamal-officer-info .officer-name {
-    font-size: 1.05rem;
-    font-weight: 800;
-    color: #f1f5f9;
-}
-.jamal-officer-info .officer-role {
-    font-size: 0.75rem;
-    color: #c084fc;
-    font-weight: 600;
-    margin-bottom: 2px;
-}
-.jamal-officer-info .officer-quote {
-    font-size: 0.8rem;
-    color: #94a3b8;
-    font-style: italic;
-}
-
-.jamal-speech-bubble {
-    font-family: 'Outfit', sans-serif;
-    font-size: 0.96rem;
-    line-height: 1.6;
-    color: #cbd5e1;
+    text-align: left;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 30px 34px;
+    background: rgba(8, 12, 28, 0.94);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(168, 85, 247, 0.45);
+    border-radius: 18px;
+    box-shadow: -20px 0 60px rgba(0, 0, 0, 0.85), 0 0 35px rgba(168, 85, 247, 0.2);
+    box-sizing: border-box;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s;
+    user-select: none;
 }
 
-.jamal-speech-bubble p {
-    margin: 0;
+.npc-dialog-card.hidden {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    transform: translateY(-50%) translateX(40px);
 }
 
-.jamal-highlight-box {
+.npc-dialog-header {
+    width: 100%;
     display: flex;
-    gap: 12px;
-    padding: 12px 16px;
-    border-radius: 10px;
-    background: rgba(245, 158, 11, 0.12);
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    color: #fef08a;
-    font-size: 0.88rem;
-    line-height: 1.45;
-}
-.jamal-highlight-box.blue {
-    background: rgba(56, 189, 248, 0.12);
-    border: 1px solid rgba(56, 189, 248, 0.35);
-    color: #bae6fd;
+    align-items: center;
+    justify-content: space-between;
 }
 
-.jamal-reward-grid {
+.npc-dialog-text-card {
+    width: 100%;
     display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
     gap: 10px;
-    flex-wrap: wrap;
-    margin: 6px 0;
-}
-.jamal-reward-grid .reward-pill {
-    padding: 6px 12px;
-    background: rgba(16, 185, 129, 0.15);
-    border: 1px solid rgba(16, 185, 129, 0.4);
-    border-radius: 20px;
-    font-size: 0.82rem;
-    color: #a7f3d0;
 }
 
-.jamal-dialog-footer {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 20px;
-    padding-top: 14px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+.npc-dialog-main-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.35;
+    letter-spacing: 0.03em;
+    color: #f8fafc;
+    text-shadow: 0 0 25px rgba(168, 85, 247, 0.35);
+    margin: 0;
+    text-align: left;
 }
 
-.jamal-btn-action {
-    background: linear-gradient(135deg, #7c3aed, #a855f7) !important;
-    border-color: #c084fc !important;
-    box-shadow: 0 0 20px rgba(168, 85, 247, 0.4) !important;
-    font-weight: 700 !important;
-    padding: 10px 22px !important;
-    font-size: 0.92rem !important;
+.npc-dialog-sub-text {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.96rem;
+    font-weight: 300;
+    color: #cbd5e1;
+    line-height: 1.55;
+    text-align: left;
+}
+
+.npc-dialog-sub-text p {
+    margin: 0 0 10px 0;
+}
+.npc-dialog-sub-text p:last-child {
+    margin-bottom: 0;
+}
+
+.npc-dialog-card .prologue-choices-container {
+    width: 100%;
+    margin-top: 4px;
+}
+
+.npc-dialog-card .prologue-choice-btn {
+    text-align: left;
+    justify-content: flex-start;
+    font-size: 0.88rem;
+    line-height: 1.4;
+    padding: 10px 14px;
 }
 
 /* ==========================================================================

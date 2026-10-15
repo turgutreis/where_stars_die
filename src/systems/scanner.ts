@@ -9,7 +9,7 @@ import { createScanVisuals, updateScanVisuals, removeScanVisuals } from '../proc
 import { SpeciesData, PlanetAttributes, FleetShip, SpaceStation, PlanetaryHazards, SurfaceDeposit } from '../types/game';
 import { generateProceduralCandidates } from './crew-generation';
 import { advanceFtueStep, triggerVoyagerSignalDetection } from '../ui/directives';
-import { liberateJamalShip } from '../ui/jamal-dialog';
+import { liberateJamalShip, triggerJamalShipScannedDialogue, openNpcDialogue } from '../ui/jamal-dialog';
 import { abductCrewFromShip } from './abduction';
 import { triggerHarvestStart } from './harvesting';
 import { openShuttleExpeditionModal, hasAwayTeamCrew } from './shuttle-expeditions';
@@ -413,7 +413,14 @@ export function completeScanning() {
             const isJamal = target.isJamalShip || target.type === 'jamal_shuttle' || target.isTowingDrone || target.type === 'towing_drone';
             if (isJamal) {
                 target.scanned = true;
-                liberateJamalShip();
+                if (!STATE.jamalShipLiberated) {
+                    STATE.jamalMissionDiscovered = true;
+                    addLogEntry("SENSOR", "⚠️ SPEKTRAL-SCAN: Blockade detektiert! Eine orbitale Parkkralle der Insan-Organisation versiegelt die Triebwerke!");
+                    triggerJamalShipScannedDialogue();
+                } else {
+                    addLogEntry("JAMAL", "„Die ISS Ibn Battuta ist sicher geborgen. Alle Sensoren sind online!“");
+                    openNpcDialogue('jamal_orbit_intro');
+                }
                 return;
             }
 

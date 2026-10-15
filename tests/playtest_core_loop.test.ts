@@ -227,7 +227,11 @@ import {
     openJamalIntroDialog, 
     liberateJamalShip, 
     isJamalDialogOpen, 
-    closeJamalDialog 
+    closeJamalDialog,
+    openNpcDialogue,
+    handleDialogueChoice,
+    getCurrentDialogueNodeId,
+    triggerJamalShipScannedDialogue
 } from '../src/ui/jamal-dialog';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
@@ -3835,11 +3839,12 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(hasAwayTeamCrew()).toBe(true);
     });
 
-    test("50. Dr. Jamal's Hidden Research Shuttle & Rogue AI Towing Drone Mission: Telepathic brief, parking enforcement clamp, EMP/Scan liberation, and sensor coupling", () => {
+    test("50. Dr. Jamal's Hidden Research Shuttle & Insan Rogue Drone Mission: Right-docked branching NPC dialogue, spectral scan sequence, Insan parking clamp, bureaucratic payment timeout & liberation choices", () => {
         // 1. Reset state & setup starting planet
         STATE.jamalShip = null;
         STATE.towingDrone = null;
         STATE.jamalMissionActive = false;
+        STATE.jamalMissionDiscovered = false;
         STATE.jamalMissionCompleted = false;
         STATE.jamalShipLiberated = false;
         STATE.jamalIntroModalSeen = false;
@@ -3865,10 +3870,23 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         const droneToShuttleDist = STATE.towingDrone.position.distanceTo(STATE.jamalShip.position);
         expect(droneToShuttleDist).toBeLessThan(5);
 
-        // 3. Open telepathic mission brief
+        // 3. Open telepathic mission brief in right-docked panel
         openJamalIntroDialog();
         expect(STATE.jamalMissionActive).toBe(true);
         expect(isJamalDialogOpen()).toBe(true);
+        expect(getCurrentDialogueNodeId()).toBe('jamal_orbit_intro');
+
+        // Test branching questions with Jamal: origin & dying stars
+        handleDialogueChoice('jamal_origin');
+        expect(getCurrentDialogueNodeId()).toBe('jamal_origin');
+
+        handleDialogueChoice('jamal_dying_stars');
+        expect(getCurrentDialogueNodeId()).toBe('jamal_dying_stars');
+
+        // Return to ship search info
+        handleDialogueChoice('jamal_ship_info');
+        expect(getCurrentDialogueNodeId()).toBe('jamal_ship_info');
+
         closeJamalDialog();
         expect(isJamalDialogOpen()).toBe(false);
 
@@ -3880,24 +3898,58 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         const distEl = document.getElementById('voyager-nav-dist');
         expect(distEl?.innerText).toContain("AE");
 
-        // 5. Player approaches and liberates Jamal's ship with [F] / [E]
+        // 5. Player approaches Jamal's ship (< 25 AE) and performs spectral scan with [F]
         STATE.playerPosition.set(STATE.jamalShip.position.x, 0, STATE.jamalShip.position.z + 5);
         expect(STATE.playerPosition.distanceTo(STATE.jamalShip.position)).toBeLessThanOrEqual(25);
 
+        STATE.scanningPlanet = STATE.jamalShip;
+        completeScanning();
+
+        // Scanning completes step 2 and discovers step 3 (Insan clamp)
+        expect(STATE.jamalShip.scanned).toBe(true);
+        expect(STATE.jamalMissionDiscovered).toBe(true);
+        expect(isJamalDialogOpen()).toBe(true);
+        expect(getCurrentDialogueNodeId()).toBe('jamal_ship_scanned');
+
+        // 6. Dialogue Branching at Insan Clamp:
+        // 6a. Ask why ship was locked -> Insan robot drone organization explanation
+        handleDialogueChoice('insan_explanation');
+        expect(getCurrentDialogueNodeId()).toBe('insan_explanation');
+
+        // 6b. Attempt to pay fine (12,000 Credits) -> Bureaucratic network failure
+        handleDialogueChoice('insan_pay_attempt');
+        expect(getCurrentDialogueNodeId()).toBe('insan_pay_attempt');
+
+        // 6c. Inquire about depot / administrative base
+        handleDialogueChoice('insan_base_inquiry');
+        expect(getCurrentDialogueNodeId()).toBe('insan_base_inquiry');
+
+        // 7. Test peaceful hack resolution (executeHackDroneDatabase)
         const initialSpice = STATE.spiceRes || 0;
         const initialSilicon = STATE.siliconRes || 0;
 
-        liberateJamalShip();
-
+        handleDialogueChoice('hack_drone_database');
+        expect(getCurrentDialogueNodeId()).toBe('drone_hacked_result');
         expect(STATE.jamalShipLiberated).toBe(true);
         expect(STATE.jamalMissionCompleted).toBe(true);
         expect(STATE.jamalShip.name).toContain("GEBORGEN");
-        expect(STATE.towingDrone.name).toContain("DEAKTIVIERT");
+        expect(STATE.towingDrone.name).toContain("ADMIN-BYPASS");
+        expect(STATE.towingDrone.status).toBe('neutral');
         expect(STATE.spiceRes).toBe(initialSpice + 50);
         expect(STATE.siliconRes).toBe(initialSilicon + 60);
 
         // Directives list updates to show quest completed
         renderDirectives();
+        closeJamalDialog();
+        expect(isJamalDialogOpen()).toBe(false);
+
+        // 8. Test violent branch reaction: smash_clamp sets drone to hostile
+        STATE.jamalShipLiberated = false;
+        STATE.towingDrone.status = 'patrol';
+        handleDialogueChoice('smash_clamp');
+        expect(getCurrentDialogueNodeId()).toBe('clamp_smashed_result');
+        expect(STATE.towingDrone.status).toBe('hostile');
+        expect(STATE.towingDrone.name).toContain("AGGRESSIV");
         closeJamalDialog();
     });
 });
