@@ -29716,6 +29716,7 @@ var STATE = {
   jamalShipLiberated: false,
   jamalIntroModalSeen: false,
   jamalLiberatedModalSeen: false,
+  activeQuests: {},
   spaceStations: [],
   stealthActive: false,
   stealthDrainRate: 2,
@@ -33765,6 +33766,224 @@ function playFleetAlarmSound() {
     console.warn("Fleet alarm audio playback skipped:", e);
   }
 }
+// src/data/quests.json
+var quests_default = {
+  prologue_jamal_ship: {
+    id: "prologue_jamal_ship",
+    title: "Jamals Forschungsschiff",
+    badge: "PROLOG-QUEST",
+    category: "prologue",
+    stages: [
+      {
+        stage: 0,
+        title: "Schiff im Orbit lokalisieren",
+        instruction: "Fliege zum Planeten & scanne Jamals Forschungsschiff im Orbit mit [F]",
+        hint: "Jamal hat sein Schiff vor den Insan-Drohnen im Planetenorbit versteckt. Nähere dich auf < 25 AE.",
+        objective: {
+          type: "scan_target",
+          targetId: "jamal_shuttle"
+        }
+      },
+      {
+        stage: 1,
+        title: "Insan-Parkkralle untersuchen",
+        instruction: "Untersuche die Insan-Parkkralle an Jamals Schiff [Dialog rechts]",
+        hint: "Wähle im Dialog rechts: Parkkralle zerschmettern, Parkbuße zahlen oder Insan-Depot hacken.",
+        objective: {
+          type: "dialogue_completed",
+          nodeId: "jamal_ship_scanned"
+        }
+      },
+      {
+        stage: 2,
+        title: "Forschungsschiff geborgen",
+        instruction: 'Forschungsschiff "ISS Ibn Battuta" geborgen (+50 Melange) & Sensoren gekoppelt.',
+        hint: "Alle Scanner- und Telemetriedaten von Dr. Jamal sind online.",
+        objective: {
+          type: "completed"
+        }
+      }
+    ],
+    rewards: {
+      spice: 50,
+      silicon: 60
+    }
+  }
+};
+
+// src/systems/quests.ts
+var questRegistry = { ...quests_default };
+function ensureStateQuests() {
+  if (!STATE.activeQuests) {
+    STATE.activeQuests = {};
+  }
+  return STATE.activeQuests;
+}
+
+class QuestManager {
+  static registerQuest(quest) {
+    questRegistry[quest.id] = quest;
+  }
+  static getQuest(questId) {
+    return questRegistry[questId];
+  }
+  static startQuest(questId) {
+    const quest = questRegistry[questId];
+    if (!quest) {
+      console.warn(`[QuestManager] Cannot start quest '${questId}': definition not found.`);
+      return null;
+    }
+    const quests = ensureStateQuests();
+    if (quests[questId] && !quests[questId].completed) {
+      return quests[questId];
+    }
+    const progress = {
+      questId,
+      currentStage: 0,
+      completed: false
+    };
+    quests[questId] = progress;
+    if (questId === "prologue_jamal_ship") {
+      STATE.jamalMissionActive = true;
+      STATE.jamalMissionCompleted = false;
+    }
+    addLogEntry("SYSTEM", `\uD83D\uDCCB Neue Mission aktiv: [${quest.title}]`);
+    return progress;
+  }
+  static advanceQuest(questId, targetStage) {
+    const quest = questRegistry[questId];
+    const quests = ensureStateQuests();
+    const progress = quests[questId];
+    if (!quest || !progress) {
+      return null;
+    }
+    const nextStageIndex = targetStage !== undefined ? targetStage : progress.currentStage + 1;
+    const totalStages = quest.stages.length;
+    if (nextStageIndex >= totalStages - 1) {
+      progress.currentStage = totalStages - 1;
+      this.completeQuest(questId);
+    } else {
+      progress.currentStage = nextStageIndex;
+      const currentStageObj = quest.stages[progress.currentStage];
+      if (currentStageObj) {
+        addLogEntry("SYSTEM", `\uD83D\uDCCB Missionsziel aktualisiert: [${quest.title}] -> ${currentStageObj.title}`);
+      }
+    }
+    if (questId === "prologue_jamal_ship") {
+      if (progress.currentStage >= 1) {
+        STATE.jamalMissionDiscovered = true;
+      }
+    }
+    return progress;
+  }
+  static completeQuest(questId) {
+    const quest = questRegistry[questId];
+    const quests = ensureStateQuests();
+    const progress = quests[questId];
+    if (!quest || !progress)
+      return null;
+    progress.completed = true;
+    progress.currentStage = quest.stages.length - 1;
+    if (quest.rewards) {
+      if (quest.rewards.spice)
+        STATE.spiceRes = (STATE.spiceRes || 0) + quest.rewards.spice;
+      if (quest.rewards.silicon)
+        STATE.siliconRes = (STATE.siliconRes || 0) + quest.rewards.silicon;
+      if (quest.rewards.bio)
+        STATE.bioRes = (STATE.bioRes || 0) + quest.rewards.bio;
+      if (quest.rewards.mental)
+        STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + quest.rewards.mental);
+    }
+    if (questId === "prologue_jamal_ship") {
+      STATE.jamalMissionCompleted = true;
+      STATE.jamalShipLiberated = true;
+    }
+    addLogEntry("SYSTEM", `\uD83C\uDF89 Mission abgeschlossen: [${quest.title}] ✔`);
+    return progress;
+  }
+  static isQuestActive(questId) {
+    if (questId === "prologue_jamal_ship" && STATE.jamalMissionActive && !STATE.jamalMissionCompleted) {
+      return true;
+    }
+    const quests = ensureStateQuests();
+    return !!(quests[questId] && !quests[questId].completed);
+  }
+  static isQuestCompleted(questId) {
+    if (questId === "prologue_jamal_ship" && STATE.jamalMissionCompleted) {
+      return true;
+    }
+    const quests = ensureStateQuests();
+    return !!(quests[questId] && quests[questId].completed);
+  }
+  static getQuestProgress(questId) {
+    const quests = ensureStateQuests();
+    if (!quests[questId] && questId === "prologue_jamal_ship" && STATE.jamalMissionActive) {
+      quests[questId] = {
+        questId: "prologue_jamal_ship",
+        currentStage: STATE.jamalMissionCompleted ? 2 : STATE.jamalMissionDiscovered ? 1 : 0,
+        completed: !!STATE.jamalMissionCompleted
+      };
+    }
+    return quests[questId];
+  }
+  static getCurrentStage(questId) {
+    const quest = questRegistry[questId];
+    const progress = this.getQuestProgress(questId);
+    if (!quest || !progress)
+      return null;
+    return quest.stages[progress.currentStage] || null;
+  }
+  static getActiveQuests() {
+    const quests = ensureStateQuests();
+    if (STATE.jamalMissionActive && !quests["prologue_jamal_ship"]) {
+      quests["prologue_jamal_ship"] = {
+        questId: "prologue_jamal_ship",
+        currentStage: STATE.jamalMissionCompleted ? 2 : STATE.jamalMissionDiscovered ? 1 : 0,
+        completed: !!STATE.jamalMissionCompleted
+      };
+    }
+    const activeList = [];
+    for (const [id, progress] of Object.entries(quests)) {
+      const def = questRegistry[id];
+      if (def) {
+        if (id === "prologue_jamal_ship") {
+          if (STATE.jamalMissionCompleted) {
+            progress.completed = true;
+            progress.currentStage = 2;
+          } else if (STATE.jamalMissionDiscovered && progress.currentStage === 0) {
+            progress.currentStage = 1;
+          }
+        }
+        const stage = def.stages[progress.currentStage] || def.stages[def.stages.length - 1];
+        activeList.push({
+          definition: def,
+          progress,
+          currentStage: stage
+        });
+      }
+    }
+    return activeList;
+  }
+  static notifyQuestEvent(eventType, payload) {
+    const active = this.getActiveQuests();
+    for (const item of active) {
+      if (item.progress.completed)
+        continue;
+      const obj = item.currentStage.objective;
+      if (!obj)
+        continue;
+      if (obj.type === eventType) {
+        if (eventType === "scan_target" && obj.targetId && payload === obj.targetId) {
+          this.advanceQuest(item.definition.id);
+        } else if (eventType === "dialogue_completed" && obj.nodeId && payload === obj.nodeId) {
+          this.advanceQuest(item.definition.id);
+        } else if (eventType === "completed") {
+          this.completeQuest(item.definition.id);
+        }
+      }
+    }
+  }
+}
 
 // src/ui/directives.ts
 var FTUE_DIRECTIVES = [
@@ -33831,26 +34050,27 @@ function renderDirectives() {
     return;
   const currentStep = STATE.ftueStep || 0;
   let html = "";
-  if (STATE.jamalMissionActive) {
-    const isJamalDone = !!STATE.jamalMissionCompleted;
-    const jamalStatusClass = isJamalDone ? "done" : "active";
-    const jamalCheckmark = isJamalDone ? "✔" : "◉";
+  const activeQuests = QuestManager.getActiveQuests();
+  activeQuests.forEach((q) => {
+    const isDone = q.progress.completed;
+    const statusClass = isDone ? "done" : "active";
+    const checkmark = isDone ? "✔" : "◉";
     html += `
-            <div class="directive-card ${jamalStatusClass} story-quest-card" data-quest="jamal_shuttle">
-                <div class="directive-status-icon">${jamalCheckmark}</div>
+            <div class="directive-card ${statusClass} story-quest-card" data-quest="${q.definition.id}">
+                <div class="directive-status-icon">${checkmark}</div>
                 <div class="directive-body">
                     <div class="directive-header">
-                        <span class="directive-badge" style="background: rgba(168, 85, 247, 0.25); border-color: rgba(168, 85, 247, 0.6); color: #d8b4fe;">PROLOG-QUEST</span>
-                        <span class="directive-title">Jamals Forschungsschiff</span>
+                        <span class="directive-badge" style="background: rgba(168, 85, 247, 0.25); border-color: rgba(168, 85, 247, 0.6); color: #d8b4fe;">${q.definition.badge || "PROLOG-QUEST"}</span>
+                        <span class="directive-title">${q.definition.title}</span>
                     </div>
                     <div class="directive-instruction">
-                        ${isJamalDone ? 'Forschungsschiff "ISS Ibn Battuta" geborgen (+50 Melange) & Sensoren gekoppelt.' : STATE.jamalMissionDiscovered ? "Untersuche die Insan-Parkkralle an Jamals Schiff [Dialog rechts]" : "Fliege zum Planeten & scanne Jamals Forschungsschiff im Orbit mit [F]"}
+                        ${q.currentStage.instruction}
                     </div>
-                    ${!isJamalDone ? `<div class="directive-hint">${STATE.jamalMissionDiscovered ? "Wähle im Dialog rechts: Parkkralle zerschmettern, Parkbuße zahlen oder Insan-Depot hacken." : "Jamal hat sein Schiff vor den Insan-Drohnen im Planetenorbit versteckt. Nähere dich auf &lt; 25 AE."}</div>` : ""}
+                    ${!isDone && q.currentStage.hint ? `<div class="directive-hint">${q.currentStage.hint}</div>` : ""}
                 </div>
             </div>
         `;
-  }
+  });
   FTUE_DIRECTIVES.forEach((d) => {
     const isDone = d.id < currentStep;
     const isActive = d.id === currentStep;
@@ -33950,291 +34170,396 @@ function updateVoyagerHUDTracker() {
     angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
   }
 }
-
-// src/ui/jamal-dialog.ts
-var isDialogOpen = false;
-var currentNodeId = "jamal_orbit_intro";
-function isJamalDialogOpen() {
-  return isDialogOpen;
-}
-var DIALOGUE_NODES = {
+// src/data/dialogues.json
+var dialogues_default = {
   jamal_orbit_intro: {
     id: "jamal_orbit_intro",
     speakerName: "Dr. Jamal",
+    speakerTitle: "Chef-Quantenphysiker",
     speakerType: "character",
     eyebrow: "⚛️ TELEPATHIE • PERSEUS-RAND",
-    mainText: "„Najmafar! Wir sind entkommen... Jetzt müssen wir mein Schiff finden.“",
-    subText: `„Ich bin nur mit einem unauffälligen Zivil-Touristenshuttle zur Menagerie gereist, um keine Aufmerksamkeit der Psionischen Gilde zu erregen.
-
-Mein eigentliches Forschungsschiff – die ISS Ibn Battuta – liegt im Orbit des nahen Planeten versteckt. Fliege zum Planeten und scanne es mit deinen Sensoren [F]!“`,
-    sound: "sonar",
+    mainText: "„Najmafar, spürst du meine synaptische Koppelung? Wir haben es geschafft!“",
+    subText: "„Wir sind der Menagerie von Ceres-9 entkommen. Aber ich bin nur mit einem zivilen Touristen-Shuttle angereist, um die Psionische Gilde nicht zu warnen. Mein eigentliches Forschungsschiff – die ISS Ibn Battuta – habe ich im Orbit dieses nahen Planeten versteckt. Wir müssen es finden!“",
+    sound: "synapse",
     options: [
-      { label: "„Verstanden. Ich nehme Kurs auf den Planeten.“", keyHint: "1", action: "close" },
-      { label: "„Wieso wurde dein Raumschiff überhaupt versteckt?“", keyHint: "2", targetNodeId: "jamal_ship_info" },
-      { label: "„Woher kommst du, Jamal? Und warum hast du mich befreit?“", keyHint: "3", targetNodeId: "jamal_origin" }
+      {
+        label: "„Wo genau ist dein Forschungsschiff versteckt?“",
+        targetNodeId: "jamal_ship_info",
+        keyHint: "1"
+      },
+      {
+        label: "„Wieso hast du mich aus der Menagerie gerettet, Jamal?“",
+        targetNodeId: "jamal_origin",
+        keyHint: "2"
+      },
+      {
+        label: "„Verstanden. Ich scanne den Orbit des Planeten. [Ende]“",
+        action: "close",
+        keyHint: "3"
+      }
     ]
   },
   jamal_ship_info: {
     id: "jamal_ship_info",
     speakerName: "Dr. Jamal",
+    speakerTitle: "Chef-Quantenphysiker",
     speakerType: "character",
-    eyebrow: "⚛️ FORSCHUNGSSCHIFF • ISS IBN BATTUTA",
-    mainText: "„Ein autonomer Prototyp für Tiefenraum-Aufklärung.“",
-    subText: `„Die Ibn Battuta ist vollgestopft mit Quantensensoren, meinen Isolierexperimenten und 50 Einheiten reinem Melange-Gewürz. Ohne dieses Schiff und seine Antennen sind wir im interstellaren Raum blind.
-
-Ich habe es im planetaren Orbit geparkt, getarnt hinter der Radiations-Signatur der Atmosphäre.“`,
+    eyebrow: "🛰️ ORBITAL-TELEMETRIE • IBN BATTUTA",
+    mainText: "„Es treibt im Gravitationsschatten des nahen Planeten.“",
+    subText: "„Ich habe es auf Minimalenergie geschaltet. Fliege in den Orbit des Planeten und halte Ausschau nach einer metallischen Energiesignatur. Wenn du nahe genug bist (< 25 AE), aktiviere deine Spektral-Sensoren mit [F], um es zu erfassen!“",
+    sound: "sonar",
     options: [
-      { label: "„Woher kommst du eigentlich und warum hast du mich befreit?“", keyHint: "1", targetNodeId: "jamal_origin" },
-      { label: "„Alles klar. Fliegen wir zum Planeten und orten es.“", keyHint: "2", action: "close" }
+      {
+        label: "„Was für Technologie hast du an Bord der Ibn Battuta?“",
+        targetNodeId: "jamal_dying_stars",
+        keyHint: "1"
+      },
+      {
+        label: "„Ich nehme Kurs auf das Schiff. [Schließen]“",
+        action: "close",
+        keyHint: "2"
+      }
     ]
   },
   jamal_origin: {
     id: "jamal_origin",
     speakerName: "Dr. Jamal",
+    speakerTitle: "Chef-Quantenphysiker",
     speakerType: "character",
-    eyebrow: "⚛️ DR. JAMAL • ARCHIVE DER ERDE",
-    mainText: "„Ich habe 250 Jahre alte Daten analysiert...“",
-    subText: `„Vor zweieinhalb Jahrhunderten bemerkten terranische Observatorien, dass die Sterne sterben. Einer nach dem anderen erlischt am kosmischen Horizont. Ich suchte nach dem Ursprung dessen, was der Erde und dem Kosmos widerfährt.
-
-Die Psionische Gilde hatte dich in der Menagerie gefangen und wollte dein Bewusstsein für ein Experiment ausschlachten. Ich wusste: Du bist kein wildes Tier. Und ich wusste, dass du Spice brauchst, um aus der Apathie zu erwachen.“`,
+    eyebrow: "📜 250 JAHRE ARCHIVDATEN • HISTORIE",
+    mainText: "„Ich habe 250 Jahre alte Aufzeichnungen über dein Volk studiert.“",
+    subText: "„Die Menschen glaubten, eure Spezies sei nur ein Mythos – oder eine Bedrohung. Doch als die Sterne begannen, einer nach dem anderen zu erlöschen, erkannte ich: Ihr seid der Schlüssel zum Überleben. Ich konnte nicht zulassen, dass die Gilde dich für Melange zerlegt.“",
+    sound: "synapse",
     options: [
-      { label: "„Warum sterben die Sterne?“", keyHint: "1", targetNodeId: "jamal_dying_stars" },
-      { label: "„Zurück zum Planeten & dein Schiff suchen.“", keyHint: "2", targetNodeId: "jamal_orbit_intro" }
+      {
+        label: "„Warum erlöschen die Sterne in der Galaxie?“",
+        targetNodeId: "jamal_dying_stars",
+        keyHint: "1"
+      },
+      {
+        label: "„Lass uns zuerst dein Schiff sichern.“",
+        targetNodeId: "jamal_ship_info",
+        keyHint: "2"
+      }
     ]
   },
   jamal_dying_stars: {
     id: "jamal_dying_stars",
     speakerName: "Dr. Jamal",
+    speakerTitle: "Chef-Quantenphysiker",
     speakerType: "character",
-    eyebrow: "⚛️ ASTROPHYSIK • DUNKLE ENERGIE",
-    mainText: "„Das Universum driftet auseinander... beschleunigt durch dunkle Energie.“",
-    subText: `„Das Licht erreicht die Systeme nicht mehr. Irgendetwas zerreißt die kosmische Ordnung. Vor zweihundert Jahren hat dein Volk das Echo-Signal gesandt. Die Menschheit hat es nie ganz verstanden, aber unsere Quantenrechner basieren auf eurer Biologie.
-
-Wir müssen überleben. Und dafür brauchen wir mein Forschungsschiff.“`,
+    eyebrow: "🌌 DAS GROSSE ERKALATEN • ANOMALIE",
+    mainText: "„Eine Welle aus negativer Entropie frisst das galaktische Zentrum.“",
+    subText: "„Mein Schiff hat Langstrecken-Quantensensoren an Bord, mit denen wir die Todesfront der Sterne kartografieren können. Außerdem habe ich dort eine Reserve an reinem Melange-Spice gebunkert – das wird deine Psionik wieder aufladen!“",
+    sound: "sonar",
     options: [
-      { label: "„Kurs auf das Schiff setzen.“", keyHint: "1", action: "close" }
+      {
+        label: "„Dann gibt es keine Zeit zu verlieren. Ich suche die Ibn Battuta.“",
+        targetNodeId: "jamal_ship_info",
+        keyHint: "1"
+      }
     ]
   },
   jamal_ship_scanned: {
     id: "jamal_ship_scanned",
-    speakerName: "Insan-Terminal & Dr. Jamal",
-    speakerType: "ai",
-    eyebrow: "\uD83D\uDEA8 SPEKTRAL-SCAN • ANOMALIE ENTDECKT",
-    mainText: "„Die Triebwerke sind mit einer massiven Quanten-Kralle blockiert!“",
-    subText: `Ein blinkendes Hologramm der Insan-Organisation pulsiert über den Hecktriebwerken der ISS Ibn Battuta:
-
-[INSAN-VOLLZUG §42a]: „Widerrechtliches Parken im orbitalen Raum. Parkdauer um 42 Zyklen überschritten. Fahrzeug festgesetzt. Fällige Gebühr: 12.000 galaktische Credits.“
-
-Jamal seufzt schwer in deinen Synapsen:
-„Nicht die schon wieder... Das ist eine Parkkralle der Insan-Drohnen!“`,
+    speakerName: "Dr. Jamal",
+    speakerTitle: "Chef-Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "⚠️ SPEKTRAL-SCAN • ORBITALE BLOCKADE",
+    mainText: "„Verdammt ... sie haben mein Schiff mit einer Quanten-Parkkralle versiegelt!“",
+    subText: "„Sieh dir das an! Eine orbitale Vollstreckungskralle der Insan-Organisation umschließt die Haupttriebwerke. Eine autonome KI-Abschleppdrohne vom Typ TX-9 bewacht das Wrack und verlangt astronomische Parkgebühren!“",
     sound: "alarm",
     options: [
-      { label: "„Frage an Jamal: Wieso wurde dein Raumschiff gesperrt? Wer sind die Insan?“", keyHint: "1", targetNodeId: "insan_explanation" },
-      { label: "„Versuche, das Bußgeld am Terminal zu bezahlen [12.000 Credits]“", keyHint: "2", targetNodeId: "insan_pay_attempt" },
-      { label: "„Können wir die Kralle nicht einfach mit Gewalt zerschlagen?“", keyHint: "3", targetNodeId: "insan_violence_inquiry" },
-      { label: "„Gibt es einen Weg, ihre Basis zu finden, wohin Schiffe gebracht werden?“", keyHint: "4", targetNodeId: "insan_base_inquiry" },
-      { label: "„Später entscheiden [Dialog schließen]“", keyHint: "ESC", action: "close" }
+      {
+        label: "„Wieso wurde dein Raumschiff gesperrt?“",
+        targetNodeId: "insan_explanation",
+        keyHint: "1"
+      },
+      {
+        label: "„Gibt es eine Option, die Buße einfach zu bezahlen?“",
+        targetNodeId: "insan_pay_attempt",
+        keyHint: "2"
+      },
+      {
+        label: "„Ich zertrümmere die Parkkralle mit einem psionischen Bio-Schock!“",
+        action: "smash_clamp",
+        keyHint: "3"
+      },
+      {
+        label: "„Können wir die Datenbank der Drohne hacken oder ihre Basis finden?“",
+        targetNodeId: "insan_base_inquiry",
+        keyHint: "4"
+      }
     ]
   },
   insan_explanation: {
     id: "insan_explanation",
     speakerName: "Dr. Jamal",
+    speakerTitle: "Chef-Quantenphysiker",
     speakerType: "character",
-    eyebrow: "\uD83E\uDD16 DIE INSAN-ORGANISATION • AUTONOME BÜROKRATIE",
-    mainText: "„Eine Drohnengesellschaft, die völlig außer Kontrolle geraten ist.“",
-    subText: `„'Insan' steht im Arabischen für künstliche Menschen und Roboter. Vor Jahrhunderten schufen die Kernwelten eine autonome Drohnengesellschaft zur Regelung von Verkehrsströmen und Parkzonen im Weltall.
-
-Als die Zivilisationen untergingen, liefen die Subroutinen der Insan einfach weiter. Jetzt patrouillieren Tausende dieser hirnlosen Drohnen den Kosmos, jagen Falschparker um Planeten und Asteroiden und schleppen Schiffe gnadenlos ab oder verpassen ihnen Krallen!“`,
+    eyebrow: "🤖 INSAN-BÜROKRATIE • LORE",
+    mainText: "„Die Insan sind eine Roboter-Zivilisation, die völlig durchgedreht ist.“",
+    subText: "„'Insan' bedeutet im Alt-Arabischen 'Mensch' oder 'künstliches Wesen'. Ursprünglich waren es interstellare Parkraum- und Zollautomaten der alten Föderation. Als ihre Schöpfer untergingen, lief ihr Verwaltungscode Amok: Sie definieren nun jeden Orbit, jeden Asteroiden und jedes Trümmerfeld als gebührenpflichtigen Haltebereich und schleppen unerbittlich ab!“",
+    sound: "sonar",
     options: [
-      { label: "„Was passiert, wenn wir die geforderten 12.000 Credits zahlen?“", keyHint: "1", targetNodeId: "insan_pay_attempt" },
-      { label: "„Können wir die Kralle gewaltsam zerstören?“", keyHint: "2", targetNodeId: "insan_violence_inquiry" },
-      { label: "„Wo ist die Basis, wohin Schiffe abgeschleppt werden?“", keyHint: "3", targetNodeId: "insan_base_inquiry" }
+      {
+        label: "„Was passiert, wenn wir die Parkkralle gewaltsam zerstören?“",
+        action: "smash_clamp",
+        keyHint: "1"
+      },
+      {
+        label: "„Versuchen wir, das Ticket am Insan-Transponder zu begleichen.“",
+        targetNodeId: "insan_pay_attempt",
+        keyHint: "2"
+      },
+      {
+        label: "„Wo bringen die Drohnen abgeschleppte Schiffe hin? Haben sie eine Basis?“",
+        targetNodeId: "insan_base_inquiry",
+        keyHint: "3"
+      }
     ]
   },
   insan_pay_attempt: {
     id: "insan_pay_attempt",
-    speakerName: "Insan-Zahlungsterminal TX-9",
-    speakerType: "terminal",
-    eyebrow: "\uD83D\uDCB3 INSAN-KREDIT-TRANSFERSYSTEM",
-    mainText: "„Verbindungsaufbau zum Galaktischen Bankenkonglomerat...“",
-    subText: `Auf dem Terminal der Kralle rattern kryptische Fehlercodes:
-
-[FEHLER 0xINSAN_TIMEOUT]: „Transaktion fehlgeschlagen! Interstellare Kommunikations-Störung im Perseus-Sektor. Kein Signal zur Zentralbank.
-Wiederholen Sie den Bezahlvorgang in: 3 Äonen, 42 Zyklen.“
-
-Jamal schüttelt telepathisch den Kopf:
-„Typisch Insan-Bürokratie! Das gesamte Bankennetz ist seit zwei Jahrhunderten tot! Aber ihre Software verlangt stur eine Online-Transaktion. Zahlen ist unmöglich!“`,
-    sound: "crash",
+    speakerName: "Insan-Transponder TX-9",
+    speakerTitle: "Autonome Parkraumüberwachung",
+    speakerType: "system",
+    eyebrow: "💳 ZAHLUNGSTERMINAL • VERBINDUNGSAUFBAU",
+    mainText: "„Falschparken im planetaren Orbit: 12.000 Credits fällig. Zahlung wird verarbeitet ...“",
+    subText: "„FEHLER 0x889F-VOLLZUG: Interstellare Netzwerk-Störung! Verbindung zum Hauptbuchhalter-Cluster Sagittarius A* unterbrochen. Kreditkarten-Zahlung abgelehnt. Bitte warten Sie 3 Äonen, bis die Netzwerkwelle eintrifft.“",
+    sound: "alarm",
     options: [
-      { label: "„Kralle gewaltsam zerstören [EMP / Bio-Gewalt]“", keyHint: "1", targetNodeId: "insan_violence_inquiry" },
-      { label: "„Nach der Insan-Basis & Deaktivierungscode forschen“", keyHint: "2", targetNodeId: "insan_base_inquiry" },
-      { label: "„Zurück zu den Optionen“", keyHint: "3", targetNodeId: "jamal_ship_scanned" }
-    ]
-  },
-  insan_violence_inquiry: {
-    id: "insan_violence_inquiry",
-    speakerName: "Dr. Jamal",
-    speakerType: "character",
-    eyebrow: "⚠️ WARNUNG • VOLLSTRECKER-ALARM",
-    mainText: "„Du könntest die Kralle zerfetzen... aber sie werden stinksauer sein.“",
-    subText: `„Mit deiner gigantischen biologischen Masse oder einem EMP-Schockstoß kannst du die Quanten-Kralle einfach in Stücke reißen. Mein Schiff wäre sofort frei.
-
-ABER: Sobald die Kralle bricht, sendet sie einen Notfall-Alarm! Die Insan-Abschleppdrohne und ihre Eskorte werden sofort feindlich und eröffnen das Feuer auf uns!“`,
-    options: [
-      { label: "\uD83D\uDCA5 „Egal! Zerschlage die Kralle mit Bio-Gewalt! [Schiff befreien & Drohnen alarmieren]“", keyHint: "1", action: "smash_clamp" },
-      { label: "„Lieber nicht riskieren. Gibt es einen friedlichen Weg über ihre Basis?“", keyHint: "2", targetNodeId: "insan_base_inquiry" },
-      { label: "„Zurück“", keyHint: "3", targetNodeId: "jamal_ship_scanned" }
+      {
+        label: "„Das dauert mir zu lange. Ich zerlege die Kralle per Bio-Schock! [Angriff]“",
+        action: "smash_clamp",
+        keyHint: "1"
+      },
+      {
+        label: "„Jamal, können wir den Drohnen-Transponder hacken?“",
+        targetNodeId: "insan_base_inquiry",
+        keyHint: "2"
+      },
+      {
+        label: "„Zurück zu den Optionen.“",
+        targetNodeId: "jamal_ship_scanned",
+        keyHint: "3"
+      }
     ]
   },
   insan_base_inquiry: {
     id: "insan_base_inquiry",
     speakerName: "Dr. Jamal",
+    speakerTitle: "Chef-Quantenphysiker",
     speakerType: "character",
-    eyebrow: "\uD83D\uDEF0️ SENSOR-ANALYSE • DIE INSAN-VERWAHRSTELLE",
-    mainText: "„Jede Drohne speichert den Leitstrahl zu ihrer Heimatbasis.“",
-    subText: `„Die Insan-Organisation bringt alle abgeschleppten Schiffe zu einer riesigen Schrott- und Verwahrbasis. Jede Drohne trägt die Koordinaten und den autorisierten Deaktivierungscode im Speicher.
-
-Wenn wir die Drohnendatenbank scannen und hacken, können wir den Deaktivierungscode extrahieren – und die Kralle löst sich friedlich!“`,
+    eyebrow: "🛰️ INSAN-DEPOT • BASIS-KOORDINATEN",
+    mainText: "„Normalerweise schleppen sie Schiffe zu einer orbitalen Verwahrstelle.“",
+    subText: "„Irgendwo im Sektor existiert ein gigantischer Schrott- und Pfand-Depotring der Insan-Gesellschaft, in dem Tausende verlassene Schiffe lagern. Wenn du meine Quanten-Matrix an die Drohne ankoppelst, kann ich ihre Navigationsdatenbank anzapfen und den Admin-Bypass-Code extrahieren!“",
+    sound: "synapse",
     options: [
-      { label: "\uD83D\uDCE1 „Speicherbank der Drohne anzapfen & Deaktivierungscode extrahieren [Hack / Scan]“", keyHint: "1", action: "hack_drone_database" },
-      { label: "\uD83D\uDCA5 „Zu kompliziert! Zerschlage die Kralle mit Bio-Gewalt! [Kampf]“", keyHint: "2", action: "smash_clamp" },
-      { label: "„Zurück“", keyHint: "3", targetNodeId: "jamal_ship_scanned" }
+      {
+        label: "„[HACKEN] Dr. Jamals Koppelung starten & Admin-Code extrahieren“",
+        action: "hack_drone_database",
+        keyHint: "1"
+      },
+      {
+        label: "„Keine Zeit für Hacks – Bio-Schock auf die Kralle entladen! [Zerstören]“",
+        action: "smash_clamp",
+        keyHint: "2"
+      }
     ]
   },
   clamp_smashed_result: {
     id: "clamp_smashed_result",
     speakerName: "Dr. Jamal",
+    speakerTitle: "Chef-Quantenphysiker",
     speakerType: "character",
-    eyebrow: "\uD83D\uDCA5 GEWALTIGE BEFREIUNG • DROHNEN-ALARM",
-    mainText: "„Die Kralle ist zertrümmert! Aber die Drohnen sind stinksauer!“",
-    subText: `Die Quantenkralle explodiert in einem Funkenregen! Ein gellender Alarmton schallt durch die Frequenzen:
-
-[INSAN-DROHNE TX-9]: „ALARM! Sachbeschädigung an Vollzugseigentum! Aggressor identifiziert als biologischer Leviathan. Kampfprotokoll aktiviert!“
-
-Jamal: „Die Ibn Battuta ist frei! Ich habe 50 Melange und alle Daten in deine Neuronen geladen. Aber mach dich bereit – die Drohnen greifen an!“`,
-    sound: "alarm",
+    eyebrow: "💥 KRALLE ZERSTÖRT • DROHNEN-ALARM",
+    mainText: "„Die Kralle ist zersplittert! Aber die Abschleppdrohnen sind stinksauer!“",
+    subText: "„Die ISS Ibn Battuta ist frei! Meine Schiffssysteme und deine Nervenstränge sind gekoppelt (+50 Spice, +60 Silizium geborgen). Aber pass auf: Die Insan-Drohne hat den Gefechtsmodus aktiviert und meldet uns als Vandale!“",
+    sound: "crash",
     options: [
-      { label: "⚔️ „Lasst sie nur kommen!“ [Dialog schließen & Gefecht aufnehmen]", keyHint: "1", action: "close" }
+      {
+        label: "„Ich bin bereit. Lass sie nur kommen! [Schließen]“",
+        action: "close",
+        keyHint: "1"
+      }
     ]
   },
   drone_hacked_result: {
     id: "drone_hacked_result",
     speakerName: "Dr. Jamal",
+    speakerTitle: "Chef-Quantenphysiker",
     speakerType: "character",
-    eyebrow: "✨ ELEGANTER BYPASS • SCHIFF GEBORGEN",
-    mainText: "„Unglaublich! Du hast ihre eigene bürokratische Hintertür genutzt!“",
-    subText: `Deine psionischen Synapsen knacken die Speicherbank der Drohne und senden den Insan-Administrator-Code (OVERRIDE_ADMIN_0000).
-
-[INSAN-DROHNE]: „Administrator-Code akzeptiert. Parkkralle entriegelt. Vielen Dank für Ihre Kooperation. Wir wünschen eine angenehme Weiterreise im Perseus-Sektor.“
-
-Jamal lacht begeistert:
-„Haha! Sie haben sich sogar bedankt! Die Ibn Battuta ist unversehrt frei, 50 Melange gesichert – und wir haben die Koordinaten ihrer Verwahrstelle im Archiv!“`,
+    eyebrow: "✨ ADMIN-BYPASS ERFOLGREICH • BASIS GEFUNDEN",
+    mainText: "„Bypass autorisiert! Die Kralle hat sich friedlich geöffnet.“",
+    subText: "„Genial, Najmafar! Wir haben den Master-Code OVERRIDE_ADMIN_0000 eingespeist. Die Drohne hält uns nun für Insan-Inspektoren. Ich habe alle Vorräte geborgen (+50 Spice, +60 Silizium) und die Koordinaten des Insan-Schrottdepots auf deiner Sternenkarte markiert!“",
     sound: "synapse",
     options: [
-      { label: "\uD83D\uDD2D „Sensoren koppeln & System erkunden“ [Dialog schließen]", keyHint: "1", action: "close" }
+      {
+        label: "„Hervorragende Arbeit, Jamal. Alle Systeme online. [Schließen]“",
+        action: "close",
+        keyHint: "1"
+      }
     ]
   }
 };
-function openNpcDialogue(nodeId) {
-  const node = DIALOGUE_NODES[nodeId] || DIALOGUE_NODES["jamal_orbit_intro"];
-  currentNodeId = node.id;
-  isDialogOpen = true;
-  const card = document.getElementById("npc-dialog-card");
-  const eyebrowText = document.getElementById("npc-dialog-eyebrow-text");
-  const speakerBadge = document.getElementById("npc-speaker-badge");
-  const mainTextEl = document.getElementById("npc-dialog-main-text");
-  const subTextEl = document.getElementById("npc-dialog-sub-text");
-  const choicesContainer = document.getElementById("npc-dialog-choices");
-  if (!card)
-    return;
-  card.classList.remove("hidden");
-  if (eyebrowText)
-    eyebrowText.innerText = node.eyebrow;
-  if (speakerBadge) {
-    speakerBadge.innerText = node.speakerName;
-    speakerBadge.className = `prologue-speaker-badge speaker-${node.speakerType || "character"}`;
-  }
-  if (mainTextEl) {
-    mainTextEl.innerText = node.mainText;
-  }
-  if (subTextEl) {
-    subTextEl.innerHTML = node.subText.split(`
 
-`).map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`).join("");
+// src/systems/dialogue.ts
+var dialogueRegistry = { ...dialogues_default };
+var actionHandlers = {};
+var isDialogOpen = false;
+var currentNodeId = "jamal_orbit_intro";
+
+class DialogueEngine {
+  static registerNodes(nodes) {
+    Object.assign(dialogueRegistry, nodes);
   }
-  try {
-    if (node.sound === "sonar")
-      playSonarChime();
-    else if (node.sound === "synapse")
-      playSynapseEvolveSound();
-    else if (node.sound === "alarm")
-      playFleetAlarmSound();
-    else if (node.sound === "crash")
-      playCrashSound();
-  } catch (e) {}
-  if (choicesContainer) {
-    choicesContainer.innerHTML = "";
-    node.options.forEach((opt, idx) => {
-      const btn = document.createElement("button");
-      btn.className = opt.action === "smash_clamp" ? "prologue-action-btn" : "prologue-choice-btn";
-      const keyHint = opt.keyHint || `${idx + 1}`;
-      btn.innerHTML = `<span class="prologue-choice-badge">${keyHint}</span><span>${opt.label}</span>`;
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        handleDialogueChoice(opt);
+  static registerAction(actionName, handler) {
+    actionHandlers[actionName] = handler;
+  }
+  static getNode(nodeId) {
+    return dialogueRegistry[nodeId];
+  }
+  static isDialogOpen() {
+    return isDialogOpen;
+  }
+  static getCurrentNodeId() {
+    return currentNodeId;
+  }
+  static evaluateCondition(cond) {
+    if (!cond)
+      return true;
+    if (cond.minSpice !== undefined && (STATE.spiceRes || 0) < cond.minSpice)
+      return false;
+    if (cond.minSilicon !== undefined && (STATE.siliconRes || 0) < cond.minSilicon)
+      return false;
+    if (cond.minMental !== undefined && (STATE.mentalEnergy || 0) < cond.minMental)
+      return false;
+    if (cond.requiresQuestStage) {
+      const progress = QuestManager.getQuestProgress(cond.requiresQuestStage.questId);
+      if (!progress || progress.currentStage < cond.requiresQuestStage.stage)
+        return false;
+    }
+    return true;
+  }
+  static openDialogue(nodeId) {
+    const node = dialogueRegistry[nodeId];
+    if (!node) {
+      console.warn(`[DialogueEngine] Dialogue node '${nodeId}' not found.`);
+      return null;
+    }
+    currentNodeId = nodeId;
+    isDialogOpen = true;
+    try {
+      if (node.sound === "synapse")
+        playSynapseEvolveSound();
+      else if (node.sound === "sonar")
+        playSonarChime();
+      else if (node.sound === "alarm")
+        playFleetAlarmSound();
+      else if (node.sound === "crash")
+        playCrashSound();
+    } catch (e) {}
+    this.renderCard(node);
+    return node;
+  }
+  static closeDialogue() {
+    const card = document.getElementById("npc-dialog-card");
+    if (card) {
+      card.classList.add("hidden");
+    }
+    isDialogOpen = false;
+    renderDirectives();
+  }
+  static handleChoice(optionOrTarget) {
+    if (typeof optionOrTarget === "string") {
+      if (optionOrTarget === "close") {
+        this.closeDialogue();
+        return;
+      }
+      if (actionHandlers[optionOrTarget]) {
+        actionHandlers[optionOrTarget]();
+        return;
+      }
+      if (dialogueRegistry[optionOrTarget]) {
+        this.openDialogue(optionOrTarget);
+        return;
+      }
+      this.closeDialogue();
+      return;
+    }
+    const option = optionOrTarget;
+    if (option.action) {
+      if (option.action === "close") {
+        this.closeDialogue();
+        return;
+      }
+      if (actionHandlers[option.action]) {
+        actionHandlers[option.action](option);
+        return;
+      }
+    }
+    if (option.targetNodeId && dialogueRegistry[option.targetNodeId]) {
+      this.openDialogue(option.targetNodeId);
+      return;
+    }
+    this.closeDialogue();
+  }
+  static renderCard(node) {
+    const card = document.getElementById("npc-dialog-card");
+    if (!card)
+      return;
+    card.classList.remove("hidden");
+    const eyebrowEl = document.getElementById("npc-dialog-title");
+    const speakerEl = document.getElementById("npc-dialog-speaker");
+    const mainTextEl = document.getElementById("npc-dialog-main-text");
+    const subTextEl = document.getElementById("npc-dialog-sub-text");
+    const choicesContainer = document.getElementById("npc-dialog-choices");
+    if (eyebrowEl)
+      eyebrowEl.innerText = node.eyebrow || "KOMMUNIKATION";
+    if (speakerEl)
+      speakerEl.innerText = `${node.speakerName || "Dr. Jamal"} [${node.speakerTitle || "Telepathie"}]`;
+    if (mainTextEl)
+      mainTextEl.innerText = node.mainText;
+    if (subTextEl)
+      subTextEl.innerText = node.subText;
+    if (choicesContainer) {
+      choicesContainer.innerHTML = "";
+      node.options.forEach((opt, idx) => {
+        if (!this.evaluateCondition(opt.condition))
+          return;
+        const btn = document.createElement("button");
+        btn.className = "prologue-choice-btn";
+        btn.innerHTML = `
+                    <span class="prologue-choice-key">${opt.keyHint || idx + 1}</span>
+                    <span class="prologue-choice-label">${opt.label}</span>
+                `;
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.handleChoice(opt);
+        });
+        choicesContainer.appendChild(btn);
       });
-      choicesContainer.appendChild(btn);
-    });
+    }
   }
-  renderDirectives();
+}
+
+// src/ui/jamal-dialog.ts
+var DIALOGUE_NODES = { ...dialogues_default };
+function isJamalDialogOpen() {
+  return DialogueEngine.isDialogOpen();
+}
+function getCurrentDialogueNodeId() {
+  return DialogueEngine.getCurrentNodeId();
+}
+function openNpcDialogue(nodeId) {
+  return DialogueEngine.openDialogue(nodeId);
 }
 function closeNpcDialogue() {
-  const card = document.getElementById("npc-dialog-card");
-  if (card) {
-    card.classList.add("hidden");
-  }
-  isDialogOpen = false;
-  renderDirectives();
+  DialogueEngine.closeDialogue();
 }
 function handleDialogueChoice(optionOrTarget) {
-  if (typeof optionOrTarget === "string") {
-    if (optionOrTarget === "close") {
-      closeNpcDialogue();
-      return;
-    }
-    if (optionOrTarget === "smash_clamp") {
-      executeSmashClamp();
-      return;
-    }
-    if (optionOrTarget === "hack_drone_database") {
-      executeHackDroneDatabase();
-      return;
-    }
-    if (DIALOGUE_NODES[optionOrTarget]) {
-      openNpcDialogue(optionOrTarget);
-      return;
-    }
-    closeNpcDialogue();
-    return;
-  }
-  const option = optionOrTarget;
-  if (option.action === "close") {
-    closeNpcDialogue();
-    return;
-  }
-  if (option.action === "smash_clamp") {
-    executeSmashClamp();
-    return;
-  }
-  if (option.action === "hack_drone_database") {
-    executeHackDroneDatabase();
-    return;
-  }
-  if (option.targetNodeId && DIALOGUE_NODES[option.targetNodeId]) {
-    openNpcDialogue(option.targetNodeId);
-    return;
-  }
-  closeNpcDialogue();
+  DialogueEngine.handleChoice(optionOrTarget);
 }
 function executeSmashClamp() {
   if (STATE.jamalShipLiberated)
@@ -34257,6 +34582,7 @@ function executeSmashClamp() {
     STATE.towingDrone.status = "hostile";
   }
   STATE.systemAlertLevel = "alert";
+  QuestManager.completeQuest("prologue_jamal_ship");
   grantJamalRewards();
   addLogEntry("PARK-KI", "\uD83D\uDEA8 [INSAN-VOLLZUG]: ALARM! Sachbeschädigung an orbitaler Parkkralle! Eliminierungsprotokoll aktiviert!");
   addLogEntry("SYSTEM", "\uD83D\uDCA5 GEWALTIGE BEFREIUNG: Die Kralle wurde zerschlagen. Die Drohnen sind stinksauer und eröffnen das Feuer!");
@@ -34284,6 +34610,7 @@ function executeHackDroneDatabase() {
     if (STATE.towingDrone.triggerOverload)
       STATE.towingDrone.triggerOverload();
   }
+  QuestManager.completeQuest("prologue_jamal_ship");
   grantJamalRewards();
   addLogEntry("PARK-KI", "\uD83E\uDD16 [INSAN-SYSTEM]: Administrator-Code (OVERRIDE_ADMIN_0000) verifiziert. Parkkralle ordnungsgemäß entriegelt.");
   addLogEntry("NAV", "\uD83D\uDEF0️ DATENBANK-HACK: Koordinaten der Insan-Verwahrstelle (Sektor-Schrottwerft) in Sternenkarte gespeichert!");
@@ -34292,25 +34619,21 @@ function executeHackDroneDatabase() {
   advanceFtueStep(2);
 }
 function grantJamalRewards() {
-  const spiceBonus = 50;
-  const siliconBonus = 60;
-  const mentalBonus = 40;
-  STATE.spiceRes = (STATE.spiceRes || 0) + spiceBonus;
-  STATE.bioRes = (STATE.bioRes || 0) + spiceBonus;
-  STATE.siliconRes = (STATE.siliconRes || 0) + siliconBonus;
-  STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, (STATE.mentalEnergy || 50) + mentalBonus);
   STATE.loneliness = Math.max(5, (STATE.loneliness || 30) - 20);
   updateHUDStats();
-  addLogEntry("SYSTEM", `\uD83C\uDF89 BELOHNUNG ERHALTEN: +${spiceBonus} Melange-Gewürz | +${siliconBonus} Silizium | +${mentalBonus} Mentalkraft!`);
 }
+DialogueEngine.registerAction("smash_clamp", () => executeSmashClamp());
+DialogueEngine.registerAction("hack_drone_database", () => executeHackDroneDatabase());
 function openJamalIntroDialog() {
   if (STATE.jamalIntroModalSeen)
     return;
   STATE.jamalIntroModalSeen = true;
   STATE.jamalMissionActive = true;
+  QuestManager.startQuest("prologue_jamal_ship");
   openNpcDialogue("jamal_orbit_intro");
 }
 function triggerJamalShipScannedDialogue() {
+  QuestManager.advanceQuest("prologue_jamal_ship", 1);
   openNpcDialogue("jamal_ship_scanned");
 }
 function closeJamalDialog() {
@@ -34320,7 +34643,7 @@ function liberateJamalShip() {
   executeHackDroneDatabase();
 }
 function initJamalDialogListeners() {
-  const closeBtn = document.getElementById("close-npc-dialog-btn");
+  const closeBtn = document.getElementById("npc-dialog-close-btn");
   if (closeBtn) {
     closeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -34328,20 +34651,17 @@ function initJamalDialogListeners() {
     });
   }
   window.addEventListener("keydown", (e) => {
-    if (!isDialogOpen)
+    if (!isJamalDialogOpen())
       return;
-    if (e.key === "Escape") {
-      e.preventDefault();
-      closeNpcDialogue();
-      return;
-    }
-    const node = DIALOGUE_NODES[currentNodeId];
-    if (!node)
-      return;
-    const num = parseInt(e.key);
-    if (!isNaN(num) && num >= 1 && num <= node.options.length) {
-      e.preventDefault();
-      handleDialogueChoice(node.options[num - 1]);
+    const key = e.key;
+    if (key >= "1" && key <= "9") {
+      const idx = parseInt(key, 10) - 1;
+      const node = DIALOGUE_NODES[getCurrentDialogueNodeId()];
+      if (node && node.options && node.options[idx]) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleDialogueChoice(node.options[idx]);
+      }
     }
   });
 }
@@ -43629,6 +43949,7 @@ function serializeCurrentState(slotId, customName) {
       completed: Boolean(STATE.jamalMissionCompleted),
       liberated: Boolean(STATE.jamalShipLiberated)
     },
+    activeQuests: STATE.activeQuests ? { ...STATE.activeQuests } : {},
     reputation: STATE.reputation ? { ...STATE.reputation } : {},
     quantumChronicle: {
       galacticCycle: STATE.galacticCycle || 1,
@@ -43735,6 +44056,9 @@ async function applyLoadedState(data) {
     STATE.jamalMissionActive = Boolean(data.jamalMission.active);
     STATE.jamalMissionCompleted = Boolean(data.jamalMission.completed);
     STATE.jamalShipLiberated = Boolean(data.jamalMission.liberated);
+  }
+  if (data.activeQuests) {
+    STATE.activeQuests = { ...data.activeQuests };
   }
   if (data.reputation) {
     STATE.reputation = { ...data.reputation };

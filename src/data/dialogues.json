@@ -1,0 +1,232 @@
+{
+  "jamal_orbit_intro": {
+    "id": "jamal_orbit_intro",
+    "speakerName": "Dr. Jamal",
+    "speakerTitle": "Chef-Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "⚛️ TELEPATHIE • PERSEUS-RAND",
+    "mainText": "„Najmafar, spürst du meine synaptische Koppelung? Wir haben es geschafft!“",
+    "subText": "„Wir sind der Menagerie von Ceres-9 entkommen. Aber ich bin nur mit einem zivilen Touristen-Shuttle angereist, um die Psionische Gilde nicht zu warnen. Mein eigentliches Forschungsschiff – die ISS Ibn Battuta – habe ich im Orbit dieses nahen Planeten versteckt. Wir müssen es finden!“",
+    "sound": "synapse",
+    "options": [
+      {
+        "label": "„Wo genau ist dein Forschungsschiff versteckt?“",
+        "targetNodeId": "jamal_ship_info",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Wieso hast du mich aus der Menagerie gerettet, Jamal?“",
+        "targetNodeId": "jamal_origin",
+        "keyHint": "2"
+      },
+      {
+        "label": "„Verstanden. Ich scanne den Orbit des Planeten. [Ende]“",
+        "action": "close",
+        "keyHint": "3"
+      }
+    ]
+  },
+  "jamal_ship_info": {
+    "id": "jamal_ship_info",
+    "speakerName": "Dr. Jamal",
+    "speakerTitle": "Chef-Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "🛰️ ORBITAL-TELEMETRIE • IBN BATTUTA",
+    "mainText": "„Es treibt im Gravitationsschatten des nahen Planeten.“",
+    "subText": "„Ich habe es auf Minimalenergie geschaltet. Fliege in den Orbit des Planeten und halte Ausschau nach einer metallischen Energiesignatur. Wenn du nahe genug bist (< 25 AE), aktiviere deine Spektral-Sensoren mit [F], um es zu erfassen!“",
+    "sound": "sonar",
+    "options": [
+      {
+        "label": "„Was für Technologie hast du an Bord der Ibn Battuta?“",
+        "targetNodeId": "jamal_dying_stars",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Ich nehme Kurs auf das Schiff. [Schließen]“",
+        "action": "close",
+        "keyHint": "2"
+      }
+    ]
+  },
+  "jamal_origin": {
+    "id": "jamal_origin",
+    "speakerName": "Dr. Jamal",
+    "speakerTitle": "Chef-Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "📜 250 JAHRE ARCHIVDATEN • HISTORIE",
+    "mainText": "„Ich habe 250 Jahre alte Aufzeichnungen über dein Volk studiert.“",
+    "subText": "„Die Menschen glaubten, eure Spezies sei nur ein Mythos – oder eine Bedrohung. Doch als die Sterne begannen, einer nach dem anderen zu erlöschen, erkannte ich: Ihr seid der Schlüssel zum Überleben. Ich konnte nicht zulassen, dass die Gilde dich für Melange zerlegt.“",
+    "sound": "synapse",
+    "options": [
+      {
+        "label": "„Warum erlöschen die Sterne in der Galaxie?“",
+        "targetNodeId": "jamal_dying_stars",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Lass uns zuerst dein Schiff sichern.“",
+        "targetNodeId": "jamal_ship_info",
+        "keyHint": "2"
+      }
+    ]
+  },
+  "jamal_dying_stars": {
+    "id": "jamal_dying_stars",
+    "speakerName": "Dr. Jamal",
+    "speakerTitle": "Chef-Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "🌌 DAS GROSSE ERKALATEN • ANOMALIE",
+    "mainText": "„Eine Welle aus negativer Entropie frisst das galaktische Zentrum.“",
+    "subText": "„Mein Schiff hat Langstrecken-Quantensensoren an Bord, mit denen wir die Todesfront der Sterne kartografieren können. Außerdem habe ich dort eine Reserve an reinem Melange-Spice gebunkert – das wird deine Psionik wieder aufladen!“",
+    "sound": "sonar",
+    "options": [
+      {
+        "label": "„Dann gibt es keine Zeit zu verlieren. Ich suche die Ibn Battuta.“",
+        "targetNodeId": "jamal_ship_info",
+        "keyHint": "1"
+      }
+    ]
+  },
+  "jamal_ship_scanned": {
+    "id": "jamal_ship_scanned",
+    "speakerName": "Dr. Jamal",
+    "speakerTitle": "Chef-Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "⚠️ SPEKTRAL-SCAN • ORBITALE BLOCKADE",
+    "mainText": "„Verdammt ... sie haben mein Schiff mit einer Quanten-Parkkralle versiegelt!“",
+    "subText": "„Sieh dir das an! Eine orbitale Vollstreckungskralle der Insan-Organisation umschließt die Haupttriebwerke. Eine autonome KI-Abschleppdrohne vom Typ TX-9 bewacht das Wrack und verlangt astronomische Parkgebühren!“",
+    "sound": "alarm",
+    "options": [
+      {
+        "label": "„Wieso wurde dein Raumschiff gesperrt?“",
+        "targetNodeId": "insan_explanation",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Gibt es eine Option, die Buße einfach zu bezahlen?“",
+        "targetNodeId": "insan_pay_attempt",
+        "keyHint": "2"
+      },
+      {
+        "label": "„Ich zertrümmere die Parkkralle mit einem psionischen Bio-Schock!“",
+        "action": "smash_clamp",
+        "keyHint": "3"
+      },
+      {
+        "label": "„Können wir die Datenbank der Drohne hacken oder ihre Basis finden?“",
+        "targetNodeId": "insan_base_inquiry",
+        "keyHint": "4"
+      }
+    ]
+  },
+  "insan_explanation": {
+    "id": "insan_explanation",
+    "speakerName": "Dr. Jamal",
+    "speakerTitle": "Chef-Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "🤖 INSAN-BÜROKRATIE • LORE",
+    "mainText": "„Die Insan sind eine Roboter-Zivilisation, die völlig durchgedreht ist.“",
+    "subText": "„'Insan' bedeutet im Alt-Arabischen 'Mensch' oder 'künstliches Wesen'. Ursprünglich waren es interstellare Parkraum- und Zollautomaten der alten Föderation. Als ihre Schöpfer untergingen, lief ihr Verwaltungscode Amok: Sie definieren nun jeden Orbit, jeden Asteroiden und jedes Trümmerfeld als gebührenpflichtigen Haltebereich und schleppen unerbittlich ab!“",
+    "sound": "sonar",
+    "options": [
+      {
+        "label": "„Was passiert, wenn wir die Parkkralle gewaltsam zerstören?“",
+        "action": "smash_clamp",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Versuchen wir, das Ticket am Insan-Transponder zu begleichen.“",
+        "targetNodeId": "insan_pay_attempt",
+        "keyHint": "2"
+      },
+      {
+        "label": "„Wo bringen die Drohnen abgeschleppte Schiffe hin? Haben sie eine Basis?“",
+        "targetNodeId": "insan_base_inquiry",
+        "keyHint": "3"
+      }
+    ]
+  },
+  "insan_pay_attempt": {
+    "id": "insan_pay_attempt",
+    "speakerName": "Insan-Transponder TX-9",
+    "speakerTitle": "Autonome Parkraumüberwachung",
+    "speakerType": "system",
+    "eyebrow": "💳 ZAHLUNGSTERMINAL • VERBINDUNGSAUFBAU",
+    "mainText": "„Falschparken im planetaren Orbit: 12.000 Credits fällig. Zahlung wird verarbeitet ...“",
+    "subText": "„FEHLER 0x889F-VOLLZUG: Interstellare Netzwerk-Störung! Verbindung zum Hauptbuchhalter-Cluster Sagittarius A* unterbrochen. Kreditkarten-Zahlung abgelehnt. Bitte warten Sie 3 Äonen, bis die Netzwerkwelle eintrifft.“",
+    "sound": "alarm",
+    "options": [
+      {
+        "label": "„Das dauert mir zu lange. Ich zerlege die Kralle per Bio-Schock! [Angriff]“",
+        "action": "smash_clamp",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Jamal, können wir den Drohnen-Transponder hacken?“",
+        "targetNodeId": "insan_base_inquiry",
+        "keyHint": "2"
+      },
+      {
+        "label": "„Zurück zu den Optionen.“",
+        "targetNodeId": "jamal_ship_scanned",
+        "keyHint": "3"
+      }
+    ]
+  },
+  "insan_base_inquiry": {
+    "id": "insan_base_inquiry",
+    "speakerName": "Dr. Jamal",
+    "speakerTitle": "Chef-Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "🛰️ INSAN-DEPOT • BASIS-KOORDINATEN",
+    "mainText": "„Normalerweise schleppen sie Schiffe zu einer orbitalen Verwahrstelle.“",
+    "subText": "„Irgendwo im Sektor existiert ein gigantischer Schrott- und Pfand-Depotring der Insan-Gesellschaft, in dem Tausende verlassene Schiffe lagern. Wenn du meine Quanten-Matrix an die Drohne ankoppelst, kann ich ihre Navigationsdatenbank anzapfen und den Admin-Bypass-Code extrahieren!“",
+    "sound": "synapse",
+    "options": [
+      {
+        "label": "„[HACKEN] Dr. Jamals Koppelung starten & Admin-Code extrahieren“",
+        "action": "hack_drone_database",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Keine Zeit für Hacks – Bio-Schock auf die Kralle entladen! [Zerstören]“",
+        "action": "smash_clamp",
+        "keyHint": "2"
+      }
+    ]
+  },
+  "clamp_smashed_result": {
+    "id": "clamp_smashed_result",
+    "speakerName": "Dr. Jamal",
+    "speakerTitle": "Chef-Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "💥 KRALLE ZERSTÖRT • DROHNEN-ALARM",
+    "mainText": "„Die Kralle ist zersplittert! Aber die Abschleppdrohnen sind stinksauer!“",
+    "subText": "„Die ISS Ibn Battuta ist frei! Meine Schiffssysteme und deine Nervenstränge sind gekoppelt (+50 Spice, +60 Silizium geborgen). Aber pass auf: Die Insan-Drohne hat den Gefechtsmodus aktiviert und meldet uns als Vandale!“",
+    "sound": "crash",
+    "options": [
+      {
+        "label": "„Ich bin bereit. Lass sie nur kommen! [Schließen]“",
+        "action": "close",
+        "keyHint": "1"
+      }
+    ]
+  },
+  "drone_hacked_result": {
+    "id": "drone_hacked_result",
+    "speakerName": "Dr. Jamal",
+    "speakerTitle": "Chef-Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "✨ ADMIN-BYPASS ERFOLGREICH • BASIS GEFUNDEN",
+    "mainText": "„Bypass autorisiert! Die Kralle hat sich friedlich geöffnet.“",
+    "subText": "„Genial, Najmafar! Wir haben den Master-Code OVERRIDE_ADMIN_0000 eingespeist. Die Drohne hält uns nun für Insan-Inspektoren. Ich habe alle Vorräte geborgen (+50 Spice, +60 Silizium) und die Koordinaten des Insan-Schrottdepots auf deiner Sternenkarte markiert!“",
+    "sound": "synapse",
+    "options": [
+      {
+        "label": "„Hervorragende Arbeit, Jamal. Alle Systeme online. [Schließen]“",
+        "action": "close",
+        "keyHint": "1"
+      }
+    ]
+  }
+}

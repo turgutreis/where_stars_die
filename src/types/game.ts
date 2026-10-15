@@ -732,6 +732,7 @@ export interface GameState {
     jamalShipLiberated?: boolean;
     jamalIntroModalSeen?: boolean;
     jamalLiberatedModalSeen?: boolean;
+    activeQuests?: Record<string, any>;
 
     // Space Stations & Psionic Stealth System
     spaceStations: SpaceStation[];

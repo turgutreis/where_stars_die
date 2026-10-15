@@ -223,6 +223,8 @@ import {
     getPrologueBeats
 } from '../src/ui/prologue';
 import { spawnJamalMissionEntities } from '../src/systems/universe';
+import { QuestManager } from '../src/systems/quests';
+import { DialogueEngine } from '../src/systems/dialogue';
 import { 
     openJamalIntroDialog, 
     liberateJamalShip, 
@@ -3951,6 +3953,116 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.towingDrone.status).toBe('hostile');
         expect(STATE.towingDrone.name).toContain("AGGRESSIV");
         closeJamalDialog();
+    });
+
+    test("51. Modular Data-Driven QuestManager & DialogueEngine (JSON schemas, condition evaluation, and event-driven progression)", () => {
+        // Reset state
+        STATE.activeQuests = {};
+        STATE.spiceRes = 0;
+        STATE.siliconRes = 0;
+        STATE.bioRes = 0;
+        STATE.mentalEnergy = 50;
+        STATE.maxMentalEnergy = 100;
+        STATE.jamalMissionActive = false;
+        STATE.jamalMissionDiscovered = false;
+        STATE.jamalMissionCompleted = false;
+
+        // 1. Verify QuestManager loads quests.json
+        const questDef = QuestManager.getQuest('prologue_jamal_ship');
+        expect(questDef).toBeDefined();
+        expect(questDef!.title).toBe("Jamals Forschungsschiff");
+        expect(questDef!.stages.length).toBe(3);
+
+        // Start quest
+        const progress = QuestManager.startQuest('prologue_jamal_ship');
+        expect(progress).toBeDefined();
+        expect(progress!.currentStage).toBe(0);
+        expect(QuestManager.isQuestActive('prologue_jamal_ship')).toBe(true);
+        expect(STATE.jamalMissionActive).toBe(true);
+
+        // Advance to stage 1 (clamp discovered)
+        QuestManager.advanceQuest('prologue_jamal_ship', 1);
+        expect(progress!.currentStage).toBe(1);
+        expect(STATE.jamalMissionDiscovered).toBe(true);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.title).toContain("Insan-Parkkralle");
+
+        // Complete quest -> awards rewards from JSON (spice: 50, silicon: 60)
+        QuestManager.completeQuest('prologue_jamal_ship');
+        expect(progress!.completed).toBe(true);
+        expect(QuestManager.isQuestCompleted('prologue_jamal_ship')).toBe(true);
+        expect(STATE.spiceRes).toBe(50);
+        expect(STATE.siliconRes).toBe(60);
+        expect(STATE.jamalMissionCompleted).toBe(true);
+
+        // 2. Custom quest registration and event notification
+        QuestManager.registerQuest({
+            id: 'side_salvage_derelict',
+            title: 'Bergung im Asteroidenfeld',
+            category: 'side',
+            stages: [
+                {
+                    stage: 0,
+                    title: 'Finde das Wrack',
+                    instruction: 'Scanne das Wrack',
+                    hint: 'Nähere dich dem Funksignal',
+                    objective: { type: 'scan_target', targetId: 'derelict_alpha' }
+                },
+                {
+                    stage: 1,
+                    title: 'Geborgen',
+                    instruction: 'Erfolgreich geborgen',
+                    hint: 'Fertig',
+                    objective: { type: 'completed' }
+                }
+            ],
+            rewards: { spice: 25 }
+        });
+
+        QuestManager.startQuest('side_salvage_derelict');
+        expect(QuestManager.isQuestActive('side_salvage_derelict')).toBe(true);
+        expect(QuestManager.getCurrentStage('side_salvage_derelict')?.stage).toBe(0);
+
+        // Send non-matching event -> no change
+        QuestManager.notifyQuestEvent('scan_target', 'wrong_target');
+        expect(QuestManager.getCurrentStage('side_salvage_derelict')?.stage).toBe(0);
+
+        // Send matching event -> advances to stage 1 (completion)
+        QuestManager.notifyQuestEvent('scan_target', 'derelict_alpha');
+        expect(QuestManager.isQuestCompleted('side_salvage_derelict')).toBe(true);
+        expect(STATE.spiceRes).toBe(50 + 25);
+
+        // 3. DialogueEngine loads dialogues.json, evaluates conditions and branches
+        const node = DialogueEngine.getNode('jamal_orbit_intro');
+        expect(node).toBeDefined();
+        expect(node!.speakerName).toBe("Dr. Jamal");
+        expect(node!.options.length).toBeGreaterThanOrEqual(3);
+
+        DialogueEngine.openDialogue('jamal_orbit_intro');
+        expect(DialogueEngine.isDialogOpen()).toBe(true);
+        expect(DialogueEngine.getCurrentNodeId()).toBe('jamal_orbit_intro');
+
+        DialogueEngine.handleChoice('jamal_ship_info');
+        expect(DialogueEngine.getCurrentNodeId()).toBe('jamal_ship_info');
+
+        // Condition evaluation
+        expect(DialogueEngine.evaluateCondition({ minSpice: 100 })).toBe(false);
+        STATE.spiceRes = 150;
+        expect(DialogueEngine.evaluateCondition({ minSpice: 100 })).toBe(true);
+
+        // Custom action dispatching
+        let customActionExecuted = false;
+        DialogueEngine.registerAction('test_custom_action', () => {
+            customActionExecuted = true;
+        });
+
+        DialogueEngine.handleChoice({
+            label: "Test Option",
+            action: 'test_custom_action'
+        });
+        expect(customActionExecuted).toBe(true);
+
+        DialogueEngine.closeDialogue();
+        expect(DialogueEngine.isDialogOpen()).toBe(false);
     });
 });
 

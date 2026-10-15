@@ -1,6 +1,7 @@
 import { STATE } from '../core/state';
 import { addLogEntry } from './hud';
 import { playVoyagerBeaconPing } from '../engine/audio';
+import { QuestManager } from '../systems/quests';
 
 export interface DirectiveItem {
     id: number;
@@ -81,32 +82,29 @@ export function renderDirectives() {
 
     let html = '';
 
-    // Render Dr. Jamal's Story Quest if active
-    if (STATE.jamalMissionActive) {
-        const isJamalDone = !!STATE.jamalMissionCompleted;
-        const jamalStatusClass = isJamalDone ? 'done' : 'active';
-        const jamalCheckmark = isJamalDone ? '✔' : '◉';
+    // Render dynamic active quests from QuestManager
+    const activeQuests = QuestManager.getActiveQuests();
+    activeQuests.forEach((q) => {
+        const isDone = q.progress.completed;
+        const statusClass = isDone ? 'done' : 'active';
+        const checkmark = isDone ? '✔' : '◉';
 
         html += `
-            <div class="directive-card ${jamalStatusClass} story-quest-card" data-quest="jamal_shuttle">
-                <div class="directive-status-icon">${jamalCheckmark}</div>
+            <div class="directive-card ${statusClass} story-quest-card" data-quest="${q.definition.id}">
+                <div class="directive-status-icon">${checkmark}</div>
                 <div class="directive-body">
                     <div class="directive-header">
-                        <span class="directive-badge" style="background: rgba(168, 85, 247, 0.25); border-color: rgba(168, 85, 247, 0.6); color: #d8b4fe;">PROLOG-QUEST</span>
-                        <span class="directive-title">Jamals Forschungsschiff</span>
+                        <span class="directive-badge" style="background: rgba(168, 85, 247, 0.25); border-color: rgba(168, 85, 247, 0.6); color: #d8b4fe;">${q.definition.badge || 'PROLOG-QUEST'}</span>
+                        <span class="directive-title">${q.definition.title}</span>
                     </div>
                     <div class="directive-instruction">
-                        ${isJamalDone 
-                            ? 'Forschungsschiff "ISS Ibn Battuta" geborgen (+50 Melange) & Sensoren gekoppelt.' 
-                            : (STATE.jamalMissionDiscovered 
-                                ? 'Untersuche die Insan-Parkkralle an Jamals Schiff [Dialog rechts]' 
-                                : 'Fliege zum Planeten & scanne Jamals Forschungsschiff im Orbit mit [F]')}
+                        ${q.currentStage.instruction}
                     </div>
-                    ${!isJamalDone ? `<div class="directive-hint">${STATE.jamalMissionDiscovered ? 'Wähle im Dialog rechts: Parkkralle zerschmettern, Parkbuße zahlen oder Insan-Depot hacken.' : 'Jamal hat sein Schiff vor den Insan-Drohnen im Planetenorbit versteckt. Nähere dich auf &lt; 25 AE.'}</div>` : ''}
+                    ${!isDone && q.currentStage.hint ? `<div class="directive-hint">${q.currentStage.hint}</div>` : ''}
                 </div>
             </div>
         `;
-    }
+    });
 
     FTUE_DIRECTIVES.forEach((d) => {
         const isDone = d.id < currentStep;

@@ -1,0 +1,43 @@
+{
+  "prologue_jamal_ship": {
+    "id": "prologue_jamal_ship",
+    "title": "Jamals Forschungsschiff",
+    "badge": "PROLOG-QUEST",
+    "category": "prologue",
+    "stages": [
+      {
+        "stage": 0,
+        "title": "Schiff im Orbit lokalisieren",
+        "instruction": "Fliege zum Planeten & scanne Jamals Forschungsschiff im Orbit mit [F]",
+        "hint": "Jamal hat sein Schiff vor den Insan-Drohnen im Planetenorbit versteckt. Nähere dich auf < 25 AE.",
+        "objective": {
+          "type": "scan_target",
+          "targetId": "jamal_shuttle"
+        }
+      },
+      {
+        "stage": 1,
+        "title": "Insan-Parkkralle untersuchen",
+        "instruction": "Untersuche die Insan-Parkkralle an Jamals Schiff [Dialog rechts]",
+        "hint": "Wähle im Dialog rechts: Parkkralle zerschmettern, Parkbuße zahlen oder Insan-Depot hacken.",
+        "objective": {
+          "type": "dialogue_completed",
+          "nodeId": "jamal_ship_scanned"
+        }
+      },
+      {
+        "stage": 2,
+        "title": "Forschungsschiff geborgen",
+        "instruction": "Forschungsschiff \"ISS Ibn Battuta\" geborgen (+50 Melange) & Sensoren gekoppelt.",
+        "hint": "Alle Scanner- und Telemetriedaten von Dr. Jamal sind online.",
+        "objective": {
+          "type": "completed"
+        }
+      }
+    ],
+    "rewards": {
+      "spice": 50,
+      "silicon": 60
+    }
+  }
+}
