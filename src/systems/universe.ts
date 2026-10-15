@@ -3,6 +3,7 @@ import { STATE, activePlanets } from '../core/state';
 import { scene, camera } from '../engine/scene';
 import { PlanetEntry, StarSystem } from '../types/game';
 import { createGravityRing, createBlackHoleMesh, createPrecursorConstructMesh, createPlasmaVortexMesh, clearJumpGates, createJumpGateMesh, activeJumpGates, createVoyagerProbeMesh } from '../procedural/meshes';
+import { createJamalResearchShuttleMesh, createTowingDroneMesh } from '../procedural/jamal-shuttle';
 import { createHabitableTextures, createGasGiantTextures, createRockyTextures, createIceMoonTextures, createVolcanicMoonTextures, createStarTexture, createCloudTexture, createCityLightsTexture } from '../procedural/textures';
 import { generatePlanetAttributes, generateFallbackMoons, updateScannerUI } from './scanner';
 import { initPlanetDefenseFleets, clearFleet, handleSystemArrivalStealthCheck } from './fleet';
@@ -31,6 +32,12 @@ export function updateUniverseShaders(dt: number, cam?: THREE.Camera) {
     activeJumpGates.forEach(jg => jg.update(dt));
     if (STATE.voyagerProbe && STATE.voyagerProbe.update) {
         STATE.voyagerProbe.update(dt);
+    }
+    if (STATE.jamalShip && STATE.jamalShip.update) {
+        STATE.jamalShip.update(dt);
+    }
+    if (STATE.towingDrone && STATE.towingDrone.update) {
+        STATE.towingDrone.update(dt);
     }
     if (activeSunRays && cam) {
         activeSunRays.update(dt, cam);
@@ -197,6 +204,18 @@ export function clearActiveSystem() {
         scene.remove(STATE.voyagerProbe.mesh);
         disposeObject3D(STATE.voyagerProbe.mesh);
         STATE.voyagerProbe = null;
+    }
+
+    if (STATE.jamalShip && STATE.jamalShip.mesh) {
+        scene.remove(STATE.jamalShip.mesh);
+        disposeObject3D(STATE.jamalShip.mesh);
+        STATE.jamalShip = null;
+    }
+
+    if (STATE.towingDrone && STATE.towingDrone.mesh) {
+        scene.remove(STATE.towingDrone.mesh);
+        disposeObject3D(STATE.towingDrone.mesh);
+        STATE.towingDrone = null;
     }
 
     const badge = document.getElementById('target-lock-badge');
@@ -811,9 +830,72 @@ export function spawnPlanetsAndAsteroids() {
     // Spawn Voyager 2 probe in the starting system
     if (STATE.currentSystemId === 1 || STATE.currentSystemId === 0) {
         spawnVoyagerProbe();
+        spawnJamalMissionEntities(activePlanets[0]);
     }
 
     addLogEntry("NAV", `Sensoren initialisiert: ${activeSystem.name} [${activeSystem.sectorName || 'Sektor'}].`);
+}
+
+export function spawnJamalMissionEntities(targetPlanet?: any) {
+    if (STATE.jamalShip && STATE.jamalShip.mesh) {
+        scene.remove(STATE.jamalShip.mesh);
+        disposeObject3D(STATE.jamalShip.mesh);
+        STATE.jamalShip = null;
+    }
+    if (STATE.towingDrone && STATE.towingDrone.mesh) {
+        scene.remove(STATE.towingDrone.mesh);
+        disposeObject3D(STATE.towingDrone.mesh);
+        STATE.towingDrone = null;
+    }
+
+    const planetPos = targetPlanet && targetPlanet.group ? targetPlanet.group.position 
+        : (targetPlanet && targetPlanet.position ? targetPlanet.position : new THREE.Vector3(180, 0, 100));
+
+    // 1. Jamal's Research Shuttle (Parked in orbit of the nearby starting planet)
+    const shuttleController = createJamalResearchShuttleMesh(2.6);
+    const shuttlePos = new THREE.Vector3(planetPos.x + 13.5, 0, planetPos.z + 13.5);
+    shuttleController.group.position.copy(shuttlePos);
+    shuttleController.group.lookAt(planetPos);
+    scene.add(shuttleController.group);
+
+    const shuttleObj: any = {
+        mesh: shuttleController.group,
+        update: shuttleController.update,
+        setLiberated: shuttleController.setLiberated,
+        type: 'jamal_shuttle',
+        name: STATE.jamalShipLiberated ? "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]" : "Dr. Jamals Forschungsschiff [FALSPARKER-STATUS]",
+        mass: 0.8,
+        radius: 2.6,
+        gravityRange: 14.0,
+        position: shuttleController.group.position,
+        isJamalShip: true,
+        scanned: STATE.jamalShipLiberated
+    };
+    STATE.jamalShip = shuttleObj;
+    STATE.gravitySources.push(shuttleObj);
+
+    // 2. Autonomous Rogue AI Towing Drone (Clamped to Jamal's Shuttle)
+    const droneController = createTowingDroneMesh(1.8);
+    const dronePos = new THREE.Vector3(shuttlePos.x + 3.2, 1.2, shuttlePos.z + 3.5);
+    droneController.group.position.copy(dronePos);
+    droneController.group.lookAt(shuttlePos);
+    scene.add(droneController.group);
+
+    const droneObj: any = {
+        mesh: droneController.group,
+        update: (dt: number) => droneController.update(dt, shuttleController.group.position),
+        triggerOverload: droneController.triggerOverload,
+        type: 'towing_drone',
+        name: STATE.jamalShipLiberated ? "KI-Abschleppdrohne TX-9 [SYSTEMFEHLER / DEAKTIVIERT]" : "KI-Abschleppdrohne TX-9 (Parkraumüberwachung)",
+        mass: 0.5,
+        radius: 1.8,
+        gravityRange: 8.0,
+        position: droneController.group.position,
+        isTowingDrone: true,
+        scanned: STATE.jamalShipLiberated
+    };
+    STATE.towingDrone = droneObj;
+    STATE.gravitySources.push(droneObj);
 }
 
 export function spawnVoyagerProbe() {

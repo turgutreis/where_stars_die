@@ -565,6 +565,7 @@ export interface GameState {
     alloyRes: number;
     techRes: number;
     foodRes: number;
+    spiceRes?: number;
 
     // Bio-Shuttle & Away Missions
     bioShuttle: BioShuttle;
@@ -721,6 +722,16 @@ export interface GameState {
     voyagerDialogSeen?: boolean;
     ftueStep?: number;
     ftueCompleted?: boolean;
+
+    // Dr. Jamal's Hidden Research Shuttle & Rogue AI Towing Drone Mission
+    jamalShip?: any | null;
+    towingDrone?: any | null;
+    jamalMissionActive?: boolean;
+    jamalMissionDiscovered?: boolean;
+    jamalMissionCompleted?: boolean;
+    jamalShipLiberated?: boolean;
+    jamalIntroModalSeen?: boolean;
+    jamalLiberatedModalSeen?: boolean;
 
     // Space Stations & Psionic Stealth System
     spaceStations: SpaceStation[];

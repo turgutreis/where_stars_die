@@ -8348,6 +8348,54 @@ class BoxGeometry extends BufferGeometry {
     return new BoxGeometry(data.width, data.height, data.depth, data.widthSegments, data.heightSegments, data.depthSegments);
   }
 }
+class CircleGeometry extends BufferGeometry {
+  constructor(radius = 1, segments = 32, thetaStart = 0, thetaLength = Math.PI * 2) {
+    super();
+    this.type = "CircleGeometry";
+    this.parameters = {
+      radius,
+      segments,
+      thetaStart,
+      thetaLength
+    };
+    segments = Math.max(3, segments);
+    const indices = [];
+    const vertices = [];
+    const normals = [];
+    const uvs = [];
+    const vertex = new Vector3;
+    const uv = new Vector2;
+    vertices.push(0, 0, 0);
+    normals.push(0, 0, 1);
+    uvs.push(0.5, 0.5);
+    for (let s = 0, i = 3;s <= segments; s++, i += 3) {
+      const segment = thetaStart + s / segments * thetaLength;
+      vertex.x = radius * Math.cos(segment);
+      vertex.y = radius * Math.sin(segment);
+      vertices.push(vertex.x, vertex.y, vertex.z);
+      normals.push(0, 0, 1);
+      uv.x = (vertices[i] / radius + 1) / 2;
+      uv.y = (vertices[i + 1] / radius + 1) / 2;
+      uvs.push(uv.x, uv.y);
+    }
+    for (let i = 1;i <= segments; i++) {
+      indices.push(i, i + 1, 0);
+    }
+    this.setIndex(indices);
+    this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+    this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+    this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+  }
+  copy(source) {
+    super.copy(source);
+    this.parameters = Object.assign({}, source.parameters);
+    return this;
+  }
+  static fromJSON(data) {
+    return new CircleGeometry(data.radius, data.segments, data.thetaStart, data.thetaLength);
+  }
+}
+
 class CylinderGeometry extends BufferGeometry {
   constructor(radiusTop = 1, radiusBottom = 1, height = 1, radialSegments = 32, heightSegments = 1, openEnded = false, thetaStart = 0, thetaLength = Math.PI * 2) {
     super();
@@ -29660,6 +29708,14 @@ var STATE = {
   voyagerDialogSeen: false,
   ftueStep: 0,
   ftueCompleted: false,
+  jamalShip: null,
+  towingDrone: null,
+  jamalMissionActive: false,
+  jamalMissionDiscovered: false,
+  jamalMissionCompleted: false,
+  jamalShipLiberated: false,
+  jamalIntroModalSeen: false,
+  jamalLiberatedModalSeen: false,
   spaceStations: [],
   stealthActive: false,
   stealthDrainRate: 2,
@@ -36743,6 +36799,291 @@ function renderSynapseInspector(key) {
   }
 }
 
+// src/procedural/jamal-shuttle.ts
+function createJamalResearchShuttleMesh(size = 2.5) {
+  const group = new Group;
+  group.isJamalGroup = true;
+  const shuttleMesh = new Group;
+  group.add(shuttleMesh);
+  const hullMat = new MeshStandardMaterial({
+    color: 14870768,
+    metalness: 0.7,
+    roughness: 0.35,
+    emissive: 988970,
+    emissiveIntensity: 0.2
+  });
+  const darkAccentMat = new MeshStandardMaterial({
+    color: 1976635,
+    metalness: 0.85,
+    roughness: 0.25
+  });
+  const amberGlassMat = new MeshStandardMaterial({
+    color: 16096779,
+    emissive: 14251782,
+    emissiveIntensity: 0.6,
+    metalness: 0.9,
+    roughness: 0.1,
+    transparent: true,
+    opacity: 0.85
+  });
+  const fuselageGeo = new ConeGeometry(size * 0.45, size * 2.2, 7);
+  fuselageGeo.rotateX(Math.PI / 2);
+  const fuselage = new Mesh(fuselageGeo, hullMat);
+  shuttleMesh.add(fuselage);
+  const cockpitGeo = new SphereGeometry(size * 0.28, 16, 12);
+  cockpitGeo.scale(0.8, 0.55, 1.4);
+  const cockpit = new Mesh(cockpitGeo, amberGlassMat);
+  cockpit.position.set(0, size * 0.2, size * 0.35);
+  shuttleMesh.add(cockpit);
+  const wingShape = new Shape;
+  wingShape.moveTo(0, 0);
+  wingShape.lineTo(size * 1.6, -size * 0.8);
+  wingShape.lineTo(size * 1.5, -size * 1.2);
+  wingShape.lineTo(0, -size * 0.6);
+  wingShape.closePath();
+  const extrudeSettings = { depth: 0.08 * size, bevelEnabled: true, bevelThickness: 0.02 * size, bevelSize: 0.02 * size };
+  const wingGeo = new ExtrudeGeometry(wingShape, extrudeSettings);
+  wingGeo.center();
+  const rightWing = new Mesh(wingGeo, darkAccentMat);
+  rightWing.position.set(size * 0.9, 0, -size * 0.2);
+  rightWing.rotation.x = Math.PI / 2;
+  shuttleMesh.add(rightWing);
+  const leftWing = new Mesh(wingGeo, darkAccentMat);
+  leftWing.position.set(-size * 0.9, 0, -size * 0.2);
+  leftWing.rotation.x = Math.PI / 2;
+  leftWing.rotation.y = Math.PI;
+  shuttleMesh.add(leftWing);
+  const nacelleGeo = new CylinderGeometry(size * 0.14, size * 0.16, size * 1.2, 12);
+  nacelleGeo.rotateX(Math.PI / 2);
+  const rightNacelle = new Mesh(nacelleGeo, darkAccentMat);
+  rightNacelle.position.set(size * 0.7, 0, -size * 0.8);
+  shuttleMesh.add(rightNacelle);
+  const leftNacelle = new Mesh(nacelleGeo, darkAccentMat);
+  leftNacelle.position.set(-size * 0.7, 0, -size * 0.8);
+  shuttleMesh.add(leftNacelle);
+  const thrusterMat = new MeshBasicMaterial({ color: 3718648 });
+  const thrusterGeo = new CircleGeometry(size * 0.13, 16);
+  thrusterGeo.rotateY(Math.PI);
+  const rightExhaust = new Mesh(thrusterGeo, thrusterMat);
+  rightExhaust.position.set(size * 0.7, 0, -size * 1.4);
+  shuttleMesh.add(rightExhaust);
+  const leftExhaust = new Mesh(thrusterGeo, thrusterMat);
+  leftExhaust.position.set(-size * 0.7, 0, -size * 1.4);
+  shuttleMesh.add(leftExhaust);
+  const dishGeo = new SphereGeometry(size * 0.24, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.4);
+  const dishMat = new MeshStandardMaterial({ color: 3718648, metalness: 0.9, roughness: 0.1, side: DoubleSide });
+  const sensorDish = new Mesh(dishGeo, dishMat);
+  sensorDish.position.set(0, size * 0.45, -size * 0.2);
+  sensorDish.rotation.x = -Math.PI * 0.35;
+  shuttleMesh.add(sensorDish);
+  const coreLight = new PointLight(3718648, 1.8, 35, 1.2);
+  coreLight.position.set(0, 0, -size * 0.9);
+  group.add(coreLight);
+  const towClampMesh = new Group;
+  group.add(towClampMesh);
+  const clampMat = new MeshStandardMaterial({
+    color: 16096779,
+    metalness: 0.8,
+    roughness: 0.4,
+    emissive: 7877903,
+    emissiveIntensity: 0.4
+  });
+  const clampRingGeo = new TorusGeometry(size * 0.85, size * 0.08, 8, 24);
+  clampRingGeo.rotateY(Math.PI / 2);
+  const clampRing = new Mesh(clampRingGeo, clampMat);
+  clampRing.position.set(0, 0, -size * 1.1);
+  towClampMesh.add(clampRing);
+  const barGeo = new BoxGeometry(size * 1.8, size * 0.12, size * 0.12);
+  const bar1 = new Mesh(barGeo, clampMat);
+  bar1.position.set(0, 0, -size * 1.1);
+  towClampMesh.add(bar1);
+  const holoCanvas = document.createElement("canvas");
+  holoCanvas.width = 256;
+  holoCanvas.height = 128;
+  const ctx = holoCanvas.getContext("2d");
+  if (ctx) {
+    ctx.fillStyle = "rgba(239, 68, 68, 0.85)";
+    ctx.fillRect(0, 0, 256, 128);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 24px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("PARKVERSTOSS", 128, 42);
+    ctx.font = "bold 18px monospace";
+    ctx.fillStyle = "#fef08a";
+    ctx.fillText("§42a HALTEVERBOT", 128, 76);
+    ctx.font = "14px monospace";
+    ctx.fillText("STATUS: WIRD ABGESCHLEPPT", 128, 104);
+  }
+  const holoTex = new CanvasTexture(holoCanvas);
+  const holoMat = new MeshBasicMaterial({
+    map: holoTex,
+    transparent: true,
+    opacity: 0.9,
+    side: DoubleSide
+  });
+  const holoGeo = new PlaneGeometry(size * 1.4, size * 0.7);
+  const citationHoloMesh = new Mesh(holoGeo, holoMat);
+  citationHoloMesh.position.set(0, size * 0.9, -size * 1.1);
+  towClampMesh.add(citationHoloMesh);
+  const shieldGeo = new SphereGeometry(size * 1.6, 24, 18);
+  const shieldMat = new MeshStandardMaterial({
+    color: 3718648,
+    emissive: 165063,
+    emissiveIntensity: 0.45,
+    transparent: true,
+    opacity: 0.22,
+    roughness: 0.1,
+    metalness: 0.9,
+    side: DoubleSide
+  });
+  const shieldBubble = new Mesh(shieldGeo, shieldMat);
+  shieldBubble.visible = false;
+  group.add(shieldBubble);
+  let isLiberated = false;
+  const setLiberated = (liberated) => {
+    isLiberated = liberated;
+    towClampMesh.visible = !liberated;
+    shieldBubble.visible = liberated;
+    if (liberated) {
+      coreLight.color.setHex(1096065);
+      coreLight.intensity = 2.4;
+      shuttleMesh.rotation.z = 0;
+    }
+  };
+  let totalTime = 0;
+  const update = (dt) => {
+    totalTime += dt;
+    if (!isLiberated) {
+      shuttleMesh.rotation.z = Math.sin(totalTime * 4.5) * 0.04;
+      citationHoloMesh.position.y = size * 0.9 + Math.sin(totalTime * 3) * 0.05;
+      citationHoloMesh.rotation.y = Math.sin(totalTime * 1.5) * 0.15;
+    } else {
+      shieldBubble.rotation.y += dt * 0.2;
+      shieldBubble.rotation.z += dt * 0.15;
+      shuttleMesh.rotation.y += dt * 0.25;
+    }
+  };
+  return {
+    group,
+    shuttleMesh,
+    towClampMesh,
+    citationHoloMesh,
+    coreLight,
+    isLiberated,
+    setLiberated,
+    update
+  };
+}
+function createTowingDroneMesh(size = 1.6) {
+  const group = new Group;
+  group.isTowingDroneGroup = true;
+  const droneBody = new Group;
+  group.add(droneBody);
+  const bodyGeo = new DodecahedronGeometry(size * 0.55, 1);
+  const bodyMat = new MeshStandardMaterial({
+    color: 3359061,
+    metalness: 0.9,
+    roughness: 0.25,
+    emissive: 988970
+  });
+  const bodyMesh = new Mesh(bodyGeo, bodyMat);
+  droneBody.add(bodyMesh);
+  const ringGeo = new TorusGeometry(size * 0.65, size * 0.06, 8, 24);
+  const ringMat = new MeshStandardMaterial({
+    color: 16096779,
+    metalness: 0.5,
+    roughness: 0.5
+  });
+  const ringMesh = new Mesh(ringGeo, ringMat);
+  ringMesh.rotation.x = Math.PI / 2;
+  droneBody.add(ringMesh);
+  const eyeGeo = new SphereGeometry(size * 0.22, 16, 16);
+  const eyeMat = new MeshStandardMaterial({
+    color: 15680580,
+    emissive: 12131356,
+    emissiveIntensity: 0.85,
+    metalness: 0.95,
+    roughness: 0.1
+  });
+  const scannerEye = new Mesh(eyeGeo, eyeMat);
+  scannerEye.position.set(0, 0, size * 0.5);
+  droneBody.add(scannerEye);
+  const strobeMat = new MeshBasicMaterial({ color: 16498468 });
+  const strobeGeo = new CylinderGeometry(size * 0.1, size * 0.12, size * 0.2, 8);
+  const strobeBeacon = new Mesh(strobeGeo, strobeMat);
+  strobeBeacon.position.set(0, size * 0.65, 0);
+  droneBody.add(strobeBeacon);
+  const strobeLight = new PointLight(16096779, 2.2, 35, 1.5);
+  strobeLight.position.set(0, size * 0.75, 0);
+  group.add(strobeLight);
+  const hornGeo = new ConeGeometry(size * 0.12, size * 0.4, 8);
+  hornGeo.rotateX(Math.PI / 2);
+  const leftHorn = new Mesh(hornGeo, bodyMat);
+  leftHorn.position.set(-size * 0.35, -size * 0.2, size * 0.4);
+  droneBody.add(leftHorn);
+  const rightHorn = new Mesh(hornGeo, bodyMat);
+  rightHorn.position.set(size * 0.35, -size * 0.2, size * 0.4);
+  droneBody.add(rightHorn);
+  const citationTag = new Group;
+  citationTag.position.set(0, size * 1.1, 0);
+  droneBody.add(citationTag);
+  const beamGeo = new CylinderGeometry(size * 0.08, size * 0.32, 1, 12, 1, true);
+  beamGeo.rotateX(Math.PI / 2);
+  const beamMat = new MeshBasicMaterial({
+    color: 16096779,
+    transparent: true,
+    opacity: 0.65,
+    side: DoubleSide
+  });
+  const tractorBeam = new Mesh(beamGeo, beamMat);
+  tractorBeam.position.set(0, 0, 0);
+  group.add(tractorBeam);
+  let isOverloaded = false;
+  let totalTime = 0;
+  const triggerOverload = () => {
+    isOverloaded = true;
+    tractorBeam.visible = false;
+    strobeLight.color.setHex(6583435);
+    strobeLight.intensity = 0.3;
+    scannerEye.material = new MeshStandardMaterial({ color: 1579035, roughness: 0.9 });
+  };
+  const update = (dt, targetPos) => {
+    totalTime += dt;
+    if (!isOverloaded) {
+      droneBody.position.y = Math.sin(totalTime * 2.8) * 0.25;
+      droneBody.rotation.y += dt * 0.8;
+      const strobePhase = Math.sin(totalTime * 8);
+      strobeLight.intensity = strobePhase > 0 ? 3 : 0.4;
+      if (targetPos) {
+        const myPos = group.position;
+        const dir = targetPos.clone().sub(myPos);
+        const len = dir.length();
+        if (len > 0.01) {
+          tractorBeam.position.copy(dir.clone().multiplyScalar(0.5));
+          tractorBeam.scale.set(1, 1, len);
+          tractorBeam.lookAt(dir);
+          beamMat.opacity = 0.45 + Math.sin(totalTime * 12) * 0.25;
+        }
+      }
+    } else {
+      droneBody.rotation.x += dt * 2.5;
+      droneBody.rotation.z += dt * 1.8;
+      group.position.y += dt * 0.5;
+    }
+  };
+  return {
+    group,
+    droneBody,
+    scannerEye,
+    strobeLight,
+    tractorBeam,
+    citationTag,
+    isOverloaded,
+    triggerOverload,
+    update
+  };
+}
+
 // src/procedural/quantum-civ.ts
 function cMul(a, b) {
   return {
@@ -37893,6 +38234,26 @@ function renderDirectives() {
     return;
   const currentStep = STATE.ftueStep || 0;
   let html = "";
+  if (STATE.jamalMissionActive) {
+    const isJamalDone = !!STATE.jamalMissionCompleted;
+    const jamalStatusClass = isJamalDone ? "done" : "active";
+    const jamalCheckmark = isJamalDone ? "✔" : "◉";
+    html += `
+            <div class="directive-card ${jamalStatusClass} story-quest-card" data-quest="jamal_shuttle">
+                <div class="directive-status-icon">${jamalCheckmark}</div>
+                <div class="directive-body">
+                    <div class="directive-header">
+                        <span class="directive-badge" style="background: rgba(168, 85, 247, 0.25); border-color: rgba(168, 85, 247, 0.6); color: #d8b4fe;">PROLOG-QUEST</span>
+                        <span class="directive-title">Jamals Forschungsschiff</span>
+                    </div>
+                    <div class="directive-instruction">
+                        ${isJamalDone ? 'Forschungsschiff "ISS Ibn Battuta" geborgen (+50 Melange) & Sensoren gekoppelt.' : "Fliege zum Planeten & befreie das Schiff von der KI-Abschleppdrohne mit [F] oder [E]"}
+                    </div>
+                    ${!isJamalDone ? '<div class="directive-hint">Die Parkraum-KI hält das Schiff im Traktorstrahl. Nähere dich auf &lt; 25 AE und zerstöre die Parkkralle!</div>' : ""}
+                </div>
+            </div>
+        `;
+  }
   FTUE_DIRECTIVES.forEach((d) => {
     const isDone = d.id < currentStep;
     const isActive = d.id === currentStep;
@@ -37946,15 +38307,35 @@ function updateVoyagerHUDTracker() {
   const trackerEl = document.getElementById("voyager-nav-tracker");
   if (!trackerEl)
     return;
+  const titleEl = trackerEl.querySelector(".voyager-tracker-title");
+  const distEl = document.getElementById("voyager-nav-dist");
+  const angleEl = document.getElementById("voyager-nav-arrow");
+  const playerPos = STATE.playerPosition;
+  if (STATE.jamalMissionActive && !STATE.jamalMissionCompleted && STATE.jamalShip && STATE.jamalShip.position) {
+    const shipPos = STATE.jamalShip.position;
+    const dx2 = shipPos.x - playerPos.x;
+    const dz2 = shipPos.z - playerPos.z;
+    const dist2 = Math.hypot(dx2, dz2);
+    trackerEl.style.display = "flex";
+    if (titleEl)
+      titleEl.innerText = "JAMALS SCHIFF (FALSCHPARKER)";
+    if (distEl)
+      distEl.innerText = `${dist2.toFixed(1)} AE`;
+    if (angleEl) {
+      const targetAngle = Math.atan2(dz2, dx2);
+      const heading = STATE.shipHeading || 0;
+      const relativeAngleDeg = (targetAngle - heading) * 180 / Math.PI;
+      angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
+    }
+    return;
+  }
   if (!STATE.voyagerProbe || !STATE.voyagerSignalDetected || STATE.voyagerScanned) {
     trackerEl.style.display = "none";
     return;
   }
-  const titleEl = trackerEl.querySelector(".voyager-tracker-title");
   if (titleEl) {
     titleEl.innerText = STATE.voyagerScanned ? "VOYAGER 2 SIGNAL" : "UNBEKANNTES SIGNAL";
   }
-  const playerPos = STATE.playerPosition;
   const probePos = STATE.voyagerProbe.position;
   if (!playerPos || !probePos)
     return;
@@ -37962,8 +38343,6 @@ function updateVoyagerHUDTracker() {
   const dz = probePos.z - playerPos.z;
   const dist = Math.hypot(dx, dz);
   trackerEl.style.display = "flex";
-  const distEl = document.getElementById("voyager-nav-dist");
-  const angleEl = document.getElementById("voyager-nav-arrow");
   if (distEl) {
     distEl.innerText = `${dist.toFixed(1)} AE`;
   }
@@ -37973,6 +38352,185 @@ function updateVoyagerHUDTracker() {
     const relativeAngleDeg = (targetAngle - heading) * 180 / Math.PI;
     angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
   }
+}
+
+// src/ui/jamal-dialog.ts
+var isDialogOpen = false;
+function openJamalIntroDialog() {
+  if (STATE.jamalIntroModalSeen)
+    return;
+  STATE.jamalIntroModalSeen = true;
+  STATE.jamalMissionActive = true;
+  const modal = document.getElementById("jamal-telepathic-modal");
+  if (!modal)
+    return;
+  isDialogOpen = true;
+  modal.style.display = "flex";
+  const titleEl = document.getElementById("jamal-dialog-title");
+  const badgeEl = document.getElementById("jamal-dialog-status-badge");
+  const narrativeEl = document.getElementById("jamal-dialog-narrative");
+  const confirmBtn = document.getElementById("jamal-dialog-confirm-btn");
+  if (titleEl)
+    titleEl.innerText = "DAS VERSTECKTE FORSCHUNGSSCHIFF & DIE PARKRAUM-DROHNEN";
+  if (badgeEl) {
+    badgeEl.innerText = "\uD83D\uDEA8 ORBITAL-NOTRUF";
+    badgeEl.className = "jamal-status-badge alert";
+  }
+  if (narrativeEl) {
+    narrativeEl.innerHTML = `
+            <div class="jamal-speech-bubble">
+                <p>
+                    „Najmafar! Hörst du mich in deinen Synapsen? Die psionische Kopplung steht... aber wir haben direkt ein absurdes Problem!
+                </p>
+                <p>
+                    Ich bin nur mit einem unauffälligen Zivil-Touristenshuttle zur Menagerie gereist, um keine Aufmerksamkeit der Psionischen Gilde zu erregen. 
+                    Mein eigentliches Forschungsschiff – die <strong>ISS Ibn Battuta</strong>, vollgepackt mit Quantensensoren, meinen Forschungsaufzeichnungen und 
+                    wertvollem <strong>Melange-Gewürz</strong> – habe ich im Orbit des nahen Planeten versteckt!
+                </p>
+                <div class="jamal-highlight-box">
+                    <span class="highlight-icon">⚠️</span>
+                    <div>
+                        <strong>Die Plage der galaktischen Parkraumüberwachung:</strong><br>
+                        Dieses System wird von durchgedrehten, autonomen KI-Abschleppdrohnen patrouilliert! Sie jagen Falschparker im Vakuum! 
+                        Mein Schiff hat keine Parkvignette und wurde bereits mit einer <strong>orbitalen Parkkralle</strong> festgesetzt!
+                    </div>
+                </div>
+                <p>
+                    Wir müssen sofort zum nahen Planeten fliegen und mein Schiff befreien, bevor die Drohnen es zerlegen oder in den Schrottsektor abschleppen!“
+                </p>
+            </div>
+        `;
+  }
+  if (confirmBtn) {
+    confirmBtn.innerText = "\uD83D\uDE80 Kurs auf den Planeten setzen & Schiff befreien";
+  }
+  try {
+    playSonarChime();
+  } catch (e) {}
+  addLogEntry("JAMAL", "„Najmafar! Meine neuronale Kopplung steht. Mein Forschungsschiff im Planetenorbit wurde als Falschparker festgesetzt! Wir müssen es retten!“");
+  renderDirectives();
+}
+function liberateJamalShip() {
+  if (STATE.jamalShipLiberated)
+    return;
+  STATE.jamalShipLiberated = true;
+  STATE.jamalMissionCompleted = true;
+  try {
+    playEmpChargeSound();
+    setTimeout(() => playSynapseEvolveSound(), 350);
+    setTimeout(() => playSonarChime(), 700);
+  } catch (e) {}
+  if (STATE.towingDrone && STATE.towingDrone.triggerOverload) {
+    STATE.towingDrone.triggerOverload();
+    STATE.towingDrone.name = "KI-Abschleppdrohne TX-9 [SYSTEMFEHLER / DEAKTIVIERT]";
+  }
+  if (STATE.jamalShip) {
+    if (STATE.jamalShip.setLiberated) {
+      STATE.jamalShip.setLiberated(true);
+    }
+    STATE.jamalShip.name = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
+  }
+  const spiceBonus = 50;
+  const siliconBonus = 60;
+  const mentalBonus = 40;
+  STATE.spiceRes = (STATE.spiceRes || 0) + spiceBonus;
+  STATE.bioRes = (STATE.bioRes || 0) + spiceBonus;
+  STATE.siliconRes = (STATE.siliconRes || 0) + siliconBonus;
+  STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, (STATE.mentalEnergy || 50) + mentalBonus);
+  STATE.loneliness = Math.max(5, (STATE.loneliness || 30) - 20);
+  updateHUDStats();
+  addLogEntry("PARK-KI", "⚡ [SYSTEMFEHLER 0xPARK_VOID]: Bio-Leviathan verweigert Annahme des Bußgeldbescheids! Schaltkreise durch psionischen Impuls überlastet!");
+  addLogEntry("SYSTEM", `\uD83C\uDF89 FORSCHUNGSSCHIFF BEFREIT: +${spiceBonus} Melange-Gewürz | +${siliconBonus} Silizium | +${mentalBonus} Mentalkraft!`);
+  addLogEntry("JAMAL", "„Haha! Du hast die Parkkralle einfach mit Psionik zerquetscht! Meine Ausrüstung und das Melange sind gesichert!“");
+  openJamalLiberatedDialog();
+  advanceFtueStep(2);
+}
+function openJamalLiberatedDialog() {
+  const modal = document.getElementById("jamal-telepathic-modal");
+  if (!modal)
+    return;
+  isDialogOpen = true;
+  modal.style.display = "flex";
+  const titleEl = document.getElementById("jamal-dialog-title");
+  const badgeEl = document.getElementById("jamal-dialog-status-badge");
+  const narrativeEl = document.getElementById("jamal-dialog-narrative");
+  const confirmBtn = document.getElementById("jamal-dialog-confirm-btn");
+  if (titleEl)
+    titleEl.innerText = "FORSCHUNGSLABOR GEBORGEN & SENSOREN SYNCHRONISIERT";
+  if (badgeEl) {
+    badgeEl.innerText = "✨ SCHIFF BEFREIT";
+    badgeEl.className = "jamal-status-badge success";
+  }
+  if (narrativeEl) {
+    narrativeEl.innerHTML = `
+            <div class="jamal-speech-bubble">
+                <p>
+                    „Fantastisch, Najmafar! Du hast die Abschleppkralle einfach mit deiner Biomasse zerquetscht! 
+                    Die Drohnen-KI hat einen kompletten Kernel-Panic erlitten!“
+                </p>
+                <div class="jamal-reward-grid">
+                    <div class="reward-pill">✨ <strong>+50 Melange</strong> (Gewürz-Vorrat)</div>
+                    <div class="reward-pill">\uD83D\uDC8E <strong>+60 Silizium</strong> (Quanten-Chips)</div>
+                    <div class="reward-pill">\uD83E\uDDE0 <strong>+40 Mentalkraft</strong> (Psyche gestärkt)</div>
+                </div>
+                <p>
+                    Ich habe die Quantensensoren der <em>ISS Ibn Battuta</em> direkt mit deinem neuralen Netzwerk gekoppelt. 
+                    Unsere Sensorreichweite hat sich verdreifacht!
+                </p>
+                <div class="jamal-highlight-box blue">
+                    <span class="highlight-icon">\uD83D\uDCE1</span>
+                    <div>
+                        <strong>Sensorik schlägt an:</strong><br>
+                        Warte... jetzt, wo die Hauptantennen online sind: Ich fange ein archaisches, moduliertes Funksignal am Rand dieses Sternensystems auf! 
+                        Das stammt nicht von den Fremdwelten... das klingt menschlich!
+                    </div>
+                </div>
+            </div>
+        `;
+  }
+  if (confirmBtn) {
+    confirmBtn.innerText = "\uD83D\uDD2D Signal analysieren & System erkunden";
+  }
+}
+function closeJamalDialog() {
+  const modal = document.getElementById("jamal-telepathic-modal");
+  if (!modal)
+    return;
+  isDialogOpen = false;
+  modal.style.display = "none";
+  renderDirectives();
+}
+function initJamalDialogListeners() {
+  const modal = document.getElementById("jamal-telepathic-modal");
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        closeJamalDialog();
+      }
+    });
+  }
+  const closeBtn = document.getElementById("close-jamal-dialog-btn");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeJamalDialog();
+    });
+  }
+  const confirmBtn = document.getElementById("jamal-dialog-confirm-btn");
+  if (confirmBtn) {
+    confirmBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeJamalDialog();
+    });
+  }
+  window.addEventListener("keydown", (e) => {
+    if (!isDialogOpen)
+      return;
+    if (e.key === "Escape" || e.key === " " || e.code === "Space" || e.key === "Enter") {
+      e.preventDefault();
+      closeJamalDialog();
+    }
+  });
 }
 
 // src/ui/first-contact-modal.ts
@@ -39040,6 +39598,12 @@ function completeScanning() {
   const target = STATE.scanningPlanet;
   try {
     if (target) {
+      const isJamal = target.isJamalShip || target.type === "jamal_shuttle" || target.isTowingDrone || target.type === "towing_drone";
+      if (isJamal) {
+        target.scanned = true;
+        liberateJamalShip();
+        return;
+      }
       const isShip = target.type === "interceptor" || target.type === "corvette" || target.type === "freighter" || target.type === "heavy_freighter";
       const isStation = target.type === "citadel" || target.type === "trade_hub" || target.type === "mining_relay";
       target.scanned = true;
@@ -41867,6 +42431,12 @@ function updateUniverseShaders(dt, cam) {
   if (STATE.voyagerProbe && STATE.voyagerProbe.update) {
     STATE.voyagerProbe.update(dt);
   }
+  if (STATE.jamalShip && STATE.jamalShip.update) {
+    STATE.jamalShip.update(dt);
+  }
+  if (STATE.towingDrone && STATE.towingDrone.update) {
+    STATE.towingDrone.update(dt);
+  }
   if (activeSunRays && cam) {
     activeSunRays.update(dt, cam);
   }
@@ -42006,6 +42576,16 @@ function clearActiveSystem() {
     scene.remove(STATE.voyagerProbe.mesh);
     disposeObject3D(STATE.voyagerProbe.mesh);
     STATE.voyagerProbe = null;
+  }
+  if (STATE.jamalShip && STATE.jamalShip.mesh) {
+    scene.remove(STATE.jamalShip.mesh);
+    disposeObject3D(STATE.jamalShip.mesh);
+    STATE.jamalShip = null;
+  }
+  if (STATE.towingDrone && STATE.towingDrone.mesh) {
+    scene.remove(STATE.towingDrone.mesh);
+    disposeObject3D(STATE.towingDrone.mesh);
+    STATE.towingDrone = null;
   }
   const badge = document.getElementById("target-lock-badge");
   const label = document.getElementById("target-label-text");
@@ -42524,8 +43104,62 @@ function spawnPlanetsAndAsteroids() {
   initPlanetDefenseFleets();
   if (STATE.currentSystemId === 1 || STATE.currentSystemId === 0) {
     spawnVoyagerProbe();
+    spawnJamalMissionEntities(activePlanets[0]);
   }
   addLogEntry("NAV", `Sensoren initialisiert: ${activeSystem.name} [${activeSystem.sectorName || "Sektor"}].`);
+}
+function spawnJamalMissionEntities(targetPlanet) {
+  if (STATE.jamalShip && STATE.jamalShip.mesh) {
+    scene.remove(STATE.jamalShip.mesh);
+    disposeObject3D(STATE.jamalShip.mesh);
+    STATE.jamalShip = null;
+  }
+  if (STATE.towingDrone && STATE.towingDrone.mesh) {
+    scene.remove(STATE.towingDrone.mesh);
+    disposeObject3D(STATE.towingDrone.mesh);
+    STATE.towingDrone = null;
+  }
+  const planetPos = targetPlanet && targetPlanet.group ? targetPlanet.group.position : targetPlanet && targetPlanet.position ? targetPlanet.position : new Vector3(180, 0, 100);
+  const shuttleController = createJamalResearchShuttleMesh(2.6);
+  const shuttlePos = new Vector3(planetPos.x + 13.5, 0, planetPos.z + 13.5);
+  shuttleController.group.position.copy(shuttlePos);
+  shuttleController.group.lookAt(planetPos);
+  scene.add(shuttleController.group);
+  const shuttleObj = {
+    mesh: shuttleController.group,
+    update: shuttleController.update,
+    setLiberated: shuttleController.setLiberated,
+    type: "jamal_shuttle",
+    name: STATE.jamalShipLiberated ? "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]" : "Dr. Jamals Forschungsschiff [FALSPARKER-STATUS]",
+    mass: 0.8,
+    radius: 2.6,
+    gravityRange: 14,
+    position: shuttleController.group.position,
+    isJamalShip: true,
+    scanned: STATE.jamalShipLiberated
+  };
+  STATE.jamalShip = shuttleObj;
+  STATE.gravitySources.push(shuttleObj);
+  const droneController = createTowingDroneMesh(1.8);
+  const dronePos = new Vector3(shuttlePos.x + 3.2, 1.2, shuttlePos.z + 3.5);
+  droneController.group.position.copy(dronePos);
+  droneController.group.lookAt(shuttlePos);
+  scene.add(droneController.group);
+  const droneObj = {
+    mesh: droneController.group,
+    update: (dt) => droneController.update(dt, shuttleController.group.position),
+    triggerOverload: droneController.triggerOverload,
+    type: "towing_drone",
+    name: STATE.jamalShipLiberated ? "KI-Abschleppdrohne TX-9 [SYSTEMFEHLER / DEAKTIVIERT]" : "KI-Abschleppdrohne TX-9 (Parkraumüberwachung)",
+    mass: 0.5,
+    radius: 1.8,
+    gravityRange: 8,
+    position: droneController.group.position,
+    isTowingDrone: true,
+    scanned: STATE.jamalShipLiberated
+  };
+  STATE.towingDrone = droneObj;
+  STATE.gravitySources.push(droneObj);
 }
 function spawnVoyagerProbe() {
   if (STATE.voyagerProbe && STATE.voyagerProbe.mesh) {
@@ -42757,6 +43391,11 @@ function serializeCurrentState(slotId, customName) {
     prologue: {
       completed: Boolean(STATE.prologueCompleted)
     },
+    jamalMission: {
+      active: Boolean(STATE.jamalMissionActive),
+      completed: Boolean(STATE.jamalMissionCompleted),
+      liberated: Boolean(STATE.jamalShipLiberated)
+    },
     reputation: STATE.reputation ? { ...STATE.reputation } : {},
     quantumChronicle: {
       galacticCycle: STATE.galacticCycle || 1,
@@ -42858,6 +43497,11 @@ async function applyLoadedState(data) {
   }
   if (data.prologue) {
     STATE.prologueCompleted = Boolean(data.prologue.completed);
+  }
+  if (data.jamalMission) {
+    STATE.jamalMissionActive = Boolean(data.jamalMission.active);
+    STATE.jamalMissionCompleted = Boolean(data.jamalMission.completed);
+    STATE.jamalShipLiberated = Boolean(data.jamalMission.liberated);
   }
   if (data.reputation) {
     STATE.reputation = { ...data.reputation };
@@ -43704,6 +44348,22 @@ function updateMinimap() {
           minimapCtx.arc(sx, sy, planetEntry && planetEntry.isMoon ? 2 : 3.5, 0, Math.PI * 2);
           minimapCtx.fill();
         }
+      } else if ((source.type === "jamal_shuttle" || source.isJamalShip) && STATE.jamalMissionActive) {
+        const isLiberated = !!STATE.jamalShipLiberated;
+        minimapCtx.fillStyle = isLiberated ? "#34d399" : "#c084fc";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 4, 0, Math.PI * 2);
+        minimapCtx.fill();
+        const wavePulse = 5 + Math.sin(Date.now() * 0.006) * 3;
+        minimapCtx.strokeStyle = isLiberated ? "rgba(52, 211, 153, 0.75)" : "rgba(192, 132, 252, 0.75)";
+        minimapCtx.lineWidth = 1.2;
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, wavePulse, 0, Math.PI * 2);
+        minimapCtx.stroke();
+        minimapCtx.fillStyle = isLiberated ? "#34d399" : "#c084fc";
+        minimapCtx.font = "8px Orbitron, sans-serif";
+        const label = isLiberated ? "\uD83D\uDE80 JAMAL (GEBORGEN)" : "\uD83D\uDE80 JAMALS SCHIFF";
+        minimapCtx.fillText(label, sx + 7, sy + 3);
       } else if ((source.type === "voyager_probe" || source.isVoyager) && STATE.voyagerSignalDetected) {
         minimapCtx.fillStyle = "#fbbf24";
         minimapCtx.beginPath();
@@ -45526,15 +46186,15 @@ function toggleOptionsModal() {
 }
 
 // src/ui/voyager-dialog.ts
-var isDialogOpen = false;
+var isDialogOpen2 = false;
 function isVoyagerDialogOpen() {
-  return isDialogOpen;
+  return isDialogOpen2;
 }
 function openVoyagerDialog() {
   const modal = document.getElementById("voyager-dialog-modal");
   if (!modal)
     return;
-  isDialogOpen = true;
+  isDialogOpen2 = true;
   modal.style.display = "flex";
   try {
     playGoldenRecordAudio();
@@ -45555,7 +46215,7 @@ function closeVoyagerDialog() {
   const modal = document.getElementById("voyager-dialog-modal");
   if (!modal)
     return;
-  isDialogOpen = false;
+  isDialogOpen2 = false;
   modal.style.display = "none";
   advanceFtueStep(4);
 }
@@ -45599,7 +46259,7 @@ function initVoyagerDialogListeners() {
     });
   }
   window.addEventListener("keydown", (e) => {
-    if (!isDialogOpen)
+    if (!isDialogOpen2)
       return;
     if (e.key === "Escape" || e.key === " " || e.code === "Space" || e.key === "Enter") {
       e.preventDefault();
@@ -46112,6 +46772,15 @@ function setupControls() {
       }
     }
     if (key === "f") {
+      if (STATE.jamalShip && STATE.jamalShip.position) {
+        const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
+        if (jamalDist <= 25) {
+          if (!STATE.jamalShipLiberated) {
+            liberateJamalShip();
+            return;
+          }
+        }
+      }
       if (STATE.voyagerProbe && STATE.voyagerProbe.position) {
         const voyagerDist = STATE.playerPosition.distanceTo(STATE.voyagerProbe.position);
         if (voyagerDist <= 22) {
@@ -46176,6 +46845,13 @@ function setupControls() {
       }
     }
     if (key === "e") {
+      if (STATE.jamalShip && !STATE.jamalShipLiberated && STATE.jamalShip.position) {
+        const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
+        if (jamalDist <= 28) {
+          liberateJamalShip();
+          return;
+        }
+      }
       const salvaged = salvageNearestWreck();
       if (!salvaged) {
         triggerHarvestStart();
@@ -46277,6 +46953,7 @@ function setupControls() {
     });
   });
   setupTargetRaycasting();
+  initJamalDialogListeners();
   window.addEventListener("wheel", (e) => {
     if (e.target && e.target.closest("#main-menu, #how-to-play-modal, #deck-container, #diplomacy-overlay")) {
       return;
@@ -46338,6 +47015,12 @@ function setupTargetRaycasting() {
     if (STATE.voyagerProbe && STATE.voyagerProbe.mesh) {
       targetMeshes.push(STATE.voyagerProbe.mesh);
     }
+    if (STATE.jamalShip && STATE.jamalShip.mesh) {
+      targetMeshes.push(STATE.jamalShip.mesh);
+    }
+    if (STATE.towingDrone && STATE.towingDrone.mesh) {
+      targetMeshes.push(STATE.towingDrone.mesh);
+    }
     if (STATE.spaceStations) {
       STATE.spaceStations.forEach((s) => {
         if (s.mesh)
@@ -46353,6 +47036,29 @@ function setupTargetRaycasting() {
     const intersects2 = raycaster.intersectObjects(targetMeshes, true);
     if (intersects2.length > 0) {
       const hitObject = intersects2[0].object;
+      let hitJamal = false;
+      let checkObj = hitObject;
+      while (checkObj) {
+        if (checkObj === (STATE.jamalShip ? STATE.jamalShip.mesh : null) || checkObj === (STATE.towingDrone ? STATE.towingDrone.mesh : null) || checkObj.isJamalGroup || checkObj.isTowingDroneGroup) {
+          hitJamal = true;
+          break;
+        }
+        checkObj = checkObj.parent;
+      }
+      if (hitJamal && STATE.jamalShip) {
+        setLockedTarget(STATE.jamalShip);
+        const dist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
+        if (dist <= 25) {
+          if (!STATE.jamalShipLiberated) {
+            liberateJamalShip();
+          } else {
+            addLogEntry("JAMAL", "„Die ISS Ibn Battuta ist sicher geborgen. Alle Sensordaten sind synchronisiert!“");
+          }
+        } else {
+          addLogEntry("JAMAL", `„Da ist mein Schiff! Anvisiert (${dist.toFixed(1)} AE). Fliege heran (< 25 AE) und befreie es mit [F] oder [E]!“`);
+        }
+        return;
+      }
       let hitVoyager = false;
       let curObj = hitObject;
       while (curObj) {
@@ -48310,6 +49016,9 @@ function finishPrologue() {
     }, 800);
   }
   renderDirectives();
+  setTimeout(() => {
+    openJamalIntroDialog();
+  }, 1200);
   if (onCompleteCallback) {
     const cb = onCompleteCallback;
     onCompleteCallback = null;

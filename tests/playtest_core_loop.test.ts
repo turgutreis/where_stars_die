@@ -163,7 +163,7 @@ import { generateProceduralCandidates, getCrewReactiveThought } from '../src/sys
 import { calculateCrewBuffs, updateCrewSimulation, rejuvenateCrewMember, setPrimaryParadigm, setActiveSubCodex, updateParadigmModifiers, getSpeciesClusters, toggleClusterExpansion, rejuvenateSpeciesCluster, cyclePrimaryParadigm, getExpandedClustersKey, clearExpandedClusters, setCrewStation, getStationCrewCounts, calculateRadiationProtection, isTraumaActive, advanceTraumaTherapy, performTherapySession, triggerCrewSabotageEvent } from '../src/systems/crew';
 import { buyMutation } from '../src/ui/deck';
 import { triggerAbductStart, abductCrewFromShip } from '../src/systems/abduction';
-import { advanceFtueStep, FTUE_DIRECTIVES } from '../src/ui/directives';
+import { advanceFtueStep, FTUE_DIRECTIVES, renderDirectives, updateVoyagerHUDTracker } from '../src/ui/directives';
 import { openVoyagerDialog, closeVoyagerDialog, isVoyagerDialogOpen } from '../src/ui/voyager-dialog';
 import { handleVoyagerScan, setLockedTarget } from '../src/input/controls';
 import { calculateGravityAndCheckCollision, TRAJECTORY_SEGMENTS } from '../src/engine/trajectory';
@@ -222,6 +222,13 @@ import {
     isPrologueRunning,
     getPrologueBeats
 } from '../src/ui/prologue';
+import { spawnJamalMissionEntities } from '../src/systems/universe';
+import { 
+    openJamalIntroDialog, 
+    liberateJamalShip, 
+    isJamalDialogOpen, 
+    closeJamalDialog 
+} from '../src/ui/jamal-dialog';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -3826,6 +3833,72 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         // 4. Verify that having Jamal unlocks crew status for shuttle away missions and deep scan
         expect(hasAwayTeamCrew()).toBe(true);
+    });
+
+    test("50. Dr. Jamal's Hidden Research Shuttle & Rogue AI Towing Drone Mission: Telepathic brief, parking enforcement clamp, EMP/Scan liberation, and sensor coupling", () => {
+        // 1. Reset state & setup starting planet
+        STATE.jamalShip = null;
+        STATE.towingDrone = null;
+        STATE.jamalMissionActive = false;
+        STATE.jamalMissionCompleted = false;
+        STATE.jamalShipLiberated = false;
+        STATE.jamalIntroModalSeen = false;
+        STATE.ftueStep = 0;
+
+        const startPlanet: any = {
+            name: "Perseus-Erwachen Prime A",
+            group: { position: new THREE.Vector3(180, 0, 100) },
+            position: new THREE.Vector3(180, 0, 100),
+            size: 3.5
+        };
+
+        // 2. Spawn mission entities in orbit of starting planet
+        spawnJamalMissionEntities(startPlanet);
+        expect(STATE.jamalShip).toBeDefined();
+        expect(STATE.towingDrone).toBeDefined();
+        expect(STATE.jamalShip.isJamalShip).toBe(true);
+        expect(STATE.towingDrone.isTowingDrone).toBe(true);
+        expect(STATE.jamalShip.name).toContain("FALSPARKER-STATUS");
+        expect(STATE.towingDrone.name).toContain("Parkraumüberwachung");
+
+        // Distance between Jamal's ship and towing drone is intimate (< 5 AE)
+        const droneToShuttleDist = STATE.towingDrone.position.distanceTo(STATE.jamalShip.position);
+        expect(droneToShuttleDist).toBeLessThan(5);
+
+        // 3. Open telepathic mission brief
+        openJamalIntroDialog();
+        expect(STATE.jamalMissionActive).toBe(true);
+        expect(isJamalDialogOpen()).toBe(true);
+        closeJamalDialog();
+        expect(isJamalDialogOpen()).toBe(false);
+
+        // 4. Verify Directives & Nav Tracker target Jamal's ship
+        renderDirectives();
+        updateVoyagerHUDTracker();
+        const trackerEl = document.getElementById('voyager-nav-tracker');
+        expect(trackerEl?.style.display).toBe('flex');
+        const distEl = document.getElementById('voyager-nav-dist');
+        expect(distEl?.innerText).toContain("AE");
+
+        // 5. Player approaches and liberates Jamal's ship with [F] / [E]
+        STATE.playerPosition.set(STATE.jamalShip.position.x, 0, STATE.jamalShip.position.z + 5);
+        expect(STATE.playerPosition.distanceTo(STATE.jamalShip.position)).toBeLessThanOrEqual(25);
+
+        const initialSpice = STATE.spiceRes || 0;
+        const initialSilicon = STATE.siliconRes || 0;
+
+        liberateJamalShip();
+
+        expect(STATE.jamalShipLiberated).toBe(true);
+        expect(STATE.jamalMissionCompleted).toBe(true);
+        expect(STATE.jamalShip.name).toContain("GEBORGEN");
+        expect(STATE.towingDrone.name).toContain("DEAKTIVIERT");
+        expect(STATE.spiceRes).toBe(initialSpice + 50);
+        expect(STATE.siliconRes).toBe(initialSilicon + 60);
+
+        // Directives list updates to show quest completed
+        renderDirectives();
+        closeJamalDialog();
     });
 });
 

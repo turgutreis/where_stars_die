@@ -9,6 +9,7 @@ import { createScanVisuals, updateScanVisuals, removeScanVisuals } from '../proc
 import { SpeciesData, PlanetAttributes, FleetShip, SpaceStation, PlanetaryHazards, SurfaceDeposit } from '../types/game';
 import { generateProceduralCandidates } from './crew-generation';
 import { advanceFtueStep, triggerVoyagerSignalDetection } from '../ui/directives';
+import { liberateJamalShip } from '../ui/jamal-dialog';
 import { abductCrewFromShip } from './abduction';
 import { triggerHarvestStart } from './harvesting';
 import { openShuttleExpeditionModal, hasAwayTeamCrew } from './shuttle-expeditions';
@@ -409,6 +410,13 @@ export function completeScanning() {
     const target: any = STATE.scanningPlanet;
     try {
         if (target) {
+            const isJamal = target.isJamalShip || target.type === 'jamal_shuttle' || target.isTowingDrone || target.type === 'towing_drone';
+            if (isJamal) {
+                target.scanned = true;
+                liberateJamalShip();
+                return;
+            }
+
             const isShip = target.type === 'interceptor' || target.type === 'corvette' || target.type === 'freighter' || target.type === 'heavy_freighter';
             const isStation = target.type === 'citadel' || target.type === 'trade_hub' || target.type === 'mining_relay';
 

@@ -259,6 +259,16 @@ export const STATE: GameState = {
     ftueStep: 0,
     ftueCompleted: false,
 
+    // Dr. Jamal's Hidden Research Shuttle & Rogue AI Towing Drone Mission
+    jamalShip: null,
+    towingDrone: null,
+    jamalMissionActive: false,
+    jamalMissionDiscovered: false,
+    jamalMissionCompleted: false,
+    jamalShipLiberated: false,
+    jamalIntroModalSeen: false,
+    jamalLiberatedModalSeen: false,
+
     // Space Stations & Psionic Stealth System
     spaceStations: [],
     stealthActive: false,

@@ -80,6 +80,32 @@ export function renderDirectives() {
     const currentStep = STATE.ftueStep || 0;
 
     let html = '';
+
+    // Render Dr. Jamal's Story Quest if active
+    if (STATE.jamalMissionActive) {
+        const isJamalDone = !!STATE.jamalMissionCompleted;
+        const jamalStatusClass = isJamalDone ? 'done' : 'active';
+        const jamalCheckmark = isJamalDone ? '✔' : '◉';
+
+        html += `
+            <div class="directive-card ${jamalStatusClass} story-quest-card" data-quest="jamal_shuttle">
+                <div class="directive-status-icon">${jamalCheckmark}</div>
+                <div class="directive-body">
+                    <div class="directive-header">
+                        <span class="directive-badge" style="background: rgba(168, 85, 247, 0.25); border-color: rgba(168, 85, 247, 0.6); color: #d8b4fe;">PROLOG-QUEST</span>
+                        <span class="directive-title">Jamals Forschungsschiff</span>
+                    </div>
+                    <div class="directive-instruction">
+                        ${isJamalDone 
+                            ? 'Forschungsschiff "ISS Ibn Battuta" geborgen (+50 Melange) & Sensoren gekoppelt.' 
+                            : 'Fliege zum Planeten & befreie das Schiff von der KI-Abschleppdrohne mit [F] oder [E]'}
+                    </div>
+                    ${!isJamalDone ? '<div class="directive-hint">Die Parkraum-KI hält das Schiff im Traktorstrahl. Nähere dich auf &lt; 25 AE und zerstöre die Parkkralle!</div>' : ''}
+                </div>
+            </div>
+        `;
+    }
+
     FTUE_DIRECTIVES.forEach((d) => {
         const isDone = d.id < currentStep;
         const isActive = d.id === currentStep;
@@ -145,18 +171,41 @@ export function updateVoyagerHUDTracker() {
     const trackerEl = document.getElementById('voyager-nav-tracker');
     if (!trackerEl) return;
 
-    // Show tracker only if Voyager is in system, signal has been detected, and not yet scanned
+    const titleEl = trackerEl.querySelector('.voyager-tracker-title') as HTMLElement;
+    const distEl = document.getElementById('voyager-nav-dist');
+    const angleEl = document.getElementById('voyager-nav-arrow');
+    const playerPos = STATE.playerPosition;
+
+    // 1. Target Jamal's Ship if quest is active and not yet liberated
+    if (STATE.jamalMissionActive && !STATE.jamalMissionCompleted && STATE.jamalShip && STATE.jamalShip.position) {
+        const shipPos = STATE.jamalShip.position;
+        const dx = shipPos.x - playerPos.x;
+        const dz = shipPos.z - playerPos.z;
+        const dist = Math.hypot(dx, dz);
+
+        trackerEl.style.display = 'flex';
+        if (titleEl) titleEl.innerText = "JAMALS SCHIFF (FALSCHPARKER)";
+        if (distEl) distEl.innerText = `${dist.toFixed(1)} AE`;
+
+        if (angleEl) {
+            const targetAngle = Math.atan2(dz, dx);
+            const heading = STATE.shipHeading || 0;
+            const relativeAngleDeg = ((targetAngle - heading) * 180 / Math.PI);
+            angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
+        }
+        return;
+    }
+
+    // 2. Target Voyager 2 Probe if detected and not yet scanned
     if (!STATE.voyagerProbe || !STATE.voyagerSignalDetected || STATE.voyagerScanned) {
         trackerEl.style.display = 'none';
         return;
     }
 
-    const titleEl = trackerEl.querySelector('.voyager-tracker-title') as HTMLElement;
     if (titleEl) {
         titleEl.innerText = STATE.voyagerScanned ? "VOYAGER 2 SIGNAL" : "UNBEKANNTES SIGNAL";
     }
 
-    const playerPos = STATE.playerPosition;
     const probePos = STATE.voyagerProbe.position;
     if (!playerPos || !probePos) return;
 
@@ -166,15 +215,11 @@ export function updateVoyagerHUDTracker() {
 
     trackerEl.style.display = 'flex';
 
-    const distEl = document.getElementById('voyager-nav-dist');
-    const angleEl = document.getElementById('voyager-nav-arrow');
-
     if (distEl) {
         distEl.innerText = `${dist.toFixed(1)} AE`;
     }
 
     if (angleEl) {
-        // Calculate relative angle from ship heading
         const targetAngle = Math.atan2(dz, dx);
         const heading = STATE.shipHeading || 0;
         const relativeAngleDeg = ((targetAngle - heading) * 180 / Math.PI);

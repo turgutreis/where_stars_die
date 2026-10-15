@@ -14,6 +14,7 @@ import {
 import { addLogEntry } from './hud';
 import { renderCrewUI } from '../systems/crew';
 import { renderDirectives } from './directives';
+import { openJamalIntroDialog } from './jamal-dialog';
 import { initMenagerieScene, shatterMenagerie, cleanupMenagerieScene, isMenagerieActive, menagerieGroup } from '../procedural/menagerie-scene';
 import { scene } from '../engine/scene';
 import { clearActiveSystem, spawnPlanetsAndAsteroids } from '../systems/universe';
@@ -389,6 +390,11 @@ export function finishPrologue() {
     }
 
     renderDirectives();
+
+    // Trigger Dr. Jamal's telepathic mission brief shortly after escaping into space
+    setTimeout(() => {
+        openJamalIntroDialog();
+    }, 1200);
 
     if (onCompleteCallback) {
         const cb = onCompleteCallback;
