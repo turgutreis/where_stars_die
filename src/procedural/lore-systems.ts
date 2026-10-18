@@ -649,8 +649,66 @@ export function getLoreSolarisSystem(): any {
     };
 }
 
+export function getLoreInsanDepotSystem(): any {
+    return {
+        id: 77,
+        name: "INSAN-Verwahrstelle Zeta-9",
+        x: 170.0,
+        z: 30.0,
+        sectorId: "sector_insan_depot",
+        sectorName: "INSAN-Pfand- & Schrottwerft (Verwahrstelle)",
+        anomalyType: "subspace_interference",
+        isCoreAnchor: false,
+        isInsanDepot: true,
+        star: {
+            name: "Zeta-9 Pulsar",
+            type: "Neutron Star",
+            color: "0x38bdf8",
+            size: 4.5,
+            mass: 550
+        },
+        planets: [
+            {
+                name: "Zeta-9 Zentral-Depot (Pier 4)",
+                type: "Schrott- & Pfandwerft",
+                size: 4.2,
+                distance: 38.0,
+                color: "0x64748b",
+                temp: "-80°C",
+                atmos: "Toxische Schrott-Gase & Subraum-Störfelder",
+                bio: "Keine (Autonome Roboter-Bürokratie)",
+                res: "Melange-Spice, Silizium & Antike Raumfahrt-Archive",
+                species: {
+                    hasSentient: true,
+                    name: "INSAN-Verwaltungskollektiv",
+                    population: 500000,
+                    techLevel: "Automated Bureaucracy",
+                    defenseRating: 80,
+                    fleetDisposition: "Defensive"
+                },
+                moons: [],
+                tidalLock: true,
+                magnetosphere: "Hyper-Magnetic",
+                geothermal: "Dormant",
+                radiationLevel: "High",
+                entangledTwinId: null,
+                quantumResonance: 0.1
+            }
+        ],
+        asteroids: Array.from({ length: 16 }, (_, i) => {
+            const dist = 22.0 + (i * 3.8);
+            const angle = i * (Math.PI / 8);
+            return {
+                x: +(dist * Math.cos(angle)).toFixed(2),
+                z: +(dist * Math.sin(angle)).toFixed(2),
+                type: i % 2 === 0 ? "silicon" : "energy"
+            };
+        })
+    };
+}
+
 /**
- * Injects guaranteed lore systems (Sol, Arrakis, Solaris) into the galaxy
+ * Injects guaranteed lore systems (Sol, Arrakis, Solaris, INSAN Depot) into the galaxy
  * if they are not already present in the loaded dataset.
  */
 export function ensureLoreSystems(systems: any[]): void {
@@ -669,5 +727,10 @@ export function ensureLoreSystems(systems: any[]): void {
     const hasSolaris = systems.some(s => s.name && s.name.startsWith("Solaris"));
     if (!hasSolaris) {
         systems.splice(4, 0, getLoreSolarisSystem());
+    }
+
+    const hasInsan = systems.some(s => s.name && s.name.includes("INSAN-Verwahrstelle"));
+    if (!hasInsan) {
+        systems.push(getLoreInsanDepotSystem());
     }
 }

@@ -266,6 +266,8 @@ export const STATE: GameState = {
     jamalMissionDiscovered: false,
     jamalMissionCompleted: false,
     jamalShipLiberated: false,
+    jamalDecoyRevealed: false,
+    voyagerLiberated: false,
     jamalIntroModalSeen: false,
     jamalLiberatedModalSeen: false,
     activeQuests: {},

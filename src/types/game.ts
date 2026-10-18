@@ -730,6 +730,8 @@ export interface GameState {
     jamalMissionDiscovered?: boolean;
     jamalMissionCompleted?: boolean;
     jamalShipLiberated?: boolean;
+    jamalDecoyRevealed?: boolean;
+    voyagerLiberated?: boolean;
     jamalIntroModalSeen?: boolean;
     jamalLiberatedModalSeen?: boolean;
     activeQuests?: Record<string, any>;

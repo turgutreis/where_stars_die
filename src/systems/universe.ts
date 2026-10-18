@@ -21,6 +21,8 @@ import { applySystemLighting } from '../engine/postprocessing';
 import { triggerAutoSave } from './save-manager';
 import { JumpResolution } from '../types/game';
 import { syncActivePlanetsIsingEpochs, updateHudChronicleBadge } from './quantum-ising';
+import { QuestManager } from './quests';
+import { openNpcDialogue } from '../ui/jamal-dialog';
 
 export const activeCoronaMeshes: THREE.Object3D[] = [];
 export const activeCoronaUpdaters: ((dt: number) => void)[] = [];
@@ -827,16 +829,24 @@ export function spawnPlanetsAndAsteroids() {
     spawnSystemSpaceStations(activePlanets);
     initPlanetDefenseFleets();
 
-    // Spawn Voyager 2 probe in the starting system
+    // Spawn Voyager 2 probe & Jamal mission entities
+    const isInsanDepot = Boolean((activeSystem as any).isInsanDepot || (activeSystem.name && activeSystem.name.includes("INSAN")));
     if (STATE.currentSystemId === 1 || STATE.currentSystemId === 0) {
         spawnVoyagerProbe();
-        spawnJamalMissionEntities(activePlanets[0]);
+        spawnJamalMissionEntities(activePlanets[0], false);
+    } else if (isInsanDepot) {
+        spawnVoyagerProbe();
+        spawnJamalMissionEntities(activePlanets[0], true);
+        if (QuestManager.isQuestActive('prologue_jamal_ship')) {
+            QuestManager.advanceQuest('prologue_jamal_ship', 3);
+            openNpcDialogue('insan_depot_arrival');
+        }
     }
 
     addLogEntry("NAV", `Sensoren initialisiert: ${activeSystem.name} [${activeSystem.sectorName || 'Sektor'}].`);
 }
 
-export function spawnJamalMissionEntities(targetPlanet?: any) {
+export function spawnJamalMissionEntities(targetPlanet?: any, isRealShipAtDepot: boolean = false) {
     if (STATE.jamalShip && STATE.jamalShip.mesh) {
         scene.remove(STATE.jamalShip.mesh);
         disposeObject3D(STATE.jamalShip.mesh);
@@ -851,47 +861,74 @@ export function spawnJamalMissionEntities(targetPlanet?: any) {
     const planetPos = targetPlanet && targetPlanet.group ? targetPlanet.group.position 
         : (targetPlanet && targetPlanet.position ? targetPlanet.position : new THREE.Vector3(180, 0, 100));
 
-    // 1. Jamal's Research Shuttle (Parked in orbit of the nearby starting planet)
+    // 1. Jamal's Research Shuttle / Decoy / Real Ship
     const shuttleController = createJamalResearchShuttleMesh(2.6);
     const shuttlePos = new THREE.Vector3(planetPos.x + 13.5, 0, planetPos.z + 13.5);
     shuttleController.group.position.copy(shuttlePos);
     shuttleController.group.lookAt(planetPos);
     scene.add(shuttleController.group);
 
+    let shipName = "Dr. Jamals Forschungsschiff [FALSPARKER-STATUS]";
+    if (isRealShipAtDepot) {
+        shipName = STATE.jamalShipLiberated ? "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]" : "Echte 'ISS Ibn Battuta' [PIER 4 - BESCHLAGNAHMT]";
+    } else if (STATE.jamalShipLiberated) {
+        shipName = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
+    } else if (STATE.jamalDecoyRevealed) {
+        shipName = "Köder-Attrappe [HOLOGRAFIE-ATTROPPE ENTLARVT]";
+    }
+
     const shuttleObj: any = {
         mesh: shuttleController.group,
         update: shuttleController.update,
         setLiberated: shuttleController.setLiberated,
         type: 'jamal_shuttle',
-        name: STATE.jamalShipLiberated ? "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]" : "Dr. Jamals Forschungsschiff [FALSPARKER-STATUS]",
+        name: shipName,
         mass: 0.8,
         radius: 2.6,
         gravityRange: 14.0,
         position: shuttleController.group.position,
         isJamalShip: true,
+        isRealShipAtDepot: isRealShipAtDepot,
+        isDecoy: !isRealShipAtDepot,
         scanned: STATE.jamalShipLiberated
     };
     STATE.jamalShip = shuttleObj;
     STATE.gravitySources.push(shuttleObj);
 
-    // 2. Autonomous Rogue AI Towing Drone (Clamped to Jamal's Shuttle)
+    // 2. Autonomous Rogue AI Towing Drone / Station Pier Clamp
     const droneController = createTowingDroneMesh(1.8);
     const dronePos = new THREE.Vector3(shuttlePos.x + 3.2, 1.2, shuttlePos.z + 3.5);
     droneController.group.position.copy(dronePos);
     droneController.group.lookAt(shuttlePos);
     scene.add(droneController.group);
 
+    let droneName = "KI-Abschleppdrohne TX-9 (Parkraumüberwachung)";
+    let droneStatus = 'patrol';
+    let isDroneHostile = false;
+
+    if (isRealShipAtDepot) {
+        droneName = STATE.jamalShipLiberated ? "INSAN-Pfandstation TX-9 [PIER 4 - FREIGEGEBEN]" : "INSAN-Pfandstation TX-9 (Pier 4 - Gesperrt)";
+    } else if (STATE.jamalShipLiberated) {
+        droneName = "KI-Abschleppdrohne TX-9 [SYSTEMFEHLER / DEAKTIVIERT]";
+    } else if (STATE.jamalDecoyRevealed) {
+        droneName = "KI-Abschleppdrohne TX-9 [AGGRESSIV • VOLLSTRECKUNG]";
+        droneStatus = 'hostile';
+        isDroneHostile = true;
+    }
+
     const droneObj: any = {
         mesh: droneController.group,
         update: (dt: number) => droneController.update(dt, shuttleController.group.position),
         triggerOverload: droneController.triggerOverload,
         type: 'towing_drone',
-        name: STATE.jamalShipLiberated ? "KI-Abschleppdrohne TX-9 [SYSTEMFEHLER / DEAKTIVIERT]" : "KI-Abschleppdrohne TX-9 (Parkraumüberwachung)",
+        name: droneName,
         mass: 0.5,
         radius: 1.8,
         gravityRange: 8.0,
         position: droneController.group.position,
         isTowingDrone: true,
+        status: droneStatus,
+        isHostile: isDroneHostile,
         scanned: STATE.jamalShipLiberated
     };
     STATE.towingDrone = droneObj;
@@ -910,11 +947,16 @@ export function spawnVoyagerProbe() {
     voyagerController.group.position.set(-110, 0, 135);
     scene.add(voyagerController.group);
 
+    let probeName = STATE.voyagerScanned ? 'Voyager 2 (Archaische Raumsonde)' : 'Unbekanntes Signal (Archaische Sonde)';
+    if (STATE.voyagerLiberated) {
+        probeName = 'Voyager 2 (Archaische Raumsonde) [BEFREIT]';
+    }
+
     const probeObj: any = {
         mesh: voyagerController.group,
         update: voyagerController.update,
         type: 'voyager_probe',
-        name: STATE.voyagerScanned ? 'Voyager 2 (Archaische Raumsonde)' : 'Unbekanntes Signal (Archaische Sonde)',
+        name: probeName,
         mass: 0.5,
         radius: 2.2,
         gravityRange: 10.0,

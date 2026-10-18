@@ -154,7 +154,7 @@ import { STATE, activePlanets } from '../src/core/state';
 import { triggerHarvestStart, updateHarvesting, completeHarvesting } from '../src/systems/harvesting';
 import { triggerScanStart, updateScanning, completeScanning, generatePlanetAttributes, generateFallbackMoons, updateScannerUI } from '../src/systems/scanner';
 import { completeAbduction } from '../src/systems/abduction';
-import { getLoreSolSystem, getLoreArrakisSystem, getLoreSolarisSystem, ensureLoreSystems } from '../src/procedural/lore-systems';
+import { getLoreSolSystem, getLoreArrakisSystem, getLoreSolarisSystem, getLoreInsanDepotSystem, ensureLoreSystems } from '../src/procedural/lore-systems';
 import { AUDIO_SETTINGS } from '../src/engine/audio';
 import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets, spawnPlanetsAndAsteroids, clearActiveSystem } from '../src/systems/universe';
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
@@ -3878,16 +3878,12 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(isJamalDialogOpen()).toBe(true);
         expect(getCurrentDialogueNodeId()).toBe('jamal_orbit_intro');
 
-        // Test branching questions with Jamal: origin & dying stars
-        handleDialogueChoice('jamal_origin');
-        expect(getCurrentDialogueNodeId()).toBe('jamal_origin');
+        // Test branching questions with Jamal: origin (year 2035) & cosmic slowdown
+        handleDialogueChoice('jamal_origin_2035');
+        expect(getCurrentDialogueNodeId()).toBe('jamal_origin_2035');
 
-        handleDialogueChoice('jamal_dying_stars');
-        expect(getCurrentDialogueNodeId()).toBe('jamal_dying_stars');
-
-        // Return to ship search info
-        handleDialogueChoice('jamal_ship_info');
-        expect(getCurrentDialogueNodeId()).toBe('jamal_ship_info');
+        handleDialogueChoice('jamal_slowdown_2035');
+        expect(getCurrentDialogueNodeId()).toBe('jamal_slowdown_2035');
 
         closeJamalDialog();
         expect(isJamalDialogOpen()).toBe(false);
@@ -3907,7 +3903,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         STATE.scanningPlanet = STATE.jamalShip;
         completeScanning();
 
-        // Scanning completes step 2 and discovers step 3 (Insan clamp)
+        // Scanning completes step 0 and discovers step 1 (Insan clamp)
         expect(STATE.jamalShip.scanned).toBe(true);
         expect(STATE.jamalMissionDiscovered).toBe(true);
         expect(isJamalDialogOpen()).toBe(true);
@@ -3918,41 +3914,81 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         handleDialogueChoice('insan_explanation');
         expect(getCurrentDialogueNodeId()).toBe('insan_explanation');
 
-        // 6b. Attempt to pay fine (12,000 Credits) -> Bureaucratic network failure
+        // 6b. Attempt to pay fine (12,000 Credits) -> Interstellar payment disruption
         handleDialogueChoice('insan_pay_attempt');
         expect(getCurrentDialogueNodeId()).toBe('insan_pay_attempt');
 
-        // 6c. Inquire about depot / administrative base
-        handleDialogueChoice('insan_base_inquiry');
-        expect(getCurrentDialogueNodeId()).toBe('insan_base_inquiry');
+        // 6c. Jamal's comment: had to pay cash for coffee at the zoo
+        handleDialogueChoice('jamal_cash_comment');
+        expect(getCurrentDialogueNodeId()).toBe('jamal_cash_comment');
 
-        // 7. Test peaceful hack resolution (executeHackDroneDatabase)
-        const initialSpice = STATE.spiceRes || 0;
-        const initialSilicon = STATE.siliconRes || 0;
+        // 7. Test attempt to hack / smash clamp:
+        // Reveals holographic decoy trap, inflicts psionic shock (-25 mental), alerts drone, and intercepts coordinates to INSAN Verwahrstelle Zeta-9 (2 jumps away)
+        const initialMental = STATE.mentalEnergy || 50;
+        handleDialogueChoice('hack_clamp_attempt');
+        expect(getCurrentDialogueNodeId()).toBe('hologram_trap_revealed');
+        expect(STATE.mentalEnergy).toBe(Math.max(0, initialMental - 25));
+        expect(STATE.jamalDecoyRevealed).toBe(true);
+        expect(STATE.jamalShip.name).toContain("HOLOGRAFIE-ATTROPPE ENTLARVT");
+        expect(STATE.towingDrone.status).toBe('hostile');
+        expect(STATE.towingDrone.name).toContain("AGGRESSIV");
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.stage).toBe(2);
 
-        handleDialogueChoice('hack_drone_database');
-        expect(getCurrentDialogueNodeId()).toBe('drone_hacked_result');
-        expect(STATE.jamalShipLiberated).toBe(true);
-        expect(STATE.jamalMissionCompleted).toBe(true);
-        expect(STATE.jamalShip.name).toContain("GEBORGEN");
-        expect(STATE.towingDrone.name).toContain("ADMIN-BYPASS");
-        expect(STATE.towingDrone.status).toBe('neutral');
-        expect(STATE.spiceRes).toBe(initialSpice + 50);
-        expect(STATE.siliconRes).toBe(initialSilicon + 60);
-
-        // Directives list updates to show quest completed
-        renderDirectives();
         closeJamalDialog();
         expect(isJamalDialogOpen()).toBe(false);
 
-        // 8. Test violent branch reaction: smash_clamp sets drone to hostile
-        STATE.jamalShipLiberated = false;
-        STATE.towingDrone.status = 'patrol';
-        handleDialogueChoice('smash_clamp');
-        expect(getCurrentDialogueNodeId()).toBe('clamp_smashed_result');
-        expect(STATE.towingDrone.status).toBe('hostile');
-        expect(STATE.towingDrone.name).toContain("AGGRESSIV");
+        // 8. Verify INSAN-Verwahrstelle Zeta-9 is exactly 2 jumps away
+        const insanDepot = getLoreInsanDepotSystem();
+        expect(insanDepot).toBeDefined();
+        expect(insanDepot.id).toBe(77);
+        // Distance from Perseus Prime (310, 160) to Zeta-9 (170, 30) is ~191 LY (> 180 LY = 2 jumps with 90 LY range)
+        const distToDepot = Math.sqrt(Math.pow(310 - insanDepot.x, 2) + Math.pow(160 - insanDepot.z, 2));
+        expect(distToDepot).toBeGreaterThan(180);
+
+        // 9. Arrive at INSAN Depot Zeta-9
+        STATE.currentSystemId = 77;
+        const mockDepotPlanet = {
+            name: "Zeta-9 Zentral-Depot (Pier 4)",
+            group: { position: new THREE.Vector3(50, 0, 50) },
+            position: new THREE.Vector3(50, 0, 50)
+        };
+        spawnJamalMissionEntities(mockDepotPlanet, true);
+        spawnVoyagerProbe();
+        expect(STATE.jamalShip.isRealShipAtDepot).toBe(true);
+        expect(STATE.jamalShip.name).toContain("PIER 4 - BESCHLAGNAHMT");
+
+        // Open arrival at depot dialogue
+        openNpcDialogue('insan_depot_arrival');
+        expect(getCurrentDialogueNodeId()).toBe('insan_depot_arrival');
+
+        handleDialogueChoice('insan_station_bureaucracy');
+        expect(getCurrentDialogueNodeId()).toBe('insan_station_bureaucracy');
+
+        handleDialogueChoice('insan_station_bypass_plan');
+        expect(getCurrentDialogueNodeId()).toBe('insan_station_bypass_plan');
+
+        // 10. Liberate impounded Voyager 2 probe
+        handleDialogueChoice('liberate_voyager_probe');
+        expect(getCurrentDialogueNodeId()).toBe('insan_voyager_liberated');
+        expect(STATE.voyagerLiberated).toBe(true);
+        expect(STATE.voyagerProbe.name).toContain("BEFREIT");
+
+        // 11. Liberate the real ISS Ibn Battuta at Pier 4
+        const initialSpice = STATE.spiceRes || 0;
+        const initialSilicon = STATE.siliconRes || 0;
+
+        openNpcDialogue('insan_station_bypass_plan');
+        handleDialogueChoice('liberate_real_ship_at_station');
+        expect(getCurrentDialogueNodeId()).toBe('real_ship_liberated');
+        expect(STATE.jamalShipLiberated).toBe(true);
+        expect(STATE.jamalMissionCompleted).toBe(true);
+        expect(STATE.jamalShip.name).toContain("GEBORGEN");
+        expect(STATE.spiceRes).toBe(initialSpice + 50);
+        expect(STATE.siliconRes).toBe(initialSilicon + 60);
+
+        renderDirectives();
         closeJamalDialog();
+        expect(isJamalDialogOpen()).toBe(false);
     });
 
     test("51. Modular Data-Driven QuestManager & DialogueEngine (JSON schemas, condition evaluation, and event-driven progression)", () => {
@@ -3966,12 +4002,14 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         STATE.jamalMissionActive = false;
         STATE.jamalMissionDiscovered = false;
         STATE.jamalMissionCompleted = false;
+        STATE.jamalDecoyRevealed = false;
+        STATE.jamalShipLiberated = false;
 
         // 1. Verify QuestManager loads quests.json
         const questDef = QuestManager.getQuest('prologue_jamal_ship');
         expect(questDef).toBeDefined();
         expect(questDef!.title).toBe("Jamals Forschungsschiff");
-        expect(questDef!.stages.length).toBe(3);
+        expect(questDef!.stages.length).toBe(5);
 
         // Start quest
         const progress = QuestManager.startQuest('prologue_jamal_ship');
@@ -3985,6 +4023,11 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(progress!.currentStage).toBe(1);
         expect(STATE.jamalMissionDiscovered).toBe(true);
         expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.title).toContain("Insan-Parkkralle");
+
+        // Advance to stage 2 (decoy revealed, travel 2 jumps to INSAN depot)
+        QuestManager.advanceQuest('prologue_jamal_ship', 2);
+        expect(progress!.currentStage).toBe(2);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.title).toContain("INSAN-Abschleppstation");
 
         // Complete quest -> awards rewards from JSON (spice: 50, silicon: 60)
         QuestManager.completeQuest('prologue_jamal_ship');
@@ -4034,15 +4077,14 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         // 3. DialogueEngine loads dialogues.json, evaluates conditions and branches
         const node = DialogueEngine.getNode('jamal_orbit_intro');
         expect(node).toBeDefined();
-        expect(node!.speakerName).toBe("Dr. Jamal");
         expect(node!.options.length).toBeGreaterThanOrEqual(3);
 
         DialogueEngine.openDialogue('jamal_orbit_intro');
         expect(DialogueEngine.isDialogOpen()).toBe(true);
         expect(DialogueEngine.getCurrentNodeId()).toBe('jamal_orbit_intro');
 
-        DialogueEngine.handleChoice('jamal_ship_info');
-        expect(DialogueEngine.getCurrentNodeId()).toBe('jamal_ship_info');
+        DialogueEngine.handleChoice('jamal_origin_2035');
+        expect(DialogueEngine.getCurrentNodeId()).toBe('jamal_origin_2035');
 
         // Condition evaluation
         expect(DialogueEngine.evaluateCondition({ minSpice: 100 })).toBe(false);

@@ -29714,6 +29714,8 @@ var STATE = {
   jamalMissionDiscovered: false,
   jamalMissionCompleted: false,
   jamalShipLiberated: false,
+  jamalDecoyRevealed: false,
+  voyagerLiberated: false,
   jamalIntroModalSeen: false,
   jamalLiberatedModalSeen: false,
   activeQuests: {},
@@ -33776,9 +33778,9 @@ var quests_default = {
     stages: [
       {
         stage: 0,
-        title: "Schiff im Orbit lokalisieren",
-        instruction: "Fliege zum Planeten & scanne Jamals Forschungsschiff im Orbit mit [F]",
-        hint: "Jamal hat sein Schiff vor den Insan-Drohnen im Planetenorbit versteckt. Nähere dich auf < 25 AE.",
+        title: "Schiffssignatur im Orbit orten",
+        instruction: "Fliege zum Planeten & scanne die Schiffssignatur im Orbit mit [F]",
+        hint: "Jamal hat sein Forschungsschiff im Orbit des nahen Planeten versteckt. Nähere dich auf < 25 AE.",
         objective: {
           type: "scan_target",
           targetId: "jamal_shuttle"
@@ -33787,8 +33789,8 @@ var quests_default = {
       {
         stage: 1,
         title: "Insan-Parkkralle untersuchen",
-        instruction: "Untersuche die Insan-Parkkralle an Jamals Schiff [Dialog rechts]",
-        hint: "Wähle im Dialog rechts: Parkkralle zerschmettern, Parkbuße zahlen oder Insan-Depot hacken.",
+        instruction: "Untersuche die Insan-Parkkralle an der Schiffssignatur [Dialog rechts]",
+        hint: "Versuche die Strafe zu zahlen, oder wage einen Eingriff an der Kralle.",
         objective: {
           type: "dialogue_completed",
           nodeId: "jamal_ship_scanned"
@@ -33796,8 +33798,28 @@ var quests_default = {
       },
       {
         stage: 2,
+        title: "Zur INSAN-Abschleppstation reisen (2 Sprünge)",
+        instruction: "Attrappe entlarvt! Reise zur INSAN-Verwahrstelle Zeta-9 [Sternenkarte M]",
+        hint: "Das echte Schiff wurde 2 Raum-Sprünge weit in ein Schrottdepot abgeschleppt. Öffne die Sternenkarte mit [M].",
+        objective: {
+          type: "reach_proximity",
+          targetId: "insan_depot_system"
+        }
+      },
+      {
+        stage: 3,
+        title: "Echtes Forschungsschiff bergen",
+        instruction: "Befreie die echte ISS Ibn Battuta an Pier 4 & rette die abgeschleppte Voyager-Sonde",
+        hint: "Nutze die Subraum-Interferenzen der Station, um die Verankerung zu sprengen.",
+        objective: {
+          type: "dialogue_completed",
+          nodeId: "real_ship_liberated"
+        }
+      },
+      {
+        stage: 4,
         title: "Forschungsschiff geborgen",
-        instruction: 'Forschungsschiff "ISS Ibn Battuta" geborgen (+50 Melange) & Sensoren gekoppelt.',
+        instruction: 'Echte "ISS Ibn Battuta" geborgen (+50 Melange) & Sensoren gekoppelt.',
         hint: "Alle Scanner- und Telemetriedaten von Dr. Jamal sind online.",
         objective: {
           type: "completed"
@@ -33920,7 +33942,7 @@ class QuestManager {
     if (!quests[questId] && questId === "prologue_jamal_ship" && STATE.jamalMissionActive) {
       quests[questId] = {
         questId: "prologue_jamal_ship",
-        currentStage: STATE.jamalMissionCompleted ? 2 : STATE.jamalMissionDiscovered ? 1 : 0,
+        currentStage: STATE.jamalMissionCompleted ? 4 : STATE.jamalDecoyRevealed ? 2 : STATE.jamalMissionDiscovered ? 1 : 0,
         completed: !!STATE.jamalMissionCompleted
       };
     }
@@ -33938,7 +33960,7 @@ class QuestManager {
     if (STATE.jamalMissionActive && !quests["prologue_jamal_ship"]) {
       quests["prologue_jamal_ship"] = {
         questId: "prologue_jamal_ship",
-        currentStage: STATE.jamalMissionCompleted ? 2 : STATE.jamalMissionDiscovered ? 1 : 0,
+        currentStage: STATE.jamalMissionCompleted ? 4 : STATE.jamalDecoyRevealed ? 2 : STATE.jamalMissionDiscovered ? 1 : 0,
         completed: !!STATE.jamalMissionCompleted
       };
     }
@@ -33949,6 +33971,8 @@ class QuestManager {
         if (id === "prologue_jamal_ship") {
           if (STATE.jamalMissionCompleted) {
             progress.completed = true;
+            progress.currentStage = def.stages.length - 1;
+          } else if (STATE.jamalDecoyRevealed && progress.currentStage < 2) {
             progress.currentStage = 2;
           } else if (STATE.jamalMissionDiscovered && progress.currentStage === 0) {
             progress.currentStage = 1;
@@ -34179,84 +34203,67 @@ var dialogues_default = {
     speakerType: "character",
     eyebrow: "⚛️ TELEPATHIE • PERSEUS-RAND",
     mainText: "„Najmafar, spürst du meine synaptische Koppelung? Wir haben es geschafft!“",
-    subText: "„Wir sind der Menagerie von Ceres-9 entkommen. Aber ich bin nur mit einem zivilen Touristen-Shuttle angereist, um die Psionische Gilde nicht zu warnen. Mein eigentliches Forschungsschiff – die ISS Ibn Battuta – habe ich im Orbit dieses nahen Planeten versteckt. Wir müssen es finden!“",
+    subText: "„Wir sind der Menagerie von Ceres-9 entkommen. Aber ich bin nur mit einem zivilen Touristen-Shuttle gereist, um keine Aufmerksamkeit zu erregen. Mein eigentliches Forschungsschiff – die ISS Ibn Battuta – habe ich im Orbit dieses Planeten versteckt. Fliege heran und scanne die Energiesignatur mit [F]!“",
     sound: "synapse",
     options: [
       {
-        label: "„Wo genau ist dein Forschungsschiff versteckt?“",
-        targetNodeId: "jamal_ship_info",
+        label: "„Wie hast du mich in der Menagerie überhaupt gefunden, Jamal?“",
+        targetNodeId: "jamal_origin_2035",
         keyHint: "1"
       },
       {
-        label: "„Wieso hast du mich aus der Menagerie gerettet, Jamal?“",
-        targetNodeId: "jamal_origin",
+        label: "„Was hat es mit der kosmischen Verlangsamung auf sich?“",
+        targetNodeId: "jamal_slowdown_2035",
         keyHint: "2"
       },
       {
-        label: "„Verstanden. Ich scanne den Orbit des Planeten. [Ende]“",
+        label: "„Verstanden. Ich scanne den Orbit nach deinem Schiff ab. [Ende]“",
         action: "close",
         keyHint: "3"
       }
     ]
   },
-  jamal_ship_info: {
-    id: "jamal_ship_info",
+  jamal_origin_2035: {
+    id: "jamal_origin_2035",
     speakerName: "Dr. Jamal",
     speakerTitle: "Chef-Quantenphysiker",
     speakerType: "character",
-    eyebrow: "🛰️ ORBITAL-TELEMETRIE • IBN BATTUTA",
-    mainText: "„Es treibt im Gravitationsschatten des nahen Planeten.“",
-    subText: "„Ich habe es auf Minimalenergie geschaltet. Fliege in den Orbit des Planeten und halte Ausschau nach einer metallischen Energiesignatur. Wenn du nahe genug bist (< 25 AE), aktiviere deine Spektral-Sensoren mit [F], um es zu erfassen!“",
+    eyebrow: "📜 DIE SIGNATUR AUS DEM JAHR 2035",
+    mainText: "„Ich bin uralten Daten gefolgt. Jemand vor mir hatte deinen Fall bereits analysiert.“",
+    subText: "„Vor Jahren stieß ich in den Erd-Archiven auf eine geheime Untersuchung aus dem Jahr 2035. Jemand hatte damals ein psionisches Phänomen registriert und genaue Koordinaten hinterlassen. Als ich die Signaturen verglich, traf mich der Schlag: Die Energie-Signatur aus dem Jahr 2035 und deine bio-organische Resonanz sind nahezu identisch! So wusste ich, dass du in der Menagerie gefangen gehalten wirst.“",
     sound: "sonar",
     options: [
       {
-        label: "„Was für Technologie hast du an Bord der Ibn Battuta?“",
-        targetNodeId: "jamal_dying_stars",
+        label: "„Was stand noch in den Aufzeichnungen aus dem Jahr 2035?“",
+        targetNodeId: "jamal_slowdown_2035",
         keyHint: "1"
       },
       {
-        label: "„Ich nehme Kurs auf das Schiff. [Schließen]“",
+        label: "„Lass uns zuerst dein Schiff sichern.“",
         action: "close",
         keyHint: "2"
       }
     ]
   },
-  jamal_origin: {
-    id: "jamal_origin",
+  jamal_slowdown_2035: {
+    id: "jamal_slowdown_2035",
     speakerName: "Dr. Jamal",
     speakerTitle: "Chef-Quantenphysiker",
     speakerType: "character",
-    eyebrow: "📜 250 JAHRE ARCHIVDATEN • HISTORIE",
-    mainText: "„Ich habe 250 Jahre alte Aufzeichnungen über dein Volk studiert.“",
-    subText: "„Die Menschen glaubten, eure Spezies sei nur ein Mythos – oder eine Bedrohung. Doch als die Sterne begannen, einer nach dem anderen zu erlöschen, erkannte ich: Ihr seid der Schlüssel zum Überleben. Ich konnte nicht zulassen, dass die Gilde dich für Melange zerlegt.“",
+    eyebrow: "⏳ DIE VERLANGSAMUNG • JAHR 2035",
+    mainText: "„Die Verlangsamung der Raumzeit ... sie begann schon vor Jahrhunderten.“",
+    subText: "„In den Daten aus 2035 war vermerkt, dass die kosmische Ausdehnung ins Stocken geraten ist – eine schleichende Entropie-Bremse. Aber die Entdecker versahen die Akten damals mit einem speziellen Tag: 'Unwichtig / Sensorrauschen'. So wurde die größte Bedrohung der Menschheit einfach im Datenmüll vergraben! Auf meinem Forschungsschiff habe ich die Analysegeräte, um das zu beweisen.“",
     sound: "synapse",
     options: [
       {
-        label: "„Warum erlöschen die Sterne in der Galaxie?“",
-        targetNodeId: "jamal_dying_stars",
+        label: "„Wie bist du mir damals auf die Spur gekommen?“",
+        targetNodeId: "jamal_origin_2035",
         keyHint: "1"
       },
       {
-        label: "„Lass uns zuerst dein Schiff sichern.“",
-        targetNodeId: "jamal_ship_info",
+        label: "„Ich nehme Kurs auf die Schiffssignatur. [Ende]“",
+        action: "close",
         keyHint: "2"
-      }
-    ]
-  },
-  jamal_dying_stars: {
-    id: "jamal_dying_stars",
-    speakerName: "Dr. Jamal",
-    speakerTitle: "Chef-Quantenphysiker",
-    speakerType: "character",
-    eyebrow: "🌌 DAS GROSSE ERKALATEN • ANOMALIE",
-    mainText: "„Eine Welle aus negativer Entropie frisst das galaktische Zentrum.“",
-    subText: "„Mein Schiff hat Langstrecken-Quantensensoren an Bord, mit denen wir die Todesfront der Sterne kartografieren können. Außerdem habe ich dort eine Reserve an reinem Melange-Spice gebunkert – das wird deine Psionik wieder aufladen!“",
-    sound: "sonar",
-    options: [
-      {
-        label: "„Dann gibt es keine Zeit zu verlieren. Ich suche die Ibn Battuta.“",
-        targetNodeId: "jamal_ship_info",
-        keyHint: "1"
       }
     ]
   },
@@ -34266,28 +34273,28 @@ var dialogues_default = {
     speakerTitle: "Chef-Quantenphysiker",
     speakerType: "character",
     eyebrow: "⚠️ SPEKTRAL-SCAN • ORBITALE BLOCKADE",
-    mainText: "„Verdammt ... sie haben mein Schiff mit einer Quanten-Parkkralle versiegelt!“",
-    subText: "„Sieh dir das an! Eine orbitale Vollstreckungskralle der Insan-Organisation umschließt die Haupttriebwerke. Eine autonome KI-Abschleppdrohne vom Typ TX-9 bewacht das Wrack und verlangt astronomische Parkgebühren!“",
+    mainText: "„Da ist die Ibn Battuta! Aber Moment ... sie hängt in einer Insan-Parkkralle fest!“",
+    subText: "„Eine autonome Drohne der Insan-Organisation blockiert das Schiff. Sie verlangen astronomische Parkgebühren für das Halten im Orbit.“",
     sound: "alarm",
     options: [
       {
-        label: "„Wieso wurde dein Raumschiff gesperrt?“",
-        targetNodeId: "insan_explanation",
+        label: "„Lass uns die Strafe einfach am Terminal bezahlen.“",
+        targetNodeId: "insan_pay_attempt",
         keyHint: "1"
       },
       {
-        label: "„Gibt es eine Option, die Buße einfach zu bezahlen?“",
-        targetNodeId: "insan_pay_attempt",
+        label: "„Wieso wurde dein Raumschiff gesperrt? Wer sind die Insan?“",
+        targetNodeId: "insan_explanation",
         keyHint: "2"
       },
       {
-        label: "„Ich zertrümmere die Parkkralle mit einem psionischen Bio-Schock!“",
-        action: "smash_clamp",
+        label: "„Ich versuche, das Drohnensystem psionisch zu hacken.“",
+        action: "hack_clamp_attempt",
         keyHint: "3"
       },
       {
-        label: "„Können wir die Datenbank der Drohne hacken oder ihre Basis finden?“",
-        targetNodeId: "insan_base_inquiry",
+        label: "„Ich zertrümmere die Parkkralle mit einem Bio-Schock!“",
+        action: "smash_clamp_attempt",
         keyHint: "4"
       }
     ]
@@ -34303,18 +34310,18 @@ var dialogues_default = {
     sound: "sonar",
     options: [
       {
-        label: "„Was passiert, wenn wir die Parkkralle gewaltsam zerstören?“",
-        action: "smash_clamp",
+        label: "„Versuchen wir, das Ticket am Transponder zu begleichen.“",
+        targetNodeId: "insan_pay_attempt",
         keyHint: "1"
       },
       {
-        label: "„Versuchen wir, das Ticket am Insan-Transponder zu begleichen.“",
-        targetNodeId: "insan_pay_attempt",
+        label: "„Ich versuche, das Drohnensystem psionisch zu hacken.“",
+        action: "hack_clamp_attempt",
         keyHint: "2"
       },
       {
-        label: "„Wo bringen die Drohnen abgeschleppte Schiffe hin? Haben sie eine Basis?“",
-        targetNodeId: "insan_base_inquiry",
+        label: "„Keine Diskussionen – ich zertrümmere die Parkkralle!“",
+        action: "smash_clamp_attempt",
         keyHint: "3"
       }
     ]
@@ -34324,79 +34331,169 @@ var dialogues_default = {
     speakerName: "Insan-Transponder TX-9",
     speakerTitle: "Autonome Parkraumüberwachung",
     speakerType: "system",
-    eyebrow: "💳 ZAHLUNGSTERMINAL • VERBINDUNGSAUFBAU",
-    mainText: "„Falschparken im planetaren Orbit: 12.000 Credits fällig. Zahlung wird verarbeitet ...“",
-    subText: "„FEHLER 0x889F-VOLLZUG: Interstellare Netzwerk-Störung! Verbindung zum Hauptbuchhalter-Cluster Sagittarius A* unterbrochen. Kreditkarten-Zahlung abgelehnt. Bitte warten Sie 3 Äonen, bis die Netzwerkwelle eintrifft.“",
+    eyebrow: "💳 ZAHLUNGSTERMINAL • INTERSTELLARE STÖRUNG",
+    mainText: "„Falschparken im Orbit: 12.000 Credits fällig. Verbindung zum Banken-Cluster Sagittarius A* ... FEHLER 0x889F!“",
+    subText: "„Interstellare Netzwerk-Störung! Keine Verbindung zum Zahlungsnetzwerk. Bitte warten Sie 3 Äonen, bis die Netzwerkwelle eintrifft.“",
     sound: "alarm",
     options: [
       {
-        label: "„Das dauert mir zu lange. Ich zerlege die Kralle per Bio-Schock! [Angriff]“",
-        action: "smash_clamp",
+        label: "„Jamal, was soll das bedeuten?“",
+        targetNodeId: "jamal_cash_comment",
         keyHint: "1"
       },
       {
-        label: "„Jamal, können wir den Drohnen-Transponder hacken?“",
-        targetNodeId: "insan_base_inquiry",
+        label: "„Ich versuche, das Drohnensystem psionisch zu hacken.“",
+        action: "hack_clamp_attempt",
         keyHint: "2"
       },
       {
-        label: "„Zurück zu den Optionen.“",
+        label: "„Ich zertrümmere die Kralle per Bio-Schock!“",
+        action: "smash_clamp_attempt",
+        keyHint: "3"
+      }
+    ]
+  },
+  jamal_cash_comment: {
+    id: "jamal_cash_comment",
+    speakerName: "Dr. Jamal",
+    speakerTitle: "Chef-Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "☕ STÖRUNG IM ZAHLUNGSVERKEHR • BARGELD",
+    mainText: "„Ach verdammt! Immer noch Störungen im interstellaren System!“",
+    subText: "„Ich musste vorhin beim Zoo meinen Kaffee schon BAR bezahlen! Stell dir das vor: physisches Papiergeld und Münzen! Ich hatte mal in uralten Geschichtsbüchern gelesen, dass die Menschen auf der Erde das damals im 21. Jahrhundert so gemacht haben ... Wer hat denn heute noch echtes Bargeld im Vakuum dabei?!“",
+    sound: "synapse",
+    options: [
+      {
+        label: "„Wenn wir nicht zahlen können: Ich hacke das Drohnensystem.“",
+        action: "hack_clamp_attempt",
+        keyHint: "1"
+      },
+      {
+        label: "„Ich zertrümmere die Parkkralle mit Gewalt!“",
+        action: "smash_clamp_attempt",
+        keyHint: "2"
+      },
+      {
+        label: "„Zurück zur Übersicht.“",
         targetNodeId: "jamal_ship_scanned",
         keyHint: "3"
       }
     ]
   },
-  insan_base_inquiry: {
-    id: "insan_base_inquiry",
+  hologram_trap_revealed: {
+    id: "hologram_trap_revealed",
     speakerName: "Dr. Jamal",
     speakerTitle: "Chef-Quantenphysiker",
     speakerType: "character",
-    eyebrow: "🛰️ INSAN-DEPOT • BASIS-KOORDINATEN",
-    mainText: "„Normalerweise schleppen sie Schiffe zu einer orbitalen Verwahrstelle.“",
-    subText: "„Irgendwo im Sektor existiert ein gigantischer Schrott- und Pfand-Depotring der Insan-Gesellschaft, in dem Tausende verlassene Schiffe lagern. Wenn du meine Quanten-Matrix an die Drohne ankoppelst, kann ich ihre Navigationsdatenbank anzapfen und den Admin-Bypass-Code extrahieren!“",
-    sound: "synapse",
-    options: [
-      {
-        label: "„[HACKEN] Dr. Jamals Koppelung starten & Admin-Code extrahieren“",
-        action: "hack_drone_database",
-        keyHint: "1"
-      },
-      {
-        label: "„Keine Zeit für Hacks – Bio-Schock auf die Kralle entladen! [Zerstören]“",
-        action: "smash_clamp",
-        keyHint: "2"
-      }
-    ]
-  },
-  clamp_smashed_result: {
-    id: "clamp_smashed_result",
-    speakerName: "Dr. Jamal",
-    speakerTitle: "Chef-Quantenphysiker",
-    speakerType: "character",
-    eyebrow: "💥 KRALLE ZERSTÖRT • DROHNEN-ALARM",
-    mainText: "„Die Kralle ist zersplittert! Aber die Abschleppdrohnen sind stinksauer!“",
-    subText: "„Die ISS Ibn Battuta ist frei! Meine Schiffssysteme und deine Nervenstränge sind gekoppelt (+50 Spice, +60 Silizium geborgen). Aber pass auf: Die Insan-Drohne hat den Gefechtsmodus aktiviert und meldet uns als Vandale!“",
+    eyebrow: "🚨 HOLOGRAPHISCHE ATTRAPPE • DIE FALLE SCHNAPPT ZU",
+    mainText: "„Verflucht! Es ist gar kein echtes Schiff – das ist eine holographische Attrappe!“",
+    subText: `„Kaum berührst du die Kralle, bricht ein psionischer Rückkopplungsschlag über dich herein! Die Hülle flackert auf und zerfällt in flirrendes Hologramm-Rauschen! Die Insan-Drohnen nutzen solche Attrappen als Köderfalle für Vandalen und Parksünder! Alarm heult durch den Orbit!
+
+Aber warte ... durch den Rückschlag konnte ich das Speicherrelais der Drohne auslesen: Mein echtes Schiff wurde längst abgeschleppt! Es befindet sich auf der zentralen INSAN-Abschleppstation im Sektor – zwei Raum-Sprünge entfernt!“`,
     sound: "crash",
     options: [
       {
-        label: "„Ich bin bereit. Lass sie nur kommen! [Schließen]“",
+        label: "„Zwei Sprünge? Dann lass uns keine Zeit verlieren. Auf zur INSAN-Verwahrstelle! [Schließen]“",
         action: "close",
         keyHint: "1"
       }
     ]
   },
-  drone_hacked_result: {
-    id: "drone_hacked_result",
+  insan_depot_arrival: {
+    id: "insan_depot_arrival",
     speakerName: "Dr. Jamal",
     speakerTitle: "Chef-Quantenphysiker",
     speakerType: "character",
-    eyebrow: "✨ ADMIN-BYPASS ERFOLGREICH • BASIS GEFUNDEN",
-    mainText: "„Bypass autorisiert! Die Kralle hat sich friedlich geöffnet.“",
-    subText: "„Genial, Najmafar! Wir haben den Master-Code OVERRIDE_ADMIN_0000 eingespeist. Die Drohne hält uns nun für Insan-Inspektoren. Ich habe alle Vorräte geborgen (+50 Spice, +60 Silizium) und die Koordinaten des Insan-Schrottdepots auf deiner Sternenkarte markiert!“",
+    eyebrow: "🛰️ INSAN-VERWAHRSTELLE ZETA-9 • ANKUNFT",
+    mainText: "„Unglaublich ... das ist der größte Schrott- und Abschleppfriedhof der Galaxie!“",
+    subText: "„Sieh dir das an, Najmafar! Tausende Schiffe aus allen Epochen treiben hier im Pfand-Orbit. Und dort drüben an Pier 4 entdecke ich die echte ISS Ibn Battuta! Aber das ist noch nicht alles ... meine Sensoren erfassen ein archaisches Signal aus dem 20. Jahrhundert: Die Drohnen haben sogar die irdischen Voyager-Sonden abgeschleppt!“",
+    sound: "sonar",
+    options: [
+      {
+        label: "„Lass uns zur Verwaltungs-Station vorstoßen.“",
+        targetNodeId: "insan_station_bureaucracy",
+        keyHint: "1"
+      },
+      {
+        label: "„Ich scanne das Areal nach der Voyager-Sonde und meinem Schiff ab. [Schließen]“",
+        action: "close",
+        keyHint: "2"
+      }
+    ]
+  },
+  insan_station_bureaucracy: {
+    id: "insan_station_bureaucracy",
+    speakerName: "Verwaltungs-Automaton INSAN-Zeta",
+    speakerTitle: "Bürokratischer Schalter",
+    speakerType: "system",
+    eyebrow: "📑 SCHALTER 7B • WARTESCHLANGE",
+    mainText: "„Willkommen bei INSAN-Interstellare Abschleppdienste. Ziehen Sie eine Wartenummer.“",
+    subText: "„Ihre Nummer: 8.492.104. Geschätzte Wartezeit: 140 Erdjahre. Zahlungsverkehr weiterhin gestört wegen Subraum-Interferenzen. Auslösegebühr für Pier 4: 840.000 Credits in bar.“",
+    sound: "alarm",
+    options: [
+      {
+        label: "„Jamal, 140 Jahre Wartezeit haben wir nicht. Gibt es einen Bypass?“",
+        targetNodeId: "insan_station_bypass_plan",
+        keyHint: "1"
+      },
+      {
+        label: "„Ich sehe mich im Schrottfeld um. [Schließen]“",
+        action: "close",
+        keyHint: "2"
+      }
+    ]
+  },
+  insan_station_bypass_plan: {
+    id: "insan_station_bypass_plan",
+    speakerName: "Dr. Jamal",
+    speakerTitle: "Chef-Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "💡 JAMALS PLAN • SUBRAUM-INTERFERENZ",
+    mainText: "„Die Subraum-Interferenz ist unsere Rettung!“",
+    subText: "„Weil das Zahlungsnetzwerk tot ist, laufen die Sperrbolzen an Pier 4 im lokalen Notbetrieb. Wenn du einen gezielten psionischen EMP-Puls auf Pier 4 abfeuerst [F / E], kollabiert die Verankerung und die echte ISS Ibn Battuta ist frei! Und vergiss die Voyager-Sonde im Schrottfeld nicht – ihre Daten könnten die Puzzleteile von 2035 vervollständigen!“",
     sound: "synapse",
     options: [
       {
-        label: "„Hervorragende Arbeit, Jamal. Alle Systeme online. [Schließen]“",
+        label: "„Verstanden! Ich befreie die Ibn Battuta an Pier 4!“",
+        action: "liberate_real_ship_at_station",
+        keyHint: "1"
+      },
+      {
+        label: "„Ich hole zuerst die Voyager-Sonde aus den Klammern.“",
+        action: "liberate_voyager_probe",
+        keyHint: "2"
+      }
+    ]
+  },
+  insan_voyager_liberated: {
+    id: "insan_voyager_liberated",
+    speakerName: "Dr. Jamal & Voyager 2",
+    speakerTitle: "Historisches Relikt",
+    speakerType: "character",
+    eyebrow: "🛰️ VOYAGER 2 BEFREIT • GOLDEN RECORD",
+    mainText: "„Sie haben tatsächlich die Voyager-Sonde abgeschleppt!“",
+    subText: "„Die Insan-Drohnen haben das historische Artefakt wegen 'unbefugten Schwebens im Vakuum' vor 180 Jahren konfisziert! Die goldene Datenplatte ist unversehrt. Ihre analogen Botschaften von der Erde erfüllen dein Bewusstsein (+30 Mentalkraft, Einsamkeit gelindert). Und sie enthält die astronomischen Messdaten von 1977 bis 2035!“",
+    sound: "sonar",
+    options: [
+      {
+        label: "„Eine unglaubliche Entdeckung. Jetzt zur echten Ibn Battuta! [Schließen]“",
+        action: "close",
+        keyHint: "1"
+      }
+    ]
+  },
+  real_ship_liberated: {
+    id: "real_ship_liberated",
+    speakerName: "Dr. Jamal",
+    speakerTitle: "Chef-Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "🎉 ECHTES FORSCHUNGSSCHIFF GEBORGEN!",
+    mainText: "„Die echte ISS Ibn Battuta ist frei! Alle Labore sind synchronisiert!“",
+    subText: "„Wir haben es geschafft, Najmafar! Meine echten Quanten-Sensoren, die Melange-Vorräte (+50 Melange-Spice) und 60 Silizium-Kerne sind an deine Nervenstränge gekoppelt! Jetzt können wir die Verlangsamung der Galaxie erforschen und die Wahrheit über 2035 aufdecken!“",
+    sound: "synapse",
+    options: [
+      {
+        label: "„Ausgezeichnet, Jamal. Bereite die Langstreckensensoren vor. [Schließen]“",
         action: "close",
         keyHint: "1"
       }
@@ -34561,20 +34658,19 @@ function closeNpcDialogue() {
 function handleDialogueChoice(optionOrTarget) {
   DialogueEngine.handleChoice(optionOrTarget);
 }
-function executeSmashClamp() {
-  if (STATE.jamalShipLiberated)
-    return;
-  STATE.jamalShipLiberated = true;
-  STATE.jamalMissionCompleted = true;
+function triggerDecoyTrap() {
+  const penalty = 25;
+  STATE.mentalEnergy = Math.max(0, (STATE.mentalEnergy || 50) - penalty);
+  STATE.jamalDecoyRevealed = true;
+  STATE.jamalMissionDiscovered = true;
   try {
     playCrashSound();
     playEmpChargeSound();
     playFleetAlarmSound();
   } catch (e) {}
   if (STATE.jamalShip) {
-    if (STATE.jamalShip.setLiberated)
-      STATE.jamalShip.setLiberated(true);
-    STATE.jamalShip.name = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
+    STATE.jamalShip.name = "Köder-Attrappe [HOLOGRAFIE-ATTROPPE ENTLARVT]";
+    STATE.jamalShip.isDecoy = true;
   }
   if (STATE.towingDrone) {
     STATE.towingDrone.name = "KI-Abschleppdrohne TX-9 [AGGRESSIV • VOLLSTRECKUNG]";
@@ -34582,14 +34678,14 @@ function executeSmashClamp() {
     STATE.towingDrone.status = "hostile";
   }
   STATE.systemAlertLevel = "alert";
-  QuestManager.completeQuest("prologue_jamal_ship");
-  grantJamalRewards();
-  addLogEntry("PARK-KI", "\uD83D\uDEA8 [INSAN-VOLLZUG]: ALARM! Sachbeschädigung an orbitaler Parkkralle! Eliminierungsprotokoll aktiviert!");
-  addLogEntry("SYSTEM", "\uD83D\uDCA5 GEWALTIGE BEFREIUNG: Die Kralle wurde zerschlagen. Die Drohnen sind stinksauer und eröffnen das Feuer!");
-  openNpcDialogue("clamp_smashed_result");
+  QuestManager.advanceQuest("prologue_jamal_ship", 2);
+  updateHUDStats();
+  addLogEntry("PSIONIK", "⚡ PSIONISCHE RÜCKKOPPLUNG: -25 Mentalkraft erlitten! Die Falle der Insan-Drohne schnappt zu!");
+  addLogEntry("SYSTEM", "\uD83D\uDEA8 HOLOGRAPHISCHE ATTRAPPE ENTLARVT: Die echte ISS Ibn Battuta wurde in die INSAN-Verwahrstelle Zeta-9 abgeschleppt (2 Sprünge entfernt)!");
+  openNpcDialogue("hologram_trap_revealed");
   advanceFtueStep(2);
 }
-function executeHackDroneDatabase() {
+function liberateRealShipAtStation() {
   if (STATE.jamalShipLiberated)
     return;
   STATE.jamalShipLiberated = true;
@@ -34603,27 +34699,40 @@ function executeHackDroneDatabase() {
       STATE.jamalShip.setLiberated(true);
     STATE.jamalShip.name = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
   }
-  if (STATE.towingDrone) {
-    STATE.towingDrone.name = "KI-Abschleppdrohne TX-9 [ADMIN-BYPASS • HARMLOS]";
-    STATE.towingDrone.status = "neutral";
-    STATE.towingDrone.isHostile = false;
-    if (STATE.towingDrone.triggerOverload)
-      STATE.towingDrone.triggerOverload();
-  }
   QuestManager.completeQuest("prologue_jamal_ship");
   grantJamalRewards();
-  addLogEntry("PARK-KI", "\uD83E\uDD16 [INSAN-SYSTEM]: Administrator-Code (OVERRIDE_ADMIN_0000) verifiziert. Parkkralle ordnungsgemäß entriegelt.");
-  addLogEntry("NAV", "\uD83D\uDEF0️ DATENBANK-HACK: Koordinaten der Insan-Verwahrstelle (Sektor-Schrottwerft) in Sternenkarte gespeichert!");
-  addLogEntry("SYSTEM", "✨ ELEGANTER BYPASS: Forschungsschiff friedlich befreit ohne Drohnen-Alarm!");
-  openNpcDialogue("drone_hacked_result");
+  addLogEntry("BERGUNG", "\uD83C\uDF89 ECHTES FORSCHUNGSSCHIFF GEBORGEN: ISS Ibn Battuta befreit! +50 Melange-Spice, +60 Silizium!");
+  addLogEntry("JAMAL", "„Alle Sensoren online! Jetzt können wir die Verlangsamung und das Jahr 2035 aufklären!“");
+  openNpcDialogue("real_ship_liberated");
   advanceFtueStep(2);
 }
+function liberateVoyagerProbe() {
+  STATE.voyagerLiberated = true;
+  STATE.voyagerScanned = true;
+  STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy || 100, (STATE.mentalEnergy || 0) + 30);
+  STATE.loneliness = Math.max(0, (STATE.loneliness || 30) - 20);
+  if (STATE.voyagerProbe) {
+    STATE.voyagerProbe.name = "Voyager 2 (Archaische Raumsonde) [BEFREIT]";
+  }
+  try {
+    playSonarChime();
+    playSynapseEvolveSound();
+  } catch (e) {}
+  addLogEntry("RELIKT", "\uD83D\uDEF0️ VOYAGER 2 BEFREIT: Golden Record geborgen! +30 Mentalkraft, Einsamkeit gelindert!");
+  updateHUDStats();
+  openNpcDialogue("insan_voyager_liberated");
+}
+var executeHackDroneDatabase = triggerDecoyTrap;
 function grantJamalRewards() {
   STATE.loneliness = Math.max(5, (STATE.loneliness || 30) - 20);
   updateHUDStats();
 }
-DialogueEngine.registerAction("smash_clamp", () => executeSmashClamp());
-DialogueEngine.registerAction("hack_drone_database", () => executeHackDroneDatabase());
+DialogueEngine.registerAction("hack_clamp_attempt", () => triggerDecoyTrap());
+DialogueEngine.registerAction("smash_clamp_attempt", () => triggerDecoyTrap());
+DialogueEngine.registerAction("smash_clamp", () => triggerDecoyTrap());
+DialogueEngine.registerAction("hack_drone_database", () => triggerDecoyTrap());
+DialogueEngine.registerAction("liberate_real_ship_at_station", () => liberateRealShipAtStation());
+DialogueEngine.registerAction("liberate_voyager_probe", () => liberateVoyagerProbe());
 function openJamalIntroDialog() {
   if (STATE.jamalIntroModalSeen)
     return;
@@ -40148,12 +40257,20 @@ function completeScanning() {
       if (isJamal) {
         target.scanned = true;
         if (!STATE.jamalShipLiberated) {
-          STATE.jamalMissionDiscovered = true;
-          addLogEntry("SENSOR", "⚠️ SPEKTRAL-SCAN: Blockade detektiert! Eine orbitale Parkkralle der Insan-Organisation versiegelt die Triebwerke!");
-          triggerJamalShipScannedDialogue();
+          if (target.isRealShipAtDepot || target.name?.includes("Pier 4")) {
+            addLogEntry("SENSOR", "\uD83D\uDEF0️ SPEKTRAL-SCAN: Die echte ISS Ibn Battuta an Pier 4 lokalisiert! Verankerungsbolzen aktiv.");
+            openNpcDialogue("insan_station_bypass_plan");
+          } else if (STATE.jamalDecoyRevealed) {
+            addLogEntry("SENSOR", "⚠️ SPEKTRAL-SCAN: Holografisches Köder-Signal der Insan-Falle erfasst.");
+            openNpcDialogue("hologram_trap_revealed");
+          } else {
+            STATE.jamalMissionDiscovered = true;
+            addLogEntry("SENSOR", "⚠️ SPEKTRAL-SCAN: Blockade detektiert! Eine orbitale Parkkralle der Insan-Organisation versiegelt die Triebwerke!");
+            triggerJamalShipScannedDialogue();
+          }
         } else {
           addLogEntry("JAMAL", "„Die ISS Ibn Battuta ist sicher geborgen. Alle Sensoren sind online!“");
-          openNpcDialogue("jamal_orbit_intro");
+          openNpcDialogue("real_ship_liberated");
         }
         return;
       }
@@ -42956,6 +43073,63 @@ function getLoreSolarisSystem() {
     })
   };
 }
+function getLoreInsanDepotSystem() {
+  return {
+    id: 77,
+    name: "INSAN-Verwahrstelle Zeta-9",
+    x: 170,
+    z: 30,
+    sectorId: "sector_insan_depot",
+    sectorName: "INSAN-Pfand- & Schrottwerft (Verwahrstelle)",
+    anomalyType: "subspace_interference",
+    isCoreAnchor: false,
+    isInsanDepot: true,
+    star: {
+      name: "Zeta-9 Pulsar",
+      type: "Neutron Star",
+      color: "0x38bdf8",
+      size: 4.5,
+      mass: 550
+    },
+    planets: [
+      {
+        name: "Zeta-9 Zentral-Depot (Pier 4)",
+        type: "Schrott- & Pfandwerft",
+        size: 4.2,
+        distance: 38,
+        color: "0x64748b",
+        temp: "-80°C",
+        atmos: "Toxische Schrott-Gase & Subraum-Störfelder",
+        bio: "Keine (Autonome Roboter-Bürokratie)",
+        res: "Melange-Spice, Silizium & Antike Raumfahrt-Archive",
+        species: {
+          hasSentient: true,
+          name: "INSAN-Verwaltungskollektiv",
+          population: 500000,
+          techLevel: "Automated Bureaucracy",
+          defenseRating: 80,
+          fleetDisposition: "Defensive"
+        },
+        moons: [],
+        tidalLock: true,
+        magnetosphere: "Hyper-Magnetic",
+        geothermal: "Dormant",
+        radiationLevel: "High",
+        entangledTwinId: null,
+        quantumResonance: 0.1
+      }
+    ],
+    asteroids: Array.from({ length: 16 }, (_, i) => {
+      const dist = 22 + i * 3.8;
+      const angle = i * (Math.PI / 8);
+      return {
+        x: +(dist * Math.cos(angle)).toFixed(2),
+        z: +(dist * Math.sin(angle)).toFixed(2),
+        type: i % 2 === 0 ? "silicon" : "energy"
+      };
+    })
+  };
+}
 function ensureLoreSystems(systems) {
   if (!systems || systems.length === 0)
     return;
@@ -42970,6 +43144,10 @@ function ensureLoreSystems(systems) {
   const hasSolaris = systems.some((s) => s.name && s.name.startsWith("Solaris"));
   if (!hasSolaris) {
     systems.splice(4, 0, getLoreSolarisSystem());
+  }
+  const hasInsan = systems.some((s) => s.name && s.name.includes("INSAN-Verwahrstelle"));
+  if (!hasInsan) {
+    systems.push(getLoreInsanDepotSystem());
   }
 }
 
@@ -43655,13 +43833,21 @@ function spawnPlanetsAndAsteroids() {
   updateHudChronicleBadge();
   spawnSystemSpaceStations(activePlanets);
   initPlanetDefenseFleets();
+  const isInsanDepot = Boolean(activeSystem.isInsanDepot || activeSystem.name && activeSystem.name.includes("INSAN"));
   if (STATE.currentSystemId === 1 || STATE.currentSystemId === 0) {
     spawnVoyagerProbe();
-    spawnJamalMissionEntities(activePlanets[0]);
+    spawnJamalMissionEntities(activePlanets[0], false);
+  } else if (isInsanDepot) {
+    spawnVoyagerProbe();
+    spawnJamalMissionEntities(activePlanets[0], true);
+    if (QuestManager.isQuestActive("prologue_jamal_ship")) {
+      QuestManager.advanceQuest("prologue_jamal_ship", 3);
+      openNpcDialogue("insan_depot_arrival");
+    }
   }
   addLogEntry("NAV", `Sensoren initialisiert: ${activeSystem.name} [${activeSystem.sectorName || "Sektor"}].`);
 }
-function spawnJamalMissionEntities(targetPlanet) {
+function spawnJamalMissionEntities(targetPlanet, isRealShipAtDepot = false) {
   if (STATE.jamalShip && STATE.jamalShip.mesh) {
     scene.remove(STATE.jamalShip.mesh);
     disposeObject3D(STATE.jamalShip.mesh);
@@ -43678,17 +43864,27 @@ function spawnJamalMissionEntities(targetPlanet) {
   shuttleController.group.position.copy(shuttlePos);
   shuttleController.group.lookAt(planetPos);
   scene.add(shuttleController.group);
+  let shipName = "Dr. Jamals Forschungsschiff [FALSPARKER-STATUS]";
+  if (isRealShipAtDepot) {
+    shipName = STATE.jamalShipLiberated ? "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]" : "Echte 'ISS Ibn Battuta' [PIER 4 - BESCHLAGNAHMT]";
+  } else if (STATE.jamalShipLiberated) {
+    shipName = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
+  } else if (STATE.jamalDecoyRevealed) {
+    shipName = "Köder-Attrappe [HOLOGRAFIE-ATTROPPE ENTLARVT]";
+  }
   const shuttleObj = {
     mesh: shuttleController.group,
     update: shuttleController.update,
     setLiberated: shuttleController.setLiberated,
     type: "jamal_shuttle",
-    name: STATE.jamalShipLiberated ? "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]" : "Dr. Jamals Forschungsschiff [FALSPARKER-STATUS]",
+    name: shipName,
     mass: 0.8,
     radius: 2.6,
     gravityRange: 14,
     position: shuttleController.group.position,
     isJamalShip: true,
+    isRealShipAtDepot,
+    isDecoy: !isRealShipAtDepot,
     scanned: STATE.jamalShipLiberated
   };
   STATE.jamalShip = shuttleObj;
@@ -43698,17 +43894,31 @@ function spawnJamalMissionEntities(targetPlanet) {
   droneController.group.position.copy(dronePos);
   droneController.group.lookAt(shuttlePos);
   scene.add(droneController.group);
+  let droneName = "KI-Abschleppdrohne TX-9 (Parkraumüberwachung)";
+  let droneStatus = "patrol";
+  let isDroneHostile = false;
+  if (isRealShipAtDepot) {
+    droneName = STATE.jamalShipLiberated ? "INSAN-Pfandstation TX-9 [PIER 4 - FREIGEGEBEN]" : "INSAN-Pfandstation TX-9 (Pier 4 - Gesperrt)";
+  } else if (STATE.jamalShipLiberated) {
+    droneName = "KI-Abschleppdrohne TX-9 [SYSTEMFEHLER / DEAKTIVIERT]";
+  } else if (STATE.jamalDecoyRevealed) {
+    droneName = "KI-Abschleppdrohne TX-9 [AGGRESSIV • VOLLSTRECKUNG]";
+    droneStatus = "hostile";
+    isDroneHostile = true;
+  }
   const droneObj = {
     mesh: droneController.group,
     update: (dt) => droneController.update(dt, shuttleController.group.position),
     triggerOverload: droneController.triggerOverload,
     type: "towing_drone",
-    name: STATE.jamalShipLiberated ? "KI-Abschleppdrohne TX-9 [SYSTEMFEHLER / DEAKTIVIERT]" : "KI-Abschleppdrohne TX-9 (Parkraumüberwachung)",
+    name: droneName,
     mass: 0.5,
     radius: 1.8,
     gravityRange: 8,
     position: droneController.group.position,
     isTowingDrone: true,
+    status: droneStatus,
+    isHostile: isDroneHostile,
     scanned: STATE.jamalShipLiberated
   };
   STATE.towingDrone = droneObj;
@@ -43723,11 +43933,15 @@ function spawnVoyagerProbe() {
   const voyagerController = createVoyagerProbeMesh(2.2);
   voyagerController.group.position.set(-110, 0, 135);
   scene.add(voyagerController.group);
+  let probeName = STATE.voyagerScanned ? "Voyager 2 (Archaische Raumsonde)" : "Unbekanntes Signal (Archaische Sonde)";
+  if (STATE.voyagerLiberated) {
+    probeName = "Voyager 2 (Archaische Raumsonde) [BEFREIT]";
+  }
   const probeObj = {
     mesh: voyagerController.group,
     update: voyagerController.update,
     type: "voyager_probe",
-    name: STATE.voyagerScanned ? "Voyager 2 (Archaische Raumsonde)" : "Unbekanntes Signal (Archaische Sonde)",
+    name: probeName,
     mass: 0.5,
     radius: 2.2,
     gravityRange: 10,

@@ -155,7 +155,7 @@ export class QuestManager {
         if (!quests[questId] && questId === 'prologue_jamal_ship' && STATE.jamalMissionActive) {
             quests[questId] = {
                 questId: 'prologue_jamal_ship',
-                currentStage: STATE.jamalMissionCompleted ? 2 : (STATE.jamalMissionDiscovered ? 1 : 0),
+                currentStage: STATE.jamalMissionCompleted ? 4 : (STATE.jamalDecoyRevealed ? 2 : (STATE.jamalMissionDiscovered ? 1 : 0)),
                 completed: !!STATE.jamalMissionCompleted
             };
         }
@@ -179,7 +179,7 @@ export class QuestManager {
         if (STATE.jamalMissionActive && !quests['prologue_jamal_ship']) {
             quests['prologue_jamal_ship'] = {
                 questId: 'prologue_jamal_ship',
-                currentStage: STATE.jamalMissionCompleted ? 2 : (STATE.jamalMissionDiscovered ? 1 : 0),
+                currentStage: STATE.jamalMissionCompleted ? 4 : (STATE.jamalDecoyRevealed ? 2 : (STATE.jamalMissionDiscovered ? 1 : 0)),
                 completed: !!STATE.jamalMissionCompleted
             };
         }
@@ -193,6 +193,8 @@ export class QuestManager {
                 if (id === 'prologue_jamal_ship') {
                     if (STATE.jamalMissionCompleted) {
                         progress.completed = true;
+                        progress.currentStage = def.stages.length - 1;
+                    } else if (STATE.jamalDecoyRevealed && progress.currentStage < 2) {
                         progress.currentStage = 2;
                     } else if (STATE.jamalMissionDiscovered && progress.currentStage === 0) {
                         progress.currentStage = 1;

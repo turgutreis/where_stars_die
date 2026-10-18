@@ -48,13 +48,15 @@ export function handleDialogueChoice(optionOrTarget: DialogueOption | string) {
 }
 
 /**
- * Player chooses to destroy the clamp violently:
- * Ship freed, rewards granted, BUT drone becomes hostile and attacks!
+ * Player attempts to hack or smash the clamp in orbit:
+ * Triggers a psionic feedback shock (-25 mental energy), reveals the holographic decoy,
+ * alerts the Insan towing drone, and intercepts telemetry pointing to INSAN-Verwahrstelle Zeta-9!
  */
-export function executeSmashClamp() {
-    if (STATE.jamalShipLiberated) return;
-    STATE.jamalShipLiberated = true;
-    STATE.jamalMissionCompleted = true;
+export function triggerDecoyTrap() {
+    const penalty = 25;
+    STATE.mentalEnergy = Math.max(0, (STATE.mentalEnergy || 50) - penalty);
+    STATE.jamalDecoyRevealed = true;
+    STATE.jamalMissionDiscovered = true;
 
     try {
         playCrashSound();
@@ -62,13 +64,13 @@ export function executeSmashClamp() {
         playFleetAlarmSound();
     } catch (e) {}
 
-    // Overload clamp & free ship
+    // Hologram decoy revealed
     if (STATE.jamalShip) {
-        if (STATE.jamalShip.setLiberated) STATE.jamalShip.setLiberated(true);
-        STATE.jamalShip.name = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
+        STATE.jamalShip.name = "Köder-Attrappe [HOLOGRAFIE-ATTROPPE ENTLARVT]";
+        STATE.jamalShip.isDecoy = true;
     }
 
-    // Drone becomes furious / hostile!
+    // Drone becomes furious / hostile
     if (STATE.towingDrone) {
         STATE.towingDrone.name = "KI-Abschleppdrohne TX-9 [AGGRESSIV • VOLLSTRECKUNG]";
         STATE.towingDrone.isHostile = true;
@@ -77,21 +79,20 @@ export function executeSmashClamp() {
 
     STATE.systemAlertLevel = 'alert';
 
-    QuestManager.completeQuest('prologue_jamal_ship');
-    grantJamalRewards();
+    QuestManager.advanceQuest('prologue_jamal_ship', 2);
+    updateHUDStats();
 
-    addLogEntry("PARK-KI", "🚨 [INSAN-VOLLZUG]: ALARM! Sachbeschädigung an orbitaler Parkkralle! Eliminierungsprotokoll aktiviert!");
-    addLogEntry("SYSTEM", "💥 GEWALTIGE BEFREIUNG: Die Kralle wurde zerschlagen. Die Drohnen sind stinksauer und eröffnen das Feuer!");
+    addLogEntry("PSIONIK", "⚡ PSIONISCHE RÜCKKOPPLUNG: -25 Mentalkraft erlitten! Die Falle der Insan-Drohne schnappt zu!");
+    addLogEntry("SYSTEM", "🚨 HOLOGRAPHISCHE ATTRAPPE ENTLARVT: Die echte ISS Ibn Battuta wurde in die INSAN-Verwahrstelle Zeta-9 abgeschleppt (2 Sprünge entfernt)!");
 
-    openNpcDialogue('clamp_smashed_result');
+    openNpcDialogue('hologram_trap_revealed');
     advanceFtueStep(2);
 }
 
 /**
- * Player chooses to hack the drone's memory bank:
- * Unlocks the Insan Verwahrstelle coordinates and releases clamp via admin override peacefully!
+ * Player liberates the real ISS Ibn Battuta at the INSAN Depot station Pier 4.
  */
-export function executeHackDroneDatabase() {
+export function liberateRealShipAtStation() {
     if (STATE.jamalShipLiberated) return;
     STATE.jamalShipLiberated = true;
     STATE.jamalMissionCompleted = true;
@@ -101,29 +102,48 @@ export function executeHackDroneDatabase() {
         playSonarChime();
     } catch (e) {}
 
-    // Peaceful bypass
     if (STATE.jamalShip) {
         if (STATE.jamalShip.setLiberated) STATE.jamalShip.setLiberated(true);
         STATE.jamalShip.name = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
     }
 
-    if (STATE.towingDrone) {
-        STATE.towingDrone.name = "KI-Abschleppdrohne TX-9 [ADMIN-BYPASS • HARMLOS]";
-        STATE.towingDrone.status = 'neutral';
-        STATE.towingDrone.isHostile = false;
-        if (STATE.towingDrone.triggerOverload) STATE.towingDrone.triggerOverload();
-    }
-
     QuestManager.completeQuest('prologue_jamal_ship');
     grantJamalRewards();
 
-    addLogEntry("PARK-KI", "🤖 [INSAN-SYSTEM]: Administrator-Code (OVERRIDE_ADMIN_0000) verifiziert. Parkkralle ordnungsgemäß entriegelt.");
-    addLogEntry("NAV", "🛰️ DATENBANK-HACK: Koordinaten der Insan-Verwahrstelle (Sektor-Schrottwerft) in Sternenkarte gespeichert!");
-    addLogEntry("SYSTEM", "✨ ELEGANTER BYPASS: Forschungsschiff friedlich befreit ohne Drohnen-Alarm!");
+    addLogEntry("BERGUNG", "🎉 ECHTES FORSCHUNGSSCHIFF GEBORGEN: ISS Ibn Battuta befreit! +50 Melange-Spice, +60 Silizium!");
+    addLogEntry("JAMAL", "„Alle Sensoren online! Jetzt können wir die Verlangsamung und das Jahr 2035 aufklären!“");
 
-    openNpcDialogue('drone_hacked_result');
+    openNpcDialogue('real_ship_liberated');
     advanceFtueStep(2);
 }
+
+/**
+ * Player liberates the impounded Voyager 2 probe at the INSAN Depot.
+ */
+export function liberateVoyagerProbe() {
+    STATE.voyagerLiberated = true;
+    STATE.voyagerScanned = true;
+    STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy || 100, (STATE.mentalEnergy || 0) + 30);
+    STATE.loneliness = Math.max(0, (STATE.loneliness || 30) - 20);
+
+    if (STATE.voyagerProbe) {
+        STATE.voyagerProbe.name = 'Voyager 2 (Archaische Raumsonde) [BEFREIT]';
+    }
+
+    try {
+        playSonarChime();
+        playSynapseEvolveSound();
+    } catch (e) {}
+
+    addLogEntry("RELIKT", "🛰️ VOYAGER 2 BEFREIT: Golden Record geborgen! +30 Mentalkraft, Einsamkeit gelindert!");
+    updateHUDStats();
+
+    openNpcDialogue('insan_voyager_liberated');
+}
+
+// Backwards-compatible aliases
+export const executeSmashClamp = triggerDecoyTrap;
+export const executeHackDroneDatabase = triggerDecoyTrap;
 
 function grantJamalRewards() {
     STATE.loneliness = Math.max(5, (STATE.loneliness || 30) - 20);
@@ -133,8 +153,12 @@ function grantJamalRewards() {
 /**
  * Registers actions into DialogueEngine.
  */
-DialogueEngine.registerAction('smash_clamp', () => executeSmashClamp());
-DialogueEngine.registerAction('hack_drone_database', () => executeHackDroneDatabase());
+DialogueEngine.registerAction('hack_clamp_attempt', () => triggerDecoyTrap());
+DialogueEngine.registerAction('smash_clamp_attempt', () => triggerDecoyTrap());
+DialogueEngine.registerAction('smash_clamp', () => triggerDecoyTrap());
+DialogueEngine.registerAction('hack_drone_database', () => triggerDecoyTrap());
+DialogueEngine.registerAction('liberate_real_ship_at_station', () => liberateRealShipAtStation());
+DialogueEngine.registerAction('liberate_voyager_probe', () => liberateVoyagerProbe());
 
 /**
  * Opens initial telepathic intro brief from Dr. Jamal in right-docked dialogue panel.
