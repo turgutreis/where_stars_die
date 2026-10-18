@@ -34013,48 +34013,65 @@ class QuestManager {
 var FTUE_DIRECTIVES = [
   {
     id: 0,
-    badge: "PHASE 1",
-    title: "Lebensfunke",
-    instruction: "Bewege die Najmafar mit [W/A/S/D] oder [Maus-Lenkung]",
-    hint: "Aktiviere den Bio-Schub und richte deine Sinnesorgane aus."
+    badge: "PROLOG 1",
+    title: "Lebensfunke & Bio-Schub",
+    instruction: "Bewege Najmafar mit [W/A/S/D] oder [Maus-Lenkung]",
+    hint: "Teste deine organischen Steuerdrüsen im Vakuum von Perseus-Rand."
   },
   {
     id: 1,
-    badge: "PHASE 2",
-    title: "System-Erkundung",
-    instruction: "Erkunde das Sternensystem: Fliege zu einem Planeten & scanne ihn mit [F]",
-    hint: "Halte Orbit-Abstand (< 25 AE) zu einem Himmelskörper und prüfe ihn auf Biosignaturen."
+    badge: "PROLOG 2",
+    title: "Jamals Forschungsschiff orten",
+    instruction: "Fliege zum nahen Planeten & scanne Jamals Schiffssignatur im Orbit mit [F]",
+    hint: "Dr. Jamal hat sein Schiff vor der psionischen Gilde im Schatten des Planeten versteckt."
   },
   {
     id: 2,
-    badge: "PHASE 3",
-    title: "Archaisches Signal",
-    instruction: "Folge dem goldenen Radar-Signal & Scanne das unbekannte Signal mit [F] oder [Klick]",
-    hint: "Eine künstliche metallische Anomalie treibt am Systemrand. Halte Abstand < 22 AE."
+    badge: "PROLOG 3",
+    title: "Insan-Parkkralle & Köderfalle",
+    instruction: "Untersuche die Parkkralle der Insan-Drohne [Dialog rechts]",
+    hint: "Zahlen schlägt fehl – wage einen Eingriff an der Kralle und entlarve die Attrappe."
   },
   {
     id: 3,
-    badge: "PHASE 4",
-    title: "Funke der Hoffnung",
-    instruction: "Öffne die Golden Record im Dialog & höre die Botschaft der Erde",
-    hint: "Die Klänge der Menschheit vertreiben die Depression (+50% Mentalkraft)."
+    badge: "PROLOG 4",
+    title: "Reise zur INSAN-Verwahrstelle",
+    instruction: "Öffne die Sternenkarte [M] & reise zur INSAN-Verwahrstelle Zeta-9 (2 Sprünge)",
+    hint: "Das echte Schiff wurde 2 Raum-Sprünge weit in ein gigantisches Pfanddepot geschleppt."
   },
   {
     id: 4,
-    badge: "PHASE 5",
-    title: "Aufbruch ins Leben",
-    instruction: "Öffne die Sternenkarte [M] – Kurs auf System mit Biosphäre",
-    hint: "Im Startsystem gibt es kein Leben. Finde eine bewohnbare Welt im Nachbarsystem!"
+    badge: "PROLOG 5",
+    title: "Echtes Forschungsschiff bergen",
+    instruction: "Befreie die echte ISS Ibn Battuta an Pier 4 & rette das Voyager-Relikt",
+    hint: "Sprenge die Verankerung per EMP – dies koppelt Jamals Schiffsdatenbank & schaltet das Logbuch frei!"
   },
   {
     id: 5,
-    badge: "PHASE 6",
+    badge: "PHASE 1",
+    title: "Galaktischer Transit",
+    instruction: "Öffne die Sternenkarte [M] – Kurs auf ein bewohntes Sternensystem",
+    hint: "Im Startsystem gibt es keine Biosphäre. Finde ein System mit intelligentem Leben!"
+  },
+  {
+    id: 6,
+    badge: "PHASE 2",
     title: "Der erste Wirt",
-    instruction: "Scanne eine bewohnte Welt & führe eine Entführung [F] durch",
-    hint: "Übernehme ein intelligentes Wesen in deine Kokon-Matrix gegen die Einsamkeit."
+    instruction: "Scanne eine bewohnte Welt & führe eine psionische Aufnahme [F] durch",
+    hint: "Nimm ein intelligentes Wesen in deine Kokon-Matrix auf, um Einsamkeit zu lindern."
+  },
+  {
+    id: 7,
+    badge: "PHASE 3",
+    title: "Traum-Matrix & Organe",
+    instruction: "Öffne das Bio-Deck [TAB], weise Besatzung zu & halte [LEERTASTE] zur Stabilisierung",
+    hint: "Pflege deine Besatzung und nutze ihre wissenschaftlichen Rollen-Boni."
   }
 ];
 var isCollapsed = false;
+function isQuestlogUnlocked() {
+  return Boolean(STATE.jamalShipLiberated);
+}
 function initDirectivesHUD() {
   const toggleBtn = document.getElementById("toggle-directives-btn");
   const container = document.getElementById("hud-directives");
@@ -34066,12 +34083,23 @@ function initDirectivesHUD() {
       toggleBtn.innerText = isCollapsed ? "\uD83D\uDCCB" : "➖";
     });
   }
+  if (container && !isQuestlogUnlocked()) {
+    container.style.display = "none";
+  }
   renderDirectives();
 }
 function renderDirectives() {
+  const hudDirectives = document.getElementById("hud-directives");
   const container = document.getElementById("directives-list");
   if (!container)
     return;
+  if (!isQuestlogUnlocked()) {
+    if (hudDirectives)
+      hudDirectives.style.display = "none";
+    return;
+  }
+  if (hudDirectives)
+    hudDirectives.style.display = "";
   const currentStep = STATE.ftueStep || 0;
   let html = "";
   const activeQuests = QuestManager.getActiveQuests();
@@ -34132,18 +34160,6 @@ function advanceFtueStep(targetStep) {
     renderDirectives();
   }
 }
-function triggerVoyagerSignalDetection() {
-  if (STATE.voyagerSignalDetected)
-    return;
-  STATE.voyagerSignalDetected = true;
-  try {
-    playVoyagerBeaconPing();
-  } catch (e) {}
-  addLogEntry("NAJMAFAR", "„Dieses System ist erstarrt... Niemand ist hier. Nur die Kälte der Leere.“");
-  addLogEntry("SENSOR", "ANOMALIE DETEKTIERT: Schwache elektromagnetische Trägerwelle (1420 MHz) empfangen!");
-  addLogEntry("SYSTEM", "Archaische Signalquelle am Systemrand geortet. UNBEKANNTES SIGNAL auf Radar und Nav-Tracker aufgeschaltet!");
-  advanceFtueStep(2);
-}
 function updateVoyagerHUDTracker() {
   const trackerEl = document.getElementById("voyager-nav-tracker");
   if (!trackerEl)
@@ -34152,47 +34168,51 @@ function updateVoyagerHUDTracker() {
   const distEl = document.getElementById("voyager-nav-dist");
   const angleEl = document.getElementById("voyager-nav-arrow");
   const playerPos = STATE.playerPosition;
-  if (STATE.jamalMissionActive && !STATE.jamalMissionCompleted && STATE.jamalShip && STATE.jamalShip.position) {
+  if (STATE.jamalMissionActive && !STATE.jamalShipLiberated && STATE.jamalShip && STATE.jamalShip.position) {
     const shipPos = STATE.jamalShip.position;
-    const dx2 = shipPos.x - playerPos.x;
-    const dz2 = shipPos.z - playerPos.z;
-    const dist2 = Math.hypot(dx2, dz2);
+    const dx = shipPos.x - playerPos.x;
+    const dz = shipPos.z - playerPos.z;
+    const dist = Math.hypot(dx, dz);
     trackerEl.style.display = "flex";
-    if (titleEl)
-      titleEl.innerText = "JAMALS SCHIFF (FALSCHPARKER)";
+    if (titleEl) {
+      if (STATE.jamalShip.isRealShipAtDepot) {
+        titleEl.innerText = "ECHTE IBN BATTUTA (PIER 4)";
+      } else if (STATE.jamalDecoyRevealed) {
+        titleEl.innerText = "KÖDER-ATTRAPPE (ALARM)";
+      } else {
+        titleEl.innerText = "JAMALS SCHIFF (ORBIT)";
+      }
+    }
     if (distEl)
-      distEl.innerText = `${dist2.toFixed(1)} AE`;
+      distEl.innerText = `${dist.toFixed(1)} AE`;
     if (angleEl) {
-      const targetAngle = Math.atan2(dz2, dx2);
+      const targetAngle = Math.atan2(dz, dx);
       const heading = STATE.shipHeading || 0;
       const relativeAngleDeg = (targetAngle - heading) * 180 / Math.PI;
       angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
     }
     return;
   }
-  if (!STATE.voyagerProbe || !STATE.voyagerSignalDetected || STATE.voyagerScanned) {
-    trackerEl.style.display = "none";
+  if (STATE.voyagerProbe && STATE.voyagerProbe.position && !STATE.voyagerLiberated) {
+    const probePos = STATE.voyagerProbe.position;
+    const dx = probePos.x - playerPos.x;
+    const dz = probePos.z - playerPos.z;
+    const dist = Math.hypot(dx, dz);
+    trackerEl.style.display = "flex";
+    if (titleEl) {
+      titleEl.innerText = "VOYAGER 2 (SCHROTTPFAND)";
+    }
+    if (distEl)
+      distEl.innerText = `${dist.toFixed(1)} AE`;
+    if (angleEl) {
+      const targetAngle = Math.atan2(dz, dx);
+      const heading = STATE.shipHeading || 0;
+      const relativeAngleDeg = (targetAngle - heading) * 180 / Math.PI;
+      angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
+    }
     return;
   }
-  if (titleEl) {
-    titleEl.innerText = STATE.voyagerScanned ? "VOYAGER 2 SIGNAL" : "UNBEKANNTES SIGNAL";
-  }
-  const probePos = STATE.voyagerProbe.position;
-  if (!playerPos || !probePos)
-    return;
-  const dx = probePos.x - playerPos.x;
-  const dz = probePos.z - playerPos.z;
-  const dist = Math.hypot(dx, dz);
-  trackerEl.style.display = "flex";
-  if (distEl) {
-    distEl.innerText = `${dist.toFixed(1)} AE`;
-  }
-  if (angleEl) {
-    const targetAngle = Math.atan2(dz, dx);
-    const heading = STATE.shipHeading || 0;
-    const relativeAngleDeg = (targetAngle - heading) * 180 / Math.PI;
-    angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
-  }
+  trackerEl.style.display = "none";
 }
 // src/data/dialogues.json
 var dialogues_default = {
@@ -34679,11 +34699,11 @@ function triggerDecoyTrap() {
   }
   STATE.systemAlertLevel = "alert";
   QuestManager.advanceQuest("prologue_jamal_ship", 2);
+  advanceFtueStep(3);
   updateHUDStats();
   addLogEntry("PSIONIK", "⚡ PSIONISCHE RÜCKKOPPLUNG: -25 Mentalkraft erlitten! Die Falle der Insan-Drohne schnappt zu!");
   addLogEntry("SYSTEM", "\uD83D\uDEA8 HOLOGRAPHISCHE ATTRAPPE ENTLARVT: Die echte ISS Ibn Battuta wurde in die INSAN-Verwahrstelle Zeta-9 abgeschleppt (2 Sprünge entfernt)!");
   openNpcDialogue("hologram_trap_revealed");
-  advanceFtueStep(2);
 }
 function liberateRealShipAtStation() {
   if (STATE.jamalShipLiberated)
@@ -34702,9 +34722,11 @@ function liberateRealShipAtStation() {
   QuestManager.completeQuest("prologue_jamal_ship");
   grantJamalRewards();
   addLogEntry("BERGUNG", "\uD83C\uDF89 ECHTES FORSCHUNGSSCHIFF GEBORGEN: ISS Ibn Battuta befreit! +50 Melange-Spice, +60 Silizium!");
+  addLogEntry("SYSTEM", "\uD83D\uDCDF QUANTEN-LOGBUCH AKTIVIERT: ISS Ibn Battuta gekoppelt! Missions-Direktiven und Galaktische Aufträge online.");
   addLogEntry("JAMAL", "„Alle Sensoren online! Jetzt können wir die Verlangsamung und das Jahr 2035 aufklären!“");
+  advanceFtueStep(5);
+  renderDirectives();
   openNpcDialogue("real_ship_liberated");
-  advanceFtueStep(2);
 }
 function liberateVoyagerProbe() {
   STATE.voyagerLiberated = true;
@@ -34743,6 +34765,10 @@ function openJamalIntroDialog() {
 }
 function triggerJamalShipScannedDialogue() {
   QuestManager.advanceQuest("prologue_jamal_ship", 1);
+  advanceFtueStep(2);
+  const hint = document.getElementById("flight-controls-hint");
+  if (hint)
+    hint.classList.add("hidden");
   openNpcDialogue("jamal_ship_scanned");
 }
 function closeJamalDialog() {
@@ -39398,7 +39424,7 @@ function completeAbduction() {
         addLogEntry("SYSTEM", `PSIONISCHE ASSIMILATION ERFOLGREICH: ${candidate.name} (${candidate.roleName || candidate.role}) in Kokon-Kammer transferiert.`);
         addLogEntry("CREW", `Traum-Matrix initialisiert: ${candidate.name} lindert deine Einsamkeit! (${Math.round(STATE.loneliness)}% Einsamkeit)`);
         collapseSystemQuantumBranch(STATE.currentSystemId, "abduct", planet.name);
-        advanceFtueStep(6);
+        advanceFtueStep(7);
         renderCrewUI();
         updatePartyGrid();
         updateHUDStats();
@@ -40310,11 +40336,6 @@ function completeScanning() {
           addLogEntry("SYSTEM", `PSIO-DETEKTION: Intelligentes Leben (${target.attributes.species.name}) auf ${target.name} entdeckt! Psionischer Transfer [F] bereit.`);
         } else {
           addLogEntry("SENSOR", `Atmosphärendaten: ${target.attributes?.atmos || "Vakuum"} | Bio: ${target.attributes?.bio || "Steril"}. Keine Lebensformen detektiert.`);
-        }
-        if ((STATE.ftueStep || 0) <= 1 && !STATE.voyagerSignalDetected) {
-          triggerVoyagerSignalDetection();
-        } else if ((STATE.ftueStep || 0) === 1) {
-          advanceFtueStep(2);
         }
         updateScannerUI(target, 10);
       }
@@ -43835,13 +43856,13 @@ function spawnPlanetsAndAsteroids() {
   initPlanetDefenseFleets();
   const isInsanDepot = Boolean(activeSystem.isInsanDepot || activeSystem.name && activeSystem.name.includes("INSAN"));
   if (STATE.currentSystemId === 1 || STATE.currentSystemId === 0) {
-    spawnVoyagerProbe();
     spawnJamalMissionEntities(activePlanets[0], false);
   } else if (isInsanDepot) {
     spawnVoyagerProbe();
     spawnJamalMissionEntities(activePlanets[0], true);
     if (QuestManager.isQuestActive("prologue_jamal_ship")) {
       QuestManager.advanceQuest("prologue_jamal_ship", 3);
+      advanceFtueStep(4);
       openNpcDialogue("insan_depot_arrival");
     }
   }
@@ -44050,6 +44071,9 @@ function initiateSystemArrival(fromSys, targetSys, resolution) {
   triggerSystemArrivalBanner(targetSys, dominantFactionName, resolution);
   handleSystemArrivalStealthCheck();
   triggerAutoSave(`Ankunft in ${targetSys.name}`);
+  if ((STATE.ftueStep || 0) === 5) {
+    advanceFtueStep(6);
+  }
 }
 
 // src/systems/save-manager.ts

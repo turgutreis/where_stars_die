@@ -7,7 +7,7 @@ import {
     playFleetAlarmSound 
 } from '../engine/audio';
 import { addLogEntry, updateHUDStats } from './hud';
-import { advanceFtueStep } from './directives';
+import { advanceFtueStep, renderDirectives } from './directives';
 import { DialogueEngine } from '../systems/dialogue';
 import { QuestManager } from '../systems/quests';
 import dialoguesData from '../data/dialogues.json';
@@ -80,13 +80,13 @@ export function triggerDecoyTrap() {
     STATE.systemAlertLevel = 'alert';
 
     QuestManager.advanceQuest('prologue_jamal_ship', 2);
+    advanceFtueStep(3);
     updateHUDStats();
 
     addLogEntry("PSIONIK", "⚡ PSIONISCHE RÜCKKOPPLUNG: -25 Mentalkraft erlitten! Die Falle der Insan-Drohne schnappt zu!");
     addLogEntry("SYSTEM", "🚨 HOLOGRAPHISCHE ATTRAPPE ENTLARVT: Die echte ISS Ibn Battuta wurde in die INSAN-Verwahrstelle Zeta-9 abgeschleppt (2 Sprünge entfernt)!");
 
     openNpcDialogue('hologram_trap_revealed');
-    advanceFtueStep(2);
 }
 
 /**
@@ -111,10 +111,13 @@ export function liberateRealShipAtStation() {
     grantJamalRewards();
 
     addLogEntry("BERGUNG", "🎉 ECHTES FORSCHUNGSSCHIFF GEBORGEN: ISS Ibn Battuta befreit! +50 Melange-Spice, +60 Silizium!");
+    addLogEntry("SYSTEM", "📟 QUANTEN-LOGBUCH AKTIVIERT: ISS Ibn Battuta gekoppelt! Missions-Direktiven und Galaktische Aufträge online.");
     addLogEntry("JAMAL", "„Alle Sensoren online! Jetzt können wir die Verlangsamung und das Jahr 2035 aufklären!“");
 
+    advanceFtueStep(5);
+    renderDirectives();
+
     openNpcDialogue('real_ship_liberated');
-    advanceFtueStep(2);
 }
 
 /**
@@ -177,6 +180,9 @@ export function openJamalIntroDialog() {
  */
 export function triggerJamalShipScannedDialogue() {
     QuestManager.advanceQuest('prologue_jamal_ship', 1);
+    advanceFtueStep(2);
+    const hint = document.getElementById('flight-controls-hint');
+    if (hint) hint.classList.add('hidden');
     openNpcDialogue('jamal_ship_scanned');
 }
 

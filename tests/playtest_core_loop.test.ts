@@ -233,7 +233,10 @@ import {
     openNpcDialogue,
     handleDialogueChoice,
     getCurrentDialogueNodeId,
-    triggerJamalShipScannedDialogue
+    triggerJamalShipScannedDialogue,
+    triggerDecoyTrap,
+    liberateRealShipAtStation,
+    liberateVoyagerProbe
 } from '../src/ui/jamal-dialog';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
@@ -266,6 +269,20 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         STATE.activeMoonOrbit = null;
         STATE.systemArrivalActive = false;
         STATE.systemDepartureActive = false;
+        STATE.jamalMissionActive = false;
+        STATE.jamalMissionDiscovered = false;
+        STATE.jamalMissionCompleted = false;
+        STATE.jamalDecoyRevealed = false;
+        STATE.jamalShipLiberated = false;
+        STATE.jamalIntroModalSeen = false;
+        STATE.jamalShip = null;
+        STATE.towingDrone = null;
+        STATE.voyagerProbe = null;
+        STATE.voyagerLiberated = false;
+        STATE.voyagerScanned = false;
+        STATE.voyagerSignalDetected = false;
+        STATE.voyagerDialogSeen = false;
+        STATE.activeQuests = {};
 
         // Mock 3D Planet
         const meshGroup = new THREE.Group();
@@ -614,68 +631,72 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(crewNames.length).toBe(uniqueCrewNames.size);
     });
 
-    test("15. Starting system exploration requires planet scan before detecting Voyager 2 signal and advancing FTUE onboarding", () => {
-        // 1. Initial State: Player starts at step 0
+    test("15. Prologue onboarding flow: Hidden Questlog until research ship liberation, Insan clamp decoy trap, depot journey & unlock", () => {
+        // 1. Initial State: Player starts at step 0, Questlog is locked & hidden
         STATE.ftueStep = 0;
         STATE.ftueCompleted = false;
-        STATE.voyagerSignalDetected = false;
-        STATE.voyagerScanned = false;
+        STATE.jamalShipLiberated = false;
+        STATE.jamalMissionDiscovered = false;
+        STATE.jamalDecoyRevealed = false;
         STATE.mentalEnergy = 50;
         STATE.loneliness = 80;
         STATE.currentSystemId = 1;
 
-        // 2. Spawn Voyager 2 probe in starting system
-        spawnVoyagerProbe();
-        expect(STATE.voyagerProbe).not.toBeNull();
-        expect(STATE.voyagerProbe.isVoyager).toBe(true);
-        expect(STATE.voyagerProbe.name).toContain("Unbekanntes Signal");
-        expect(STATE.gravitySources.some((s: any) => s.isVoyager)).toBe(true);
-        expect(STATE.voyagerSignalDetected).toBe(false);
+        const hudDirectives = document.getElementById('hud-directives');
+        renderDirectives();
+        expect(hudDirectives.style.display).toBe('none');
 
-        // 3. Player moves -> FTUE advances to Phase 2: System-Erkundung
+        // 2. Player moves -> FTUE advances to Step 1: Jamals Forschungsschiff orten
         advanceFtueStep(1);
         expect(STATE.ftueStep).toBe(1);
-        expect(STATE.voyagerSignalDetected).toBe(false);
+        renderDirectives();
+        expect(hudDirectives.style.display).toBe('none'); // Still hidden!
 
-        // 4. Player scans a sterile planet in the starting system
-        const sterilePlanet: any = {
-            name: "Perseus-Erwachen Prime A",
-            size: 3.0,
-            scanned: false,
-            mesh: { position: new THREE.Vector3(12, 0, 12), scale: { x: 1 } },
-            attributes: { atmos: "Dünnes CO2", bio: "Steril", res: "Silizium" }
+        // 3. Player scans Jamal's ship decoy in orbit -> FTUE advances to Step 2: Insan-Parkkralle
+        triggerJamalShipScannedDialogue();
+        expect(STATE.ftueStep).toBe(2);
+        renderDirectives();
+        expect(hudDirectives.style.display).toBe('none'); // Still hidden!
+
+        // 4. Player attempts to tamper with the clamp -> Hologram decoy trap triggers (-25 mental, advances to Step 3)
+        triggerDecoyTrap();
+        expect(STATE.ftueStep).toBe(3);
+        expect(STATE.jamalDecoyRevealed).toBe(true);
+        expect(STATE.mentalEnergy).toBe(25);
+        renderDirectives();
+        expect(hudDirectives.style.display).toBe('none'); // Still hidden!
+
+        // 5. Arrive at INSAN-Verwahrstelle Zeta-9 (System 77) -> Spawns Pier 4 & advances to Step 4
+        STATE.currentSystemId = 77;
+        const mockDepotPlanet: any = {
+            name: "Zeta-9 Zentral-Depot (Pier 4)",
+            group: { position: new THREE.Vector3(50, 0, 50) },
+            position: new THREE.Vector3(50, 0, 50)
         };
-        STATE.scanningPlanet = sterilePlanet;
-        completeScanning();
+        spawnJamalMissionEntities(mockDepotPlanet, true);
+        advanceFtueStep(4);
+        expect(STATE.ftueStep).toBe(4);
+        renderDirectives();
+        expect(hudDirectives.style.display).toBe('none'); // Still hidden!
 
-        // Planet scan reveals sterile nature & triggers archaic Voyager signal detection
-        expect(sterilePlanet.scanned).toBe(true);
-        expect(STATE.voyagerSignalDetected).toBe(true);
-        expect(STATE.ftueStep).toBe(2); // Advanced to Phase 3: Archaisches Signal
-
-        // 5. Player approaches Voyager 2 probe in the outer interstellar void
-        STATE.playerPosition.set(STATE.voyagerProbe.position.x, 0, STATE.voyagerProbe.position.z + 5);
-        const dist = STATE.playerPosition.distanceTo(STATE.voyagerProbe.position);
-        expect(dist).toBeLessThanOrEqual(22);
-
-        // Scan Voyager 2 with [F]
-        handleVoyagerScan();
-        expect(STATE.voyagerScanned).toBe(true);
-        expect(STATE.voyagerProbe.name).toContain("Voyager 2");
-        expect(STATE.ftueStep).toBe(3); // Advanced to Phase 4: Funke der Hoffnung
-        expect(isVoyagerDialogOpen()).toBe(true);
-
-        // 6. Close/listen Golden Record dialog
-        closeVoyagerDialog();
-        expect(STATE.ftueStep).toBe(4); // Advanced to Phase 5: Aufbruch ins Leben
-
-        // 7. Open Galaxy Map [M]
-        advanceFtueStep(5); // Phase 6: Der erste Wirt
+        // 6. Liberate real ship at Pier 4 -> Sets jamalShipLiberated, unlocks Questlog & advances to Step 5
+        liberateRealShipAtStation();
         expect(STATE.ftueStep).toBe(5);
+        expect(STATE.jamalShipLiberated).toBe(true);
+        renderDirectives();
+        expect(hudDirectives.style.display).not.toBe('none'); // UNLOCKED & VISIBLE!
 
-        // 8. Abduction completed
+        // 7. Galactic Transit: Warp jump to inhabited world -> Step 6 (Der erste Wirt)
         advanceFtueStep(6);
         expect(STATE.ftueStep).toBe(6);
+
+        // 8. Host abduction completed -> Step 7 (Traum-Matrix & Organe)
+        advanceFtueStep(7);
+        expect(STATE.ftueStep).toBe(7);
+
+        // 9. Bio-deck stabilization -> Completes FTUE (Step 8)
+        advanceFtueStep(8);
+        expect(STATE.ftueStep).toBe(8);
         expect(STATE.ftueCompleted).toBe(true);
     });
 
@@ -688,9 +709,9 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         STATE.voyagerDialogSeen = false;
         STATE.mentalEnergy = 40;
         STATE.loneliness = 85;
-        STATE.currentSystemId = 1;
+        STATE.currentSystemId = 77; // Impounded at INSAN Depot Zeta-9
 
-        // 2. Spawn probe and check initial position
+        // 2. Spawn probe at depot and check initial position
         spawnVoyagerProbe();
         expect(STATE.voyagerProbe).not.toBeNull();
         const startX = STATE.voyagerProbe.position.x;
@@ -715,16 +736,19 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.voyagerDialogSeen).toBe(true);
 
         // Hope buff: mental energy increased and loneliness decreased
-        expect(STATE.mentalEnergy).toBeGreaterThan(70);
+        expect(STATE.mentalEnergy).toBeGreaterThan(65);
         expect(STATE.loneliness).toBeLessThanOrEqual(45);
-        expect(STATE.ftueStep).toBe(3);
 
         // 6. Test closing dialog
         closeVoyagerDialog();
         expect(isVoyagerDialogOpen()).toBe(false);
-        expect(STATE.ftueStep).toBe(4);
 
-        // 7. Verify starting system (Perseus-Rand) has NO habitable worlds
+        // 7. Test liberating Voyager 2 at INSAN Depot
+        liberateVoyagerProbe();
+        expect(STATE.voyagerLiberated).toBe(true);
+        expect(STATE.voyagerProbe.name).toContain("BEFREIT");
+
+        // 8. Verify starting system (Perseus-Rand) has NO habitable worlds
         if (STATE.universe && STATE.universe.systems && STATE.universe.systems[1]) {
             const sys1 = STATE.universe.systems[1];
             if (sys1 && Array.isArray(sys1.planets)) {

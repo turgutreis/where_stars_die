@@ -23,6 +23,7 @@ import { JumpResolution } from '../types/game';
 import { syncActivePlanetsIsingEpochs, updateHudChronicleBadge } from './quantum-ising';
 import { QuestManager } from './quests';
 import { openNpcDialogue } from '../ui/jamal-dialog';
+import { advanceFtueStep } from '../ui/directives';
 
 export const activeCoronaMeshes: THREE.Object3D[] = [];
 export const activeCoronaUpdaters: ((dt: number) => void)[] = [];
@@ -829,16 +830,16 @@ export function spawnPlanetsAndAsteroids() {
     spawnSystemSpaceStations(activePlanets);
     initPlanetDefenseFleets();
 
-    // Spawn Voyager 2 probe & Jamal mission entities
+    // Spawn Jamal mission entities in start system, or Voyager 2 & Jamal real ship at INSAN depot
     const isInsanDepot = Boolean((activeSystem as any).isInsanDepot || (activeSystem.name && activeSystem.name.includes("INSAN")));
     if (STATE.currentSystemId === 1 || STATE.currentSystemId === 0) {
-        spawnVoyagerProbe();
         spawnJamalMissionEntities(activePlanets[0], false);
     } else if (isInsanDepot) {
         spawnVoyagerProbe();
         spawnJamalMissionEntities(activePlanets[0], true);
         if (QuestManager.isQuestActive('prologue_jamal_ship')) {
             QuestManager.advanceQuest('prologue_jamal_ship', 3);
+            advanceFtueStep(4);
             openNpcDialogue('insan_depot_arrival');
         }
     }
@@ -1108,6 +1109,11 @@ export function initiateSystemArrival(fromSys: any, targetSys: any, resolution?:
 
     // 7. Auto-Save on System Arrival
     triggerAutoSave(`Ankunft in ${targetSys.name}`);
+
+    // 8. Advance FTUE from Phase 1 (Galaktischer Transit) to Phase 2 (Der erste Wirt) if jumping after ship liberation
+    if ((STATE.ftueStep || 0) === 5) {
+        advanceFtueStep(6);
+    }
 }
 
 export function updateActivePlanets(dt: number) {

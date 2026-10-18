@@ -748,12 +748,12 @@
             ⏱️ Zyklus 1/36 • 2242.0
         </div>
 
-        <!-- FTUE Directives / Mission Log (Top-Right under system pill) -->
-        <aside id="hud-directives" class="hud-directives glass-panel">
+        <!-- FTUE Directives / Mission Log (Top-Right under system pill - Unlocks with Jamal's Research Ship) -->
+        <aside id="hud-directives" class="hud-directives glass-panel" style="display: none;">
             <div class="directives-header">
                 <div class="directives-title-wrap">
                     <span class="directives-pulse-dot"></span>
-                    <span class="directives-heading">DIREKTIVEN &bull; ERSTE SCHRITTE</span>
+                    <span class="directives-heading">DIREKTIVEN &bull; LOGBUCH</span>
                 </div>
                 <button id="toggle-directives-btn" class="mini-icon-btn" title="Direktiven minimieren">➖</button>
             </div>
@@ -762,11 +762,11 @@
             </div>
         </aside>
 
-        <!-- Voyager 2 Signal Nav Pointer Widget -->
+        <!-- Signal Nav Pointer Widget -->
         <div id="voyager-nav-tracker" class="voyager-nav-tracker glass-capsule" style="display: none;">
-            <span class="voyager-ping-icon">📡</span>
+            <span class="voyager-ping-icon">🛰️</span>
             <div class="voyager-tracker-info">
-                <div class="voyager-tracker-title">UNBEKANNTES SIGNAL</div>
+                <div class="voyager-tracker-title">ZIEL-SIGNAL</div>
                 <div id="voyager-nav-dist" class="voyager-tracker-dist">35.2 AE</div>
             </div>
             <div id="voyager-nav-arrow" class="voyager-nav-arrow">▲</div>
@@ -777,7 +777,7 @@
             <div class="control-key-pill"><span class="key-badge">W</span> Bio-Schub</div>
             <div class="control-key-pill"><span class="key-badge">A / D</span> Ausrichten</div>
             <div class="control-key-pill"><span class="key-badge">S</span> Bremsen</div>
-            <div class="control-key-pill"><span class="key-badge">F</span> Voyager-Scan / Resonanz</div>
+            <div class="control-key-pill"><span class="key-badge">F</span> Scannen / Interaktion</div>
         </div>
 
         <!-- Orbital Resource Extension (extends the existing 3D target reticle; only visible after scan & only for present resources) -->

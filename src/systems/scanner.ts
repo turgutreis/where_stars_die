@@ -478,12 +478,6 @@ export function completeScanning() {
                     addLogEntry("SENSOR", `Atmosphärendaten: ${target.attributes?.atmos || 'Vakuum'} | Bio: ${target.attributes?.bio || 'Steril'}. Keine Lebensformen detektiert.`);
                 }
 
-                if ((STATE.ftueStep || 0) <= 1 && !STATE.voyagerSignalDetected) {
-                    triggerVoyagerSignalDetection();
-                } else if ((STATE.ftueStep || 0) === 1) {
-                    advanceFtueStep(2);
-                }
-
                 updateScannerUI(target, 10);
             }
         }
