@@ -1612,14 +1612,32 @@ body.game-started .hud-left {
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at center, rgba(3, 7, 18, 0.4) 0%, rgba(3, 7, 18, 0.9) 100%);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background-color: #030712;
+    background-image: 
+        radial-gradient(ellipse at 85% 50%, rgba(3, 7, 18, 0.45) 0%, rgba(3, 7, 18, 0.88) 100%),
+        linear-gradient(to right, rgba(3, 7, 18, 0.2) 0%, rgba(3, 7, 18, 0.7) 65%, rgba(3, 7, 18, 0.92) 100%),
+        url('assets/images/pillars_of_creation.webp');
+    background-size: cover;
+    background-position: left center;
+    background-repeat: no-repeat;
     display: flex;
-    justify-content: center;
+    justify-content: flex-end;
     align-items: center;
+    padding-right: 6vw;
     z-index: 1000;
-    transition: opacity 0.4s ease, visibility 0.4s ease;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+    overflow: hidden;
+}
+
+.menu-overlay::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 30% 40%, rgba(56, 189, 248, 0.08) 0%, transparent 60%);
+    pointer-events: none;
 }
 
 .menu-overlay.menu-hidden {
@@ -1629,40 +1647,55 @@ body.game-started .hud-left {
 }
 
 .menu-content {
-    text-align: center;
+    text-align: left;
     width: 100%;
-    max-width: 580px;
-    padding: 2.6rem 2.8rem;
-    background: radial-gradient(circle at 50% 0%, rgba(20, 28, 48, 0.94) 0%, rgba(7, 12, 26, 0.98) 100%);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(56, 189, 248, 0.4);
-    border-radius: 24px;
+    max-width: 480px;
+    max-height: 92vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(56, 189, 248, 0.4) transparent;
+    padding: 2.2rem 2.4rem;
+    background: rgba(10, 16, 32, 0.62);
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 20px;
     box-shadow: 
-        0 25px 65px rgba(0, 0, 0, 0.95),
-        inset 0 1px 0 rgba(255, 255, 255, 0.15),
-        inset 0 0 40px rgba(168, 85, 247, 0.12),
-        0 0 50px rgba(56, 189, 248, 0.2);
+        0 20px 60px rgba(0, 0, 0, 0.85),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12),
+        inset 0 0 35px rgba(56, 189, 248, 0.08),
+        0 0 45px rgba(56, 189, 248, 0.22);
     position: relative;
-    overflow: hidden;
+    animation: menuFloatIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes menuFloatIn {
+    0% {
+        opacity: 0;
+        transform: translateX(40px) scale(0.97);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
 }
 
 .menu-content::before {
     content: '';
     position: absolute;
     top: 0;
-    left: 10%;
-    right: 10%;
+    left: 0;
+    right: 0;
     height: 3px;
-    background: linear-gradient(90deg, transparent, #00ff88, #38bdf8 50%, #c084fc, transparent);
-    box-shadow: 0 0 18px #38bdf8;
+    background: linear-gradient(90deg, #38bdf8, #00ff88, #c084fc);
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.8);
 }
 
 .menu-brand {
-    margin-bottom: 1.8rem;
+    margin-bottom: 1.5rem;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
 }
 
 .brand-badge {
@@ -1694,11 +1727,11 @@ body.game-started .hud-left {
 
 .menu-title-main {
     font-family: 'Orbitron', system-ui, -apple-system, sans-serif;
-    font-size: 3.5rem;
+    font-size: 2.7rem;
     font-weight: 900;
-    letter-spacing: 0.35rem;
+    letter-spacing: 0.22rem;
     margin: 0.2rem 0;
-    line-height: 1.05;
+    line-height: 1.08;
     color: #ffffff;
     text-shadow:
         0 0 15px rgba(56, 189, 248, 0.95),
@@ -1710,10 +1743,10 @@ body.game-started .hud-left {
 
 .menu-title-sub {
     font-family: 'Orbitron', system-ui, -apple-system, sans-serif;
-    font-size: 0.85rem;
+    font-size: 0.76rem;
     font-weight: 800;
-    letter-spacing: 0.4rem;
-    margin-top: 0.6rem;
+    letter-spacing: 0.25rem;
+    margin-top: 0.4rem;
     color: #7dd3fc;
     text-shadow: 0 0 15px rgba(56, 189, 248, 0.7);
     text-transform: uppercase;
