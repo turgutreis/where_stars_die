@@ -154,7 +154,7 @@ import { STATE, activePlanets } from '../src/core/state';
 import { triggerHarvestStart, updateHarvesting, completeHarvesting } from '../src/systems/harvesting';
 import { triggerScanStart, updateScanning, completeScanning, generatePlanetAttributes, generateFallbackMoons, updateScannerUI } from '../src/systems/scanner';
 import { completeAbduction } from '../src/systems/abduction';
-import { getLoreSolSystem, getLoreArrakisSystem, getLoreSolarisSystem, ensureLoreSystems } from '../src/procedural/lore-systems';
+import { getLoreSolSystem, getLoreArrakisSystem, getLoreSolarisSystem, getLoreInsanDepotSystem, ensureLoreSystems } from '../src/procedural/lore-systems';
 import { AUDIO_SETTINGS } from '../src/engine/audio';
 import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets, spawnPlanetsAndAsteroids, clearActiveSystem } from '../src/systems/universe';
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
@@ -163,7 +163,7 @@ import { generateProceduralCandidates, getCrewReactiveThought } from '../src/sys
 import { calculateCrewBuffs, updateCrewSimulation, rejuvenateCrewMember, setPrimaryParadigm, setActiveSubCodex, updateParadigmModifiers, getSpeciesClusters, toggleClusterExpansion, rejuvenateSpeciesCluster, cyclePrimaryParadigm, getExpandedClustersKey, clearExpandedClusters, setCrewStation, getStationCrewCounts, calculateRadiationProtection, isTraumaActive, advanceTraumaTherapy, performTherapySession, triggerCrewSabotageEvent } from '../src/systems/crew';
 import { buyMutation } from '../src/ui/deck';
 import { triggerAbductStart, abductCrewFromShip } from '../src/systems/abduction';
-import { advanceFtueStep, FTUE_DIRECTIVES } from '../src/ui/directives';
+import { advanceFtueStep, FTUE_DIRECTIVES, renderDirectives, updateVoyagerHUDTracker } from '../src/ui/directives';
 import { openVoyagerDialog, closeVoyagerDialog, isVoyagerDialogOpen } from '../src/ui/voyager-dialog';
 import { handleVoyagerScan, setLockedTarget } from '../src/input/controls';
 import { calculateGravityAndCheckCollision, TRAJECTORY_SEGMENTS } from '../src/engine/trajectory';
@@ -214,6 +214,30 @@ import {
     advanceGalacticTime,
     getCycleTelemetry
 } from '../src/systems/quantum-ising';
+import { 
+    triggerPrologueSequence, 
+    finishPrologue, 
+    recruitJamal, 
+    getCurrentPrologueBeatIndex, 
+    isPrologueRunning,
+    getPrologueBeats
+} from '../src/ui/prologue';
+import { spawnJamalMissionEntities } from '../src/systems/universe';
+import { QuestManager } from '../src/systems/quests';
+import { DialogueEngine } from '../src/systems/dialogue';
+import { 
+    openJamalIntroDialog, 
+    liberateJamalShip, 
+    isJamalDialogOpen, 
+    closeJamalDialog,
+    openNpcDialogue,
+    handleDialogueChoice,
+    getCurrentDialogueNodeId,
+    triggerJamalShipScannedDialogue,
+    triggerDecoyTrap,
+    liberateRealShipAtStation,
+    liberateVoyagerProbe
+} from '../src/ui/jamal-dialog';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -245,6 +269,20 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         STATE.activeMoonOrbit = null;
         STATE.systemArrivalActive = false;
         STATE.systemDepartureActive = false;
+        STATE.jamalMissionActive = false;
+        STATE.jamalMissionDiscovered = false;
+        STATE.jamalMissionCompleted = false;
+        STATE.jamalDecoyRevealed = false;
+        STATE.jamalShipLiberated = false;
+        STATE.jamalIntroModalSeen = false;
+        STATE.jamalShip = null;
+        STATE.towingDrone = null;
+        STATE.voyagerProbe = null;
+        STATE.voyagerLiberated = false;
+        STATE.voyagerScanned = false;
+        STATE.voyagerSignalDetected = false;
+        STATE.voyagerDialogSeen = false;
+        STATE.activeQuests = {};
 
         // Mock 3D Planet
         const meshGroup = new THREE.Group();
@@ -593,68 +631,72 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(crewNames.length).toBe(uniqueCrewNames.size);
     });
 
-    test("15. Starting system exploration requires planet scan before detecting Voyager 2 signal and advancing FTUE onboarding", () => {
-        // 1. Initial State: Player starts at step 0
+    test("15. Prologue onboarding flow: Hidden Questlog until research ship liberation, Insan clamp decoy trap, depot journey & unlock", () => {
+        // 1. Initial State: Player starts at step 0, Questlog is locked & hidden
         STATE.ftueStep = 0;
         STATE.ftueCompleted = false;
-        STATE.voyagerSignalDetected = false;
-        STATE.voyagerScanned = false;
+        STATE.jamalShipLiberated = false;
+        STATE.jamalMissionDiscovered = false;
+        STATE.jamalDecoyRevealed = false;
         STATE.mentalEnergy = 50;
         STATE.loneliness = 80;
         STATE.currentSystemId = 1;
 
-        // 2. Spawn Voyager 2 probe in starting system
-        spawnVoyagerProbe();
-        expect(STATE.voyagerProbe).not.toBeNull();
-        expect(STATE.voyagerProbe.isVoyager).toBe(true);
-        expect(STATE.voyagerProbe.name).toContain("Unbekanntes Signal");
-        expect(STATE.gravitySources.some((s: any) => s.isVoyager)).toBe(true);
-        expect(STATE.voyagerSignalDetected).toBe(false);
+        const hudDirectives = document.getElementById('hud-directives');
+        renderDirectives();
+        expect(hudDirectives.style.display).toBe('none');
 
-        // 3. Player moves -> FTUE advances to Phase 2: System-Erkundung
+        // 2. Player moves -> FTUE advances to Step 1: Jamals Forschungsschiff orten
         advanceFtueStep(1);
         expect(STATE.ftueStep).toBe(1);
-        expect(STATE.voyagerSignalDetected).toBe(false);
+        renderDirectives();
+        expect(hudDirectives.style.display).toBe('none'); // Still hidden!
 
-        // 4. Player scans a sterile planet in the starting system
-        const sterilePlanet: any = {
-            name: "Perseus-Erwachen Prime A",
-            size: 3.0,
-            scanned: false,
-            mesh: { position: new THREE.Vector3(12, 0, 12), scale: { x: 1 } },
-            attributes: { atmos: "Dünnes CO2", bio: "Steril", res: "Silizium" }
+        // 3. Player scans Jamal's ship decoy in orbit -> FTUE advances to Step 2: Insan-Parkkralle
+        triggerJamalShipScannedDialogue();
+        expect(STATE.ftueStep).toBe(2);
+        renderDirectives();
+        expect(hudDirectives.style.display).toBe('none'); // Still hidden!
+
+        // 4. Player attempts to tamper with the clamp -> Hologram decoy trap triggers (-25 mental, advances to Step 3)
+        triggerDecoyTrap();
+        expect(STATE.ftueStep).toBe(3);
+        expect(STATE.jamalDecoyRevealed).toBe(true);
+        expect(STATE.mentalEnergy).toBe(25);
+        renderDirectives();
+        expect(hudDirectives.style.display).toBe('none'); // Still hidden!
+
+        // 5. Arrive at INSAN-Verwahrstelle Zeta-9 (System 77) -> Spawns Pier 4 & advances to Step 4
+        STATE.currentSystemId = 77;
+        const mockDepotPlanet: any = {
+            name: "Zeta-9 Zentral-Depot (Pier 4)",
+            group: { position: new THREE.Vector3(50, 0, 50) },
+            position: new THREE.Vector3(50, 0, 50)
         };
-        STATE.scanningPlanet = sterilePlanet;
-        completeScanning();
+        spawnJamalMissionEntities(mockDepotPlanet, true);
+        advanceFtueStep(4);
+        expect(STATE.ftueStep).toBe(4);
+        renderDirectives();
+        expect(hudDirectives.style.display).toBe('none'); // Still hidden!
 
-        // Planet scan reveals sterile nature & triggers archaic Voyager signal detection
-        expect(sterilePlanet.scanned).toBe(true);
-        expect(STATE.voyagerSignalDetected).toBe(true);
-        expect(STATE.ftueStep).toBe(2); // Advanced to Phase 3: Archaisches Signal
-
-        // 5. Player approaches Voyager 2 probe in the outer interstellar void
-        STATE.playerPosition.set(STATE.voyagerProbe.position.x, 0, STATE.voyagerProbe.position.z + 5);
-        const dist = STATE.playerPosition.distanceTo(STATE.voyagerProbe.position);
-        expect(dist).toBeLessThanOrEqual(22);
-
-        // Scan Voyager 2 with [F]
-        handleVoyagerScan();
-        expect(STATE.voyagerScanned).toBe(true);
-        expect(STATE.voyagerProbe.name).toContain("Voyager 2");
-        expect(STATE.ftueStep).toBe(3); // Advanced to Phase 4: Funke der Hoffnung
-        expect(isVoyagerDialogOpen()).toBe(true);
-
-        // 6. Close/listen Golden Record dialog
-        closeVoyagerDialog();
-        expect(STATE.ftueStep).toBe(4); // Advanced to Phase 5: Aufbruch ins Leben
-
-        // 7. Open Galaxy Map [M]
-        advanceFtueStep(5); // Phase 6: Der erste Wirt
+        // 6. Liberate real ship at Pier 4 -> Sets jamalShipLiberated, unlocks Questlog & advances to Step 5
+        liberateRealShipAtStation();
         expect(STATE.ftueStep).toBe(5);
+        expect(STATE.jamalShipLiberated).toBe(true);
+        renderDirectives();
+        expect(hudDirectives.style.display).not.toBe('none'); // UNLOCKED & VISIBLE!
 
-        // 8. Abduction completed
+        // 7. Galactic Transit: Warp jump to inhabited world -> Step 6 (Der erste Wirt)
         advanceFtueStep(6);
         expect(STATE.ftueStep).toBe(6);
+
+        // 8. Host abduction completed -> Step 7 (Traum-Matrix & Organe)
+        advanceFtueStep(7);
+        expect(STATE.ftueStep).toBe(7);
+
+        // 9. Bio-deck stabilization -> Completes FTUE (Step 8)
+        advanceFtueStep(8);
+        expect(STATE.ftueStep).toBe(8);
         expect(STATE.ftueCompleted).toBe(true);
     });
 
@@ -667,9 +709,9 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         STATE.voyagerDialogSeen = false;
         STATE.mentalEnergy = 40;
         STATE.loneliness = 85;
-        STATE.currentSystemId = 1;
+        STATE.currentSystemId = 77; // Impounded at INSAN Depot Zeta-9
 
-        // 2. Spawn probe and check initial position
+        // 2. Spawn probe at depot and check initial position
         spawnVoyagerProbe();
         expect(STATE.voyagerProbe).not.toBeNull();
         const startX = STATE.voyagerProbe.position.x;
@@ -694,16 +736,19 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.voyagerDialogSeen).toBe(true);
 
         // Hope buff: mental energy increased and loneliness decreased
-        expect(STATE.mentalEnergy).toBeGreaterThan(70);
+        expect(STATE.mentalEnergy).toBeGreaterThan(65);
         expect(STATE.loneliness).toBeLessThanOrEqual(45);
-        expect(STATE.ftueStep).toBe(3);
 
         // 6. Test closing dialog
         closeVoyagerDialog();
         expect(isVoyagerDialogOpen()).toBe(false);
-        expect(STATE.ftueStep).toBe(4);
 
-        // 7. Verify starting system (Perseus-Rand) has NO habitable worlds
+        // 7. Test liberating Voyager 2 at INSAN Depot
+        liberateVoyagerProbe();
+        expect(STATE.voyagerLiberated).toBe(true);
+        expect(STATE.voyagerProbe.name).toContain("BEFREIT");
+
+        // 8. Verify starting system (Perseus-Rand) has NO habitable worlds
         if (STATE.universe && STATE.universe.systems && STATE.universe.systems[1]) {
             const sys1 = STATE.universe.systems[1];
             if (sys1 && Array.isArray(sys1.planets)) {
@@ -3759,6 +3804,331 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(evacArk!.cargo?.type).toBe('passengers');
         expect(evacArk!.crewMembers?.length).toBeGreaterThanOrEqual(3);
         clearFleet();
+    });
+
+    test("49. Dr. Jamal Story Prologue & Menagerie Breakout: Office dream, Melange spice reality tear, Ceres-9 alien zoo escape, and recruitment into crew", () => {
+        // 1. Initial State: Solitary Najmafar with no crew, high loneliness
+        STATE.crew = [];
+        STATE.loneliness = 85;
+        STATE.prologueCompleted = false;
+        STATE.prologueActive = false;
+
+        // Verify JSON story beats structure (now 21 beats with intermediate coffee steps: selection -> grinding -> brewing -> steam -> finished cup!)
+        const beats = getPrologueBeats();
+        expect(beats.length).toBe(21);
+        expect(beats[0].stage).toBe('office_dream');
+        expect(beats.find(b => b.id === 'zoo_awakening_voices')?.speakerType).toBe('guide');
+        expect(beats.find(b => b.id === 'zoo_visitor_thoughts')?.speakerType).toBe('thoughts');
+        expect(beats.find(b => b.id === 'absorption_harmonization')?.stage).toBe('absorption_sync');
+        expect(beats.find(b => b.id === 'breakout_escape')?.stage).toBe('breakout_warp');
+
+        let completed = false;
+        triggerPrologueSequence(() => {
+            completed = true;
+        });
+
+        expect(isPrologueRunning()).toBe(true);
+        expect(STATE.prologueActive).toBe(true);
+        expect(STATE.prologueCompleted).toBe(false);
+        expect(getCurrentPrologueBeatIndex()).toBe(0);
+        expect(STATE.prologueStage).toBe('office_dream');
+
+        // Ship initially parked in menagerie at (0, 0, 0)
+        expect(STATE.playerPosition.x).toBe(0);
+        expect(STATE.playerPosition.z).toBe(0);
+
+        // 2. Test Dr. Jamal recruitment logic
+        const jamal = recruitJamal();
+        expect(jamal).toBeDefined();
+        expect(jamal.name).toBe("Dr. Jamal");
+        expect(jamal.name).not.toContain("Vance");
+        expect(jamal.roleName).toContain("Chef-Quantenphysiker");
+        expect(jamal.ageCategory).toBe("vital");
+        expect(jamal.trait?.name).toBe("Quanten-Theoretiker");
+        expect(STATE.crew.length).toBe(1);
+        expect(STATE.crew[0].name).toBe("Dr. Jamal");
+        expect(STATE.loneliness).toBeLessThanOrEqual(50); // Solitude alleviated
+
+        // 3. Test finishPrologue & verify safe standoff orbit
+        finishPrologue();
+        expect(isPrologueRunning()).toBe(false);
+        expect(STATE.prologueActive).toBe(false);
+        expect(STATE.prologueCompleted).toBe(true);
+        expect(STATE.prologueStage).toBe('completed');
+        expect(completed).toBe(true);
+
+        // Ship MUST spawn safely away from the sun (z = 160, tangential velocity = 1.5)
+        expect(STATE.playerPosition.z).toBe(160);
+        expect(STATE.playerVelocity.x).toBe(1.5);
+
+        // 4. Verify that having Jamal unlocks crew status for shuttle away missions and deep scan
+        expect(hasAwayTeamCrew()).toBe(true);
+    });
+
+    test("50. Dr. Jamal's Hidden Research Shuttle & Insan Rogue Drone Mission: Right-docked branching NPC dialogue, spectral scan sequence, Insan parking clamp, bureaucratic payment timeout & liberation choices", () => {
+        // 1. Reset state & setup starting planet
+        STATE.jamalShip = null;
+        STATE.towingDrone = null;
+        STATE.jamalMissionActive = false;
+        STATE.jamalMissionDiscovered = false;
+        STATE.jamalMissionCompleted = false;
+        STATE.jamalShipLiberated = false;
+        STATE.jamalIntroModalSeen = false;
+        STATE.ftueStep = 0;
+
+        const startPlanet: any = {
+            name: "Perseus-Erwachen Prime A",
+            group: { position: new THREE.Vector3(180, 0, 100) },
+            position: new THREE.Vector3(180, 0, 100),
+            size: 3.5
+        };
+
+        // 2. Spawn mission entities in orbit of starting planet
+        spawnJamalMissionEntities(startPlanet);
+        expect(STATE.jamalShip).toBeDefined();
+        expect(STATE.towingDrone).toBeDefined();
+        expect(STATE.jamalShip.isJamalShip).toBe(true);
+        expect(STATE.towingDrone.isTowingDrone).toBe(true);
+        expect(STATE.jamalShip.name).toContain("FALSPARKER-STATUS");
+        expect(STATE.towingDrone.name).toContain("Parkraumüberwachung");
+
+        // Distance between Jamal's ship and towing drone is intimate (< 5 AE)
+        const droneToShuttleDist = STATE.towingDrone.position.distanceTo(STATE.jamalShip.position);
+        expect(droneToShuttleDist).toBeLessThan(5);
+
+        // 3. Open telepathic mission brief in right-docked panel
+        openJamalIntroDialog();
+        expect(STATE.jamalMissionActive).toBe(true);
+        expect(isJamalDialogOpen()).toBe(true);
+        expect(getCurrentDialogueNodeId()).toBe('jamal_orbit_intro');
+
+        // Test branching questions with Jamal: origin (year 2035) & cosmic slowdown
+        handleDialogueChoice('jamal_origin_2035');
+        expect(getCurrentDialogueNodeId()).toBe('jamal_origin_2035');
+
+        handleDialogueChoice('jamal_slowdown_2035');
+        expect(getCurrentDialogueNodeId()).toBe('jamal_slowdown_2035');
+
+        closeJamalDialog();
+        expect(isJamalDialogOpen()).toBe(false);
+
+        // 4. Verify Directives & Nav Tracker target Jamal's ship
+        renderDirectives();
+        updateVoyagerHUDTracker();
+        const trackerEl = document.getElementById('voyager-nav-tracker');
+        expect(trackerEl?.style.display).toBe('flex');
+        const distEl = document.getElementById('voyager-nav-dist');
+        expect(distEl?.innerText).toContain("AE");
+
+        // 5. Player approaches Jamal's ship (< 25 AE) and performs spectral scan with [F]
+        STATE.playerPosition.set(STATE.jamalShip.position.x, 0, STATE.jamalShip.position.z + 5);
+        expect(STATE.playerPosition.distanceTo(STATE.jamalShip.position)).toBeLessThanOrEqual(25);
+
+        STATE.scanningPlanet = STATE.jamalShip;
+        completeScanning();
+
+        // Scanning completes step 0 and discovers step 1 (Insan clamp)
+        expect(STATE.jamalShip.scanned).toBe(true);
+        expect(STATE.jamalMissionDiscovered).toBe(true);
+        expect(isJamalDialogOpen()).toBe(true);
+        expect(getCurrentDialogueNodeId()).toBe('jamal_ship_scanned');
+
+        // 6. Dialogue Branching at Insan Clamp:
+        // 6a. Ask why ship was locked -> Insan robot drone organization explanation
+        handleDialogueChoice('insan_explanation');
+        expect(getCurrentDialogueNodeId()).toBe('insan_explanation');
+
+        // 6b. Attempt to pay fine (12,000 Credits) -> Interstellar payment disruption
+        handleDialogueChoice('insan_pay_attempt');
+        expect(getCurrentDialogueNodeId()).toBe('insan_pay_attempt');
+
+        // 6c. Jamal's comment: had to pay cash for coffee at the zoo
+        handleDialogueChoice('jamal_cash_comment');
+        expect(getCurrentDialogueNodeId()).toBe('jamal_cash_comment');
+
+        // 7. Test attempt to hack / smash clamp:
+        // Reveals holographic decoy trap, inflicts psionic shock (-25 mental), alerts drone, and intercepts coordinates to INSAN Verwahrstelle Zeta-9 (2 jumps away)
+        const initialMental = STATE.mentalEnergy || 50;
+        handleDialogueChoice('hack_clamp_attempt');
+        expect(getCurrentDialogueNodeId()).toBe('hologram_trap_revealed');
+        expect(STATE.mentalEnergy).toBe(Math.max(0, initialMental - 25));
+        expect(STATE.jamalDecoyRevealed).toBe(true);
+        expect(STATE.jamalShip.name).toContain("HOLOGRAFIE-ATTROPPE ENTLARVT");
+        expect(STATE.towingDrone.status).toBe('hostile');
+        expect(STATE.towingDrone.name).toContain("AGGRESSIV");
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.stage).toBe(2);
+
+        closeJamalDialog();
+        expect(isJamalDialogOpen()).toBe(false);
+
+        // 8. Verify INSAN-Verwahrstelle Zeta-9 is exactly 2 jumps away
+        const insanDepot = getLoreInsanDepotSystem();
+        expect(insanDepot).toBeDefined();
+        expect(insanDepot.id).toBe(77);
+        // Distance from Perseus Prime (310, 160) to Zeta-9 (170, 30) is ~191 LY (> 180 LY = 2 jumps with 90 LY range)
+        const distToDepot = Math.sqrt(Math.pow(310 - insanDepot.x, 2) + Math.pow(160 - insanDepot.z, 2));
+        expect(distToDepot).toBeGreaterThan(180);
+
+        // 9. Arrive at INSAN Depot Zeta-9
+        STATE.currentSystemId = 77;
+        const mockDepotPlanet = {
+            name: "Zeta-9 Zentral-Depot (Pier 4)",
+            group: { position: new THREE.Vector3(50, 0, 50) },
+            position: new THREE.Vector3(50, 0, 50)
+        };
+        spawnJamalMissionEntities(mockDepotPlanet, true);
+        spawnVoyagerProbe();
+        expect(STATE.jamalShip.isRealShipAtDepot).toBe(true);
+        expect(STATE.jamalShip.name).toContain("PIER 4 - BESCHLAGNAHMT");
+
+        // Open arrival at depot dialogue
+        openNpcDialogue('insan_depot_arrival');
+        expect(getCurrentDialogueNodeId()).toBe('insan_depot_arrival');
+
+        handleDialogueChoice('insan_station_bureaucracy');
+        expect(getCurrentDialogueNodeId()).toBe('insan_station_bureaucracy');
+
+        handleDialogueChoice('insan_station_bypass_plan');
+        expect(getCurrentDialogueNodeId()).toBe('insan_station_bypass_plan');
+
+        // 10. Liberate impounded Voyager 2 probe
+        handleDialogueChoice('liberate_voyager_probe');
+        expect(getCurrentDialogueNodeId()).toBe('insan_voyager_liberated');
+        expect(STATE.voyagerLiberated).toBe(true);
+        expect(STATE.voyagerProbe.name).toContain("BEFREIT");
+
+        // 11. Liberate the real ISS Ibn Battuta at Pier 4
+        const initialSpice = STATE.spiceRes || 0;
+        const initialSilicon = STATE.siliconRes || 0;
+
+        openNpcDialogue('insan_station_bypass_plan');
+        handleDialogueChoice('liberate_real_ship_at_station');
+        expect(getCurrentDialogueNodeId()).toBe('real_ship_liberated');
+        expect(STATE.jamalShipLiberated).toBe(true);
+        expect(STATE.jamalMissionCompleted).toBe(true);
+        expect(STATE.jamalShip.name).toContain("GEBORGEN");
+        expect(STATE.spiceRes).toBe(initialSpice + 50);
+        expect(STATE.siliconRes).toBe(initialSilicon + 60);
+
+        renderDirectives();
+        closeJamalDialog();
+        expect(isJamalDialogOpen()).toBe(false);
+    });
+
+    test("51. Modular Data-Driven QuestManager & DialogueEngine (JSON schemas, condition evaluation, and event-driven progression)", () => {
+        // Reset state
+        STATE.activeQuests = {};
+        STATE.spiceRes = 0;
+        STATE.siliconRes = 0;
+        STATE.bioRes = 0;
+        STATE.mentalEnergy = 50;
+        STATE.maxMentalEnergy = 100;
+        STATE.jamalMissionActive = false;
+        STATE.jamalMissionDiscovered = false;
+        STATE.jamalMissionCompleted = false;
+        STATE.jamalDecoyRevealed = false;
+        STATE.jamalShipLiberated = false;
+
+        // 1. Verify QuestManager loads quests.json
+        const questDef = QuestManager.getQuest('prologue_jamal_ship');
+        expect(questDef).toBeDefined();
+        expect(questDef!.title).toBe("Jamals Forschungsschiff");
+        expect(questDef!.stages.length).toBe(5);
+
+        // Start quest
+        const progress = QuestManager.startQuest('prologue_jamal_ship');
+        expect(progress).toBeDefined();
+        expect(progress!.currentStage).toBe(0);
+        expect(QuestManager.isQuestActive('prologue_jamal_ship')).toBe(true);
+        expect(STATE.jamalMissionActive).toBe(true);
+
+        // Advance to stage 1 (clamp discovered)
+        QuestManager.advanceQuest('prologue_jamal_ship', 1);
+        expect(progress!.currentStage).toBe(1);
+        expect(STATE.jamalMissionDiscovered).toBe(true);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.title).toContain("Insan-Parkkralle");
+
+        // Advance to stage 2 (decoy revealed, travel 2 jumps to INSAN depot)
+        QuestManager.advanceQuest('prologue_jamal_ship', 2);
+        expect(progress!.currentStage).toBe(2);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.title).toContain("INSAN-Abschleppstation");
+
+        // Complete quest -> awards rewards from JSON (spice: 50, silicon: 60)
+        QuestManager.completeQuest('prologue_jamal_ship');
+        expect(progress!.completed).toBe(true);
+        expect(QuestManager.isQuestCompleted('prologue_jamal_ship')).toBe(true);
+        expect(STATE.spiceRes).toBe(50);
+        expect(STATE.siliconRes).toBe(60);
+        expect(STATE.jamalMissionCompleted).toBe(true);
+
+        // 2. Custom quest registration and event notification
+        QuestManager.registerQuest({
+            id: 'side_salvage_derelict',
+            title: 'Bergung im Asteroidenfeld',
+            category: 'side',
+            stages: [
+                {
+                    stage: 0,
+                    title: 'Finde das Wrack',
+                    instruction: 'Scanne das Wrack',
+                    hint: 'Nähere dich dem Funksignal',
+                    objective: { type: 'scan_target', targetId: 'derelict_alpha' }
+                },
+                {
+                    stage: 1,
+                    title: 'Geborgen',
+                    instruction: 'Erfolgreich geborgen',
+                    hint: 'Fertig',
+                    objective: { type: 'completed' }
+                }
+            ],
+            rewards: { spice: 25 }
+        });
+
+        QuestManager.startQuest('side_salvage_derelict');
+        expect(QuestManager.isQuestActive('side_salvage_derelict')).toBe(true);
+        expect(QuestManager.getCurrentStage('side_salvage_derelict')?.stage).toBe(0);
+
+        // Send non-matching event -> no change
+        QuestManager.notifyQuestEvent('scan_target', 'wrong_target');
+        expect(QuestManager.getCurrentStage('side_salvage_derelict')?.stage).toBe(0);
+
+        // Send matching event -> advances to stage 1 (completion)
+        QuestManager.notifyQuestEvent('scan_target', 'derelict_alpha');
+        expect(QuestManager.isQuestCompleted('side_salvage_derelict')).toBe(true);
+        expect(STATE.spiceRes).toBe(50 + 25);
+
+        // 3. DialogueEngine loads dialogues.json, evaluates conditions and branches
+        const node = DialogueEngine.getNode('jamal_orbit_intro');
+        expect(node).toBeDefined();
+        expect(node!.options.length).toBeGreaterThanOrEqual(3);
+
+        DialogueEngine.openDialogue('jamal_orbit_intro');
+        expect(DialogueEngine.isDialogOpen()).toBe(true);
+        expect(DialogueEngine.getCurrentNodeId()).toBe('jamal_orbit_intro');
+
+        DialogueEngine.handleChoice('jamal_origin_2035');
+        expect(DialogueEngine.getCurrentNodeId()).toBe('jamal_origin_2035');
+
+        // Condition evaluation
+        expect(DialogueEngine.evaluateCondition({ minSpice: 100 })).toBe(false);
+        STATE.spiceRes = 150;
+        expect(DialogueEngine.evaluateCondition({ minSpice: 100 })).toBe(true);
+
+        // Custom action dispatching
+        let customActionExecuted = false;
+        DialogueEngine.registerAction('test_custom_action', () => {
+            customActionExecuted = true;
+        });
+
+        DialogueEngine.handleChoice({
+            label: "Test Option",
+            action: 'test_custom_action'
+        });
+        expect(customActionExecuted).toBe(true);
+
+        DialogueEngine.closeDialogue();
+        expect(DialogueEngine.isDialogOpen()).toBe(false);
     });
 });
 

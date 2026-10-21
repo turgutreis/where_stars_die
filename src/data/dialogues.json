@@ -1,0 +1,374 @@
+{
+  "jamal_orbit_intro": {
+    "id": "jamal_orbit_intro",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "⚛️ TELEPATHIE • PERSEUS-RAND",
+    "mainText": "„Najmafar, spürst du meine synaptische Koppelung? Wir haben es geschafft!“",
+    "subText": "„Wir sind der Menagerie von Ceres-9 entkommen. Aber ich bin nur mit einem kleinen, zivilen Touristen-Shuttle gereist, um keine Aufmerksamkeit zu erregen. Mein eigentliches Forschungsschiff – die ISS Ibn Battuta – habe ich im Orbit dieses Planeten versteckt. Fliege heran und scanne die Energiesignatur mit [F]!“",
+    "sound": "synapse",
+    "options": [
+      {
+        "label": "„Wer genau bist du überhaupt?“",
+        "targetNodeId": "jamal_origin_2035",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Mein Geist ist voller dunkler Risse ... Ich kann mich an fast nichts mehr erinnern.“",
+        "targetNodeId": "jamal_amnesia_trauma",
+        "keyHint": "2"
+      },
+      {
+        "label": "„Verstanden. Ich scanne den Orbit nach deinem Schiff ab. [Ende]“",
+        "action": "close",
+        "keyHint": "3"
+      }
+    ]
+  },
+  "jamal_origin_2035": {
+    "id": "jamal_origin_2035",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "🔭 HINTERGRUND • QUANTEN-KARTOGRAPHIE",
+    "mainText": "„Mein Name ist Tariq Jamal. Ich bin Quantenphysiker von der Erde.“",
+    "subText": "„Beziehungsweise arbeite ich für eine Organisation, die mit den modernsten Quantencomputern versucht, das Universum zu kartographieren. Wir suchen immer noch nach der Dunklen Materie! Während meiner Untersuchungen bin ich jedoch auf eine unmögliche Anomalie gestoßen.“",
+    "sound": "sonar",
+    "options": [
+      {
+        "label": "„Was genau für eine Anomalie?“",
+        "targetNodeId": "jamal_anomaly_2035",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Lass uns zuerst dein Schiff sichern. [Ende]“",
+        "action": "close",
+        "keyHint": "2"
+      }
+    ]
+  },
+  "jamal_anomaly_2035": {
+    "id": "jamal_anomaly_2035",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "🌑 DIE ABDRIFTENDE GALAXIE & DAS JAHR 2035",
+    "mainText": "„Meine Neugier wurde auf eine ferne Galaxie gezogen, die dabei ist, sich vom Universum abzuschneiden – hinter den Horizont zu verschwinden, in die absolute Dunkelheit.“",
+    "subText": "„Und gleichzeitig gibt es Messungen, laut denen die kosmische Ausdehnung an anderer Stelle ins Stocken gerät – eine rätselhafte Verlangsamung. Als ich in uralten irdischen Datenbanken aus dem Jahr 2035 nachforschte, merkte ich, dass Wissenschaftler das schon damals gemessen hatten! Aber die Akten wurden mit einem speziellen Tag versehen: 'Unwichtig / Sensorrauschen', damit niemand weiterforscht. Auf meinem Forschungsschiff habe ich die Analysegeräte, um dem nachzugehen.“",
+    "sound": "synapse",
+    "options": [
+      {
+        "label": "„Und wie bist du durch diese alten Daten auf mich gestoßen?“",
+        "targetNodeId": "jamal_how_found_najmafar",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Wenn du von dieser dunklen Galaxie sprichst ... schmerzt etwas tief in mir, aber mir fehlt jede Erinnerung.“",
+        "targetNodeId": "jamal_amnesia_trauma",
+        "keyHint": "2"
+      },
+      {
+        "label": "„Ich nehme Kurs auf die Schiffssignatur. [Ende]“",
+        "action": "close",
+        "keyHint": "3"
+      }
+    ]
+  },
+  "jamal_slowdown_2035": {
+    "id": "jamal_slowdown_2035",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "🌑 DIE ABDRIFTENDE GALAXIE & DAS JAHR 2035",
+    "mainText": "„Meine Neugier wurde auf eine ferne Galaxie gezogen, die dabei ist, sich vom Universum abzuschneiden – hinter den Horizont zu verschwinden, in die absolute Dunkelheit.“",
+    "subText": "„Und gleichzeitig gibt es Messungen, laut denen die kosmische Ausdehnung an anderer Stelle ins Stocken gerät – eine rätselhafte Verlangsamung. Als ich in uralten irdischen Datenbanken aus dem Jahr 2035 nachforschte, merkte ich, dass Wissenschaftler das schon damals gemessen hatten! Aber die Akten wurden mit einem speziellen Tag versehen: 'Unwichtig / Sensorrauschen', damit niemand weiterforscht.“",
+    "sound": "synapse",
+    "options": [
+      {
+        "label": "„Und wie bist du durch diese alten Daten auf mich gestoßen?“",
+        "targetNodeId": "jamal_how_found_najmafar",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Ich nehme Kurs auf die Schiffssignatur. [Ende]“",
+        "action": "close",
+        "keyHint": "2"
+      }
+    ]
+  },
+  "jamal_how_found_najmafar": {
+    "id": "jamal_how_found_najmafar",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "📡 DIE SIGNATUR VON 2035 • DER URSPRUNG",
+    "mainText": "„Ich habe diese alten Daten aus dem Jahr 2035 weiterverfolgt.“",
+    "subText": "„Jemand hatte den Fall damals schon einmal analysiert. Dabei stieß ich darauf, dass die Daten aus dem Jahr 2035 eine bestimmte Signatur und Koordinaten trugen – denselben Ursprung wie die Signatur, die mich schließlich hierher in diesen Sektor und zu dir in den Zoo geführt hat! Ich weiß noch nicht alles, was dahintersteckt, aber auf meinem Forschungsschiff können wir die Daten endlich vollständig auswerten.“",
+    "sound": "sonar",
+    "options": [
+      {
+        "label": "„Mein Geist ist wie zersplittert ... Ich kann mich nicht mehr erinnern, was damals geschah.“",
+        "targetNodeId": "jamal_amnesia_trauma",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Dann lass uns dein Schiff finden, um die Daten zu prüfen. [Ende]“",
+        "action": "close",
+        "keyHint": "2"
+      }
+    ]
+  },
+  "jamal_amnesia_trauma": {
+    "id": "jamal_amnesia_trauma",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "🧠 NEURONALES TRAUMA • VERSCHÜTTETES GEDÄCHTNIS",
+    "mainText": "„Als wir unsere Gedanken im Käfig verbunden haben, habe ich die tiefen Narben in deinem Geist gespürt.“",
+    "subText": "„Kein Wunder, dass du dich nicht direkt erinnern kannst. Die lange Einsamkeit im kalten Leerraum und die Dämpfungsfelder der Menagerie haben tiefe Traumata hinterlassen. Dein Bewusstsein hat fast alles abgeriegelt. Überstürze nichts – wenn wir erst meine ISS Ibn Battuta zurückhaben, finden wir Schritt für Schritt heraus, was passiert ist.“",
+    "sound": "synapse",
+    "options": [
+      {
+        "label": "„Wer genau bist du eigentlich, und warum hast du mich gesucht?“",
+        "targetNodeId": "jamal_origin_2035",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Du hast recht. Suchen wir zuerst dein Schiff im Orbit. [Ende]“",
+        "action": "close",
+        "keyHint": "2"
+      }
+    ]
+  },
+  "jamal_ship_scanned": {
+    "id": "jamal_ship_scanned",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "⚠️ SPEKTRAL-SCAN • ORBITALE BLOCKADE",
+    "mainText": "„Da ist die Ibn Battuta! Aber Moment ... sie hängt in einer Insan-Parkkralle fest!“",
+    "subText": "„Eine autonome Drohne der Insan-Organisation blockiert das Schiff. Sie verlangen astronomische Parkgebühren für das Halten im Orbit.“",
+    "sound": "alarm",
+    "options": [
+      {
+        "label": "„Lass uns die Strafe einfach am Terminal bezahlen.“",
+        "targetNodeId": "insan_pay_attempt",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Wieso wurde dein Raumschiff gesperrt? Wer sind die Insan?“",
+        "targetNodeId": "insan_explanation",
+        "keyHint": "2"
+      },
+      {
+        "label": "„Ich versuche, das Drohnensystem psionisch zu hacken.“",
+        "action": "hack_clamp_attempt",
+        "keyHint": "3"
+      },
+      {
+        "label": "„Ich zertrümmere die Parkkralle mit einem Bio-Schock!“",
+        "action": "smash_clamp_attempt",
+        "keyHint": "4"
+      }
+    ]
+  },
+  "insan_explanation": {
+    "id": "insan_explanation",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "🤖 INSAN-BÜROKRATIE • LORE",
+    "mainText": "„Die Insan sind eine autonome Drohnen-Gesellschaft, die völlig außer Kontrolle geraten ist.“",
+    "subText": "„Ironischerweise steht 'Insan' im Arabischen eigentlich für 'Mensch' – aber hier draußen bezeichnet man damit diese durchgedrehten Roboter. Sie suchen im ganzen Sektor manisch nach Falschparkern im Orbit von Planeten oder Asteroiden, verpassen ihnen eine Parkkralle oder schleppen die Schiffe gnadenlos ab!“",
+    "sound": "sonar",
+    "options": [
+      {
+        "label": "„Versuchen wir, das Ticket am Transponder zu begleichen.“",
+        "targetNodeId": "insan_pay_attempt",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Ich versuche, das Drohnensystem psionisch zu hacken.“",
+        "action": "hack_clamp_attempt",
+        "keyHint": "2"
+      },
+      {
+        "label": "„Keine Diskussionen – ich zertrümmere die Parkkralle!“",
+        "action": "smash_clamp_attempt",
+        "keyHint": "3"
+      }
+    ]
+  },
+  "insan_pay_attempt": {
+    "id": "insan_pay_attempt",
+    "speakerName": "Insan-Transponder TX-9",
+    "speakerTitle": "Autonome Parkraumüberwachung",
+    "speakerType": "system",
+    "eyebrow": "💳 ZAHLUNGSTERMINAL • INTERSTELLARE STÖRUNG",
+    "mainText": "„Falschparken im Orbit: 12.000 Credits fällig. Verbindung zum Banken-Cluster ... FEHLER 0x889F!“",
+    "subText": "„Zahlungsmittelverkehr fehlgeschlagen wegen interstellarer Störungen. Versuchen Sie es später noch einmal.“",
+    "sound": "alarm",
+    "options": [
+      {
+        "label": "„Tariq, was soll das bedeuten?“",
+        "targetNodeId": "jamal_cash_comment",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Ich versuche, das Drohnensystem psionisch zu hacken.“",
+        "action": "hack_clamp_attempt",
+        "keyHint": "2"
+      },
+      {
+        "label": "„Ich zertrümmere die Kralle per Bio-Schock!“",
+        "action": "smash_clamp_attempt",
+        "keyHint": "3"
+      }
+    ]
+  },
+  "jamal_cash_comment": {
+    "id": "jamal_cash_comment",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "☕ STÖRUNG IM ZAHLUNGSVERKEHR • BARGELD",
+    "mainText": "„Ach verdammt, es gibt immer noch Störungen im System!“",
+    "subText": "„Ich musste vorhin beim Zoo meinen Kaffee schon BAR bezahlen! Ich hatte gehört, dass die Menschen auf der Erde das damals gemacht haben ... Aber wer hat denn im offenen Weltraum Bargeld für eine Abschleppdrohne dabei?! Uns bleibt wohl nichts anderes übrig, als uns an der Kralle zu versuchen.“",
+    "sound": "synapse",
+    "options": [
+      {
+        "label": "„Wenn wir nicht zahlen können: Ich hacke das Drohnensystem.“",
+        "action": "hack_clamp_attempt",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Ich zertrümmere die Parkkralle mit Gewalt!“",
+        "action": "smash_clamp_attempt",
+        "keyHint": "2"
+      },
+      {
+        "label": "„Zurück zur Übersicht.“",
+        "targetNodeId": "jamal_ship_scanned",
+        "keyHint": "3"
+      }
+    ]
+  },
+  "hologram_trap_revealed": {
+    "id": "hologram_trap_revealed",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "🚨 HOLOGRAPHISCHE ATTRAPPE • DIE FALLE SCHNAPPT ZU",
+    "mainText": "„Verflucht! Das Forschungsschiff ist nur eine holographische Attrappe!“",
+    "subText": "„Kaum greifst du ein, trifft dich eine heftige psionische Rückkopplung! Die Schiffshülle flackert und entpuppt sich als reine Projektion – eine Köderfalle der Insan-Drohnen, um potenziell gefährliche Parksünder aus der Reserve zu locken! Der Sicherheitsalarm heult los!\n\nAber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die echte ISS Ibn Battuta längst in ihre nächste INSAN-Abschleppstation geschleppt – zwei Raum-Sprünge von hier entfernt!“",
+    "sound": "crash",
+    "options": [
+      {
+        "label": "„Zwei Sprünge entfernt? Dann nichts wie weg hier – auf zur Abschleppstation! [Schließen]“",
+        "action": "close",
+        "keyHint": "1"
+      }
+    ]
+  },
+  "insan_depot_arrival": {
+    "id": "insan_depot_arrival",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "🛰️ INSAN-VERWAHRSTELLE ZETA-9 • ANKUNFT",
+    "mainText": "„Unglaublich ... die Drohnen haben hier draußen buchstäblich alles abgeschleppt, was sie finden konnten!“",
+    "subText": "„Sieh dir dieses Schrottdepot an, Najmafar! Dort drüben an Pier 4 liegt tatsächlich meine echte ISS Ibn Battuta! Aber wir haben ein Problem: Hier herrscht eine extrem starke Interferenz, die das gesamte Kommunikationssystem stört. Und meine Sensoren zeigen noch etwas Verrücktes im Schrottfeld: Die Insan-Drohnen haben sogar die alten Voyager-Sonden der Menschheit abgeschleppt!“",
+    "sound": "sonar",
+    "options": [
+      {
+        "label": "„Versuchen wir es zuerst am bürokratischen Schalter der Station.“",
+        "targetNodeId": "insan_station_bureaucracy",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Ich sehe mich direkt bei Pier 4 und den Voyager-Sonden um. [Schließen]“",
+        "action": "close",
+        "keyHint": "2"
+      }
+    ]
+  },
+  "insan_station_bureaucracy": {
+    "id": "insan_station_bureaucracy",
+    "speakerName": "Verwaltungs-Automaton INSAN-Zeta",
+    "speakerTitle": "Bürokratischer Schalter",
+    "speakerType": "system",
+    "eyebrow": "📑 SCHALTER 7B • BÜROKRATISCHE HÜRDE",
+    "mainText": "„Willkommen beim INSAN-Interstellaren Abschleppdienst. Bitte ziehen Sie eine Wartenummer.“",
+    "subText": "„Ihre Wartenummer: 8.492.104. Geschätzte Bearbeitungsdauer wegen starker Kommunikations-Interferenz: 140 Erdjahre. Elektronisches Bezahlen ist weiterhin nicht möglich. Bitte halten Sie das Formular 38-Alpha sowie 840.000 Credits passend bereit.“",
+    "sound": "alarm",
+    "options": [
+      {
+        "label": "„Tariq, das Bezahlen geht immer noch nicht. Wie umgehen wir diese Bürokratie?“",
+        "targetNodeId": "insan_station_bypass_plan",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Ich sehe mich im Schrottfeld um. [Schließen]“",
+        "action": "close",
+        "keyHint": "2"
+      }
+    ]
+  },
+  "insan_station_bypass_plan": {
+    "id": "insan_station_bypass_plan",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "💡 TARIQS PLAN • INTERFERENZ NUTZEN",
+    "mainText": "„Die starke Interferenz im Kommunikationssystem spielt uns in die Karten!“",
+    "subText": "„Weil die zentrale Verwaltungs-KI durch die Störung isoliert ist, hängen die Klammern an Pier 4 nur am lokalen Notstrom. Wenn du sie mit einem psionischen Impuls überlädst, ist mein Forschungsschiff frei! Und wenn wir schon hier sind: Befreie unbedingt auch die Voyager-Sonde aus dem Schrottplatz – ihre alten Aufzeichnungen könnten spannende Infos für uns bereithalten!“",
+    "sound": "synapse",
+    "options": [
+      {
+        "label": "„Verstanden! Ich befreie die echte ISS Ibn Battuta an Pier 4!“",
+        "action": "liberate_real_ship_at_station",
+        "keyHint": "1"
+      },
+      {
+        "label": "„Ich befreie zuerst die abgeschleppte Voyager-Sonde!“",
+        "action": "liberate_voyager_probe",
+        "keyHint": "2"
+      }
+    ]
+  },
+  "insan_voyager_liberated": {
+    "id": "insan_voyager_liberated",
+    "speakerName": "Dr. Tariq Jamal & Voyager 2",
+    "speakerTitle": "Historisches Relikt",
+    "speakerType": "character",
+    "eyebrow": "🛰️ VOYAGER-SONDE BEFREIT • GEHEIME TELEMETRIE",
+    "mainText": "„Unglaublich ... die Sonde hat auf ihrer Reise am Rand des Sonnensystems alles aufgezeichnet!“",
+    "subText": "„Die goldene Schallplatte der Menschheit berührt deinen verletzten Geist (+30 Mentalkraft, Einsamkeit gelindert). Und im alten Telemetrie-Speicher der Voyager steckt noch mehr: Bevor sie abgeschleppt wurde, hat ihre Antenne im Jahr 2035 schwache, fremdartige Signale aufgefangen – wie ein fernes Echo in der Dunkelheit!“",
+    "sound": "sonar",
+    "options": [
+      {
+        "label": "„Spannende Daten ... Holen wir jetzt dein Forschungsschiff! [Schließen]“",
+        "action": "close",
+        "keyHint": "1"
+      }
+    ]
+  },
+  "real_ship_liberated": {
+    "id": "real_ship_liberated",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "🎉 ECHTES FORSCHUNGSSCHIFF GEBORGEN!",
+    "mainText": "„Die echte ISS Ibn Battuta ist frei! Unser Quanten-Logbuch ist online!“",
+    "subText": "„Endlich habe ich wieder Zugriff auf meine Labore und die Melange-Vorräte (+50 Melange-Spice, +60 Silizium)! Ich habe meinen Schiffscomputer mit deinen Synapsen gekoppelt – ab sofort steht dir das Direktiven-Logbuch zur Verfügung. Wir wissen noch nicht alles über deine Vergangenheit, Najmafar ... aber jetzt haben wir die Mittel, der Spur von 2035 nachzugehen!“",
+    "sound": "synapse",
+    "options": [
+      {
+        "label": "„Bereite die Sensoren vor, Tariq. Unsere Suche beginnt. [Schließen]“",
+        "action": "close",
+        "keyHint": "1"
+      }
+    ]
+  }
+}

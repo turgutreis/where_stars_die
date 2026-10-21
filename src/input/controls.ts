@@ -14,6 +14,14 @@ import { toggleDeckModal, isDeckOpen } from '../ui/deck';
 import { toggleOptionsModal, isOptionsModalOpen, closeOptionsModal } from '../ui/options';
 import { advanceFtueStep } from '../ui/directives';
 import { openVoyagerDialog, closeVoyagerDialog, isVoyagerDialogOpen } from '../ui/voyager-dialog';
+import { 
+    liberateJamalShip, 
+    initJamalDialogListeners, 
+    openNpcDialogue, 
+    triggerJamalShipScannedDialogue, 
+    isJamalDialogOpen, 
+    closeJamalDialog 
+} from '../ui/jamal-dialog';
 import { isSaveModalOpen, closeSaveModal } from '../ui/save-modal';
 import { toggleMainMenu } from '../ui/menu-controller';
 import { toggleStealth } from '../systems/stealth';
@@ -106,6 +114,12 @@ export function setupControls() {
                 return;
             }
 
+            // 5b. Close Jamal / NPC Dialogue if open
+            if (isJamalDialogOpen()) {
+                closeJamalDialog();
+                return;
+            }
+
             // 6. Close Galaxy Map if open
             if (isMapOpen()) {
                 toggleGalaxyMap();
@@ -125,7 +139,33 @@ export function setupControls() {
                 (window as any).api.closeApp();
             }
         }
+        if (key === 'j') {
+            if (isJamalDialogOpen()) {
+                closeJamalDialog();
+            } else {
+                openNpcDialogue('jamal_orbit_intro');
+            }
+            return;
+        }
         if (key === 'f') {
+            // 0. Proximity interaction with Dr. Jamal's Research Shuttle / Towing Drone (< 25 AE)
+            if (STATE.jamalShip && STATE.jamalShip.position) {
+                const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
+                if (jamalDist <= 25) {
+                    if (!STATE.jamalShip.scanned) {
+                        STATE.scanningPlanet = STATE.jamalShip;
+                        triggerScanStart();
+                        return;
+                    } else if (!STATE.jamalShipLiberated) {
+                        triggerJamalShipScannedDialogue();
+                        return;
+                    } else {
+                        openNpcDialogue('jamal_orbit_intro');
+                        return;
+                    }
+                }
+            }
+
             // 1. Proximity interaction with Voyager 2 Space Probe (< 22 AE)
             if (STATE.voyagerProbe && STATE.voyagerProbe.position) {
                 const voyagerDist = STATE.playerPosition.distanceTo(STATE.voyagerProbe.position);
@@ -197,6 +237,13 @@ export function setupControls() {
             }
         }
         if (key === 'e') {
+            if (STATE.jamalShip && !STATE.jamalShipLiberated && STATE.jamalShip.position) {
+                const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
+                if (jamalDist <= 28) {
+                    liberateJamalShip();
+                    return;
+                }
+            }
             const salvaged = salvageNearestWreck();
             if (!salvaged) {
                 triggerHarvestStart();
@@ -303,6 +350,7 @@ export function setupControls() {
     });
 
     setupTargetRaycasting();
+    initJamalDialogListeners();
 
     // Mouse Wheel Camera Zoom Listener (Zoom in up-close to see Alien anatomy, or out for system view)
     window.addEventListener('wheel', (e) => {
@@ -354,7 +402,7 @@ export function setupTargetRaycasting() {
         const dy = e.clientY - pointerDownPos.y;
         if (Math.sqrt(dx * dx + dy * dy) > 8) return;
 
-        if (e.target && (e.target as HTMLElement).closest('#hud-container, #galaxy-map-overlay, #main-menu, #how-to-play-modal, #voyager-dialog-modal, #diplomacy-overlay')) {
+        if (e.target && (e.target as HTMLElement).closest('#hud-container, #galaxy-map-overlay, #main-menu, #how-to-play-modal, #voyager-dialog-modal, #diplomacy-overlay, #npc-dialog-card')) {
             return;
         }
 
@@ -372,6 +420,12 @@ export function setupTargetRaycasting() {
         if (STATE.voyagerProbe && STATE.voyagerProbe.mesh) {
             targetMeshes.push(STATE.voyagerProbe.mesh);
         }
+        if (STATE.jamalShip && STATE.jamalShip.mesh) {
+            targetMeshes.push(STATE.jamalShip.mesh);
+        }
+        if (STATE.towingDrone && STATE.towingDrone.mesh) {
+            targetMeshes.push(STATE.towingDrone.mesh);
+        }
         if (STATE.spaceStations) {
             STATE.spaceStations.forEach(s => {
                 if (s.mesh) targetMeshes.push(s.mesh);
@@ -386,6 +440,37 @@ export function setupTargetRaycasting() {
         const intersects = raycaster.intersectObjects(targetMeshes, true);
         if (intersects.length > 0) {
             const hitObject = intersects[0].object;
+
+            // Check if Jamal's Research Shuttle or Towing Drone was clicked
+            let hitJamal = false;
+            let checkObj: THREE.Object3D | null = hitObject;
+            while (checkObj) {
+                if (checkObj === (STATE.jamalShip ? STATE.jamalShip.mesh : null) ||
+                    checkObj === (STATE.towingDrone ? STATE.towingDrone.mesh : null) ||
+                    (checkObj as any).isJamalGroup || (checkObj as any).isTowingDroneGroup) {
+                    hitJamal = true;
+                    break;
+                }
+                checkObj = checkObj.parent;
+            }
+
+            if (hitJamal && STATE.jamalShip) {
+                setLockedTarget(STATE.jamalShip);
+                const dist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
+                if (dist <= 25) {
+                    if (!STATE.jamalShip.scanned) {
+                        STATE.scanningPlanet = STATE.jamalShip;
+                        triggerScanStart();
+                    } else if (!STATE.jamalShipLiberated) {
+                        triggerJamalShipScannedDialogue();
+                    } else {
+                        openNpcDialogue('jamal_orbit_intro');
+                    }
+                } else {
+                    addLogEntry("JAMAL", `„Da ist mein Schiff! Anvisiert (${dist.toFixed(1)} AE). Fliege heran (< 25 AE) und scanne es mit [F]!“`);
+                }
+                return;
+            }
 
             // Check if Voyager 2 was clicked
             let hitVoyager = false;

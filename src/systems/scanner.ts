@@ -9,6 +9,7 @@ import { createScanVisuals, updateScanVisuals, removeScanVisuals } from '../proc
 import { SpeciesData, PlanetAttributes, FleetShip, SpaceStation, PlanetaryHazards, SurfaceDeposit } from '../types/game';
 import { generateProceduralCandidates } from './crew-generation';
 import { advanceFtueStep, triggerVoyagerSignalDetection } from '../ui/directives';
+import { liberateJamalShip, triggerJamalShipScannedDialogue, openNpcDialogue } from '../ui/jamal-dialog';
 import { abductCrewFromShip } from './abduction';
 import { triggerHarvestStart } from './harvesting';
 import { openShuttleExpeditionModal, hasAwayTeamCrew } from './shuttle-expeditions';
@@ -409,6 +410,28 @@ export function completeScanning() {
     const target: any = STATE.scanningPlanet;
     try {
         if (target) {
+            const isJamal = target.isJamalShip || target.type === 'jamal_shuttle' || target.isTowingDrone || target.type === 'towing_drone';
+            if (isJamal) {
+                target.scanned = true;
+                if (!STATE.jamalShipLiberated) {
+                    if (target.isRealShipAtDepot || target.name?.includes('Pier 4')) {
+                        addLogEntry("SENSOR", "🛰️ SPEKTRAL-SCAN: Die echte ISS Ibn Battuta an Pier 4 lokalisiert! Verankerungsbolzen aktiv.");
+                        openNpcDialogue('insan_station_bypass_plan');
+                    } else if (STATE.jamalDecoyRevealed) {
+                        addLogEntry("SENSOR", "⚠️ SPEKTRAL-SCAN: Holografisches Köder-Signal der Insan-Falle erfasst.");
+                        openNpcDialogue('hologram_trap_revealed');
+                    } else {
+                        STATE.jamalMissionDiscovered = true;
+                        addLogEntry("SENSOR", "⚠️ SPEKTRAL-SCAN: Blockade detektiert! Eine orbitale Parkkralle der Insan-Organisation versiegelt die Triebwerke!");
+                        triggerJamalShipScannedDialogue();
+                    }
+                } else {
+                    addLogEntry("JAMAL", "„Die ISS Ibn Battuta ist sicher geborgen. Alle Sensoren sind online!“");
+                    openNpcDialogue('real_ship_liberated');
+                }
+                return;
+            }
+
             const isShip = target.type === 'interceptor' || target.type === 'corvette' || target.type === 'freighter' || target.type === 'heavy_freighter';
             const isStation = target.type === 'citadel' || target.type === 'trade_hub' || target.type === 'mining_relay';
 
@@ -453,12 +476,6 @@ export function completeScanning() {
                     addLogEntry("SYSTEM", `PSIO-DETEKTION: Intelligentes Leben (${target.attributes.species.name}) auf ${target.name} entdeckt! Psionischer Transfer [F] bereit.`);
                 } else {
                     addLogEntry("SENSOR", `Atmosphärendaten: ${target.attributes?.atmos || 'Vakuum'} | Bio: ${target.attributes?.bio || 'Steril'}. Keine Lebensformen detektiert.`);
-                }
-
-                if ((STATE.ftueStep || 0) <= 1 && !STATE.voyagerSignalDetected) {
-                    triggerVoyagerSignalDetection();
-                } else if ((STATE.ftueStep || 0) === 1) {
-                    advanceFtueStep(2);
                 }
 
                 updateScannerUI(target, 10);

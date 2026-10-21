@@ -1,6 +1,7 @@
 import { STATE } from '../core/state';
 import { addLogEntry } from './hud';
 import { playVoyagerBeaconPing } from '../engine/audio';
+import { QuestManager } from '../systems/quests';
 
 export interface DirectiveItem {
     id: number;
@@ -13,49 +14,67 @@ export interface DirectiveItem {
 export const FTUE_DIRECTIVES: DirectiveItem[] = [
     {
         id: 0,
-        badge: "PHASE 1",
-        title: "Lebensfunke",
-        instruction: "Bewege die Najmafar mit [W/A/S/D] oder [Maus-Lenkung]",
-        hint: "Aktiviere den Bio-Schub und richte deine Sinnesorgane aus."
+        badge: "PROLOG 1",
+        title: "Lebensfunke & Bio-Schub",
+        instruction: "Bewege Najmafar mit [W/A/S/D] oder [Maus-Lenkung]",
+        hint: "Teste deine organischen Steuerdrüsen im Vakuum von Perseus-Rand."
     },
     {
         id: 1,
-        badge: "PHASE 2",
-        title: "System-Erkundung",
-        instruction: "Erkunde das Sternensystem: Fliege zu einem Planeten & scanne ihn mit [F]",
-        hint: "Halte Orbit-Abstand (< 25 AE) zu einem Himmelskörper und prüfe ihn auf Biosignaturen."
+        badge: "PROLOG 2",
+        title: "Jamals Forschungsschiff orten",
+        instruction: "Fliege zum nahen Planeten & scanne Jamals Schiffssignatur im Orbit mit [F]",
+        hint: "Dr. Jamal hat sein Schiff vor der psionischen Gilde im Schatten des Planeten versteckt."
     },
     {
         id: 2,
-        badge: "PHASE 3",
-        title: "Archaisches Signal",
-        instruction: "Folge dem goldenen Radar-Signal & Scanne das unbekannte Signal mit [F] oder [Klick]",
-        hint: "Eine künstliche metallische Anomalie treibt am Systemrand. Halte Abstand < 22 AE."
+        badge: "PROLOG 3",
+        title: "Insan-Parkkralle & Köderfalle",
+        instruction: "Untersuche die Parkkralle der Insan-Drohne [Dialog rechts]",
+        hint: "Zahlen schlägt fehl – wage einen Eingriff an der Kralle und entlarve die Attrappe."
     },
     {
         id: 3,
-        badge: "PHASE 4",
-        title: "Funke der Hoffnung",
-        instruction: "Öffne die Golden Record im Dialog & höre die Botschaft der Erde",
-        hint: "Die Klänge der Menschheit vertreiben die Depression (+50% Mentalkraft)."
+        badge: "PROLOG 4",
+        title: "Reise zur INSAN-Verwahrstelle",
+        instruction: "Öffne die Sternenkarte [M] & reise zur INSAN-Verwahrstelle Zeta-9 (2 Sprünge)",
+        hint: "Das echte Schiff wurde 2 Raum-Sprünge weit in ein gigantisches Pfanddepot geschleppt."
     },
     {
         id: 4,
-        badge: "PHASE 5",
-        title: "Aufbruch ins Leben",
-        instruction: "Öffne die Sternenkarte [M] – Kurs auf System mit Biosphäre",
-        hint: "Im Startsystem gibt es kein Leben. Finde eine bewohnbare Welt im Nachbarsystem!"
+        badge: "PROLOG 5",
+        title: "Echtes Forschungsschiff bergen",
+        instruction: "Befreie die echte ISS Ibn Battuta an Pier 4 & rette das Voyager-Relikt",
+        hint: "Sprenge die Verankerung per EMP – dies koppelt Jamals Schiffsdatenbank & schaltet das Logbuch frei!"
     },
     {
         id: 5,
-        badge: "PHASE 6",
+        badge: "PHASE 1",
+        title: "Galaktischer Transit",
+        instruction: "Öffne die Sternenkarte [M] – Kurs auf ein bewohntes Sternensystem",
+        hint: "Im Startsystem gibt es keine Biosphäre. Finde ein System mit intelligentem Leben!"
+    },
+    {
+        id: 6,
+        badge: "PHASE 2",
         title: "Der erste Wirt",
-        instruction: "Scanne eine bewohnte Welt & führe eine Entführung [F] durch",
-        hint: "Übernehme ein intelligentes Wesen in deine Kokon-Matrix gegen die Einsamkeit."
+        instruction: "Scanne eine bewohnte Welt & führe eine psionische Aufnahme [F] durch",
+        hint: "Nimm ein intelligentes Wesen in deine Kokon-Matrix auf, um Einsamkeit zu lindern."
+    },
+    {
+        id: 7,
+        badge: "PHASE 3",
+        title: "Traum-Matrix & Organe",
+        instruction: "Öffne das Bio-Deck [TAB], weise Besatzung zu & halte [LEERTASTE] zur Stabilisierung",
+        hint: "Pflege deine Besatzung und nutze ihre wissenschaftlichen Rollen-Boni."
     }
 ];
 
 let isCollapsed = false;
+
+export function isQuestlogUnlocked(): boolean {
+    return Boolean(STATE.jamalShipLiberated);
+}
 
 export function initDirectivesHUD() {
     const toggleBtn = document.getElementById('toggle-directives-btn');
@@ -70,16 +89,54 @@ export function initDirectivesHUD() {
         });
     }
 
+    if (container && !isQuestlogUnlocked()) {
+        container.style.display = 'none';
+    }
+
     renderDirectives();
 }
 
 export function renderDirectives() {
+    const hudDirectives = document.getElementById('hud-directives');
     const container = document.getElementById('directives-list');
     if (!container) return;
+
+    // Questlog is strictly hidden until Najmafar has acquired Dr. Jamal's research ship!
+    if (!isQuestlogUnlocked()) {
+        if (hudDirectives) hudDirectives.style.display = 'none';
+        return;
+    }
+
+    if (hudDirectives) hudDirectives.style.display = '';
 
     const currentStep = STATE.ftueStep || 0;
 
     let html = '';
+
+    // Render dynamic active quests from QuestManager
+    const activeQuests = QuestManager.getActiveQuests();
+    activeQuests.forEach((q) => {
+        const isDone = q.progress.completed;
+        const statusClass = isDone ? 'done' : 'active';
+        const checkmark = isDone ? '✔' : '◉';
+
+        html += `
+            <div class="directive-card ${statusClass} story-quest-card" data-quest="${q.definition.id}">
+                <div class="directive-status-icon">${checkmark}</div>
+                <div class="directive-body">
+                    <div class="directive-header">
+                        <span class="directive-badge" style="background: rgba(168, 85, 247, 0.25); border-color: rgba(168, 85, 247, 0.6); color: #d8b4fe;">${q.definition.badge || 'PROLOG-QUEST'}</span>
+                        <span class="directive-title">${q.definition.title}</span>
+                    </div>
+                    <div class="directive-instruction">
+                        ${q.currentStage.instruction}
+                    </div>
+                    ${!isDone && q.currentStage.hint ? `<div class="directive-hint">${q.currentStage.hint}</div>` : ''}
+                </div>
+            </div>
+        `;
+    });
+
     FTUE_DIRECTIVES.forEach((d) => {
         const isDone = d.id < currentStep;
         const isActive = d.id === currentStep;
@@ -145,39 +202,60 @@ export function updateVoyagerHUDTracker() {
     const trackerEl = document.getElementById('voyager-nav-tracker');
     if (!trackerEl) return;
 
-    // Show tracker only if Voyager is in system, signal has been detected, and not yet scanned
-    if (!STATE.voyagerProbe || !STATE.voyagerSignalDetected || STATE.voyagerScanned) {
-        trackerEl.style.display = 'none';
+    const titleEl = trackerEl.querySelector('.voyager-tracker-title') as HTMLElement;
+    const distEl = document.getElementById('voyager-nav-dist');
+    const angleEl = document.getElementById('voyager-nav-arrow');
+    const playerPos = STATE.playerPosition;
+
+    // 1. Target Jamal's Ship if quest is active and not yet liberated
+    if (STATE.jamalMissionActive && !STATE.jamalShipLiberated && STATE.jamalShip && STATE.jamalShip.position) {
+        const shipPos = STATE.jamalShip.position;
+        const dx = shipPos.x - playerPos.x;
+        const dz = shipPos.z - playerPos.z;
+        const dist = Math.hypot(dx, dz);
+
+        trackerEl.style.display = 'flex';
+        if (titleEl) {
+            if (STATE.jamalShip.isRealShipAtDepot) {
+                titleEl.innerText = "ECHTE IBN BATTUTA (PIER 4)";
+            } else if (STATE.jamalDecoyRevealed) {
+                titleEl.innerText = "KÖDER-ATTRAPPE (ALARM)";
+            } else {
+                titleEl.innerText = "JAMALS SCHIFF (ORBIT)";
+            }
+        }
+        if (distEl) distEl.innerText = `${dist.toFixed(1)} AE`;
+
+        if (angleEl) {
+            const targetAngle = Math.atan2(dz, dx);
+            const heading = STATE.shipHeading || 0;
+            const relativeAngleDeg = ((targetAngle - heading) * 180 / Math.PI);
+            angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
+        }
         return;
     }
 
-    const titleEl = trackerEl.querySelector('.voyager-tracker-title') as HTMLElement;
-    if (titleEl) {
-        titleEl.innerText = STATE.voyagerScanned ? "VOYAGER 2 SIGNAL" : "UNBEKANNTES SIGNAL";
+    // 2. Target Voyager 2 Probe at depot if not yet liberated
+    if (STATE.voyagerProbe && STATE.voyagerProbe.position && !STATE.voyagerLiberated) {
+        const probePos = STATE.voyagerProbe.position;
+        const dx = probePos.x - playerPos.x;
+        const dz = probePos.z - playerPos.z;
+        const dist = Math.hypot(dx, dz);
+
+        trackerEl.style.display = 'flex';
+        if (titleEl) {
+            titleEl.innerText = "VOYAGER 2 (SCHROTTPFAND)";
+        }
+        if (distEl) distEl.innerText = `${dist.toFixed(1)} AE`;
+
+        if (angleEl) {
+            const targetAngle = Math.atan2(dz, dx);
+            const heading = STATE.shipHeading || 0;
+            const relativeAngleDeg = ((targetAngle - heading) * 180 / Math.PI);
+            angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
+        }
+        return;
     }
 
-    const playerPos = STATE.playerPosition;
-    const probePos = STATE.voyagerProbe.position;
-    if (!playerPos || !probePos) return;
-
-    const dx = probePos.x - playerPos.x;
-    const dz = probePos.z - playerPos.z;
-    const dist = Math.hypot(dx, dz);
-
-    trackerEl.style.display = 'flex';
-
-    const distEl = document.getElementById('voyager-nav-dist');
-    const angleEl = document.getElementById('voyager-nav-arrow');
-
-    if (distEl) {
-        distEl.innerText = `${dist.toFixed(1)} AE`;
-    }
-
-    if (angleEl) {
-        // Calculate relative angle from ship heading
-        const targetAngle = Math.atan2(dz, dx);
-        const heading = STATE.shipHeading || 0;
-        const relativeAngleDeg = ((targetAngle - heading) * 180 / Math.PI);
-        angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
-    }
+    trackerEl.style.display = 'none';
 }

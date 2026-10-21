@@ -70,6 +70,15 @@ export interface SerializedGameState {
         step: number;
         completed: boolean;
     };
+    prologue?: {
+        completed: boolean;
+    };
+    jamalMission?: {
+        active: boolean;
+        completed: boolean;
+        liberated: boolean;
+    };
+    activeQuests?: Record<string, any>;
     reputation?: Record<string, number>;
     quantumChronicle?: {
         galacticCycle: number;
@@ -187,6 +196,15 @@ export function serializeCurrentState(slotId: string, customName?: string): Seri
             step: STATE.ftueStep || 0,
             completed: Boolean(STATE.ftueCompleted)
         },
+        prologue: {
+            completed: Boolean(STATE.prologueCompleted)
+        },
+        jamalMission: {
+            active: Boolean(STATE.jamalMissionActive),
+            completed: Boolean(STATE.jamalMissionCompleted),
+            liberated: Boolean(STATE.jamalShipLiberated)
+        },
+        activeQuests: STATE.activeQuests ? { ...STATE.activeQuests } : {},
         reputation: STATE.reputation ? { ...STATE.reputation } : {},
         quantumChronicle: {
             galacticCycle: STATE.galacticCycle || 1,
@@ -307,6 +325,17 @@ export async function applyLoadedState(data: SerializedGameState): Promise<void>
     if (data.ftue) {
         STATE.ftueStep = data.ftue.step;
         STATE.ftueCompleted = data.ftue.completed;
+    }
+    if (data.prologue) {
+        STATE.prologueCompleted = Boolean(data.prologue.completed);
+    }
+    if (data.jamalMission) {
+        STATE.jamalMissionActive = Boolean(data.jamalMission.active);
+        STATE.jamalMissionCompleted = Boolean(data.jamalMission.completed);
+        STATE.jamalShipLiberated = Boolean(data.jamalMission.liberated);
+    }
+    if (data.activeQuests) {
+        STATE.activeQuests = { ...data.activeQuests };
     }
     if (data.reputation) {
         STATE.reputation = { ...data.reputation } as any;

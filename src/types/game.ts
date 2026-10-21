@@ -565,6 +565,7 @@ export interface GameState {
     alloyRes: number;
     techRes: number;
     foodRes: number;
+    spiceRes?: number;
 
     // Bio-Shuttle & Away Missions
     bioShuttle: BioShuttle;
@@ -722,6 +723,19 @@ export interface GameState {
     ftueStep?: number;
     ftueCompleted?: boolean;
 
+    // Dr. Jamal's Hidden Research Shuttle & Rogue AI Towing Drone Mission
+    jamalShip?: any | null;
+    towingDrone?: any | null;
+    jamalMissionActive?: boolean;
+    jamalMissionDiscovered?: boolean;
+    jamalMissionCompleted?: boolean;
+    jamalShipLiberated?: boolean;
+    jamalDecoyRevealed?: boolean;
+    voyagerLiberated?: boolean;
+    jamalIntroModalSeen?: boolean;
+    jamalLiberatedModalSeen?: boolean;
+    activeQuests?: Record<string, any>;
+
     // Space Stations & Psionic Stealth System
     spaceStations: SpaceStation[];
     stealthActive: boolean;
@@ -735,6 +749,12 @@ export interface GameState {
     relativisticMonthsElapsed: number;
     previewGalacticCycle: number | null;
     intervenedSystems: Record<number, boolean>;
+
+    // Story Prologue: The Menagerie Breakout & Dr. Jamal Recruitment
+    prologueCompleted?: boolean;
+    prologueActive?: boolean;
+    prologueStage?: 'office_dream' | 'alien_zoo' | 'jamal_contact' | 'absorption_sync' | 'breakout_warp' | 'completed';
+    prologueStep?: number;
 }
 
 export type OrbitLevel = 'solar' | 'planet' | 'moon';

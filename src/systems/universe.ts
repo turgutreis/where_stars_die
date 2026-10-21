@@ -3,6 +3,7 @@ import { STATE, activePlanets } from '../core/state';
 import { scene, camera } from '../engine/scene';
 import { PlanetEntry, StarSystem } from '../types/game';
 import { createGravityRing, createBlackHoleMesh, createPrecursorConstructMesh, createPlasmaVortexMesh, clearJumpGates, createJumpGateMesh, activeJumpGates, createVoyagerProbeMesh } from '../procedural/meshes';
+import { createJamalResearchShuttleMesh, createTowingDroneMesh } from '../procedural/jamal-shuttle';
 import { createHabitableTextures, createGasGiantTextures, createRockyTextures, createIceMoonTextures, createVolcanicMoonTextures, createStarTexture, createCloudTexture, createCityLightsTexture } from '../procedural/textures';
 import { generatePlanetAttributes, generateFallbackMoons, updateScannerUI } from './scanner';
 import { initPlanetDefenseFleets, clearFleet, handleSystemArrivalStealthCheck } from './fleet';
@@ -20,6 +21,9 @@ import { applySystemLighting } from '../engine/postprocessing';
 import { triggerAutoSave } from './save-manager';
 import { JumpResolution } from '../types/game';
 import { syncActivePlanetsIsingEpochs, updateHudChronicleBadge } from './quantum-ising';
+import { QuestManager } from './quests';
+import { openNpcDialogue } from '../ui/jamal-dialog';
+import { advanceFtueStep } from '../ui/directives';
 
 export const activeCoronaMeshes: THREE.Object3D[] = [];
 export const activeCoronaUpdaters: ((dt: number) => void)[] = [];
@@ -31,6 +35,12 @@ export function updateUniverseShaders(dt: number, cam?: THREE.Camera) {
     activeJumpGates.forEach(jg => jg.update(dt));
     if (STATE.voyagerProbe && STATE.voyagerProbe.update) {
         STATE.voyagerProbe.update(dt);
+    }
+    if (STATE.jamalShip && STATE.jamalShip.update) {
+        STATE.jamalShip.update(dt);
+    }
+    if (STATE.towingDrone && STATE.towingDrone.update) {
+        STATE.towingDrone.update(dt);
     }
     if (activeSunRays && cam) {
         activeSunRays.update(dt, cam);
@@ -197,6 +207,18 @@ export function clearActiveSystem() {
         scene.remove(STATE.voyagerProbe.mesh);
         disposeObject3D(STATE.voyagerProbe.mesh);
         STATE.voyagerProbe = null;
+    }
+
+    if (STATE.jamalShip && STATE.jamalShip.mesh) {
+        scene.remove(STATE.jamalShip.mesh);
+        disposeObject3D(STATE.jamalShip.mesh);
+        STATE.jamalShip = null;
+    }
+
+    if (STATE.towingDrone && STATE.towingDrone.mesh) {
+        scene.remove(STATE.towingDrone.mesh);
+        disposeObject3D(STATE.towingDrone.mesh);
+        STATE.towingDrone = null;
     }
 
     const badge = document.getElementById('target-lock-badge');
@@ -602,7 +624,7 @@ export function spawnPlanetsAndAsteroids() {
         STATE.gravitySources.push(sourceObj);
 
         const orbitSpeed = 0.055 / Math.sqrt(scaledDist);
-        const pColorCss = p.color.replace("0x", "#");
+        const pColorCss = p.color ? String(p.color).replace("0x", "#") : "#38bdf8";
 
         const planetEntry: any = {
             mesh: planetGroup,
@@ -808,12 +830,110 @@ export function spawnPlanetsAndAsteroids() {
     spawnSystemSpaceStations(activePlanets);
     initPlanetDefenseFleets();
 
-    // Spawn Voyager 2 probe in the starting system
+    // Spawn Jamal mission entities in start system, or Voyager 2 & Jamal real ship at INSAN depot
+    const isInsanDepot = Boolean((activeSystem as any).isInsanDepot || (activeSystem.name && activeSystem.name.includes("INSAN")));
     if (STATE.currentSystemId === 1 || STATE.currentSystemId === 0) {
+        spawnJamalMissionEntities(activePlanets[0], false);
+    } else if (isInsanDepot) {
         spawnVoyagerProbe();
+        spawnJamalMissionEntities(activePlanets[0], true);
+        if (QuestManager.isQuestActive('prologue_jamal_ship')) {
+            QuestManager.advanceQuest('prologue_jamal_ship', 3);
+            advanceFtueStep(4);
+            openNpcDialogue('insan_depot_arrival');
+        }
     }
 
     addLogEntry("NAV", `Sensoren initialisiert: ${activeSystem.name} [${activeSystem.sectorName || 'Sektor'}].`);
+}
+
+export function spawnJamalMissionEntities(targetPlanet?: any, isRealShipAtDepot: boolean = false) {
+    if (STATE.jamalShip && STATE.jamalShip.mesh) {
+        scene.remove(STATE.jamalShip.mesh);
+        disposeObject3D(STATE.jamalShip.mesh);
+        STATE.jamalShip = null;
+    }
+    if (STATE.towingDrone && STATE.towingDrone.mesh) {
+        scene.remove(STATE.towingDrone.mesh);
+        disposeObject3D(STATE.towingDrone.mesh);
+        STATE.towingDrone = null;
+    }
+
+    const planetPos = targetPlanet && targetPlanet.group ? targetPlanet.group.position 
+        : (targetPlanet && targetPlanet.position ? targetPlanet.position : new THREE.Vector3(180, 0, 100));
+
+    // 1. Jamal's Research Shuttle / Decoy / Real Ship
+    const shuttleController = createJamalResearchShuttleMesh(2.6);
+    const shuttlePos = new THREE.Vector3(planetPos.x + 13.5, 0, planetPos.z + 13.5);
+    shuttleController.group.position.copy(shuttlePos);
+    shuttleController.group.lookAt(planetPos);
+    scene.add(shuttleController.group);
+
+    let shipName = "Dr. Jamals Forschungsschiff [FALSPARKER-STATUS]";
+    if (isRealShipAtDepot) {
+        shipName = STATE.jamalShipLiberated ? "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]" : "Echte 'ISS Ibn Battuta' [PIER 4 - BESCHLAGNAHMT]";
+    } else if (STATE.jamalShipLiberated) {
+        shipName = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
+    } else if (STATE.jamalDecoyRevealed) {
+        shipName = "Köder-Attrappe [HOLOGRAFIE-ATTROPPE ENTLARVT]";
+    }
+
+    const shuttleObj: any = {
+        mesh: shuttleController.group,
+        update: shuttleController.update,
+        setLiberated: shuttleController.setLiberated,
+        type: 'jamal_shuttle',
+        name: shipName,
+        mass: 0.8,
+        radius: 2.6,
+        gravityRange: 14.0,
+        position: shuttleController.group.position,
+        isJamalShip: true,
+        isRealShipAtDepot: isRealShipAtDepot,
+        isDecoy: !isRealShipAtDepot,
+        scanned: STATE.jamalShipLiberated
+    };
+    STATE.jamalShip = shuttleObj;
+    STATE.gravitySources.push(shuttleObj);
+
+    // 2. Autonomous Rogue AI Towing Drone / Station Pier Clamp
+    const droneController = createTowingDroneMesh(1.8);
+    const dronePos = new THREE.Vector3(shuttlePos.x + 3.2, 1.2, shuttlePos.z + 3.5);
+    droneController.group.position.copy(dronePos);
+    droneController.group.lookAt(shuttlePos);
+    scene.add(droneController.group);
+
+    let droneName = "KI-Abschleppdrohne TX-9 (Parkraumüberwachung)";
+    let droneStatus = 'patrol';
+    let isDroneHostile = false;
+
+    if (isRealShipAtDepot) {
+        droneName = STATE.jamalShipLiberated ? "INSAN-Pfandstation TX-9 [PIER 4 - FREIGEGEBEN]" : "INSAN-Pfandstation TX-9 (Pier 4 - Gesperrt)";
+    } else if (STATE.jamalShipLiberated) {
+        droneName = "KI-Abschleppdrohne TX-9 [SYSTEMFEHLER / DEAKTIVIERT]";
+    } else if (STATE.jamalDecoyRevealed) {
+        droneName = "KI-Abschleppdrohne TX-9 [AGGRESSIV • VOLLSTRECKUNG]";
+        droneStatus = 'hostile';
+        isDroneHostile = true;
+    }
+
+    const droneObj: any = {
+        mesh: droneController.group,
+        update: (dt: number) => droneController.update(dt, shuttleController.group.position),
+        triggerOverload: droneController.triggerOverload,
+        type: 'towing_drone',
+        name: droneName,
+        mass: 0.5,
+        radius: 1.8,
+        gravityRange: 8.0,
+        position: droneController.group.position,
+        isTowingDrone: true,
+        status: droneStatus,
+        isHostile: isDroneHostile,
+        scanned: STATE.jamalShipLiberated
+    };
+    STATE.towingDrone = droneObj;
+    STATE.gravitySources.push(droneObj);
 }
 
 export function spawnVoyagerProbe() {
@@ -828,11 +948,16 @@ export function spawnVoyagerProbe() {
     voyagerController.group.position.set(-110, 0, 135);
     scene.add(voyagerController.group);
 
+    let probeName = STATE.voyagerScanned ? 'Voyager 2 (Archaische Raumsonde)' : 'Unbekanntes Signal (Archaische Sonde)';
+    if (STATE.voyagerLiberated) {
+        probeName = 'Voyager 2 (Archaische Raumsonde) [BEFREIT]';
+    }
+
     const probeObj: any = {
         mesh: voyagerController.group,
         update: voyagerController.update,
         type: 'voyager_probe',
-        name: STATE.voyagerScanned ? 'Voyager 2 (Archaische Raumsonde)' : 'Unbekanntes Signal (Archaische Sonde)',
+        name: probeName,
         mass: 0.5,
         radius: 2.2,
         gravityRange: 10.0,
@@ -984,6 +1109,11 @@ export function initiateSystemArrival(fromSys: any, targetSys: any, resolution?:
 
     // 7. Auto-Save on System Arrival
     triggerAutoSave(`Ankunft in ${targetSys.name}`);
+
+    // 8. Advance FTUE from Phase 1 (Galaktischer Transit) to Phase 2 (Der erste Wirt) if jumping after ship liberation
+    if ((STATE.ftueStep || 0) === 5) {
+        advanceFtueStep(6);
+    }
 }
 
 export function updateActivePlanets(dt: number) {

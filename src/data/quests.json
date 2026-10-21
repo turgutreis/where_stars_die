@@ -1,0 +1,63 @@
+{
+  "prologue_jamal_ship": {
+    "id": "prologue_jamal_ship",
+    "title": "Jamals Forschungsschiff",
+    "badge": "PROLOG-QUEST",
+    "category": "prologue",
+    "stages": [
+      {
+        "stage": 0,
+        "title": "Schiffssignatur im Orbit orten",
+        "instruction": "Fliege zum Planeten & scanne die Schiffssignatur im Orbit mit [F]",
+        "hint": "Jamal hat sein Forschungsschiff im Orbit des nahen Planeten versteckt. Nähere dich auf < 25 AE.",
+        "objective": {
+          "type": "scan_target",
+          "targetId": "jamal_shuttle"
+        }
+      },
+      {
+        "stage": 1,
+        "title": "Insan-Parkkralle untersuchen",
+        "instruction": "Untersuche die Insan-Parkkralle an der Schiffssignatur [Dialog rechts]",
+        "hint": "Versuche die Strafe zu zahlen, oder wage einen Eingriff an der Kralle.",
+        "objective": {
+          "type": "dialogue_completed",
+          "nodeId": "jamal_ship_scanned"
+        }
+      },
+      {
+        "stage": 2,
+        "title": "Zur INSAN-Abschleppstation reisen (2 Sprünge)",
+        "instruction": "Attrappe entlarvt! Reise zur INSAN-Verwahrstelle Zeta-9 [Sternenkarte M]",
+        "hint": "Das echte Schiff wurde 2 Raum-Sprünge weit in ein Schrottdepot abgeschleppt. Öffne die Sternenkarte mit [M].",
+        "objective": {
+          "type": "reach_proximity",
+          "targetId": "insan_depot_system"
+        }
+      },
+      {
+        "stage": 3,
+        "title": "Echtes Forschungsschiff bergen",
+        "instruction": "Befreie die echte ISS Ibn Battuta an Pier 4 & rette die abgeschleppte Voyager-Sonde",
+        "hint": "Nutze die Subraum-Interferenzen der Station, um die Verankerung zu sprengen.",
+        "objective": {
+          "type": "dialogue_completed",
+          "nodeId": "real_ship_liberated"
+        }
+      },
+      {
+        "stage": 4,
+        "title": "Forschungsschiff geborgen",
+        "instruction": "Echte \"ISS Ibn Battuta\" geborgen (+50 Melange) & Sensoren gekoppelt.",
+        "hint": "Alle Scanner- und Telemetriedaten von Dr. Jamal sind online.",
+        "objective": {
+          "type": "completed"
+        }
+      }
+    ],
+    "rewards": {
+      "spice": 50,
+      "silicon": 60
+    }
+  }
+}

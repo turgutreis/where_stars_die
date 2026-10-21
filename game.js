@@ -8348,6 +8348,54 @@ class BoxGeometry extends BufferGeometry {
     return new BoxGeometry(data.width, data.height, data.depth, data.widthSegments, data.heightSegments, data.depthSegments);
   }
 }
+class CircleGeometry extends BufferGeometry {
+  constructor(radius = 1, segments = 32, thetaStart = 0, thetaLength = Math.PI * 2) {
+    super();
+    this.type = "CircleGeometry";
+    this.parameters = {
+      radius,
+      segments,
+      thetaStart,
+      thetaLength
+    };
+    segments = Math.max(3, segments);
+    const indices = [];
+    const vertices = [];
+    const normals = [];
+    const uvs = [];
+    const vertex = new Vector3;
+    const uv = new Vector2;
+    vertices.push(0, 0, 0);
+    normals.push(0, 0, 1);
+    uvs.push(0.5, 0.5);
+    for (let s = 0, i = 3;s <= segments; s++, i += 3) {
+      const segment = thetaStart + s / segments * thetaLength;
+      vertex.x = radius * Math.cos(segment);
+      vertex.y = radius * Math.sin(segment);
+      vertices.push(vertex.x, vertex.y, vertex.z);
+      normals.push(0, 0, 1);
+      uv.x = (vertices[i] / radius + 1) / 2;
+      uv.y = (vertices[i + 1] / radius + 1) / 2;
+      uvs.push(uv.x, uv.y);
+    }
+    for (let i = 1;i <= segments; i++) {
+      indices.push(i, i + 1, 0);
+    }
+    this.setIndex(indices);
+    this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+    this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+    this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+  }
+  copy(source) {
+    super.copy(source);
+    this.parameters = Object.assign({}, source.parameters);
+    return this;
+  }
+  static fromJSON(data) {
+    return new CircleGeometry(data.radius, data.segments, data.thetaStart, data.thetaLength);
+  }
+}
+
 class CylinderGeometry extends BufferGeometry {
   constructor(radiusTop = 1, radiusBottom = 1, height = 1, radialSegments = 32, heightSegments = 1, openEnded = false, thetaStart = 0, thetaLength = Math.PI * 2) {
     super();
@@ -29660,6 +29708,17 @@ var STATE = {
   voyagerDialogSeen: false,
   ftueStep: 0,
   ftueCompleted: false,
+  jamalShip: null,
+  towingDrone: null,
+  jamalMissionActive: false,
+  jamalMissionDiscovered: false,
+  jamalMissionCompleted: false,
+  jamalShipLiberated: false,
+  jamalDecoyRevealed: false,
+  voyagerLiberated: false,
+  jamalIntroModalSeen: false,
+  jamalLiberatedModalSeen: false,
+  activeQuests: {},
   spaceStations: [],
   stealthActive: false,
   stealthDrainRate: 2,
@@ -29669,7 +29728,11 @@ var STATE = {
   galacticYear: 2242,
   relativisticMonthsElapsed: 0,
   previewGalacticCycle: null,
-  intervenedSystems: {}
+  intervenedSystems: {},
+  prologueCompleted: false,
+  prologueActive: false,
+  prologueStage: "office_dream",
+  prologueStep: 0
 };
 var activePlanets = [];
 
@@ -33236,6 +33299,13 @@ function setThrusterSound(active, speedRatio = 0.5, isRetro = false) {
 }
 var QUANTUM_PLAYLIST = [
   {
+    id: "main_menu_theme",
+    title: "Horizon of the Mu'ammirun (Main Menu Theme)",
+    artist: "Najmafar OST (Mastered)",
+    src: "assets/music/main_menu_theme.wav",
+    description: "Sanft aufblendendes Hauptmenü-Thema mit Tiefpass-Sweep & nahtlosem Loop"
+  },
+  {
     id: "void_theme",
     title: "Pillars of the Void (Quantum Core)",
     artist: "IBM Quantum & Qiskit OST",
@@ -33705,6 +33775,1109 @@ function playFleetAlarmSound() {
     console.warn("Fleet alarm audio playback skipped:", e);
   }
 }
+// src/data/quests.json
+var quests_default = {
+  prologue_jamal_ship: {
+    id: "prologue_jamal_ship",
+    title: "Jamals Forschungsschiff",
+    badge: "PROLOG-QUEST",
+    category: "prologue",
+    stages: [
+      {
+        stage: 0,
+        title: "Schiffssignatur im Orbit orten",
+        instruction: "Fliege zum Planeten & scanne die Schiffssignatur im Orbit mit [F]",
+        hint: "Jamal hat sein Forschungsschiff im Orbit des nahen Planeten versteckt. Nähere dich auf < 25 AE.",
+        objective: {
+          type: "scan_target",
+          targetId: "jamal_shuttle"
+        }
+      },
+      {
+        stage: 1,
+        title: "Insan-Parkkralle untersuchen",
+        instruction: "Untersuche die Insan-Parkkralle an der Schiffssignatur [Dialog rechts]",
+        hint: "Versuche die Strafe zu zahlen, oder wage einen Eingriff an der Kralle.",
+        objective: {
+          type: "dialogue_completed",
+          nodeId: "jamal_ship_scanned"
+        }
+      },
+      {
+        stage: 2,
+        title: "Zur INSAN-Abschleppstation reisen (2 Sprünge)",
+        instruction: "Attrappe entlarvt! Reise zur INSAN-Verwahrstelle Zeta-9 [Sternenkarte M]",
+        hint: "Das echte Schiff wurde 2 Raum-Sprünge weit in ein Schrottdepot abgeschleppt. Öffne die Sternenkarte mit [M].",
+        objective: {
+          type: "reach_proximity",
+          targetId: "insan_depot_system"
+        }
+      },
+      {
+        stage: 3,
+        title: "Echtes Forschungsschiff bergen",
+        instruction: "Befreie die echte ISS Ibn Battuta an Pier 4 & rette die abgeschleppte Voyager-Sonde",
+        hint: "Nutze die Subraum-Interferenzen der Station, um die Verankerung zu sprengen.",
+        objective: {
+          type: "dialogue_completed",
+          nodeId: "real_ship_liberated"
+        }
+      },
+      {
+        stage: 4,
+        title: "Forschungsschiff geborgen",
+        instruction: 'Echte "ISS Ibn Battuta" geborgen (+50 Melange) & Sensoren gekoppelt.',
+        hint: "Alle Scanner- und Telemetriedaten von Dr. Jamal sind online.",
+        objective: {
+          type: "completed"
+        }
+      }
+    ],
+    rewards: {
+      spice: 50,
+      silicon: 60
+    }
+  }
+};
+
+// src/systems/quests.ts
+var questRegistry = { ...quests_default };
+function ensureStateQuests() {
+  if (!STATE.activeQuests) {
+    STATE.activeQuests = {};
+  }
+  return STATE.activeQuests;
+}
+
+class QuestManager {
+  static registerQuest(quest) {
+    questRegistry[quest.id] = quest;
+  }
+  static getQuest(questId) {
+    return questRegistry[questId];
+  }
+  static startQuest(questId) {
+    const quest = questRegistry[questId];
+    if (!quest) {
+      console.warn(`[QuestManager] Cannot start quest '${questId}': definition not found.`);
+      return null;
+    }
+    const quests = ensureStateQuests();
+    if (quests[questId] && !quests[questId].completed) {
+      return quests[questId];
+    }
+    const progress = {
+      questId,
+      currentStage: 0,
+      completed: false
+    };
+    quests[questId] = progress;
+    if (questId === "prologue_jamal_ship") {
+      STATE.jamalMissionActive = true;
+      STATE.jamalMissionCompleted = false;
+    }
+    addLogEntry("SYSTEM", `\uD83D\uDCCB Neue Mission aktiv: [${quest.title}]`);
+    return progress;
+  }
+  static advanceQuest(questId, targetStage) {
+    const quest = questRegistry[questId];
+    const quests = ensureStateQuests();
+    const progress = quests[questId];
+    if (!quest || !progress) {
+      return null;
+    }
+    const nextStageIndex = targetStage !== undefined ? targetStage : progress.currentStage + 1;
+    const totalStages = quest.stages.length;
+    if (nextStageIndex >= totalStages - 1) {
+      progress.currentStage = totalStages - 1;
+      this.completeQuest(questId);
+    } else {
+      progress.currentStage = nextStageIndex;
+      const currentStageObj = quest.stages[progress.currentStage];
+      if (currentStageObj) {
+        addLogEntry("SYSTEM", `\uD83D\uDCCB Missionsziel aktualisiert: [${quest.title}] -> ${currentStageObj.title}`);
+      }
+    }
+    if (questId === "prologue_jamal_ship") {
+      if (progress.currentStage >= 1) {
+        STATE.jamalMissionDiscovered = true;
+      }
+    }
+    return progress;
+  }
+  static completeQuest(questId) {
+    const quest = questRegistry[questId];
+    const quests = ensureStateQuests();
+    const progress = quests[questId];
+    if (!quest || !progress)
+      return null;
+    progress.completed = true;
+    progress.currentStage = quest.stages.length - 1;
+    if (quest.rewards) {
+      if (quest.rewards.spice)
+        STATE.spiceRes = (STATE.spiceRes || 0) + quest.rewards.spice;
+      if (quest.rewards.silicon)
+        STATE.siliconRes = (STATE.siliconRes || 0) + quest.rewards.silicon;
+      if (quest.rewards.bio)
+        STATE.bioRes = (STATE.bioRes || 0) + quest.rewards.bio;
+      if (quest.rewards.mental)
+        STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + quest.rewards.mental);
+    }
+    if (questId === "prologue_jamal_ship") {
+      STATE.jamalMissionCompleted = true;
+      STATE.jamalShipLiberated = true;
+    }
+    addLogEntry("SYSTEM", `\uD83C\uDF89 Mission abgeschlossen: [${quest.title}] ✔`);
+    return progress;
+  }
+  static isQuestActive(questId) {
+    if (questId === "prologue_jamal_ship" && STATE.jamalMissionActive && !STATE.jamalMissionCompleted) {
+      return true;
+    }
+    const quests = ensureStateQuests();
+    return !!(quests[questId] && !quests[questId].completed);
+  }
+  static isQuestCompleted(questId) {
+    if (questId === "prologue_jamal_ship" && STATE.jamalMissionCompleted) {
+      return true;
+    }
+    const quests = ensureStateQuests();
+    return !!(quests[questId] && quests[questId].completed);
+  }
+  static getQuestProgress(questId) {
+    const quests = ensureStateQuests();
+    if (!quests[questId] && questId === "prologue_jamal_ship" && STATE.jamalMissionActive) {
+      quests[questId] = {
+        questId: "prologue_jamal_ship",
+        currentStage: STATE.jamalMissionCompleted ? 4 : STATE.jamalDecoyRevealed ? 2 : STATE.jamalMissionDiscovered ? 1 : 0,
+        completed: !!STATE.jamalMissionCompleted
+      };
+    }
+    return quests[questId];
+  }
+  static getCurrentStage(questId) {
+    const quest = questRegistry[questId];
+    const progress = this.getQuestProgress(questId);
+    if (!quest || !progress)
+      return null;
+    return quest.stages[progress.currentStage] || null;
+  }
+  static getActiveQuests() {
+    const quests = ensureStateQuests();
+    if (STATE.jamalMissionActive && !quests["prologue_jamal_ship"]) {
+      quests["prologue_jamal_ship"] = {
+        questId: "prologue_jamal_ship",
+        currentStage: STATE.jamalMissionCompleted ? 4 : STATE.jamalDecoyRevealed ? 2 : STATE.jamalMissionDiscovered ? 1 : 0,
+        completed: !!STATE.jamalMissionCompleted
+      };
+    }
+    const activeList = [];
+    for (const [id, progress] of Object.entries(quests)) {
+      const def = questRegistry[id];
+      if (def) {
+        if (id === "prologue_jamal_ship") {
+          if (STATE.jamalMissionCompleted) {
+            progress.completed = true;
+            progress.currentStage = def.stages.length - 1;
+          } else if (STATE.jamalDecoyRevealed && progress.currentStage < 2) {
+            progress.currentStage = 2;
+          } else if (STATE.jamalMissionDiscovered && progress.currentStage === 0) {
+            progress.currentStage = 1;
+          }
+        }
+        const stage = def.stages[progress.currentStage] || def.stages[def.stages.length - 1];
+        activeList.push({
+          definition: def,
+          progress,
+          currentStage: stage
+        });
+      }
+    }
+    return activeList;
+  }
+  static notifyQuestEvent(eventType, payload) {
+    const active = this.getActiveQuests();
+    for (const item of active) {
+      if (item.progress.completed)
+        continue;
+      const obj = item.currentStage.objective;
+      if (!obj)
+        continue;
+      if (obj.type === eventType) {
+        if (eventType === "scan_target" && obj.targetId && payload === obj.targetId) {
+          this.advanceQuest(item.definition.id);
+        } else if (eventType === "dialogue_completed" && obj.nodeId && payload === obj.nodeId) {
+          this.advanceQuest(item.definition.id);
+        } else if (eventType === "completed") {
+          this.completeQuest(item.definition.id);
+        }
+      }
+    }
+  }
+}
+
+// src/ui/directives.ts
+var FTUE_DIRECTIVES = [
+  {
+    id: 0,
+    badge: "PROLOG 1",
+    title: "Lebensfunke & Bio-Schub",
+    instruction: "Bewege Najmafar mit [W/A/S/D] oder [Maus-Lenkung]",
+    hint: "Teste deine organischen Steuerdrüsen im Vakuum von Perseus-Rand."
+  },
+  {
+    id: 1,
+    badge: "PROLOG 2",
+    title: "Jamals Forschungsschiff orten",
+    instruction: "Fliege zum nahen Planeten & scanne Jamals Schiffssignatur im Orbit mit [F]",
+    hint: "Dr. Jamal hat sein Schiff vor der psionischen Gilde im Schatten des Planeten versteckt."
+  },
+  {
+    id: 2,
+    badge: "PROLOG 3",
+    title: "Insan-Parkkralle & Köderfalle",
+    instruction: "Untersuche die Parkkralle der Insan-Drohne [Dialog rechts]",
+    hint: "Zahlen schlägt fehl – wage einen Eingriff an der Kralle und entlarve die Attrappe."
+  },
+  {
+    id: 3,
+    badge: "PROLOG 4",
+    title: "Reise zur INSAN-Verwahrstelle",
+    instruction: "Öffne die Sternenkarte [M] & reise zur INSAN-Verwahrstelle Zeta-9 (2 Sprünge)",
+    hint: "Das echte Schiff wurde 2 Raum-Sprünge weit in ein gigantisches Pfanddepot geschleppt."
+  },
+  {
+    id: 4,
+    badge: "PROLOG 5",
+    title: "Echtes Forschungsschiff bergen",
+    instruction: "Befreie die echte ISS Ibn Battuta an Pier 4 & rette das Voyager-Relikt",
+    hint: "Sprenge die Verankerung per EMP – dies koppelt Jamals Schiffsdatenbank & schaltet das Logbuch frei!"
+  },
+  {
+    id: 5,
+    badge: "PHASE 1",
+    title: "Galaktischer Transit",
+    instruction: "Öffne die Sternenkarte [M] – Kurs auf ein bewohntes Sternensystem",
+    hint: "Im Startsystem gibt es keine Biosphäre. Finde ein System mit intelligentem Leben!"
+  },
+  {
+    id: 6,
+    badge: "PHASE 2",
+    title: "Der erste Wirt",
+    instruction: "Scanne eine bewohnte Welt & führe eine psionische Aufnahme [F] durch",
+    hint: "Nimm ein intelligentes Wesen in deine Kokon-Matrix auf, um Einsamkeit zu lindern."
+  },
+  {
+    id: 7,
+    badge: "PHASE 3",
+    title: "Traum-Matrix & Organe",
+    instruction: "Öffne das Bio-Deck [TAB], weise Besatzung zu & halte [LEERTASTE] zur Stabilisierung",
+    hint: "Pflege deine Besatzung und nutze ihre wissenschaftlichen Rollen-Boni."
+  }
+];
+var isCollapsed = false;
+function isQuestlogUnlocked() {
+  return Boolean(STATE.jamalShipLiberated);
+}
+function initDirectivesHUD() {
+  const toggleBtn = document.getElementById("toggle-directives-btn");
+  const container = document.getElementById("hud-directives");
+  if (toggleBtn && container) {
+    toggleBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      isCollapsed = !isCollapsed;
+      container.classList.toggle("collapsed", isCollapsed);
+      toggleBtn.innerText = isCollapsed ? "\uD83D\uDCCB" : "➖";
+    });
+  }
+  if (container && !isQuestlogUnlocked()) {
+    container.style.display = "none";
+  }
+  renderDirectives();
+}
+function renderDirectives() {
+  const hudDirectives = document.getElementById("hud-directives");
+  const container = document.getElementById("directives-list");
+  if (!container)
+    return;
+  if (!isQuestlogUnlocked()) {
+    if (hudDirectives)
+      hudDirectives.style.display = "none";
+    return;
+  }
+  if (hudDirectives)
+    hudDirectives.style.display = "";
+  const currentStep = STATE.ftueStep || 0;
+  let html = "";
+  const activeQuests = QuestManager.getActiveQuests();
+  activeQuests.forEach((q) => {
+    const isDone = q.progress.completed;
+    const statusClass = isDone ? "done" : "active";
+    const checkmark = isDone ? "✔" : "◉";
+    html += `
+            <div class="directive-card ${statusClass} story-quest-card" data-quest="${q.definition.id}">
+                <div class="directive-status-icon">${checkmark}</div>
+                <div class="directive-body">
+                    <div class="directive-header">
+                        <span class="directive-badge" style="background: rgba(168, 85, 247, 0.25); border-color: rgba(168, 85, 247, 0.6); color: #d8b4fe;">${q.definition.badge || "PROLOG-QUEST"}</span>
+                        <span class="directive-title">${q.definition.title}</span>
+                    </div>
+                    <div class="directive-instruction">
+                        ${q.currentStage.instruction}
+                    </div>
+                    ${!isDone && q.currentStage.hint ? `<div class="directive-hint">${q.currentStage.hint}</div>` : ""}
+                </div>
+            </div>
+        `;
+  });
+  FTUE_DIRECTIVES.forEach((d) => {
+    const isDone = d.id < currentStep;
+    const isActive = d.id === currentStep;
+    const isLocked = d.id > currentStep;
+    const statusClass = isDone ? "done" : isActive ? "active" : "locked";
+    const checkmark = isDone ? "✔" : isActive ? "◉" : "○";
+    html += `
+            <div class="directive-card ${statusClass}" data-step="${d.id}">
+                <div class="directive-status-icon">${checkmark}</div>
+                <div class="directive-body">
+                    <div class="directive-header">
+                        <span class="directive-badge">${d.badge}</span>
+                        <span class="directive-title">${d.title}</span>
+                    </div>
+                    <div class="directive-instruction">${d.instruction}</div>
+                    ${isActive ? `<div class="directive-hint">${d.hint}</div>` : ""}
+                </div>
+            </div>
+        `;
+  });
+  container.innerHTML = html;
+}
+function advanceFtueStep(targetStep) {
+  const current = STATE.ftueStep || 0;
+  if (targetStep > current) {
+    STATE.ftueStep = targetStep;
+    const completedDirective = FTUE_DIRECTIVES[current];
+    if (completedDirective) {
+      addLogEntry("SYSTEM", `Direktive erfüllt: [${completedDirective.title}] ✔`);
+    }
+    if (targetStep >= FTUE_DIRECTIVES.length) {
+      STATE.ftueCompleted = true;
+      addLogEntry("SYSTEM", "Alle Einführungs-Direktiven abgeschlossen. Das Schicksal der Galaxie liegt in deinen Händen.");
+    }
+    renderDirectives();
+  }
+}
+function updateVoyagerHUDTracker() {
+  const trackerEl = document.getElementById("voyager-nav-tracker");
+  if (!trackerEl)
+    return;
+  const titleEl = trackerEl.querySelector(".voyager-tracker-title");
+  const distEl = document.getElementById("voyager-nav-dist");
+  const angleEl = document.getElementById("voyager-nav-arrow");
+  const playerPos = STATE.playerPosition;
+  if (STATE.jamalMissionActive && !STATE.jamalShipLiberated && STATE.jamalShip && STATE.jamalShip.position) {
+    const shipPos = STATE.jamalShip.position;
+    const dx = shipPos.x - playerPos.x;
+    const dz = shipPos.z - playerPos.z;
+    const dist = Math.hypot(dx, dz);
+    trackerEl.style.display = "flex";
+    if (titleEl) {
+      if (STATE.jamalShip.isRealShipAtDepot) {
+        titleEl.innerText = "ECHTE IBN BATTUTA (PIER 4)";
+      } else if (STATE.jamalDecoyRevealed) {
+        titleEl.innerText = "KÖDER-ATTRAPPE (ALARM)";
+      } else {
+        titleEl.innerText = "JAMALS SCHIFF (ORBIT)";
+      }
+    }
+    if (distEl)
+      distEl.innerText = `${dist.toFixed(1)} AE`;
+    if (angleEl) {
+      const targetAngle = Math.atan2(dz, dx);
+      const heading = STATE.shipHeading || 0;
+      const relativeAngleDeg = (targetAngle - heading) * 180 / Math.PI;
+      angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
+    }
+    return;
+  }
+  if (STATE.voyagerProbe && STATE.voyagerProbe.position && !STATE.voyagerLiberated) {
+    const probePos = STATE.voyagerProbe.position;
+    const dx = probePos.x - playerPos.x;
+    const dz = probePos.z - playerPos.z;
+    const dist = Math.hypot(dx, dz);
+    trackerEl.style.display = "flex";
+    if (titleEl) {
+      titleEl.innerText = "VOYAGER 2 (SCHROTTPFAND)";
+    }
+    if (distEl)
+      distEl.innerText = `${dist.toFixed(1)} AE`;
+    if (angleEl) {
+      const targetAngle = Math.atan2(dz, dx);
+      const heading = STATE.shipHeading || 0;
+      const relativeAngleDeg = (targetAngle - heading) * 180 / Math.PI;
+      angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
+    }
+    return;
+  }
+  trackerEl.style.display = "none";
+}
+// src/data/dialogues.json
+var dialogues_default = {
+  jamal_orbit_intro: {
+    id: "jamal_orbit_intro",
+    speakerName: "Dr. Tariq Jamal",
+    speakerTitle: "Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "⚛️ TELEPATHIE • PERSEUS-RAND",
+    mainText: "„Najmafar, spürst du meine synaptische Koppelung? Wir haben es geschafft!“",
+    subText: "„Wir sind der Menagerie von Ceres-9 entkommen. Aber ich bin nur mit einem kleinen, zivilen Touristen-Shuttle gereist, um keine Aufmerksamkeit zu erregen. Mein eigentliches Forschungsschiff – die ISS Ibn Battuta – habe ich im Orbit dieses Planeten versteckt. Fliege heran und scanne die Energiesignatur mit [F]!“",
+    sound: "synapse",
+    options: [
+      {
+        label: "„Wer genau bist du überhaupt?“",
+        targetNodeId: "jamal_origin_2035",
+        keyHint: "1"
+      },
+      {
+        label: "„Mein Geist ist voller dunkler Risse ... Ich kann mich an fast nichts mehr erinnern.“",
+        targetNodeId: "jamal_amnesia_trauma",
+        keyHint: "2"
+      },
+      {
+        label: "„Verstanden. Ich scanne den Orbit nach deinem Schiff ab. [Ende]“",
+        action: "close",
+        keyHint: "3"
+      }
+    ]
+  },
+  jamal_origin_2035: {
+    id: "jamal_origin_2035",
+    speakerName: "Dr. Tariq Jamal",
+    speakerTitle: "Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "🔭 HINTERGRUND • QUANTEN-KARTOGRAPHIE",
+    mainText: "„Mein Name ist Tariq Jamal. Ich bin Quantenphysiker von der Erde.“",
+    subText: "„Beziehungsweise arbeite ich für eine Organisation, die mit den modernsten Quantencomputern versucht, das Universum zu kartographieren. Wir suchen immer noch nach der Dunklen Materie! Während meiner Untersuchungen bin ich jedoch auf eine unmögliche Anomalie gestoßen.“",
+    sound: "sonar",
+    options: [
+      {
+        label: "„Was genau für eine Anomalie?“",
+        targetNodeId: "jamal_anomaly_2035",
+        keyHint: "1"
+      },
+      {
+        label: "„Lass uns zuerst dein Schiff sichern. [Ende]“",
+        action: "close",
+        keyHint: "2"
+      }
+    ]
+  },
+  jamal_anomaly_2035: {
+    id: "jamal_anomaly_2035",
+    speakerName: "Dr. Tariq Jamal",
+    speakerTitle: "Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "🌑 DIE ABDRIFTENDE GALAXIE & DAS JAHR 2035",
+    mainText: "„Meine Neugier wurde auf eine ferne Galaxie gezogen, die dabei ist, sich vom Universum abzuschneiden – hinter den Horizont zu verschwinden, in die absolute Dunkelheit.“",
+    subText: "„Und gleichzeitig gibt es Messungen, laut denen die kosmische Ausdehnung an anderer Stelle ins Stocken gerät – eine rätselhafte Verlangsamung. Als ich in uralten irdischen Datenbanken aus dem Jahr 2035 nachforschte, merkte ich, dass Wissenschaftler das schon damals gemessen hatten! Aber die Akten wurden mit einem speziellen Tag versehen: 'Unwichtig / Sensorrauschen', damit niemand weiterforscht. Auf meinem Forschungsschiff habe ich die Analysegeräte, um dem nachzugehen.“",
+    sound: "synapse",
+    options: [
+      {
+        label: "„Und wie bist du durch diese alten Daten auf mich gestoßen?“",
+        targetNodeId: "jamal_how_found_najmafar",
+        keyHint: "1"
+      },
+      {
+        label: "„Wenn du von dieser dunklen Galaxie sprichst ... schmerzt etwas tief in mir, aber mir fehlt jede Erinnerung.“",
+        targetNodeId: "jamal_amnesia_trauma",
+        keyHint: "2"
+      },
+      {
+        label: "„Ich nehme Kurs auf die Schiffssignatur. [Ende]“",
+        action: "close",
+        keyHint: "3"
+      }
+    ]
+  },
+  jamal_slowdown_2035: {
+    id: "jamal_slowdown_2035",
+    speakerName: "Dr. Tariq Jamal",
+    speakerTitle: "Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "🌑 DIE ABDRIFTENDE GALAXIE & DAS JAHR 2035",
+    mainText: "„Meine Neugier wurde auf eine ferne Galaxie gezogen, die dabei ist, sich vom Universum abzuschneiden – hinter den Horizont zu verschwinden, in die absolute Dunkelheit.“",
+    subText: "„Und gleichzeitig gibt es Messungen, laut denen die kosmische Ausdehnung an anderer Stelle ins Stocken gerät – eine rätselhafte Verlangsamung. Als ich in uralten irdischen Datenbanken aus dem Jahr 2035 nachforschte, merkte ich, dass Wissenschaftler das schon damals gemessen hatten! Aber die Akten wurden mit einem speziellen Tag versehen: 'Unwichtig / Sensorrauschen', damit niemand weiterforscht.“",
+    sound: "synapse",
+    options: [
+      {
+        label: "„Und wie bist du durch diese alten Daten auf mich gestoßen?“",
+        targetNodeId: "jamal_how_found_najmafar",
+        keyHint: "1"
+      },
+      {
+        label: "„Ich nehme Kurs auf die Schiffssignatur. [Ende]“",
+        action: "close",
+        keyHint: "2"
+      }
+    ]
+  },
+  jamal_how_found_najmafar: {
+    id: "jamal_how_found_najmafar",
+    speakerName: "Dr. Tariq Jamal",
+    speakerTitle: "Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "📡 DIE SIGNATUR VON 2035 • DER URSPRUNG",
+    mainText: "„Ich habe diese alten Daten aus dem Jahr 2035 weiterverfolgt.“",
+    subText: "„Jemand hatte den Fall damals schon einmal analysiert. Dabei stieß ich darauf, dass die Daten aus dem Jahr 2035 eine bestimmte Signatur und Koordinaten trugen – denselben Ursprung wie die Signatur, die mich schließlich hierher in diesen Sektor und zu dir in den Zoo geführt hat! Ich weiß noch nicht alles, was dahintersteckt, aber auf meinem Forschungsschiff können wir die Daten endlich vollständig auswerten.“",
+    sound: "sonar",
+    options: [
+      {
+        label: "„Mein Geist ist wie zersplittert ... Ich kann mich nicht mehr erinnern, was damals geschah.“",
+        targetNodeId: "jamal_amnesia_trauma",
+        keyHint: "1"
+      },
+      {
+        label: "„Dann lass uns dein Schiff finden, um die Daten zu prüfen. [Ende]“",
+        action: "close",
+        keyHint: "2"
+      }
+    ]
+  },
+  jamal_amnesia_trauma: {
+    id: "jamal_amnesia_trauma",
+    speakerName: "Dr. Tariq Jamal",
+    speakerTitle: "Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "🧠 NEURONALES TRAUMA • VERSCHÜTTETES GEDÄCHTNIS",
+    mainText: "„Als wir unsere Gedanken im Käfig verbunden haben, habe ich die tiefen Narben in deinem Geist gespürt.“",
+    subText: "„Kein Wunder, dass du dich nicht direkt erinnern kannst. Die lange Einsamkeit im kalten Leerraum und die Dämpfungsfelder der Menagerie haben tiefe Traumata hinterlassen. Dein Bewusstsein hat fast alles abgeriegelt. Überstürze nichts – wenn wir erst meine ISS Ibn Battuta zurückhaben, finden wir Schritt für Schritt heraus, was passiert ist.“",
+    sound: "synapse",
+    options: [
+      {
+        label: "„Wer genau bist du eigentlich, und warum hast du mich gesucht?“",
+        targetNodeId: "jamal_origin_2035",
+        keyHint: "1"
+      },
+      {
+        label: "„Du hast recht. Suchen wir zuerst dein Schiff im Orbit. [Ende]“",
+        action: "close",
+        keyHint: "2"
+      }
+    ]
+  },
+  jamal_ship_scanned: {
+    id: "jamal_ship_scanned",
+    speakerName: "Dr. Tariq Jamal",
+    speakerTitle: "Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "⚠️ SPEKTRAL-SCAN • ORBITALE BLOCKADE",
+    mainText: "„Da ist die Ibn Battuta! Aber Moment ... sie hängt in einer Insan-Parkkralle fest!“",
+    subText: "„Eine autonome Drohne der Insan-Organisation blockiert das Schiff. Sie verlangen astronomische Parkgebühren für das Halten im Orbit.“",
+    sound: "alarm",
+    options: [
+      {
+        label: "„Lass uns die Strafe einfach am Terminal bezahlen.“",
+        targetNodeId: "insan_pay_attempt",
+        keyHint: "1"
+      },
+      {
+        label: "„Wieso wurde dein Raumschiff gesperrt? Wer sind die Insan?“",
+        targetNodeId: "insan_explanation",
+        keyHint: "2"
+      },
+      {
+        label: "„Ich versuche, das Drohnensystem psionisch zu hacken.“",
+        action: "hack_clamp_attempt",
+        keyHint: "3"
+      },
+      {
+        label: "„Ich zertrümmere die Parkkralle mit einem Bio-Schock!“",
+        action: "smash_clamp_attempt",
+        keyHint: "4"
+      }
+    ]
+  },
+  insan_explanation: {
+    id: "insan_explanation",
+    speakerName: "Dr. Tariq Jamal",
+    speakerTitle: "Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "🤖 INSAN-BÜROKRATIE • LORE",
+    mainText: "„Die Insan sind eine autonome Drohnen-Gesellschaft, die völlig außer Kontrolle geraten ist.“",
+    subText: "„Ironischerweise steht 'Insan' im Arabischen eigentlich für 'Mensch' – aber hier draußen bezeichnet man damit diese durchgedrehten Roboter. Sie suchen im ganzen Sektor manisch nach Falschparkern im Orbit von Planeten oder Asteroiden, verpassen ihnen eine Parkkralle oder schleppen die Schiffe gnadenlos ab!“",
+    sound: "sonar",
+    options: [
+      {
+        label: "„Versuchen wir, das Ticket am Transponder zu begleichen.“",
+        targetNodeId: "insan_pay_attempt",
+        keyHint: "1"
+      },
+      {
+        label: "„Ich versuche, das Drohnensystem psionisch zu hacken.“",
+        action: "hack_clamp_attempt",
+        keyHint: "2"
+      },
+      {
+        label: "„Keine Diskussionen – ich zertrümmere die Parkkralle!“",
+        action: "smash_clamp_attempt",
+        keyHint: "3"
+      }
+    ]
+  },
+  insan_pay_attempt: {
+    id: "insan_pay_attempt",
+    speakerName: "Insan-Transponder TX-9",
+    speakerTitle: "Autonome Parkraumüberwachung",
+    speakerType: "system",
+    eyebrow: "💳 ZAHLUNGSTERMINAL • INTERSTELLARE STÖRUNG",
+    mainText: "„Falschparken im Orbit: 12.000 Credits fällig. Verbindung zum Banken-Cluster ... FEHLER 0x889F!“",
+    subText: "„Zahlungsmittelverkehr fehlgeschlagen wegen interstellarer Störungen. Versuchen Sie es später noch einmal.“",
+    sound: "alarm",
+    options: [
+      {
+        label: "„Tariq, was soll das bedeuten?“",
+        targetNodeId: "jamal_cash_comment",
+        keyHint: "1"
+      },
+      {
+        label: "„Ich versuche, das Drohnensystem psionisch zu hacken.“",
+        action: "hack_clamp_attempt",
+        keyHint: "2"
+      },
+      {
+        label: "„Ich zertrümmere die Kralle per Bio-Schock!“",
+        action: "smash_clamp_attempt",
+        keyHint: "3"
+      }
+    ]
+  },
+  jamal_cash_comment: {
+    id: "jamal_cash_comment",
+    speakerName: "Dr. Tariq Jamal",
+    speakerTitle: "Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "☕ STÖRUNG IM ZAHLUNGSVERKEHR • BARGELD",
+    mainText: "„Ach verdammt, es gibt immer noch Störungen im System!“",
+    subText: "„Ich musste vorhin beim Zoo meinen Kaffee schon BAR bezahlen! Ich hatte gehört, dass die Menschen auf der Erde das damals gemacht haben ... Aber wer hat denn im offenen Weltraum Bargeld für eine Abschleppdrohne dabei?! Uns bleibt wohl nichts anderes übrig, als uns an der Kralle zu versuchen.“",
+    sound: "synapse",
+    options: [
+      {
+        label: "„Wenn wir nicht zahlen können: Ich hacke das Drohnensystem.“",
+        action: "hack_clamp_attempt",
+        keyHint: "1"
+      },
+      {
+        label: "„Ich zertrümmere die Parkkralle mit Gewalt!“",
+        action: "smash_clamp_attempt",
+        keyHint: "2"
+      },
+      {
+        label: "„Zurück zur Übersicht.“",
+        targetNodeId: "jamal_ship_scanned",
+        keyHint: "3"
+      }
+    ]
+  },
+  hologram_trap_revealed: {
+    id: "hologram_trap_revealed",
+    speakerName: "Dr. Tariq Jamal",
+    speakerTitle: "Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "🚨 HOLOGRAPHISCHE ATTRAPPE • DIE FALLE SCHNAPPT ZU",
+    mainText: "„Verflucht! Das Forschungsschiff ist nur eine holographische Attrappe!“",
+    subText: `„Kaum greifst du ein, trifft dich eine heftige psionische Rückkopplung! Die Schiffshülle flackert und entpuppt sich als reine Projektion – eine Köderfalle der Insan-Drohnen, um potenziell gefährliche Parksünder aus der Reserve zu locken! Der Sicherheitsalarm heult los!
+
+Aber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die echte ISS Ibn Battuta längst in ihre nächste INSAN-Abschleppstation geschleppt – zwei Raum-Sprünge von hier entfernt!“`,
+    sound: "crash",
+    options: [
+      {
+        label: "„Zwei Sprünge entfernt? Dann nichts wie weg hier – auf zur Abschleppstation! [Schließen]“",
+        action: "close",
+        keyHint: "1"
+      }
+    ]
+  },
+  insan_depot_arrival: {
+    id: "insan_depot_arrival",
+    speakerName: "Dr. Tariq Jamal",
+    speakerTitle: "Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "🛰️ INSAN-VERWAHRSTELLE ZETA-9 • ANKUNFT",
+    mainText: "„Unglaublich ... die Drohnen haben hier draußen buchstäblich alles abgeschleppt, was sie finden konnten!“",
+    subText: "„Sieh dir dieses Schrottdepot an, Najmafar! Dort drüben an Pier 4 liegt tatsächlich meine echte ISS Ibn Battuta! Aber wir haben ein Problem: Hier herrscht eine extrem starke Interferenz, die das gesamte Kommunikationssystem stört. Und meine Sensoren zeigen noch etwas Verrücktes im Schrottfeld: Die Insan-Drohnen haben sogar die alten Voyager-Sonden der Menschheit abgeschleppt!“",
+    sound: "sonar",
+    options: [
+      {
+        label: "„Versuchen wir es zuerst am bürokratischen Schalter der Station.“",
+        targetNodeId: "insan_station_bureaucracy",
+        keyHint: "1"
+      },
+      {
+        label: "„Ich sehe mich direkt bei Pier 4 und den Voyager-Sonden um. [Schließen]“",
+        action: "close",
+        keyHint: "2"
+      }
+    ]
+  },
+  insan_station_bureaucracy: {
+    id: "insan_station_bureaucracy",
+    speakerName: "Verwaltungs-Automaton INSAN-Zeta",
+    speakerTitle: "Bürokratischer Schalter",
+    speakerType: "system",
+    eyebrow: "📑 SCHALTER 7B • BÜROKRATISCHE HÜRDE",
+    mainText: "„Willkommen beim INSAN-Interstellaren Abschleppdienst. Bitte ziehen Sie eine Wartenummer.“",
+    subText: "„Ihre Wartenummer: 8.492.104. Geschätzte Bearbeitungsdauer wegen starker Kommunikations-Interferenz: 140 Erdjahre. Elektronisches Bezahlen ist weiterhin nicht möglich. Bitte halten Sie das Formular 38-Alpha sowie 840.000 Credits passend bereit.“",
+    sound: "alarm",
+    options: [
+      {
+        label: "„Tariq, das Bezahlen geht immer noch nicht. Wie umgehen wir diese Bürokratie?“",
+        targetNodeId: "insan_station_bypass_plan",
+        keyHint: "1"
+      },
+      {
+        label: "„Ich sehe mich im Schrottfeld um. [Schließen]“",
+        action: "close",
+        keyHint: "2"
+      }
+    ]
+  },
+  insan_station_bypass_plan: {
+    id: "insan_station_bypass_plan",
+    speakerName: "Dr. Tariq Jamal",
+    speakerTitle: "Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "💡 TARIQS PLAN • INTERFERENZ NUTZEN",
+    mainText: "„Die starke Interferenz im Kommunikationssystem spielt uns in die Karten!“",
+    subText: "„Weil die zentrale Verwaltungs-KI durch die Störung isoliert ist, hängen die Klammern an Pier 4 nur am lokalen Notstrom. Wenn du sie mit einem psionischen Impuls überlädst, ist mein Forschungsschiff frei! Und wenn wir schon hier sind: Befreie unbedingt auch die Voyager-Sonde aus dem Schrottplatz – ihre alten Aufzeichnungen könnten spannende Infos für uns bereithalten!“",
+    sound: "synapse",
+    options: [
+      {
+        label: "„Verstanden! Ich befreie die echte ISS Ibn Battuta an Pier 4!“",
+        action: "liberate_real_ship_at_station",
+        keyHint: "1"
+      },
+      {
+        label: "„Ich befreie zuerst die abgeschleppte Voyager-Sonde!“",
+        action: "liberate_voyager_probe",
+        keyHint: "2"
+      }
+    ]
+  },
+  insan_voyager_liberated: {
+    id: "insan_voyager_liberated",
+    speakerName: "Dr. Tariq Jamal & Voyager 2",
+    speakerTitle: "Historisches Relikt",
+    speakerType: "character",
+    eyebrow: "🛰️ VOYAGER-SONDE BEFREIT • GEHEIME TELEMETRIE",
+    mainText: "„Unglaublich ... die Sonde hat auf ihrer Reise am Rand des Sonnensystems alles aufgezeichnet!“",
+    subText: "„Die goldene Schallplatte der Menschheit berührt deinen verletzten Geist (+30 Mentalkraft, Einsamkeit gelindert). Und im alten Telemetrie-Speicher der Voyager steckt noch mehr: Bevor sie abgeschleppt wurde, hat ihre Antenne im Jahr 2035 schwache, fremdartige Signale aufgefangen – wie ein fernes Echo in der Dunkelheit!“",
+    sound: "sonar",
+    options: [
+      {
+        label: "„Spannende Daten ... Holen wir jetzt dein Forschungsschiff! [Schließen]“",
+        action: "close",
+        keyHint: "1"
+      }
+    ]
+  },
+  real_ship_liberated: {
+    id: "real_ship_liberated",
+    speakerName: "Dr. Tariq Jamal",
+    speakerTitle: "Quantenphysiker",
+    speakerType: "character",
+    eyebrow: "🎉 ECHTES FORSCHUNGSSCHIFF GEBORGEN!",
+    mainText: "„Die echte ISS Ibn Battuta ist frei! Unser Quanten-Logbuch ist online!“",
+    subText: "„Endlich habe ich wieder Zugriff auf meine Labore und die Melange-Vorräte (+50 Melange-Spice, +60 Silizium)! Ich habe meinen Schiffscomputer mit deinen Synapsen gekoppelt – ab sofort steht dir das Direktiven-Logbuch zur Verfügung. Wir wissen noch nicht alles über deine Vergangenheit, Najmafar ... aber jetzt haben wir die Mittel, der Spur von 2035 nachzugehen!“",
+    sound: "synapse",
+    options: [
+      {
+        label: "„Bereite die Sensoren vor, Tariq. Unsere Suche beginnt. [Schließen]“",
+        action: "close",
+        keyHint: "1"
+      }
+    ]
+  }
+};
+
+// src/systems/dialogue.ts
+var dialogueRegistry = { ...dialogues_default };
+var actionHandlers = {};
+var isDialogOpen = false;
+var currentNodeId = "jamal_orbit_intro";
+
+class DialogueEngine {
+  static registerNodes(nodes) {
+    Object.assign(dialogueRegistry, nodes);
+  }
+  static registerAction(actionName, handler) {
+    actionHandlers[actionName] = handler;
+  }
+  static getNode(nodeId) {
+    return dialogueRegistry[nodeId];
+  }
+  static isDialogOpen() {
+    return isDialogOpen;
+  }
+  static getCurrentNodeId() {
+    return currentNodeId;
+  }
+  static evaluateCondition(cond) {
+    if (!cond)
+      return true;
+    if (cond.minSpice !== undefined && (STATE.spiceRes || 0) < cond.minSpice)
+      return false;
+    if (cond.minSilicon !== undefined && (STATE.siliconRes || 0) < cond.minSilicon)
+      return false;
+    if (cond.minMental !== undefined && (STATE.mentalEnergy || 0) < cond.minMental)
+      return false;
+    if (cond.requiresQuestStage) {
+      const progress = QuestManager.getQuestProgress(cond.requiresQuestStage.questId);
+      if (!progress || progress.currentStage < cond.requiresQuestStage.stage)
+        return false;
+    }
+    return true;
+  }
+  static openDialogue(nodeId) {
+    const node = dialogueRegistry[nodeId];
+    if (!node) {
+      console.warn(`[DialogueEngine] Dialogue node '${nodeId}' not found.`);
+      return null;
+    }
+    currentNodeId = nodeId;
+    isDialogOpen = true;
+    try {
+      if (node.sound === "synapse")
+        playSynapseEvolveSound();
+      else if (node.sound === "sonar")
+        playSonarChime();
+      else if (node.sound === "alarm")
+        playFleetAlarmSound();
+      else if (node.sound === "crash")
+        playCrashSound();
+    } catch (e) {}
+    this.renderCard(node);
+    return node;
+  }
+  static closeDialogue() {
+    const card = document.getElementById("npc-dialog-card");
+    if (card) {
+      card.classList.add("hidden");
+    }
+    isDialogOpen = false;
+    renderDirectives();
+  }
+  static handleChoice(optionOrTarget) {
+    if (typeof optionOrTarget === "string") {
+      if (optionOrTarget === "close") {
+        this.closeDialogue();
+        return;
+      }
+      if (actionHandlers[optionOrTarget]) {
+        actionHandlers[optionOrTarget]();
+        return;
+      }
+      if (dialogueRegistry[optionOrTarget]) {
+        this.openDialogue(optionOrTarget);
+        return;
+      }
+      this.closeDialogue();
+      return;
+    }
+    const option = optionOrTarget;
+    if (option.action) {
+      if (option.action === "close") {
+        this.closeDialogue();
+        return;
+      }
+      if (actionHandlers[option.action]) {
+        actionHandlers[option.action](option);
+        return;
+      }
+    }
+    if (option.targetNodeId && dialogueRegistry[option.targetNodeId]) {
+      this.openDialogue(option.targetNodeId);
+      return;
+    }
+    this.closeDialogue();
+  }
+  static renderCard(node) {
+    const card = document.getElementById("npc-dialog-card");
+    if (!card)
+      return;
+    card.classList.remove("hidden");
+    const eyebrowEl = document.getElementById("npc-dialog-title");
+    const speakerEl = document.getElementById("npc-dialog-speaker");
+    const mainTextEl = document.getElementById("npc-dialog-main-text");
+    const subTextEl = document.getElementById("npc-dialog-sub-text");
+    const choicesContainer = document.getElementById("npc-dialog-choices");
+    if (eyebrowEl)
+      eyebrowEl.innerText = node.eyebrow || "KOMMUNIKATION";
+    if (speakerEl)
+      speakerEl.innerText = `${node.speakerName || "Dr. Jamal"} [${node.speakerTitle || "Telepathie"}]`;
+    if (mainTextEl)
+      mainTextEl.innerText = node.mainText;
+    if (subTextEl)
+      subTextEl.innerText = node.subText;
+    if (choicesContainer) {
+      choicesContainer.innerHTML = "";
+      node.options.forEach((opt, idx) => {
+        if (!this.evaluateCondition(opt.condition))
+          return;
+        const btn = document.createElement("button");
+        btn.className = "prologue-choice-btn";
+        btn.innerHTML = `
+                    <span class="prologue-choice-key">${opt.keyHint || idx + 1}</span>
+                    <span class="prologue-choice-label">${opt.label}</span>
+                `;
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.handleChoice(opt);
+        });
+        choicesContainer.appendChild(btn);
+      });
+    }
+  }
+}
+
+// src/ui/jamal-dialog.ts
+var DIALOGUE_NODES = { ...dialogues_default };
+function isJamalDialogOpen() {
+  return DialogueEngine.isDialogOpen();
+}
+function getCurrentDialogueNodeId() {
+  return DialogueEngine.getCurrentNodeId();
+}
+function openNpcDialogue(nodeId) {
+  return DialogueEngine.openDialogue(nodeId);
+}
+function closeNpcDialogue() {
+  DialogueEngine.closeDialogue();
+}
+function handleDialogueChoice(optionOrTarget) {
+  DialogueEngine.handleChoice(optionOrTarget);
+}
+function triggerDecoyTrap() {
+  const penalty = 25;
+  STATE.mentalEnergy = Math.max(0, (STATE.mentalEnergy || 50) - penalty);
+  STATE.jamalDecoyRevealed = true;
+  STATE.jamalMissionDiscovered = true;
+  try {
+    playCrashSound();
+    playEmpChargeSound();
+    playFleetAlarmSound();
+  } catch (e) {}
+  if (STATE.jamalShip) {
+    STATE.jamalShip.name = "Köder-Attrappe [HOLOGRAFIE-ATTROPPE ENTLARVT]";
+    STATE.jamalShip.isDecoy = true;
+  }
+  if (STATE.towingDrone) {
+    STATE.towingDrone.name = "KI-Abschleppdrohne TX-9 [AGGRESSIV • VOLLSTRECKUNG]";
+    STATE.towingDrone.isHostile = true;
+    STATE.towingDrone.status = "hostile";
+  }
+  STATE.systemAlertLevel = "alert";
+  QuestManager.advanceQuest("prologue_jamal_ship", 2);
+  advanceFtueStep(3);
+  updateHUDStats();
+  addLogEntry("PSIONIK", "⚡ PSIONISCHE RÜCKKOPPLUNG: -25 Mentalkraft erlitten! Die Falle der Insan-Drohne schnappt zu!");
+  addLogEntry("SYSTEM", "\uD83D\uDEA8 HOLOGRAPHISCHE ATTRAPPE ENTLARVT: Die echte ISS Ibn Battuta wurde in die INSAN-Verwahrstelle Zeta-9 abgeschleppt (2 Sprünge entfernt)!");
+  openNpcDialogue("hologram_trap_revealed");
+}
+function liberateRealShipAtStation() {
+  if (STATE.jamalShipLiberated)
+    return;
+  STATE.jamalShipLiberated = true;
+  STATE.jamalMissionCompleted = true;
+  try {
+    playSynapseEvolveSound();
+    playSonarChime();
+  } catch (e) {}
+  if (STATE.jamalShip) {
+    if (STATE.jamalShip.setLiberated)
+      STATE.jamalShip.setLiberated(true);
+    STATE.jamalShip.name = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
+  }
+  QuestManager.completeQuest("prologue_jamal_ship");
+  grantJamalRewards();
+  addLogEntry("BERGUNG", "\uD83C\uDF89 ECHTES FORSCHUNGSSCHIFF GEBORGEN: ISS Ibn Battuta befreit! +50 Melange-Spice, +60 Silizium!");
+  addLogEntry("SYSTEM", "\uD83D\uDCDF QUANTEN-LOGBUCH AKTIVIERT: ISS Ibn Battuta gekoppelt! Missions-Direktiven und Galaktische Aufträge online.");
+  addLogEntry("JAMAL", "„Alle Sensoren online! Jetzt können wir die Verlangsamung und das Jahr 2035 aufklären!“");
+  advanceFtueStep(5);
+  renderDirectives();
+  openNpcDialogue("real_ship_liberated");
+}
+function liberateVoyagerProbe() {
+  STATE.voyagerLiberated = true;
+  STATE.voyagerScanned = true;
+  STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy || 100, (STATE.mentalEnergy || 0) + 30);
+  STATE.loneliness = Math.max(0, (STATE.loneliness || 30) - 20);
+  if (STATE.voyagerProbe) {
+    STATE.voyagerProbe.name = "Voyager 2 (Archaische Raumsonde) [BEFREIT]";
+  }
+  try {
+    playSonarChime();
+    playSynapseEvolveSound();
+  } catch (e) {}
+  addLogEntry("RELIKT", "\uD83D\uDEF0️ VOYAGER 2 BEFREIT: Golden Record geborgen! +30 Mentalkraft, Einsamkeit gelindert!");
+  updateHUDStats();
+  openNpcDialogue("insan_voyager_liberated");
+}
+var executeHackDroneDatabase = triggerDecoyTrap;
+function grantJamalRewards() {
+  STATE.loneliness = Math.max(5, (STATE.loneliness || 30) - 20);
+  updateHUDStats();
+}
+DialogueEngine.registerAction("hack_clamp_attempt", () => triggerDecoyTrap());
+DialogueEngine.registerAction("smash_clamp_attempt", () => triggerDecoyTrap());
+DialogueEngine.registerAction("smash_clamp", () => triggerDecoyTrap());
+DialogueEngine.registerAction("hack_drone_database", () => triggerDecoyTrap());
+DialogueEngine.registerAction("liberate_real_ship_at_station", () => liberateRealShipAtStation());
+DialogueEngine.registerAction("liberate_voyager_probe", () => liberateVoyagerProbe());
+function openJamalIntroDialog() {
+  if (STATE.jamalIntroModalSeen)
+    return;
+  STATE.jamalIntroModalSeen = true;
+  STATE.jamalMissionActive = true;
+  QuestManager.startQuest("prologue_jamal_ship");
+  openNpcDialogue("jamal_orbit_intro");
+}
+function triggerJamalShipScannedDialogue() {
+  QuestManager.advanceQuest("prologue_jamal_ship", 1);
+  advanceFtueStep(2);
+  const hint = document.getElementById("flight-controls-hint");
+  if (hint)
+    hint.classList.add("hidden");
+  openNpcDialogue("jamal_ship_scanned");
+}
+function closeJamalDialog() {
+  closeNpcDialogue();
+}
+function liberateJamalShip() {
+  executeHackDroneDatabase();
+}
+function initJamalDialogListeners() {
+  const closeBtn = document.getElementById("npc-dialog-close-btn");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeNpcDialogue();
+    });
+  }
+  window.addEventListener("keydown", (e) => {
+    if (!isJamalDialogOpen())
+      return;
+    const key = e.key;
+    if (key >= "1" && key <= "9") {
+      const idx = parseInt(key, 10) - 1;
+      const node = DIALOGUE_NODES[getCurrentDialogueNodeId()];
+      if (node && node.options && node.options[idx]) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleDialogueChoice(node.options[idx]);
+      }
+    }
+  });
+}
 
 // src/ui/party-grid.ts
 var lastRenderedCrewIds = "";
@@ -33995,6 +35168,16 @@ function attachPartyGridEvents() {
       const species = btn.getAttribute("data-cluster-toggle");
       if (species) {
         toggleClusterExpansion(species);
+      }
+    };
+  });
+  const partyCards = document.querySelectorAll(".party-card");
+  partyCards.forEach((card) => {
+    card.onclick = (e) => {
+      const id = Number(card.getAttribute("data-crew-id"));
+      const member = STATE.crew.find((c) => c.id === id);
+      if (member && (member.id === 101 || member.name.includes("Jamal"))) {
+        openNpcDialogue("jamal_orbit_intro");
       }
     };
   });
@@ -36739,6 +37922,291 @@ function renderSynapseInspector(key) {
   }
 }
 
+// src/procedural/jamal-shuttle.ts
+function createJamalResearchShuttleMesh(size = 2.5) {
+  const group = new Group;
+  group.isJamalGroup = true;
+  const shuttleMesh = new Group;
+  group.add(shuttleMesh);
+  const hullMat = new MeshStandardMaterial({
+    color: 14870768,
+    metalness: 0.7,
+    roughness: 0.35,
+    emissive: 988970,
+    emissiveIntensity: 0.2
+  });
+  const darkAccentMat = new MeshStandardMaterial({
+    color: 1976635,
+    metalness: 0.85,
+    roughness: 0.25
+  });
+  const amberGlassMat = new MeshStandardMaterial({
+    color: 16096779,
+    emissive: 14251782,
+    emissiveIntensity: 0.6,
+    metalness: 0.9,
+    roughness: 0.1,
+    transparent: true,
+    opacity: 0.85
+  });
+  const fuselageGeo = new ConeGeometry(size * 0.45, size * 2.2, 7);
+  fuselageGeo.rotateX(Math.PI / 2);
+  const fuselage = new Mesh(fuselageGeo, hullMat);
+  shuttleMesh.add(fuselage);
+  const cockpitGeo = new SphereGeometry(size * 0.28, 16, 12);
+  cockpitGeo.scale(0.8, 0.55, 1.4);
+  const cockpit = new Mesh(cockpitGeo, amberGlassMat);
+  cockpit.position.set(0, size * 0.2, size * 0.35);
+  shuttleMesh.add(cockpit);
+  const wingShape = new Shape;
+  wingShape.moveTo(0, 0);
+  wingShape.lineTo(size * 1.6, -size * 0.8);
+  wingShape.lineTo(size * 1.5, -size * 1.2);
+  wingShape.lineTo(0, -size * 0.6);
+  wingShape.closePath();
+  const extrudeSettings = { depth: 0.08 * size, bevelEnabled: true, bevelThickness: 0.02 * size, bevelSize: 0.02 * size };
+  const wingGeo = new ExtrudeGeometry(wingShape, extrudeSettings);
+  wingGeo.center();
+  const rightWing = new Mesh(wingGeo, darkAccentMat);
+  rightWing.position.set(size * 0.9, 0, -size * 0.2);
+  rightWing.rotation.x = Math.PI / 2;
+  shuttleMesh.add(rightWing);
+  const leftWing = new Mesh(wingGeo, darkAccentMat);
+  leftWing.position.set(-size * 0.9, 0, -size * 0.2);
+  leftWing.rotation.x = Math.PI / 2;
+  leftWing.rotation.y = Math.PI;
+  shuttleMesh.add(leftWing);
+  const nacelleGeo = new CylinderGeometry(size * 0.14, size * 0.16, size * 1.2, 12);
+  nacelleGeo.rotateX(Math.PI / 2);
+  const rightNacelle = new Mesh(nacelleGeo, darkAccentMat);
+  rightNacelle.position.set(size * 0.7, 0, -size * 0.8);
+  shuttleMesh.add(rightNacelle);
+  const leftNacelle = new Mesh(nacelleGeo, darkAccentMat);
+  leftNacelle.position.set(-size * 0.7, 0, -size * 0.8);
+  shuttleMesh.add(leftNacelle);
+  const thrusterMat = new MeshBasicMaterial({ color: 3718648 });
+  const thrusterGeo = new CircleGeometry(size * 0.13, 16);
+  thrusterGeo.rotateY(Math.PI);
+  const rightExhaust = new Mesh(thrusterGeo, thrusterMat);
+  rightExhaust.position.set(size * 0.7, 0, -size * 1.4);
+  shuttleMesh.add(rightExhaust);
+  const leftExhaust = new Mesh(thrusterGeo, thrusterMat);
+  leftExhaust.position.set(-size * 0.7, 0, -size * 1.4);
+  shuttleMesh.add(leftExhaust);
+  const dishGeo = new SphereGeometry(size * 0.24, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.4);
+  const dishMat = new MeshStandardMaterial({ color: 3718648, metalness: 0.9, roughness: 0.1, side: DoubleSide });
+  const sensorDish = new Mesh(dishGeo, dishMat);
+  sensorDish.position.set(0, size * 0.45, -size * 0.2);
+  sensorDish.rotation.x = -Math.PI * 0.35;
+  shuttleMesh.add(sensorDish);
+  const coreLight = new PointLight(3718648, 1.8, 35, 1.2);
+  coreLight.position.set(0, 0, -size * 0.9);
+  group.add(coreLight);
+  const towClampMesh = new Group;
+  group.add(towClampMesh);
+  const clampMat = new MeshStandardMaterial({
+    color: 16096779,
+    metalness: 0.8,
+    roughness: 0.4,
+    emissive: 7877903,
+    emissiveIntensity: 0.4
+  });
+  const clampRingGeo = new TorusGeometry(size * 0.85, size * 0.08, 8, 24);
+  clampRingGeo.rotateY(Math.PI / 2);
+  const clampRing = new Mesh(clampRingGeo, clampMat);
+  clampRing.position.set(0, 0, -size * 1.1);
+  towClampMesh.add(clampRing);
+  const barGeo = new BoxGeometry(size * 1.8, size * 0.12, size * 0.12);
+  const bar1 = new Mesh(barGeo, clampMat);
+  bar1.position.set(0, 0, -size * 1.1);
+  towClampMesh.add(bar1);
+  const holoCanvas = document.createElement("canvas");
+  holoCanvas.width = 256;
+  holoCanvas.height = 128;
+  const ctx = holoCanvas.getContext("2d");
+  if (ctx) {
+    ctx.fillStyle = "rgba(239, 68, 68, 0.85)";
+    ctx.fillRect(0, 0, 256, 128);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 24px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("PARKVERSTOSS", 128, 42);
+    ctx.font = "bold 18px monospace";
+    ctx.fillStyle = "#fef08a";
+    ctx.fillText("§42a HALTEVERBOT", 128, 76);
+    ctx.font = "14px monospace";
+    ctx.fillText("STATUS: WIRD ABGESCHLEPPT", 128, 104);
+  }
+  const holoTex = new CanvasTexture(holoCanvas);
+  const holoMat = new MeshBasicMaterial({
+    map: holoTex,
+    transparent: true,
+    opacity: 0.9,
+    side: DoubleSide
+  });
+  const holoGeo = new PlaneGeometry(size * 1.4, size * 0.7);
+  const citationHoloMesh = new Mesh(holoGeo, holoMat);
+  citationHoloMesh.position.set(0, size * 0.9, -size * 1.1);
+  towClampMesh.add(citationHoloMesh);
+  const shieldGeo = new SphereGeometry(size * 1.6, 24, 18);
+  const shieldMat = new MeshStandardMaterial({
+    color: 3718648,
+    emissive: 165063,
+    emissiveIntensity: 0.45,
+    transparent: true,
+    opacity: 0.22,
+    roughness: 0.1,
+    metalness: 0.9,
+    side: DoubleSide
+  });
+  const shieldBubble = new Mesh(shieldGeo, shieldMat);
+  shieldBubble.visible = false;
+  group.add(shieldBubble);
+  let isLiberated = false;
+  const setLiberated = (liberated) => {
+    isLiberated = liberated;
+    towClampMesh.visible = !liberated;
+    shieldBubble.visible = liberated;
+    if (liberated) {
+      coreLight.color.setHex(1096065);
+      coreLight.intensity = 2.4;
+      shuttleMesh.rotation.z = 0;
+    }
+  };
+  let totalTime = 0;
+  const update = (dt) => {
+    totalTime += dt;
+    if (!isLiberated) {
+      shuttleMesh.rotation.z = Math.sin(totalTime * 4.5) * 0.04;
+      citationHoloMesh.position.y = size * 0.9 + Math.sin(totalTime * 3) * 0.05;
+      citationHoloMesh.rotation.y = Math.sin(totalTime * 1.5) * 0.15;
+    } else {
+      shieldBubble.rotation.y += dt * 0.2;
+      shieldBubble.rotation.z += dt * 0.15;
+      shuttleMesh.rotation.y += dt * 0.25;
+    }
+  };
+  return {
+    group,
+    shuttleMesh,
+    towClampMesh,
+    citationHoloMesh,
+    coreLight,
+    isLiberated,
+    setLiberated,
+    update
+  };
+}
+function createTowingDroneMesh(size = 1.6) {
+  const group = new Group;
+  group.isTowingDroneGroup = true;
+  const droneBody = new Group;
+  group.add(droneBody);
+  const bodyGeo = new DodecahedronGeometry(size * 0.55, 1);
+  const bodyMat = new MeshStandardMaterial({
+    color: 3359061,
+    metalness: 0.9,
+    roughness: 0.25,
+    emissive: 988970
+  });
+  const bodyMesh = new Mesh(bodyGeo, bodyMat);
+  droneBody.add(bodyMesh);
+  const ringGeo = new TorusGeometry(size * 0.65, size * 0.06, 8, 24);
+  const ringMat = new MeshStandardMaterial({
+    color: 16096779,
+    metalness: 0.5,
+    roughness: 0.5
+  });
+  const ringMesh = new Mesh(ringGeo, ringMat);
+  ringMesh.rotation.x = Math.PI / 2;
+  droneBody.add(ringMesh);
+  const eyeGeo = new SphereGeometry(size * 0.22, 16, 16);
+  const eyeMat = new MeshStandardMaterial({
+    color: 15680580,
+    emissive: 12131356,
+    emissiveIntensity: 0.85,
+    metalness: 0.95,
+    roughness: 0.1
+  });
+  const scannerEye = new Mesh(eyeGeo, eyeMat);
+  scannerEye.position.set(0, 0, size * 0.5);
+  droneBody.add(scannerEye);
+  const strobeMat = new MeshBasicMaterial({ color: 16498468 });
+  const strobeGeo = new CylinderGeometry(size * 0.1, size * 0.12, size * 0.2, 8);
+  const strobeBeacon = new Mesh(strobeGeo, strobeMat);
+  strobeBeacon.position.set(0, size * 0.65, 0);
+  droneBody.add(strobeBeacon);
+  const strobeLight = new PointLight(16096779, 2.2, 35, 1.5);
+  strobeLight.position.set(0, size * 0.75, 0);
+  group.add(strobeLight);
+  const hornGeo = new ConeGeometry(size * 0.12, size * 0.4, 8);
+  hornGeo.rotateX(Math.PI / 2);
+  const leftHorn = new Mesh(hornGeo, bodyMat);
+  leftHorn.position.set(-size * 0.35, -size * 0.2, size * 0.4);
+  droneBody.add(leftHorn);
+  const rightHorn = new Mesh(hornGeo, bodyMat);
+  rightHorn.position.set(size * 0.35, -size * 0.2, size * 0.4);
+  droneBody.add(rightHorn);
+  const citationTag = new Group;
+  citationTag.position.set(0, size * 1.1, 0);
+  droneBody.add(citationTag);
+  const beamGeo = new CylinderGeometry(size * 0.08, size * 0.32, 1, 12, 1, true);
+  beamGeo.rotateX(Math.PI / 2);
+  const beamMat = new MeshBasicMaterial({
+    color: 16096779,
+    transparent: true,
+    opacity: 0.65,
+    side: DoubleSide
+  });
+  const tractorBeam = new Mesh(beamGeo, beamMat);
+  tractorBeam.position.set(0, 0, 0);
+  group.add(tractorBeam);
+  let isOverloaded = false;
+  let totalTime = 0;
+  const triggerOverload = () => {
+    isOverloaded = true;
+    tractorBeam.visible = false;
+    strobeLight.color.setHex(6583435);
+    strobeLight.intensity = 0.3;
+    scannerEye.material = new MeshStandardMaterial({ color: 1579035, roughness: 0.9 });
+  };
+  const update = (dt, targetPos) => {
+    totalTime += dt;
+    if (!isOverloaded) {
+      droneBody.position.y = Math.sin(totalTime * 2.8) * 0.25;
+      droneBody.rotation.y += dt * 0.8;
+      const strobePhase = Math.sin(totalTime * 8);
+      strobeLight.intensity = strobePhase > 0 ? 3 : 0.4;
+      if (targetPos) {
+        const myPos = group.position;
+        const dir = targetPos.clone().sub(myPos);
+        const len = dir.length();
+        if (len > 0.01) {
+          tractorBeam.position.copy(dir.clone().multiplyScalar(0.5));
+          tractorBeam.scale.set(1, 1, len);
+          tractorBeam.lookAt(dir);
+          beamMat.opacity = 0.45 + Math.sin(totalTime * 12) * 0.25;
+        }
+      }
+    } else {
+      droneBody.rotation.x += dt * 2.5;
+      droneBody.rotation.z += dt * 1.8;
+      group.position.y += dt * 0.5;
+    }
+  };
+  return {
+    group,
+    droneBody,
+    scannerEye,
+    strobeLight,
+    tractorBeam,
+    citationTag,
+    isOverloaded,
+    triggerOverload,
+    update
+  };
+}
+
 // src/procedural/quantum-civ.ts
 function cMul(a, b) {
   return {
@@ -37824,153 +39292,6 @@ function generateProceduralCandidates(seedHash, count = 2, bannedNames) {
   return candidates;
 }
 
-// src/ui/directives.ts
-var FTUE_DIRECTIVES = [
-  {
-    id: 0,
-    badge: "PHASE 1",
-    title: "Lebensfunke",
-    instruction: "Bewege die Najmafar mit [W/A/S/D] oder [Maus-Lenkung]",
-    hint: "Aktiviere den Bio-Schub und richte deine Sinnesorgane aus."
-  },
-  {
-    id: 1,
-    badge: "PHASE 2",
-    title: "System-Erkundung",
-    instruction: "Erkunde das Sternensystem: Fliege zu einem Planeten & scanne ihn mit [F]",
-    hint: "Halte Orbit-Abstand (< 25 AE) zu einem Himmelskörper und prüfe ihn auf Biosignaturen."
-  },
-  {
-    id: 2,
-    badge: "PHASE 3",
-    title: "Archaisches Signal",
-    instruction: "Folge dem goldenen Radar-Signal & Scanne das unbekannte Signal mit [F] oder [Klick]",
-    hint: "Eine künstliche metallische Anomalie treibt am Systemrand. Halte Abstand < 22 AE."
-  },
-  {
-    id: 3,
-    badge: "PHASE 4",
-    title: "Funke der Hoffnung",
-    instruction: "Öffne die Golden Record im Dialog & höre die Botschaft der Erde",
-    hint: "Die Klänge der Menschheit vertreiben die Depression (+50% Mentalkraft)."
-  },
-  {
-    id: 4,
-    badge: "PHASE 5",
-    title: "Aufbruch ins Leben",
-    instruction: "Öffne die Sternenkarte [M] – Kurs auf System mit Biosphäre",
-    hint: "Im Startsystem gibt es kein Leben. Finde eine bewohnbare Welt im Nachbarsystem!"
-  },
-  {
-    id: 5,
-    badge: "PHASE 6",
-    title: "Der erste Wirt",
-    instruction: "Scanne eine bewohnte Welt & führe eine Entführung [F] durch",
-    hint: "Übernehme ein intelligentes Wesen in deine Kokon-Matrix gegen die Einsamkeit."
-  }
-];
-var isCollapsed = false;
-function initDirectivesHUD() {
-  const toggleBtn = document.getElementById("toggle-directives-btn");
-  const container = document.getElementById("hud-directives");
-  if (toggleBtn && container) {
-    toggleBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      isCollapsed = !isCollapsed;
-      container.classList.toggle("collapsed", isCollapsed);
-      toggleBtn.innerText = isCollapsed ? "\uD83D\uDCCB" : "➖";
-    });
-  }
-  renderDirectives();
-}
-function renderDirectives() {
-  const container = document.getElementById("directives-list");
-  if (!container)
-    return;
-  const currentStep = STATE.ftueStep || 0;
-  let html = "";
-  FTUE_DIRECTIVES.forEach((d) => {
-    const isDone = d.id < currentStep;
-    const isActive = d.id === currentStep;
-    const isLocked = d.id > currentStep;
-    const statusClass = isDone ? "done" : isActive ? "active" : "locked";
-    const checkmark = isDone ? "✔" : isActive ? "◉" : "○";
-    html += `
-            <div class="directive-card ${statusClass}" data-step="${d.id}">
-                <div class="directive-status-icon">${checkmark}</div>
-                <div class="directive-body">
-                    <div class="directive-header">
-                        <span class="directive-badge">${d.badge}</span>
-                        <span class="directive-title">${d.title}</span>
-                    </div>
-                    <div class="directive-instruction">${d.instruction}</div>
-                    ${isActive ? `<div class="directive-hint">${d.hint}</div>` : ""}
-                </div>
-            </div>
-        `;
-  });
-  container.innerHTML = html;
-}
-function advanceFtueStep(targetStep) {
-  const current = STATE.ftueStep || 0;
-  if (targetStep > current) {
-    STATE.ftueStep = targetStep;
-    const completedDirective = FTUE_DIRECTIVES[current];
-    if (completedDirective) {
-      addLogEntry("SYSTEM", `Direktive erfüllt: [${completedDirective.title}] ✔`);
-    }
-    if (targetStep >= FTUE_DIRECTIVES.length) {
-      STATE.ftueCompleted = true;
-      addLogEntry("SYSTEM", "Alle Einführungs-Direktiven abgeschlossen. Das Schicksal der Galaxie liegt in deinen Händen.");
-    }
-    renderDirectives();
-  }
-}
-function triggerVoyagerSignalDetection() {
-  if (STATE.voyagerSignalDetected)
-    return;
-  STATE.voyagerSignalDetected = true;
-  try {
-    playVoyagerBeaconPing();
-  } catch (e) {}
-  addLogEntry("NAJMAFAR", "„Dieses System ist erstarrt... Niemand ist hier. Nur die Kälte der Leere.“");
-  addLogEntry("SENSOR", "ANOMALIE DETEKTIERT: Schwache elektromagnetische Trägerwelle (1420 MHz) empfangen!");
-  addLogEntry("SYSTEM", "Archaische Signalquelle am Systemrand geortet. UNBEKANNTES SIGNAL auf Radar und Nav-Tracker aufgeschaltet!");
-  advanceFtueStep(2);
-}
-function updateVoyagerHUDTracker() {
-  const trackerEl = document.getElementById("voyager-nav-tracker");
-  if (!trackerEl)
-    return;
-  if (!STATE.voyagerProbe || !STATE.voyagerSignalDetected || STATE.voyagerScanned) {
-    trackerEl.style.display = "none";
-    return;
-  }
-  const titleEl = trackerEl.querySelector(".voyager-tracker-title");
-  if (titleEl) {
-    titleEl.innerText = STATE.voyagerScanned ? "VOYAGER 2 SIGNAL" : "UNBEKANNTES SIGNAL";
-  }
-  const playerPos = STATE.playerPosition;
-  const probePos = STATE.voyagerProbe.position;
-  if (!playerPos || !probePos)
-    return;
-  const dx = probePos.x - playerPos.x;
-  const dz = probePos.z - playerPos.z;
-  const dist = Math.hypot(dx, dz);
-  trackerEl.style.display = "flex";
-  const distEl = document.getElementById("voyager-nav-dist");
-  const angleEl = document.getElementById("voyager-nav-arrow");
-  if (distEl) {
-    distEl.innerText = `${dist.toFixed(1)} AE`;
-  }
-  if (angleEl) {
-    const targetAngle = Math.atan2(dz, dx);
-    const heading = STATE.shipHeading || 0;
-    const relativeAngleDeg = (targetAngle - heading) * 180 / Math.PI;
-    angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
-  }
-}
-
 // src/ui/first-contact-modal.ts
 var isModalOpen = false;
 function openFirstContactModal(candidate) {
@@ -38181,7 +39502,7 @@ function completeAbduction() {
         addLogEntry("SYSTEM", `PSIONISCHE ASSIMILATION ERFOLGREICH: ${candidate.name} (${candidate.roleName || candidate.role}) in Kokon-Kammer transferiert.`);
         addLogEntry("CREW", `Traum-Matrix initialisiert: ${candidate.name} lindert deine Einsamkeit! (${Math.round(STATE.loneliness)}% Einsamkeit)`);
         collapseSystemQuantumBranch(STATE.currentSystemId, "abduct", planet.name);
-        advanceFtueStep(6);
+        advanceFtueStep(7);
         renderCrewUI();
         updatePartyGrid();
         updateHUDStats();
@@ -39036,6 +40357,27 @@ function completeScanning() {
   const target = STATE.scanningPlanet;
   try {
     if (target) {
+      const isJamal = target.isJamalShip || target.type === "jamal_shuttle" || target.isTowingDrone || target.type === "towing_drone";
+      if (isJamal) {
+        target.scanned = true;
+        if (!STATE.jamalShipLiberated) {
+          if (target.isRealShipAtDepot || target.name?.includes("Pier 4")) {
+            addLogEntry("SENSOR", "\uD83D\uDEF0️ SPEKTRAL-SCAN: Die echte ISS Ibn Battuta an Pier 4 lokalisiert! Verankerungsbolzen aktiv.");
+            openNpcDialogue("insan_station_bypass_plan");
+          } else if (STATE.jamalDecoyRevealed) {
+            addLogEntry("SENSOR", "⚠️ SPEKTRAL-SCAN: Holografisches Köder-Signal der Insan-Falle erfasst.");
+            openNpcDialogue("hologram_trap_revealed");
+          } else {
+            STATE.jamalMissionDiscovered = true;
+            addLogEntry("SENSOR", "⚠️ SPEKTRAL-SCAN: Blockade detektiert! Eine orbitale Parkkralle der Insan-Organisation versiegelt die Triebwerke!");
+            triggerJamalShipScannedDialogue();
+          }
+        } else {
+          addLogEntry("JAMAL", "„Die ISS Ibn Battuta ist sicher geborgen. Alle Sensoren sind online!“");
+          openNpcDialogue("real_ship_liberated");
+        }
+        return;
+      }
       const isShip = target.type === "interceptor" || target.type === "corvette" || target.type === "freighter" || target.type === "heavy_freighter";
       const isStation = target.type === "citadel" || target.type === "trade_hub" || target.type === "mining_relay";
       target.scanned = true;
@@ -39072,11 +40414,6 @@ function completeScanning() {
           addLogEntry("SYSTEM", `PSIO-DETEKTION: Intelligentes Leben (${target.attributes.species.name}) auf ${target.name} entdeckt! Psionischer Transfer [F] bereit.`);
         } else {
           addLogEntry("SENSOR", `Atmosphärendaten: ${target.attributes?.atmos || "Vakuum"} | Bio: ${target.attributes?.bio || "Steril"}. Keine Lebensformen detektiert.`);
-        }
-        if ((STATE.ftueStep || 0) <= 1 && !STATE.voyagerSignalDetected) {
-          triggerVoyagerSignalDetection();
-        } else if ((STATE.ftueStep || 0) === 1) {
-          advanceFtueStep(2);
         }
         updateScannerUI(target, 10);
       }
@@ -41835,6 +43172,63 @@ function getLoreSolarisSystem() {
     })
   };
 }
+function getLoreInsanDepotSystem() {
+  return {
+    id: 77,
+    name: "INSAN-Verwahrstelle Zeta-9",
+    x: 170,
+    z: 30,
+    sectorId: "sector_insan_depot",
+    sectorName: "INSAN-Pfand- & Schrottwerft (Verwahrstelle)",
+    anomalyType: "subspace_interference",
+    isCoreAnchor: false,
+    isInsanDepot: true,
+    star: {
+      name: "Zeta-9 Pulsar",
+      type: "Neutron Star",
+      color: "0x38bdf8",
+      size: 4.5,
+      mass: 550
+    },
+    planets: [
+      {
+        name: "Zeta-9 Zentral-Depot (Pier 4)",
+        type: "Schrott- & Pfandwerft",
+        size: 4.2,
+        distance: 38,
+        color: "0x64748b",
+        temp: "-80°C",
+        atmos: "Toxische Schrott-Gase & Subraum-Störfelder",
+        bio: "Keine (Autonome Roboter-Bürokratie)",
+        res: "Melange-Spice, Silizium & Antike Raumfahrt-Archive",
+        species: {
+          hasSentient: true,
+          name: "INSAN-Verwaltungskollektiv",
+          population: 500000,
+          techLevel: "Automated Bureaucracy",
+          defenseRating: 80,
+          fleetDisposition: "Defensive"
+        },
+        moons: [],
+        tidalLock: true,
+        magnetosphere: "Hyper-Magnetic",
+        geothermal: "Dormant",
+        radiationLevel: "High",
+        entangledTwinId: null,
+        quantumResonance: 0.1
+      }
+    ],
+    asteroids: Array.from({ length: 16 }, (_, i) => {
+      const dist = 22 + i * 3.8;
+      const angle = i * (Math.PI / 8);
+      return {
+        x: +(dist * Math.cos(angle)).toFixed(2),
+        z: +(dist * Math.sin(angle)).toFixed(2),
+        type: i % 2 === 0 ? "silicon" : "energy"
+      };
+    })
+  };
+}
 function ensureLoreSystems(systems) {
   if (!systems || systems.length === 0)
     return;
@@ -41850,6 +43244,10 @@ function ensureLoreSystems(systems) {
   if (!hasSolaris) {
     systems.splice(4, 0, getLoreSolarisSystem());
   }
+  const hasInsan = systems.some((s) => s.name && s.name.includes("INSAN-Verwahrstelle"));
+  if (!hasInsan) {
+    systems.push(getLoreInsanDepotSystem());
+  }
 }
 
 // src/systems/universe.ts
@@ -41862,6 +43260,12 @@ function updateUniverseShaders(dt, cam) {
   activeJumpGates.forEach((jg) => jg.update(dt));
   if (STATE.voyagerProbe && STATE.voyagerProbe.update) {
     STATE.voyagerProbe.update(dt);
+  }
+  if (STATE.jamalShip && STATE.jamalShip.update) {
+    STATE.jamalShip.update(dt);
+  }
+  if (STATE.towingDrone && STATE.towingDrone.update) {
+    STATE.towingDrone.update(dt);
   }
   if (activeSunRays && cam) {
     activeSunRays.update(dt, cam);
@@ -42002,6 +43406,16 @@ function clearActiveSystem() {
     scene.remove(STATE.voyagerProbe.mesh);
     disposeObject3D(STATE.voyagerProbe.mesh);
     STATE.voyagerProbe = null;
+  }
+  if (STATE.jamalShip && STATE.jamalShip.mesh) {
+    scene.remove(STATE.jamalShip.mesh);
+    disposeObject3D(STATE.jamalShip.mesh);
+    STATE.jamalShip = null;
+  }
+  if (STATE.towingDrone && STATE.towingDrone.mesh) {
+    scene.remove(STATE.towingDrone.mesh);
+    disposeObject3D(STATE.towingDrone.mesh);
+    STATE.towingDrone = null;
   }
   const badge = document.getElementById("target-lock-badge");
   const label = document.getElementById("target-label-text");
@@ -42335,7 +43749,7 @@ function spawnPlanetsAndAsteroids() {
     };
     STATE.gravitySources.push(sourceObj);
     const orbitSpeed = 0.055 / Math.sqrt(scaledDist);
-    const pColorCss = p.color.replace("0x", "#");
+    const pColorCss = p.color ? String(p.color).replace("0x", "#") : "#38bdf8";
     const planetEntry = {
       mesh: planetGroup,
       bodyMesh,
@@ -42518,10 +43932,96 @@ function spawnPlanetsAndAsteroids() {
   updateHudChronicleBadge();
   spawnSystemSpaceStations(activePlanets);
   initPlanetDefenseFleets();
+  const isInsanDepot = Boolean(activeSystem.isInsanDepot || activeSystem.name && activeSystem.name.includes("INSAN"));
   if (STATE.currentSystemId === 1 || STATE.currentSystemId === 0) {
+    spawnJamalMissionEntities(activePlanets[0], false);
+  } else if (isInsanDepot) {
     spawnVoyagerProbe();
+    spawnJamalMissionEntities(activePlanets[0], true);
+    if (QuestManager.isQuestActive("prologue_jamal_ship")) {
+      QuestManager.advanceQuest("prologue_jamal_ship", 3);
+      advanceFtueStep(4);
+      openNpcDialogue("insan_depot_arrival");
+    }
   }
   addLogEntry("NAV", `Sensoren initialisiert: ${activeSystem.name} [${activeSystem.sectorName || "Sektor"}].`);
+}
+function spawnJamalMissionEntities(targetPlanet, isRealShipAtDepot = false) {
+  if (STATE.jamalShip && STATE.jamalShip.mesh) {
+    scene.remove(STATE.jamalShip.mesh);
+    disposeObject3D(STATE.jamalShip.mesh);
+    STATE.jamalShip = null;
+  }
+  if (STATE.towingDrone && STATE.towingDrone.mesh) {
+    scene.remove(STATE.towingDrone.mesh);
+    disposeObject3D(STATE.towingDrone.mesh);
+    STATE.towingDrone = null;
+  }
+  const planetPos = targetPlanet && targetPlanet.group ? targetPlanet.group.position : targetPlanet && targetPlanet.position ? targetPlanet.position : new Vector3(180, 0, 100);
+  const shuttleController = createJamalResearchShuttleMesh(2.6);
+  const shuttlePos = new Vector3(planetPos.x + 13.5, 0, planetPos.z + 13.5);
+  shuttleController.group.position.copy(shuttlePos);
+  shuttleController.group.lookAt(planetPos);
+  scene.add(shuttleController.group);
+  let shipName = "Dr. Jamals Forschungsschiff [FALSPARKER-STATUS]";
+  if (isRealShipAtDepot) {
+    shipName = STATE.jamalShipLiberated ? "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]" : "Echte 'ISS Ibn Battuta' [PIER 4 - BESCHLAGNAHMT]";
+  } else if (STATE.jamalShipLiberated) {
+    shipName = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
+  } else if (STATE.jamalDecoyRevealed) {
+    shipName = "Köder-Attrappe [HOLOGRAFIE-ATTROPPE ENTLARVT]";
+  }
+  const shuttleObj = {
+    mesh: shuttleController.group,
+    update: shuttleController.update,
+    setLiberated: shuttleController.setLiberated,
+    type: "jamal_shuttle",
+    name: shipName,
+    mass: 0.8,
+    radius: 2.6,
+    gravityRange: 14,
+    position: shuttleController.group.position,
+    isJamalShip: true,
+    isRealShipAtDepot,
+    isDecoy: !isRealShipAtDepot,
+    scanned: STATE.jamalShipLiberated
+  };
+  STATE.jamalShip = shuttleObj;
+  STATE.gravitySources.push(shuttleObj);
+  const droneController = createTowingDroneMesh(1.8);
+  const dronePos = new Vector3(shuttlePos.x + 3.2, 1.2, shuttlePos.z + 3.5);
+  droneController.group.position.copy(dronePos);
+  droneController.group.lookAt(shuttlePos);
+  scene.add(droneController.group);
+  let droneName = "KI-Abschleppdrohne TX-9 (Parkraumüberwachung)";
+  let droneStatus = "patrol";
+  let isDroneHostile = false;
+  if (isRealShipAtDepot) {
+    droneName = STATE.jamalShipLiberated ? "INSAN-Pfandstation TX-9 [PIER 4 - FREIGEGEBEN]" : "INSAN-Pfandstation TX-9 (Pier 4 - Gesperrt)";
+  } else if (STATE.jamalShipLiberated) {
+    droneName = "KI-Abschleppdrohne TX-9 [SYSTEMFEHLER / DEAKTIVIERT]";
+  } else if (STATE.jamalDecoyRevealed) {
+    droneName = "KI-Abschleppdrohne TX-9 [AGGRESSIV • VOLLSTRECKUNG]";
+    droneStatus = "hostile";
+    isDroneHostile = true;
+  }
+  const droneObj = {
+    mesh: droneController.group,
+    update: (dt) => droneController.update(dt, shuttleController.group.position),
+    triggerOverload: droneController.triggerOverload,
+    type: "towing_drone",
+    name: droneName,
+    mass: 0.5,
+    radius: 1.8,
+    gravityRange: 8,
+    position: droneController.group.position,
+    isTowingDrone: true,
+    status: droneStatus,
+    isHostile: isDroneHostile,
+    scanned: STATE.jamalShipLiberated
+  };
+  STATE.towingDrone = droneObj;
+  STATE.gravitySources.push(droneObj);
 }
 function spawnVoyagerProbe() {
   if (STATE.voyagerProbe && STATE.voyagerProbe.mesh) {
@@ -42532,11 +44032,15 @@ function spawnVoyagerProbe() {
   const voyagerController = createVoyagerProbeMesh(2.2);
   voyagerController.group.position.set(-110, 0, 135);
   scene.add(voyagerController.group);
+  let probeName = STATE.voyagerScanned ? "Voyager 2 (Archaische Raumsonde)" : "Unbekanntes Signal (Archaische Sonde)";
+  if (STATE.voyagerLiberated) {
+    probeName = "Voyager 2 (Archaische Raumsonde) [BEFREIT]";
+  }
   const probeObj = {
     mesh: voyagerController.group,
     update: voyagerController.update,
     type: "voyager_probe",
-    name: STATE.voyagerScanned ? "Voyager 2 (Archaische Raumsonde)" : "Unbekanntes Signal (Archaische Sonde)",
+    name: probeName,
     mass: 0.5,
     radius: 2.2,
     gravityRange: 10,
@@ -42645,6 +44149,9 @@ function initiateSystemArrival(fromSys, targetSys, resolution) {
   triggerSystemArrivalBanner(targetSys, dominantFactionName, resolution);
   handleSystemArrivalStealthCheck();
   triggerAutoSave(`Ankunft in ${targetSys.name}`);
+  if ((STATE.ftueStep || 0) === 5) {
+    advanceFtueStep(6);
+  }
 }
 
 // src/systems/save-manager.ts
@@ -42750,6 +44257,15 @@ function serializeCurrentState(slotId, customName) {
       step: STATE.ftueStep || 0,
       completed: Boolean(STATE.ftueCompleted)
     },
+    prologue: {
+      completed: Boolean(STATE.prologueCompleted)
+    },
+    jamalMission: {
+      active: Boolean(STATE.jamalMissionActive),
+      completed: Boolean(STATE.jamalMissionCompleted),
+      liberated: Boolean(STATE.jamalShipLiberated)
+    },
+    activeQuests: STATE.activeQuests ? { ...STATE.activeQuests } : {},
     reputation: STATE.reputation ? { ...STATE.reputation } : {},
     quantumChronicle: {
       galacticCycle: STATE.galacticCycle || 1,
@@ -42848,6 +44364,17 @@ async function applyLoadedState(data) {
   if (data.ftue) {
     STATE.ftueStep = data.ftue.step;
     STATE.ftueCompleted = data.ftue.completed;
+  }
+  if (data.prologue) {
+    STATE.prologueCompleted = Boolean(data.prologue.completed);
+  }
+  if (data.jamalMission) {
+    STATE.jamalMissionActive = Boolean(data.jamalMission.active);
+    STATE.jamalMissionCompleted = Boolean(data.jamalMission.completed);
+    STATE.jamalShipLiberated = Boolean(data.jamalMission.liberated);
+  }
+  if (data.activeQuests) {
+    STATE.activeQuests = { ...data.activeQuests };
   }
   if (data.reputation) {
     STATE.reputation = { ...data.reputation };
@@ -43694,6 +45221,22 @@ function updateMinimap() {
           minimapCtx.arc(sx, sy, planetEntry && planetEntry.isMoon ? 2 : 3.5, 0, Math.PI * 2);
           minimapCtx.fill();
         }
+      } else if ((source.type === "jamal_shuttle" || source.isJamalShip) && STATE.jamalMissionActive) {
+        const isLiberated = !!STATE.jamalShipLiberated;
+        minimapCtx.fillStyle = isLiberated ? "#34d399" : "#c084fc";
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, 4, 0, Math.PI * 2);
+        minimapCtx.fill();
+        const wavePulse = 5 + Math.sin(Date.now() * 0.006) * 3;
+        minimapCtx.strokeStyle = isLiberated ? "rgba(52, 211, 153, 0.75)" : "rgba(192, 132, 252, 0.75)";
+        minimapCtx.lineWidth = 1.2;
+        minimapCtx.beginPath();
+        minimapCtx.arc(sx, sy, wavePulse, 0, Math.PI * 2);
+        minimapCtx.stroke();
+        minimapCtx.fillStyle = isLiberated ? "#34d399" : "#c084fc";
+        minimapCtx.font = "8px Orbitron, sans-serif";
+        const label = isLiberated ? "\uD83D\uDE80 JAMAL (GEBORGEN)" : "\uD83D\uDE80 JAMALS SCHIFF";
+        minimapCtx.fillText(label, sx + 7, sy + 3);
       } else if ((source.type === "voyager_probe" || source.isVoyager) && STATE.voyagerSignalDetected) {
         minimapCtx.fillStyle = "#fbbf24";
         minimapCtx.beginPath();
@@ -45516,15 +47059,15 @@ function toggleOptionsModal() {
 }
 
 // src/ui/voyager-dialog.ts
-var isDialogOpen = false;
+var isDialogOpen2 = false;
 function isVoyagerDialogOpen() {
-  return isDialogOpen;
+  return isDialogOpen2;
 }
 function openVoyagerDialog() {
   const modal = document.getElementById("voyager-dialog-modal");
   if (!modal)
     return;
-  isDialogOpen = true;
+  isDialogOpen2 = true;
   modal.style.display = "flex";
   try {
     playGoldenRecordAudio();
@@ -45545,7 +47088,7 @@ function closeVoyagerDialog() {
   const modal = document.getElementById("voyager-dialog-modal");
   if (!modal)
     return;
-  isDialogOpen = false;
+  isDialogOpen2 = false;
   modal.style.display = "none";
   advanceFtueStep(4);
 }
@@ -45589,7 +47132,7 @@ function initVoyagerDialogListeners() {
     });
   }
   window.addEventListener("keydown", (e) => {
-    if (!isDialogOpen)
+    if (!isDialogOpen2)
       return;
     if (e.key === "Escape" || e.key === " " || e.code === "Space" || e.key === "Enter") {
       e.preventDefault();
@@ -46087,6 +47630,10 @@ function setupControls() {
         closeVoyagerDialog();
         return;
       }
+      if (isJamalDialogOpen()) {
+        closeJamalDialog();
+        return;
+      }
       if (isMapOpen()) {
         toggleGalaxyMap();
         return;
@@ -46101,7 +47648,31 @@ function setupControls() {
         window.api.closeApp();
       }
     }
+    if (key === "j") {
+      if (isJamalDialogOpen()) {
+        closeJamalDialog();
+      } else {
+        openNpcDialogue("jamal_orbit_intro");
+      }
+      return;
+    }
     if (key === "f") {
+      if (STATE.jamalShip && STATE.jamalShip.position) {
+        const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
+        if (jamalDist <= 25) {
+          if (!STATE.jamalShip.scanned) {
+            STATE.scanningPlanet = STATE.jamalShip;
+            triggerScanStart();
+            return;
+          } else if (!STATE.jamalShipLiberated) {
+            triggerJamalShipScannedDialogue();
+            return;
+          } else {
+            openNpcDialogue("jamal_orbit_intro");
+            return;
+          }
+        }
+      }
       if (STATE.voyagerProbe && STATE.voyagerProbe.position) {
         const voyagerDist = STATE.playerPosition.distanceTo(STATE.voyagerProbe.position);
         if (voyagerDist <= 22) {
@@ -46166,6 +47737,13 @@ function setupControls() {
       }
     }
     if (key === "e") {
+      if (STATE.jamalShip && !STATE.jamalShipLiberated && STATE.jamalShip.position) {
+        const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
+        if (jamalDist <= 28) {
+          liberateJamalShip();
+          return;
+        }
+      }
       const salvaged = salvageNearestWreck();
       if (!salvaged) {
         triggerHarvestStart();
@@ -46267,6 +47845,7 @@ function setupControls() {
     });
   });
   setupTargetRaycasting();
+  initJamalDialogListeners();
   window.addEventListener("wheel", (e) => {
     if (e.target && e.target.closest("#main-menu, #how-to-play-modal, #deck-container, #diplomacy-overlay")) {
       return;
@@ -46312,7 +47891,7 @@ function setupTargetRaycasting() {
     const dy = e.clientY - pointerDownPos.y;
     if (Math.sqrt(dx * dx + dy * dy) > 8)
       return;
-    if (e.target && e.target.closest("#hud-container, #galaxy-map-overlay, #main-menu, #how-to-play-modal, #voyager-dialog-modal, #diplomacy-overlay")) {
+    if (e.target && e.target.closest("#hud-container, #galaxy-map-overlay, #main-menu, #how-to-play-modal, #voyager-dialog-modal, #diplomacy-overlay, #npc-dialog-card")) {
       return;
     }
     if (!STATE.gameStarted || !renderer || !camera)
@@ -46327,6 +47906,12 @@ function setupTargetRaycasting() {
     });
     if (STATE.voyagerProbe && STATE.voyagerProbe.mesh) {
       targetMeshes.push(STATE.voyagerProbe.mesh);
+    }
+    if (STATE.jamalShip && STATE.jamalShip.mesh) {
+      targetMeshes.push(STATE.jamalShip.mesh);
+    }
+    if (STATE.towingDrone && STATE.towingDrone.mesh) {
+      targetMeshes.push(STATE.towingDrone.mesh);
     }
     if (STATE.spaceStations) {
       STATE.spaceStations.forEach((s) => {
@@ -46343,6 +47928,32 @@ function setupTargetRaycasting() {
     const intersects2 = raycaster.intersectObjects(targetMeshes, true);
     if (intersects2.length > 0) {
       const hitObject = intersects2[0].object;
+      let hitJamal = false;
+      let checkObj = hitObject;
+      while (checkObj) {
+        if (checkObj === (STATE.jamalShip ? STATE.jamalShip.mesh : null) || checkObj === (STATE.towingDrone ? STATE.towingDrone.mesh : null) || checkObj.isJamalGroup || checkObj.isTowingDroneGroup) {
+          hitJamal = true;
+          break;
+        }
+        checkObj = checkObj.parent;
+      }
+      if (hitJamal && STATE.jamalShip) {
+        setLockedTarget(STATE.jamalShip);
+        const dist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
+        if (dist <= 25) {
+          if (!STATE.jamalShip.scanned) {
+            STATE.scanningPlanet = STATE.jamalShip;
+            triggerScanStart();
+          } else if (!STATE.jamalShipLiberated) {
+            triggerJamalShipScannedDialogue();
+          } else {
+            openNpcDialogue("jamal_orbit_intro");
+          }
+        } else {
+          addLogEntry("JAMAL", `„Da ist mein Schiff! Anvisiert (${dist.toFixed(1)} AE). Fliege heran (< 25 AE) und scanne es mit [F]!“`);
+        }
+        return;
+      }
       let hitVoyager = false;
       let curObj = hitObject;
       while (curObj) {
@@ -47243,9 +48854,13 @@ function updatePhysics(dt) {
   }
   if (STATE.playerGroup) {
     STATE.playerGroup.position.copy(STATE.playerPosition);
-    const targetShipScale = 0.42 - 0.22 * combinedApproach;
-    const curShipScale = MathUtils.lerp(STATE.playerGroup.scale.x, targetShipScale, Math.min(1, dt * 5));
-    STATE.playerGroup.scale.set(curShipScale, curShipScale, curShipScale);
+    if (STATE.prologueActive) {
+      STATE.playerGroup.scale.set(2.4, 2.4, 2.4);
+    } else {
+      const targetShipScale = 0.42 - 0.22 * combinedApproach;
+      const curShipScale = MathUtils.lerp(STATE.playerGroup.scale.x, targetShipScale, Math.min(1, dt * 5));
+      STATE.playerGroup.scale.set(curShipScale, curShipScale, curShipScale);
+    }
   }
   const planetAltitudeOffset = 18 * planetApproachFactor;
   const moonAltitudeOffset = 16 * moonApproachFactor;
@@ -47261,13 +48876,19 @@ function updatePhysics(dt) {
   }
   STATE.targetCameraHeight = targetHeight;
   if (camera) {
-    const camLerpSpeed = STATE.systemArrivalActive ? 2.5 : 4;
-    camera.position.y = MathUtils.lerp(camera.position.y, targetHeight, Math.min(1, dt * camLerpSpeed));
-    STATE.cameraHeight = camera.position.y;
-    camera.position.x = MathUtils.lerp(camera.position.x, STATE.playerPosition.x, Math.min(1, dt * 7.5));
-    camera.position.z = MathUtils.lerp(camera.position.z, STATE.playerPosition.z, Math.min(1, dt * 7.5));
-    camera.rotation.set(-Math.PI / 2, 0, 0);
-    camera.up.set(0, 0, -1);
+    if (STATE.prologueActive && STATE.prologueStage !== "office_dream") {
+      camera.up.set(0, 1, 0);
+      camera.position.set(0, 42, 48);
+      camera.lookAt(0, 4, 0);
+    } else {
+      const camLerpSpeed = STATE.systemArrivalActive ? 2.5 : 4;
+      camera.position.y = MathUtils.lerp(camera.position.y, targetHeight, Math.min(1, dt * camLerpSpeed));
+      STATE.cameraHeight = camera.position.y;
+      camera.position.x = MathUtils.lerp(camera.position.x, STATE.playerPosition.x, Math.min(1, dt * 7.5));
+      camera.position.z = MathUtils.lerp(camera.position.z, STATE.playerPosition.z, Math.min(1, dt * 7.5));
+      camera.rotation.set(-Math.PI / 2, 0, 0);
+      camera.up.set(0, 0, -1);
+    }
     if (camera.fov !== 60) {
       camera.fov = 60;
       camera.updateProjectionMatrix();
@@ -47350,106 +48971,949 @@ function updateCollisions(dt) {
   }
 }
 
-// src/ui/prologue.ts
-var PROLOGUE_STORY = [
-  {
-    text: "Deine Heimatwelt ist weiter als das Licht entfernt...",
-    subtext: "Milliarden Parsec im toten Vakuum.",
-    duration: 3800,
-    heartbeat: true
-  },
-  {
-    text: "Du hast gesehen, wie Sterne sterben können.",
-    subtext: "Ganze Sonnenreiche verglüht zu schwarzer Asche.",
-    duration: 3800,
-    heartbeat: true
-  },
-  {
-    text: "Was bleiben wird, sind Säulen der Leere.",
-    subtext: "Ein Universum im Kältetod. Und du, der letzte Leviathan.",
-    duration: 4000,
-    heartbeat: true
-  },
-  {
-    text: "Erwache, Najmafar.",
-    subtext: "Erkunde dieses Sternensystem. Durchbrich das ewige Schweigen.",
-    duration: 3800,
-    heartbeat: true
+// src/procedural/menagerie-scene.ts
+var menagerieGroup = null;
+var containmentRings = [];
+var observationPods = [];
+var harvesterBeams = [];
+var isMenageriePresent = false;
+function initMenagerieScene(targetScene = scene) {
+  cleanupMenagerieScene(targetScene);
+  menagerieGroup = new Group;
+  menagerieGroup.name = "menagerie_ceres_9";
+  containmentRings = [];
+  observationPods = [];
+  harvesterBeams = [];
+  const ringRadii = [18, 24, 30, 36];
+  ringRadii.forEach((r, idx) => {
+    const ringGeo = new TorusGeometry(r, 0.65, 16, 80);
+    const ringMat = new MeshBasicMaterial({
+      color: idx % 2 === 0 ? 440020 : 14239471,
+      transparent: true,
+      opacity: 0.85,
+      wireframe: idx % 2 === 1
+    });
+    const ring = new Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI / 2 + idx * 0.15;
+    ring.rotation.y = idx * 0.3;
+    menagerieGroup.add(ring);
+    containmentRings.push(ring);
+  });
+  const cylGeo = new CylinderGeometry(28, 28, 30, 24, 6, true);
+  const cylMat = new MeshBasicMaterial({
+    color: 3718648,
+    transparent: true,
+    opacity: 0.22,
+    wireframe: true,
+    side: DoubleSide
+  });
+  const cyl = new Mesh(cylGeo, cylMat);
+  cyl.name = "containment_grid";
+  menagerieGroup.add(cyl);
+  const podCount = 8;
+  for (let i = 0;i < podCount; i++) {
+    const angle = i / podCount * Math.PI * 2;
+    const dist = 38 + Math.sin(i * 1.5) * 3;
+    const height = (i % 2 === 0 ? 8 : -8) + Math.cos(i) * 2;
+    const podGroup = new Group;
+    podGroup.position.set(Math.cos(angle) * dist, height, Math.sin(angle) * dist);
+    podGroup.lookAt(0, 0, 0);
+    const hullGeo = new BoxGeometry(4.5, 2, 3);
+    const hullMat = new MeshStandardMaterial({
+      color: 1976635,
+      roughness: 0.4,
+      metalness: 0.8
+    });
+    const hull = new Mesh(hullGeo, hullMat);
+    podGroup.add(hull);
+    const winGeo = new PlaneGeometry(4, 1.4);
+    const winMat = new MeshBasicMaterial({
+      color: 16436245,
+      transparent: true,
+      opacity: 0.85,
+      side: DoubleSide
+    });
+    const win = new Mesh(winGeo, winMat);
+    win.position.set(0, 0, -1.55);
+    podGroup.add(win);
+    const lightGeo = new SphereGeometry(0.3, 8, 8);
+    const lightMat = new MeshBasicMaterial({ color: i % 2 === 0 ? 15680580 : 3718648 });
+    const beacon = new Mesh(lightGeo, lightMat);
+    beacon.position.set(2, 1.1, 0);
+    podGroup.add(beacon);
+    menagerieGroup.add(podGroup);
+    observationPods.push(podGroup);
   }
-];
+  const beamAngles = [0.8, 2.3, 3.9, 5.2];
+  beamAngles.forEach((ang) => {
+    const startX = Math.cos(ang) * 35;
+    const startZ = Math.sin(ang) * 35;
+    const startY = 6;
+    const targetX = (Math.random() - 0.5) * 3;
+    const targetZ = (Math.random() - 0.5) * 3;
+    const targetY = 0.5;
+    const points = [
+      new Vector3(startX, startY, startZ),
+      new Vector3(targetX, targetY, targetZ)
+    ];
+    const beamGeo = new BufferGeometry().setFromPoints(points);
+    const beamMat = new LineBasicMaterial({
+      color: 16007006,
+      linewidth: 2,
+      transparent: true,
+      opacity: 0.75
+    });
+    const beam = new Line(beamGeo, beamMat);
+    menagerieGroup.add(beam);
+    harvesterBeams.push(beam);
+  });
+  targetScene.add(menagerieGroup);
+  isMenageriePresent = true;
+  return menagerieGroup;
+}
+function updateMenagerieScene(dt) {
+  if (!isMenageriePresent || !menagerieGroup)
+    return;
+  containmentRings.forEach((r, idx) => {
+    r.rotation.z += dt * (0.2 + idx * 0.1) * (idx % 2 === 0 ? 1 : -1);
+    r.rotation.y += dt * 0.15;
+  });
+  observationPods.forEach((pod, idx) => {
+    pod.position.y += Math.sin(Date.now() * 0.002 + idx) * 0.04;
+  });
+  harvesterBeams.forEach((b) => {
+    b.material.opacity = 0.5 + Math.random() * 0.45;
+  });
+}
+function shatterMenagerie(targetScene = scene, onComplete) {
+  if (!isMenageriePresent || !menagerieGroup) {
+    if (onComplete)
+      onComplete();
+    return;
+  }
+  let progress = 0;
+  const duration = 0.9;
+  const animInterval = setInterval(() => {
+    progress += 0.04;
+    const factor = progress / duration;
+    if (menagerieGroup) {
+      containmentRings.forEach((r) => {
+        r.scale.multiplyScalar(1.06);
+        r.material.opacity = Math.max(0, 1 - factor);
+      });
+      observationPods.forEach((p) => {
+        p.position.multiplyScalar(1.04);
+      });
+      harvesterBeams.forEach((b) => {
+        b.material.opacity = 0;
+      });
+    }
+    if (progress >= duration) {
+      clearInterval(animInterval);
+      cleanupMenagerieScene(targetScene);
+      if (onComplete)
+        onComplete();
+    }
+  }, 30);
+}
+function cleanupMenagerieScene(targetScene = scene) {
+  if (menagerieGroup) {
+    targetScene.remove(menagerieGroup);
+    menagerieGroup.traverse((child) => {
+      if (child.geometry) {
+        child.geometry.dispose();
+      }
+      if (child.material) {
+        const mat = child.material;
+        if (Array.isArray(mat))
+          mat.forEach((m) => m.dispose());
+        else
+          mat.dispose();
+      }
+    });
+    menagerieGroup = null;
+  }
+  containmentRings = [];
+  observationPods = [];
+  harvesterBeams = [];
+  isMenageriePresent = false;
+}
+function isMenagerieActive() {
+  return isMenageriePresent;
+}
+// src/data/prologue_story.json
+var prologue_story_default = {
+  acts: [
+    {
+      id: "act_1_office",
+      title: "Akt I: Das nächtliche Observatorium",
+      stage: "office_dream"
+    },
+    {
+      id: "act_2_zoo",
+      title: "Akt II: Die Menagerie von Ceres-9",
+      stage: "alien_zoo"
+    },
+    {
+      id: "act_3_jamal",
+      title: "Akt III: Der Fremde am Gitter",
+      stage: "jamal_contact"
+    },
+    {
+      id: "act_4_absorption",
+      title: "Akt IV: Die Absorption & Harmonisierung",
+      stage: "absorption_sync"
+    },
+    {
+      id: "act_5_breakout",
+      title: "Akt V: Der Raumfaltungs-Sprung",
+      stage: "breakout_warp"
+    }
+  ],
+  beats: [
+    {
+      id: "office_monitors",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "🖥️ ASTROPHYSIKALISCHES INSTITUT • 23:47 UHR",
+      stepCounter: "Szene 1 / 11 • Akt I: Das Büro",
+      mainText: "23:47 Uhr. Das Observatorium liegt im Halbdunkel.",
+      subText: "Auf deinen holografischen Bildschirmen flackern die Spektren der kosmischen Hintergrundstrahlung. Es ist kein Messfehler: Weit entfernte Galaxienhaufen zeigen keine Rotverschiebung mehr. Das Universum driftet durch die Dunkle Energie unaufhaltsam auseinander. Die Sterne sterben nicht an Altersschwäche – sie sterben, weil ihr Licht kein sehendes Auge mehr erreichen wird. Eine endlose, eisige Einsamkeit breitet sich im Vakuum aus.",
+      sound: "heartbeat",
+      speakerType: "narrator",
+      options: [
+        {
+          label: "Spektrogramm kalibrieren & Simulation verifizieren",
+          action: "office_knock",
+          keyHint: "1"
+        },
+        {
+          label: "☕ Zum Kaffeeautomaten im Flur gehen",
+          action: "office_coffe",
+          keyHint: "2"
+        }
+      ]
+    },
+    {
+      id: "office_coffe",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "🥤 KAFFEEAUTOMAT • EINE TASSE BELEBENDES GETRÄNK",
+      stepCounter: "Szene 2 / 11 • Akt I: Das Büro",
+      mainText: "Du stehst am Kaffeeautomaten. Es ist eine seltsame Empfindung.",
+      subText: "Kalter Chrom unter deinen Fingern. Metall. Etwas Greifbares. Die Welt um dich herum verschwimmt im Nebel der Müdigkeit. Aber hier, an diesem Automaten, ist alles scharf. Die winzigen Vertiefungen auf der Oberfläche, der schwache Geruch von geröstetem Kaffeepulver und Ozon in der Luft. Die Menü-Anzeige leuchtet bernsteinfarben auf.",
+      sound: "synapse",
+      speakerType: "character",
+      options: [
+        {
+          label: "Cappuccino (Dichter Milchschaum & feiner Kakaostaub)",
+          action: "choose_cappucino",
+          keyHint: "1"
+        },
+        {
+          label: "Flat White (Zwei Ristretti mit samtiger Mikromilch)",
+          action: "choose_flat_white",
+          keyHint: "2"
+        },
+        {
+          label: "Latte Macchiato (Dreischichtige Dichte-Trennung)",
+          action: "choose_latte_macchiato",
+          keyHint: "3"
+        },
+        {
+          label: "Doppelter Espresso (Pechschwarz wie ein Ereignishorizont)",
+          action: "choose_espresso",
+          keyHint: "4"
+        }
+      ]
+    },
+    {
+      id: "choose_cappucino",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "🥤 KAFFEEAUTOMAT • CAPPUCCINO-AUSWAHL",
+      stepCounter: "Szene 2a / 11 • Akt I: Das Büro",
+      mainText: "Du drückst auf 'Cappuccino'. Die Maschine erwacht zum Leben.",
+      subText: "Ein leises Quittierungs-Piepen ertönt. Tief im Gehäuse setzt ein mechanisches Rucken ein. Oben im transparenten Vorratsbehälter beginnen die dunkel gerösteten Bohnen zu rutschen und fallen in den rotierenden Einzugstrichter. Das Mahlwerk setzt an.",
+      sound: "synapse",
+      speakerType: "character",
+      options: [
+        {
+          label: "Das Mahlwerk beobachten (Bohnen werden zermalmt)",
+          action: "coffee_grinding",
+          keyHint: "1"
+        },
+        {
+          label: "Direkt die Brühung einleiten (9 Bar Druck)",
+          action: "coffee_brewing",
+          keyHint: "2"
+        }
+      ]
+    },
+    {
+      id: "choose_flat_white",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "🥤 KAFFEEAUTOMAT • FLAT WHITE-AUSWAHL",
+      stepCounter: "Szene 2a / 11 • Akt I: Das Büro",
+      mainText: "Du wählst 'Flat White'. Die Mechanik schlägt an.",
+      subText: "Zwei Ristretto-Shots erfordern die feinste Mahlung. Ein sanfter Servomotor schiebt die Förderschnecke an. Die ersten Bohnen fallen mit trockenem Klappern in die Mahlkammer. Die gehärteten Stahlkegel laufen surrend an.",
+      sound: "sonar",
+      speakerType: "character",
+      options: [
+        {
+          label: "Dem Mahlvorgang zusehen",
+          action: "coffee_grinding",
+          keyHint: "1"
+        },
+        {
+          label: "Direkt die Brühung einleiten",
+          action: "coffee_brewing",
+          keyHint: "2"
+        }
+      ]
+    },
+    {
+      id: "choose_latte_macchiato",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "🥤 KAFFEEAUTOMAT • LATTE MACCHIATO-AUSWAHL",
+      stepCounter: "Szene 2a / 11 • Akt I: Das Büro",
+      mainText: "Du wählst 'Latte Macchiato'. Der Automat summt auf.",
+      subText: "Dreifache Dichte-Schichtung erfordert absolute Präzision. Doch bevor überhaupt Wasser oder Milch erhitzt werden, greifen die Mahlkegel nach den ganzen Bohnen. Die ersten Splitter wirbeln durch den transparenten Trichter.",
+      sound: "synapse",
+      speakerType: "character",
+      options: [
+        {
+          label: "Das Mahlwerk beobachten",
+          action: "coffee_grinding",
+          keyHint: "1"
+        },
+        {
+          label: "Direkt die Brühung einleiten",
+          action: "coffee_brewing",
+          keyHint: "2"
+        }
+      ]
+    },
+    {
+      id: "choose_espresso",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "☕ KAFFEEAUTOMAT • DOPPELTER ESPRESSO-AUSWAHL",
+      stepCounter: "Szene 2a / 11 • Akt I: Das Büro",
+      mainText: "Du wählst 'Doppelter Espresso'. Reine Essenz.",
+      subText: "Pures Konzentrat ohne jede Beschönigung. Die Maschine kalibriert den Mahlgrad auf maximale Partikeldichte. Die Bohnen werden mit unerbittlicher Härte in den Einzug gezogen, als stürzten sie in einen Gravitationsschlund.",
+      sound: "sonar",
+      speakerType: "character",
+      options: [
+        {
+          label: "Dem Mahlwerk zuschauen",
+          action: "coffee_grinding",
+          keyHint: "1"
+        },
+        {
+          label: "Direkt die Brühung einleiten",
+          action: "coffee_brewing",
+          keyHint: "2"
+        }
+      ]
+    },
+    {
+      id: "coffee_grinding",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "⚙️ ZWISCHENSCHRITT • DAS MAHLWERK & DIE ROCHE-GRENZE",
+      stepCounter: "Szene 2b / 11 • Akt I: Das Büro",
+      mainText: "Die Bohnen zerbersten unter unbarmherzigen Scherkräften.",
+      subText: "Unter der transparenten Kuppel greifen die rotierenden Stahlkegel nach den gerösteten Bohnen. Sie splittern, knacken und zerfallen in mikroskopische Fragmente. In deinem übermüdeten Geist überlagert sich das Bild: Es sind keine Bohnen, sondern Himmelskörper, die in die Gezeitenkräfte eines Neutronensterns geraten. Die unbarmherzige Roche-Grenze – der Moment, in dem die eigene Gravitation eines Planeten der Zerreißkraft nicht mehr standhält und feste Welten zu Trümmerringen zermahlen werden.",
+      sound: "sonar",
+      speakerType: "character",
+      options: [
+        {
+          label: "Das wirbelnde Staubmuster im Trichter fixieren",
+          action: "coffee_beans_pattern",
+          keyHint: "1"
+        },
+        {
+          label: "Die Hochdruck-Brühung starten (Heißes Wasser)",
+          action: "coffee_brewing",
+          keyHint: "2"
+        }
+      ]
+    },
+    {
+      id: "coffee_beans_pattern",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "🌌 ZWISCHENSCHRITT • DAS SPIRAL-MUSTER",
+      stepCounter: "Szene 2c / 11 • Akt I: Das Büro",
+      mainText: "Das Kaffeemehl formt ein wirbelndes Sternenmeer.",
+      subText: "Im Auffangtrichter zeichnen die zirkulierenden Pulverströme verblüffend exakte logarithmische Spiralen. Wie zwei ineinanderstürzende Galaxien, deren Arme sich verflechten, bevor sie im gravitativen Zentrum verlöschen. Ein kalter Schauder läuft dir über den Rücken. Wie kann etwas so Alltägliches wie Kaffeepulver dich an das Sterben von Milliarden Sternen erinnern? Du blinzelst benommen.",
+      sound: "sonar",
+      speakerType: "character",
+      options: [
+        {
+          label: "Zur Hochdruck-Extraktion übergehen",
+          action: "coffee_brewing",
+          keyHint: "1"
+        }
+      ]
+    },
+    {
+      id: "coffee_brewing",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "☕ ZWISCHENSCHRITT • DIE HOCHDRUCK-EXTRAKTION",
+      stepCounter: "Szene 2d / 11 • Akt I: Das Büro",
+      mainText: "Neun Bar Druck. Kochende Hitze schießt durch das Pulver.",
+      subText: "Die massive Brühkammer verriegelt hydraulisch mit einem satten Klicken. Mit lautem Zischen wird kochendes Wasser durch das komprimierte Kaffeebett gepresst. Ein sattes, dunkles Rinnsal ergießt sich in die bereitstehende Tasse, während feiner Dampf die Scheibe des Automaten beschlägt. Die dichte Crema schimmert wie frisch erstarrte basaltische Lava auf einer neugeborenen Welt.",
+      sound: "synapse",
+      speakerType: "character",
+      options: [
+        {
+          label: "Den aufsteigenden Dampf beobachten (Koronale Schleifen)",
+          action: "coffee_steam",
+          keyHint: "1"
+        },
+        {
+          label: "Die fertige Tasse greifen",
+          action: "coffee_finished",
+          keyHint: "2"
+        }
+      ]
+    },
+    {
+      id: "coffee_steam",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "💨 ZWISCHENSCHRITT • KORONALER DAMPF",
+      stepCounter: "Szene 2e / 11 • Akt I: Das Büro",
+      mainText: "Dampf tanzt über der Tasse wie koronale Eruptionen.",
+      subText: "Weiße Wirbelfäden steigen in die kühle Flurluft empor. Die magnetohydrodynamischen Verwirbelungen gleichen den gefürchteten Plasma-Schleifen eines Magnetars – Sonnenflares, die Lichtjahre ins Vakuum peitschen, bevor sie abkühlen und vergehen. Ein Hauch von Wärme, der sich im kalten Institutsflur verflüchtigt.",
+      sound: "heartbeat",
+      speakerType: "character",
+      options: [
+        {
+          label: "Die warme Tasse nehmen & zum Schreibtisch gehen",
+          action: "coffee_finished",
+          keyHint: "1"
+        }
+      ]
+    },
+    {
+      id: "coffee_finished",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "☕ DIE FERTIGE TASSE • ZURÜCK ZUM ARBEITSPLATZ",
+      stepCounter: "Szene 2f / 11 • Akt I: Das Büro",
+      mainText: "Deine Tasse steht vollendet in der Ausgabebucht.",
+      subText: "Du nimmst den warmen Becher in beide Hände. Die Hitze tut deinen tauben Fingern gut. Ein vertrauter, erdender Geruch von dunkler Röstung und Zivilisation. Du atmest tief durch, nimmst einen vorsichtigen Schluck und kehrst mit der Tasse durch den dämmrigen Flur an deinen Schreibtisch zurück.",
+      sound: "synapse",
+      speakerType: "character",
+      options: [
+        {
+          label: "Zurück an den Schreibtisch treten...",
+          action: "office_knock",
+          keyHint: "1"
+        }
+      ]
+    },
+    {
+      id: "office_knock",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "🚪 BÜROTRAKT B • DR. ARIS",
+      stepCounter: "Szene 3 / 11 • Akt I: Das Büro",
+      mainText: "Ein trockenes Klopfen zerreißt die Stille.",
+      subText: "Dein Kollege Dr. Aris schiebt die schwere Glastür auf und mustert deine geröteten Augen. „Immer noch hier? Mach Feierabend. Der Wachdienst schaltet gleich das Hauptlicht im gesamten Trakt ab. ... Und ganz unter uns: Zeig diese Zahlen morgen nicht im Fakultätsrat. Die da oben wollen keine Panik.“ Er nickt dir ernst zu und geht. Hinter ihm erlöschen die Deckenleuchten des Flurs eine nach der anderen.",
+      sound: "synapse",
+      speakerType: "character",
+      speakerName: "Dr. Aris",
+      options: [
+        {
+          label: "Dr. Aris zunicken & den Schreibtisch aufräumen",
+          action: "office_drink",
+          keyHint: "1"
+        }
+      ]
+    },
+    {
+      id: "office_drink",
+      act: "act_1_office",
+      stage: "office_dream",
+      eyebrow: "🥤 DER SCHREIBTISCH • EINE KÜHLE DOSE",
+      stepCounter: "Szene 4 / 11 • Akt I: Das Büro",
+      mainText: "Ein brennender Durst schnürt dir die Kehle zu.",
+      subText: "Neben der Tastatur steht eine ungeöffnete Dose Energy Drink, an deren Metall kaltes Kondenswasser herabperlt. Du greifst danach, ziehst die Lasche auf und nimmst einen gierigen Schluck. Doch der Geschmack ist unmöglich: Scharf wie Ozon, schneidend wie flüssiges Helium, uralt wie Sternenstaub. Dein Herz rast. Deine Schläfen explodieren im Takt pulsierender Quasare!",
+      sound: "heartbeat",
+      speakerType: "narrator",
+      options: [
+        {
+          label: "Die Dose fallen lassen & dem Rausch nachgeben...",
+          action: "glitch_transition",
+          keyHint: "1"
+        }
+      ]
+    },
+    {
+      id: "zoo_awakening_voices",
+      act: "act_2_zoo",
+      stage: "alien_zoo",
+      eyebrow: "🛸 ORBITALE MENAGERIE CERES-9 • DÄMPFUNGSKÄFIG 0-ALPHA",
+      stepCounter: "Szene 5 / 11 • Akt II: Der Zoo",
+      mainText: "Die Illusion bricht entzwei. Stimmen hallen durch die Leere.",
+      subText: `Kein Büro. Kein Stuhl. Nur das Dröhnen gewaltiger Plasma-Emitter, die deinen massiven Körper in einem zylindrischen Kraftfeld gefangen halten. Über Stations-Lautsprecher plärrt eine synthetische Stimme:
+
+„Willkommen auf Aussichtsdeck 4 der Asche-Gilde! Vor Ihnen sehen Sie das Prunkstück unserer interstellaren Menagerie. Unsere Harvester-Flotte benötigte drei Frachter, um diesen Leviathan aus dem toten Vakuum zu bergen. Woher er stammt, weiß niemand.“`,
+      sound: "sonar",
+      speakerType: "guide",
+      speakerName: "Stations-Guide (Lautsprecher)",
+      options: [
+        {
+          label: "Die Gedanken der Besucher auf den Tribünen auffangen",
+          action: "zoo_visitor_thoughts",
+          keyHint: "1"
+        }
+      ]
+    },
+    {
+      id: "zoo_visitor_thoughts",
+      act: "act_2_zoo",
+      stage: "alien_zoo",
+      eyebrow: "👁️ SCHWEBENDE AUSSICHTSPLATTFORMEN • GEDANKEN-ECHO",
+      stepCounter: "Szene 6 / 11 • Akt II: Der Zoo",
+      mainText: "„Bei allen Göttern des Orion... es ist wahr. Er ist so groß wie eine MegaCity!“",
+      subText: `Die unkontrollierten Gedanken der zehntausenden Schaulustigen schwappen wie Brandung gegen deine schmerzenden Synapsen:
+
+• Besucher aus Sektor 2: „Schau dir diesen Chitin-Panzer an... in seinen Hohlraum könnten ganze Kampfkreuzer passen!“
+• Ein Kind im Sauerstoffanzug: „Papi, warum bewegt er sich gar nicht? Lebt das Ding überhaupt noch?“
+• Ein Schmuggler: „Wenn man an seine Rückenmarksflüssigkeit rankäme... das reicht für zehn Jahre Hyperraum-Schmiermittel.“`,
+      sound: "synapse",
+      speakerType: "thoughts",
+      speakerName: "Gedanken der Schaulustigen",
+      options: [
+        {
+          label: "Das Telepathie-Terminal der Plattformen anpeilen",
+          action: "zoo_telepathy_casualty",
+          keyHint: "1"
+        }
+      ]
+    },
+    {
+      id: "zoo_telepathy_casualty",
+      act: "act_2_zoo",
+      stage: "alien_zoo",
+      eyebrow: "⚠️ TELEPATHIE-TERMINAL 9 • NEURONALER SCHOCK",
+      stepCounter: "Szene 7 / 11 • Akt II: Der Zoo",
+      mainText: "„DIE BESTIE DES LEERRAUMS – 50 CREDITS FÜR EINE TELEPATHIE-SITZUNG!“",
+      subText: `Ein übermütiger Tourist am Terminal klinkt sich über ein Neuro-Headset in dein Bewusstsein ein. Doch dein Geist ist kein Streichelzoo. Die unendliche Schwere deiner kosmischen Depression, die Kälte der sterbenden Sterne und der nagende Schmerz deines Koffein-Entzugs schlagen wie ein Tsunami in sein primitives Gehirn.
+
+„WARTE! NEIN! DA IST NUR KÄLTE! MEIN KOPF-- ARRRGH!“
+
+Ein Schrei gellt durch die Halle. Stations-Lautsprecher:
+„Sanitäter zu Terminal 9! Wieder ein neuronaler Kollaps! Schleift den sabbernden Lappen weg!“`,
+      sound: "alarm",
+      speakerType: "alert",
+      speakerName: "Notfall-Kommando",
+      options: [
+        {
+          label: "Die brennenden Plasmasägen an deinen Flossen spüren",
+          action: "zoo_harvester_pain",
+          keyHint: "1"
+        }
+      ]
+    },
+    {
+      id: "zoo_harvester_pain",
+      act: "act_2_zoo",
+      stage: "alien_zoo",
+      eyebrow: "🩸 ASCHE-GILDE BIO-HARVESTER • VIVISEKTION",
+      stepCounter: "Szene 8 / 11 • Akt II: Der Zoo",
+      mainText: "Automatische Plasmasägen ritzen an deinen Chitin-Rändern.",
+      subText: `Walfänger-Drohnen der Asche-Gilde trennen routinemäßig Proben deiner Panzerung ab. Du könntest den Käfig mit einem einzigen psionischen Impuls zerfetzen – doch du tust es nicht. Dir fehlte jeder Lebenswille. Der Quhwa-Entzug lähmt deine Nerven wie Blei. Du hattest dich selbst aufgegeben, als du gesehen hast, dass die Sterne sterben. Es war dir schlicht egal geworden.
+
+Bis eine fremdartige, menschliche Stimme direkt an deinem Wartungsgitter auftaucht...`,
+      sound: "heartbeat",
+      speakerType: "narrator",
+      options: [
+        {
+          label: "Den Mann im Techniker-Anzug fixieren",
+          action: "jamal_encounter",
+          keyHint: "1"
+        }
+      ]
+    },
+    {
+      id: "jamal_encounter",
+      act: "act_3_jamal",
+      stage: "jamal_contact",
+      eyebrow: "👤 WARTUNGSRAMPE B-4 • DR. JAMAL",
+      stepCounter: "Szene 9 / 11 • Akt III: Dr. Jamal",
+      mainText: "„Ich habe keine Zeit für lange Vorträge. Hör mir gut zu.“",
+      subText: `Direkt vor deinem riesigen, trüben Auge steht ein Mann im abgewetzten Technikeranzug: Dr. Jamal. Auf seiner Brust summt ein modifizierter tragbarer Quantencomputer. Er atmet hastig:
+
+„Ich habe alte Daten und astronomische Aufzeichnungen von vor 250 Jahren analysiert, um dich zu finden. Ich suche denjenigen, der für das verantwortlich ist, was auf der Erde und an unseren Sternenkolonien passiert! Ich erkläre dir alles später. Aber fürs Erste musst du nur eins wissen: Ich habe dir vorhin das Spice in den Injektor geschmuggelt. Und wenn du tust, was ich sage, bekommst du MEHR SPICE.“`,
+      sound: "synapse",
+      speakerType: "character",
+      speakerName: "Dr. Jamal",
+      options: [
+        {
+          label: "Vom Verlangen nach dem Spice erfasst werden...",
+          action: "jamal_consume_proposal",
+          keyHint: "1"
+        }
+      ]
+    },
+    {
+      id: "jamal_consume_proposal",
+      act: "act_3_jamal",
+      stage: "jamal_contact",
+      eyebrow: "🧬 DER SYMBIOSEN-VORSCHLAG",
+      stepCounter: "Szene 10 / 11 • Akt III: Dr. Jamal",
+      mainText: "„Schluck mich. Schleus mich in dein Inneres!“",
+      subText: `Dr. Jamal packt seinen Quantencomputer fester und deutet auf die wabernde, zähflüssige Pore deiner dorsalen Chitin-Membran:
+
+„Die Gilde der Psionisch Verschränkten hat an Dock 7 angelegt. Sie wollen dich der Asche-Gilde abkaufen und dein Gehirn als organischen Rechner für ihre Kriegsschiffe sezieren! Ich kann hier draußen nicht überleben, wenn du springst. Du musst mich konsumieren – nimm mich durch deine Außenhaut auf und bette mich in deinen Bio-Kern ein! Manche würden es pervers nennen, aber es ist unsere einzige Chance!“`,
+      sound: "sonar",
+      speakerType: "character",
+      speakerName: "Dr. Jamal",
+      options: [
+        {
+          label: "Die wabernde Hautmembran öffnen & Dr. Jamal einsaugen",
+          action: "absorption_harmonization",
+          keyHint: "1"
+        }
+      ]
+    },
+    {
+      id: "absorption_harmonization",
+      act: "act_4_absorption",
+      stage: "absorption_sync",
+      eyebrow: "🧠 TRAUM-KERN • NEURONALE HARMONISIERUNG",
+      stepCounter: "Szene 11 / 11 • Akt IV: Symbiose",
+      mainText: "Jamal gleitet durch dein Fleisch. Seine Gedanken rasen panisch.",
+      subText: `Deine zähe, organische Membran umschließt den Physiker. Schichten aus pulsierendem Gewebe und Biolumineszenz schleusen ihn tief in dein Inneres – in den geschützten Traum-Kern. Doch der Druck deines gigantischen Bewusstseins droht ihn zu zerquetschen!
+
+Wenn du seine Gedanken nicht sofort psionisch an deine Resonanzfrequenz anpasst, wird auch Dr. Jamal wie die Touristen auf den Tribünen als sabbernder Lappen enden! Bündle deine Mentalkraft und harmonisiere die Synapsen-Brücke!`,
+      sound: "synapse",
+      speakerType: "harmonize",
+      speakerName: "Psionische Brücke",
+      options: [
+        {
+          label: "⚡ NEURONALE FREQUENZ HARMONISIEREN [LEERTASTE]",
+          action: "harmonize_sync",
+          keyHint: "LEERTASTE"
+        }
+      ]
+    },
+    {
+      id: "breakout_escape",
+      act: "act_5_breakout",
+      stage: "breakout_warp",
+      eyebrow: "🚨 ROT-ALARM • NOTFALL-EINDÄMMUNGS-KOLLAPS • CERES-9",
+      stepCounter: "Szene 11 / 11 • Akt V: Ausbruch",
+      mainText: "Die Verbindung steht! Sirenen heulen durch die Station!",
+      subText: `Jamals Stimme erklingt nun glasklar in deinem eigenen Bewusstsein:
+„Harmonisierung stabil! Verdammt, Najmafar, ich spüre deine Kraft... und deinen Durst nach Spice! Die Gilde hat die Schotten durchbrochen – sie fluten den Käfig mit Neurotoxin! FALTE DEN RAUM! SPRING!“
+
+Schwere Verteidigungsgeschütze der Menagerie eröffnen das Feuer auf dein Chitin. Das Melange-Spice brennt wie reines Plasma in deinen Adern. Bündle deine Willenskraft und zerschlage den Plasma-Käfig!`,
+      sound: "alarm",
+      speakerType: "climax",
+      speakerName: "Dr. Jamal (Telepathisch)",
+      options: [
+        {
+          label: "🌌 EINDÄMMUNG ZERSPRENGEN: RAUMFALTUNGS-SPRUNG [LEERTASTE]",
+          action: "warp_breakout",
+          keyHint: "LEERTASTE"
+        }
+      ]
+    }
+  ]
+};
+
+// src/ui/prologue.ts
+var PROLOGUE_BEATS = prologue_story_default.beats;
 var isPrologueActive = false;
-var prologueTimeout = null;
-var currentLineIndex = 0;
+var currentBeatIndex = 0;
 var onCompleteCallback = null;
 function triggerPrologueSequence(onComplete) {
   const overlay = document.getElementById("prologue-overlay");
   if (!overlay) {
+    recruitJamal();
     onComplete();
     return;
   }
-  const seenPrologue = sessionStorage.getItem("where_stars_die_prologue_seen");
-  if (seenPrologue === "true") {}
   isPrologueActive = true;
+  STATE.prologueActive = true;
+  STATE.prologueCompleted = false;
   onCompleteCallback = onComplete;
-  currentLineIndex = 0;
-  overlay.classList.remove("hidden");
-  overlay.classList.add("visible");
-  const textEl = document.getElementById("prologue-main-text");
-  const subTextEl = document.getElementById("prologue-sub-text");
-  const stepEl = document.getElementById("prologue-step-counter");
-  function showLine(index) {
-    if (!isPrologueActive)
-      return;
-    if (index >= PROLOGUE_STORY.length) {
-      finishPrologue();
-      return;
-    }
-    const line = PROLOGUE_STORY[index];
-    if (line.heartbeat) {
-      try {
-        playHeartbeatPulse();
-      } catch (e) {}
-    }
-    if (textEl) {
-      textEl.classList.remove("fade-in");
-      textEl.offsetWidth;
-      textEl.innerText = line.text;
-      textEl.classList.add("fade-in");
-    }
-    if (subTextEl) {
-      subTextEl.classList.remove("fade-in");
-      subTextEl.offsetWidth;
-      subTextEl.innerText = line.subtext || "";
-      subTextEl.classList.add("fade-in");
-    }
-    if (stepEl) {
-      stepEl.innerText = `${index + 1} / ${PROLOGUE_STORY.length}`;
-    }
-    prologueTimeout = setTimeout(() => {
-      currentLineIndex++;
-      showLine(currentLineIndex);
-    }, line.duration);
+  currentBeatIndex = 0;
+  if (typeof document !== "undefined" && document.body) {
+    document.body.classList.add("prologue-mode");
   }
-  showLine(0);
+  if (scene) {
+    clearActiveSystem();
+    initMenagerieScene(scene);
+    if (menagerieGroup) {
+      menagerieGroup.visible = false;
+    }
+  }
+  STATE.playerPosition.set(0, 0, 0);
+  STATE.playerVelocity.set(0, 0, 0);
+  if (STATE.playerGroup) {
+    STATE.playerGroup.position.set(0, 0, 0);
+    STATE.playerGroup.scale.set(2.4, 2.4, 2.4);
+  }
+  overlay.classList.remove("hidden", "fade-out");
+  overlay.classList.add("visible");
+  renderBeat(currentBeatIndex);
+}
+function renderBeat(index) {
+  if (index < 0 || index >= PROLOGUE_BEATS.length) {
+    finishPrologue();
+    return;
+  }
+  currentBeatIndex = index;
+  STATE.prologueStep = index;
+  const beat = PROLOGUE_BEATS[index];
+  STATE.prologueStage = beat.stage;
+  const overlay = document.getElementById("prologue-overlay");
+  const eyebrowText = document.getElementById("prologue-eyebrow-text");
+  const speakerBadge = document.getElementById("prologue-speaker-badge");
+  const mainTextEl = document.getElementById("prologue-main-text");
+  const subTextEl = document.getElementById("prologue-sub-text");
+  const stepCounterEl = document.getElementById("prologue-step-counter");
+  const choicesContainer = document.getElementById("prologue-choices-container");
+  if (overlay) {
+    overlay.classList.remove("stage-office", "stage-zoo", "stage-jamal", "stage-sync", "stage-warp");
+    const stageClass = beat.stage === "office_dream" ? "office" : beat.stage === "alien_zoo" ? "zoo" : beat.stage === "jamal_contact" ? "jamal" : beat.stage === "absorption_sync" ? "sync" : "warp";
+    overlay.classList.add(`stage-${stageClass}`);
+  }
+  if (menagerieGroup) {
+    menagerieGroup.visible = beat.stage !== "office_dream";
+  }
+  if (eyebrowText)
+    eyebrowText.innerText = beat.eyebrow;
+  if (stepCounterEl)
+    stepCounterEl.innerText = beat.stepCounter;
+  if (speakerBadge) {
+    if (beat.speakerName) {
+      speakerBadge.style.display = "inline-block";
+      speakerBadge.className = `prologue-speaker-badge speaker-${beat.speakerType || "character"}`;
+      speakerBadge.innerText = beat.speakerName;
+    } else {
+      speakerBadge.style.display = "none";
+    }
+  }
+  if (mainTextEl) {
+    mainTextEl.classList.remove("fade-in");
+    mainTextEl.offsetWidth;
+    mainTextEl.innerText = beat.mainText;
+    mainTextEl.classList.add("fade-in");
+  }
+  if (subTextEl) {
+    subTextEl.classList.remove("fade-in");
+    subTextEl.offsetWidth;
+    subTextEl.innerText = beat.subText;
+    subTextEl.classList.add("fade-in");
+  }
+  try {
+    if (beat.sound === "heartbeat")
+      playHeartbeatPulse();
+    else if (beat.sound === "synapse")
+      playSynapseHoverSound(580);
+    else if (beat.sound === "sonar")
+      playSonarChime();
+    else if (beat.sound === "alarm")
+      playFleetAlarmSound();
+  } catch (e) {}
+  if (choicesContainer) {
+    choicesContainer.innerHTML = "";
+    beat.options.forEach((opt) => {
+      const btn = document.createElement("button");
+      const isClimax = opt.action === "warp_breakout" || opt.action === "harmonize_sync";
+      btn.className = isClimax ? "prologue-action-btn" : "prologue-choice-btn";
+      const badgeHtml = opt.keyHint ? `<span class="prologue-choice-badge">${opt.keyHint}</span>` : "";
+      btn.innerHTML = `${badgeHtml}<span>${opt.label}</span>`;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handleOptionAction(opt.action);
+      });
+      choicesContainer.appendChild(btn);
+    });
+  }
+}
+function handleOptionAction(action) {
+  try {
+    playSynapseHoverSound(660);
+  } catch (e) {}
+  if (action === "next") {
+    renderBeat(currentBeatIndex + 1);
+  } else if (action === "glitch_transition") {
+    triggerGlitchRealityTear();
+  } else if (action === "harmonize_sync") {
+    triggerHarmonizeSync();
+  } else if (action === "warp_breakout") {
+    triggerWarpBreakout();
+  } else {
+    const targetIdx = PROLOGUE_BEATS.findIndex((b) => b.id === action);
+    if (targetIdx !== -1) {
+      renderBeat(targetIdx);
+    } else {
+      console.warn(`Prologue: Target beat id '${action}' not found, advancing to next beat.`);
+      renderBeat(currentBeatIndex + 1);
+    }
+  }
+}
+function triggerGlitchRealityTear() {
+  const flash = document.getElementById("prologue-glitch-flash");
+  const overlay = document.getElementById("prologue-overlay");
+  try {
+    playCrashSound();
+    playSynapseEvolveSound();
+  } catch (e) {}
+  if (flash) {
+    flash.classList.add("flash-active");
+    setTimeout(() => flash.classList.remove("flash-active"), 500);
+  }
+  if (overlay) {
+    overlay.classList.add("screen-shake-intense");
+    setTimeout(() => overlay.classList.remove("screen-shake-intense"), 550);
+  }
+  setTimeout(() => {
+    const zooIdx = PROLOGUE_BEATS.findIndex((b) => b.id === "zoo_awakening_voices");
+    if (zooIdx !== -1)
+      renderBeat(zooIdx);
+    else
+      renderBeat(currentBeatIndex + 1);
+  }, 450);
+}
+function triggerHarmonizeSync() {
+  const flash = document.getElementById("prologue-glitch-flash");
+  const overlay = document.getElementById("prologue-overlay");
+  try {
+    playSynapseEvolveSound();
+    playSonarChime();
+  } catch (e) {}
+  if (flash) {
+    flash.classList.add("flash-active");
+    setTimeout(() => flash.classList.remove("flash-active"), 400);
+  }
+  if (overlay) {
+    overlay.classList.add("screen-shake-intense");
+    setTimeout(() => overlay.classList.remove("screen-shake-intense"), 400);
+  }
+  setTimeout(() => {
+    const breakoutIdx = PROLOGUE_BEATS.findIndex((b) => b.id === "breakout_escape");
+    if (breakoutIdx !== -1)
+      renderBeat(breakoutIdx);
+    else
+      renderBeat(currentBeatIndex + 1);
+  }, 350);
+}
+function triggerWarpBreakout() {
+  const flash = document.getElementById("prologue-glitch-flash");
+  const overlay = document.getElementById("prologue-overlay");
+  try {
+    playWarpSpoolSound();
+    setTimeout(() => playWarpSnapSound(), 500);
+    setTimeout(() => playWarpDropoutSound(), 1000);
+  } catch (e) {}
+  if (flash) {
+    flash.classList.add("flash-active");
+  }
+  if (overlay) {
+    overlay.classList.add("screen-shake-intense");
+  }
+  if (scene) {
+    shatterMenagerie(scene);
+  }
+  setTimeout(() => {
+    finishPrologue();
+  }, 1100);
+}
+function recruitJamal() {
+  const existing = STATE.crew.find((c) => c.name === "Dr. Jamal" || c.id === 101);
+  if (existing)
+    return existing;
+  const jamal = {
+    id: 101,
+    name: "Dr. Jamal",
+    species: "Mensch (Sol-Terraner)",
+    speciesArchetypeName: "Mensch (Sol-Terraner)",
+    speciesType: "mortal",
+    disposition: "scholarly",
+    role: "psychologist",
+    roleName: "Chef-Quantenphysiker & Co-Pilot",
+    roleIcon: "⚛️",
+    buffDesc: "Entschlüsselt Ising-Gitter, stabilisiert Najmafars Psyche (-25% Stress) und führt Tiefenscans durch.",
+    stress: 15,
+    baseStressRate: 0.02,
+    illusionStability: 92,
+    status: "Aktiv an Bord",
+    thought: "Die Vollbremsung an Sagittarius A* ist real. Wir müssen die Erde retten und Najmafar vor dem Rückfall in die Apathie bewahren.",
+    age: 31 * 365 * 24 * 3600,
+    maxLifespan: 85 * 365 * 24 * 3600,
+    ageCategory: "vital",
+    trait: {
+      name: "Quanten-Theoretiker",
+      desc: "Ermöglicht planetare Tiefenscans und dämpft psionische Traumata.",
+      type: "psionic"
+    },
+    station: "dream_core",
+    stationName: "Traum-Kern (Neuronale Brücke)",
+    stationActivity: "Kalibriert Quanten-Sensoren & stabilisiert Psyche",
+    avatarIcon: "\uD83D\uDC68‍\uD83D\uDE80",
+    speciesColor: "#38bdf8"
+  };
+  STATE.crew.unshift(jamal);
+  STATE.loneliness = Math.min(STATE.loneliness, 45);
+  renderCrewUI();
+  addLogEntry("CREW", "\uD83D\uDC68‍\uD83D\uDE80 Dr. Jamal im Traum-Kern verankert: „Wir haben es geschafft, Najmafar! Meine Scanner sind online.“");
+  addLogEntry("SYSTEM", "⚛️ Tiefenscan-Protokolle aktiv: Tech, H₂O, Legierungen & Shuttle-Expeditionen auf Planeten freigeschaltet!");
+  return jamal;
 }
 function finishPrologue() {
   if (!isPrologueActive)
     return;
   isPrologueActive = false;
-  if (prologueTimeout) {
-    clearTimeout(prologueTimeout);
-    prologueTimeout = null;
+  STATE.prologueActive = false;
+  STATE.prologueCompleted = true;
+  STATE.prologueStage = "completed";
+  if (typeof document !== "undefined" && document.body) {
+    document.body.classList.remove("prologue-mode");
   }
-  sessionStorage.setItem("where_stars_die_prologue_seen", "true");
+  if (scene && isMenagerieActive()) {
+    cleanupMenagerieScene(scene);
+  }
+  if (STATE.universe) {
+    clearActiveSystem();
+    spawnPlanetsAndAsteroids();
+  }
+  STATE.playerPosition.set(0, 0, 160);
+  STATE.playerVelocity.set(1.5, 0, 0);
+  STATE.shipHeading = 0;
+  STATE.progradeVector.set(1, 0, 0);
+  if (STATE.playerGroup) {
+    STATE.playerGroup.position.set(0, 0, 160);
+    STATE.playerGroup.rotation.y = 0;
+    STATE.playerGroup.scale.set(0.42, 0.42, 0.42);
+  }
+  recruitJamal();
   const overlay = document.getElementById("prologue-overlay");
   if (overlay) {
-    overlay.classList.remove("visible");
+    overlay.classList.remove("visible", "screen-shake-intense");
     overlay.classList.add("fade-out");
     setTimeout(() => {
       overlay.classList.remove("fade-out");
       overlay.classList.add("hidden");
-    }, 1200);
+    }, 800);
   }
+  renderDirectives();
+  setTimeout(() => {
+    openJamalIntroDialog();
+  }, 1200);
   if (onCompleteCallback) {
     const cb = onCompleteCallback;
     onCompleteCallback = null;
@@ -47464,50 +49928,28 @@ function initPrologueListeners() {
       finishPrologue();
     });
   }
-  const overlay = document.getElementById("prologue-overlay");
-  if (overlay) {
-    overlay.addEventListener("click", () => {
-      if (isPrologueActive) {
-        currentLineIndex++;
-        if (currentLineIndex >= PROLOGUE_STORY.length) {
-          finishPrologue();
-        } else {
-          if (prologueTimeout)
-            clearTimeout(prologueTimeout);
-          const textEl = document.getElementById("prologue-main-text");
-          const subTextEl = document.getElementById("prologue-sub-text");
-          const stepEl = document.getElementById("prologue-step-counter");
-          const line = PROLOGUE_STORY[currentLineIndex];
-          if (line.heartbeat)
-            playHeartbeatPulse();
-          if (textEl) {
-            textEl.classList.remove("fade-in");
-            textEl.offsetWidth;
-            textEl.innerText = line.text;
-            textEl.classList.add("fade-in");
-          }
-          if (subTextEl) {
-            subTextEl.classList.remove("fade-in");
-            subTextEl.offsetWidth;
-            subTextEl.innerText = line.subtext || "";
-            subTextEl.classList.add("fade-in");
-          }
-          if (stepEl)
-            stepEl.innerText = `${currentLineIndex + 1} / ${PROLOGUE_STORY.length}`;
-          prologueTimeout = setTimeout(() => {
-            currentLineIndex++;
-            if (currentLineIndex >= PROLOGUE_STORY.length)
-              finishPrologue();
-          }, line.duration);
-        }
-      }
-    });
-  }
   window.addEventListener("keydown", (e) => {
     if (!isPrologueActive)
       return;
-    if (e.key === "Escape" || e.key === " " || e.key === "Enter") {
+    if (e.key === "Escape") {
+      e.preventDefault();
       finishPrologue();
+      return;
+    }
+    const beat = PROLOGUE_BEATS[currentBeatIndex];
+    if (!beat)
+      return;
+    const keyNum = parseInt(e.key, 10);
+    if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= beat.options.length) {
+      e.preventDefault();
+      handleOptionAction(beat.options[keyNum - 1].action);
+      return;
+    } else if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      const lastOpt = beat.options[beat.options.length - 1];
+      if (lastOpt) {
+        handleOptionAction(lastOpt.action);
+      }
     }
   });
 }
@@ -47527,35 +49969,52 @@ function animate(time) {
   if (starfieldController) {
     starfieldController.update(dt, camera ? camera.position : STATE.playerPosition, STATE.playerVelocity);
   }
-  updateUniverseShaders(dt, camera);
-  gravityCircles.forEach((c) => {
-    const timePulse = Math.sin(Date.now() * 0.003 * c.pulseSpeed);
-    c.mesh.material.opacity = c.baseOpacity + timePulse * (c.baseOpacity * 0.5);
-  });
+  if (!STATE.prologueActive) {
+    updateUniverseShaders(dt, camera);
+    gravityCircles.forEach((c) => {
+      const timePulse = Math.sin(Date.now() * 0.003 * c.pulseSpeed);
+      c.mesh.material.opacity = c.baseOpacity + timePulse * (c.baseOpacity * 0.5);
+    });
+  }
+  updateMenagerieScene(dt);
   if (STATE.gameStarted) {
-    processInput(dt);
-    updatePhysics(dt);
-    updateHUDStats(STATE.telepathyActive);
-    updateScanning(dt);
-    updateHarvesting(dt);
-    updateAbduction(dt);
-    updateFleet(dt);
-    updateStealth(dt);
-    updateCrewSimulation(dt);
-    updatePartyGrid();
-    updateSonarWave(dt);
-    updateExplosionEffects(dt);
-    updateAwayMissions(dt);
-    updateTrajectory();
-    updateMinimap();
-    updateVoyagerHUDTracker();
-    if (STATE.voyagerProbe && STATE.voyagerSignalDetected && !STATE.voyagerScanned) {
-      const probeDist = STATE.playerPosition.distanceTo(STATE.voyagerProbe.position);
-      if (probeDist < 85) {
-        voyagerBeaconTimer += dt;
-        if (voyagerBeaconTimer >= 3.8) {
-          voyagerBeaconTimer = 0;
-          playVoyagerBeaconPing();
+    if (!STATE.prologueActive) {
+      processInput(dt);
+      updatePhysics(dt);
+      updateHUDStats(STATE.telepathyActive);
+      updateScanning(dt);
+      updateHarvesting(dt);
+      updateAbduction(dt);
+      updateFleet(dt);
+      updateStealth(dt);
+      updateCrewSimulation(dt);
+      updatePartyGrid();
+      updateSonarWave(dt);
+      updateExplosionEffects(dt);
+      updateAwayMissions(dt);
+      updateTrajectory();
+      updateMinimap();
+      updateVoyagerHUDTracker();
+      if (STATE.voyagerProbe && STATE.voyagerSignalDetected && !STATE.voyagerScanned) {
+        const probeDist = STATE.playerPosition.distanceTo(STATE.voyagerProbe.position);
+        if (probeDist < 85) {
+          voyagerBeaconTimer += dt;
+          if (voyagerBeaconTimer >= 3.8) {
+            voyagerBeaconTimer = 0;
+            playVoyagerBeaconPing();
+          }
+        }
+      }
+    } else {
+      if (camera) {
+        if (STATE.prologueStage === "office_dream") {
+          camera.up.set(0, 1, 0);
+          camera.position.set(0, 40, 50);
+          camera.lookAt(0, 0, 0);
+        } else {
+          camera.up.set(0, 1, 0);
+          camera.position.set(6.5, 38, 46);
+          camera.lookAt(-3.5, 1, 0);
         }
       }
     }
@@ -47563,7 +50022,7 @@ function animate(time) {
       alienShipController.update(dt);
     }
     if (thrustLight) {
-      const isThrusting = STATE.keys.w;
+      const isThrusting = !STATE.prologueActive && STATE.keys.w;
       const targetThrust = isThrusting ? 2.6 + Math.random() * 0.5 : 0;
       thrustLight.intensity += (targetThrust - thrustLight.intensity) * Math.min(1, dt * 12);
     }
@@ -47630,15 +50089,23 @@ function setupMenuListeners() {
       if (resumeBtn)
         resumeBtn.style.display = "flex";
       if (STATE.universe) {
-        clearActiveSystem();
-        spawnPlanetsAndAsteroids();
-        STATE.playerPosition.set(0, 0, 75);
-        STATE.playerVelocity.set(0, 0, -1.8);
-        STATE.shipHeading = -Math.PI / 2;
-        STATE.progradeVector.set(0, 0, -1);
-        if (STATE.playerGroup) {
-          STATE.playerGroup.position.set(0, 0, 75);
-          STATE.playerGroup.rotation.y = -Math.PI / 2;
+        if (STATE.prologueCompleted) {
+          clearActiveSystem();
+          spawnPlanetsAndAsteroids();
+          STATE.playerPosition.set(0, 0, 160);
+          STATE.playerVelocity.set(1.5, 0, 0);
+          STATE.shipHeading = 0;
+          STATE.progradeVector.set(1, 0, 0);
+          if (STATE.playerGroup) {
+            STATE.playerGroup.position.set(0, 0, 160);
+            STATE.playerGroup.rotation.y = 0;
+          }
+        } else {
+          STATE.playerPosition.set(0, 0, 0);
+          STATE.playerVelocity.set(0, 0, 0);
+          if (STATE.playerGroup) {
+            STATE.playerGroup.position.set(0, 0, 0);
+          }
         }
       }
       renderDirectives();

@@ -346,6 +346,25 @@ export function updateMinimap() {
                     minimapCtx.arc(sx, sy, planetEntry && planetEntry.isMoon ? 2 : 3.5, 0, Math.PI * 2);
                     minimapCtx.fill();
                 }
+            } else if (((source as any).type === 'jamal_shuttle' || (source as any).isJamalShip) && STATE.jamalMissionActive) {
+                // Purple / Emerald radar ping for Jamal's Research Shuttle
+                const isLiberated = !!STATE.jamalShipLiberated;
+                minimapCtx.fillStyle = isLiberated ? '#34d399' : '#c084fc';
+                minimapCtx.beginPath();
+                minimapCtx.arc(sx, sy, 4.0, 0, Math.PI * 2);
+                minimapCtx.fill();
+
+                const wavePulse = 5.0 + Math.sin(Date.now() * 0.006) * 3.0;
+                minimapCtx.strokeStyle = isLiberated ? 'rgba(52, 211, 153, 0.75)' : 'rgba(192, 132, 252, 0.75)';
+                minimapCtx.lineWidth = 1.2;
+                minimapCtx.beginPath();
+                minimapCtx.arc(sx, sy, wavePulse, 0, Math.PI * 2);
+                minimapCtx.stroke();
+
+                minimapCtx.fillStyle = isLiberated ? '#34d399' : '#c084fc';
+                minimapCtx.font = '8px Orbitron, sans-serif';
+                const label = isLiberated ? "🚀 JAMAL (GEBORGEN)" : "🚀 JAMALS SCHIFF";
+                minimapCtx.fillText(label, sx + 7, sy + 3);
             } else if (((source as any).type === 'voyager_probe' || (source as any).isVoyager) && STATE.voyagerSignalDetected) {
                 // Bright golden radar ping with pulsing wave ring
                 minimapCtx.fillStyle = '#fbbf24';
@@ -879,6 +898,8 @@ export function updatePsionicCompass() {
         else if (target.type === 'Gas Giant') iconEl.innerText = '🪐';
         else if (target.type === 'Habitable') iconEl.innerText = '🌍';
         else if (target.isMoon) iconEl.innerText = '🌕';
+        else if (target.isJamalShip || target.type === 'jamal_shuttle') iconEl.innerText = '🚀';
+        else if (target.isTowingDrone || target.type === 'towing_drone') iconEl.innerText = '🚨';
         else if (target.type === 'voyager_probe' || target.name?.includes('Voyager')) iconEl.innerText = '📡';
         else iconEl.innerText = '🌑';
     }

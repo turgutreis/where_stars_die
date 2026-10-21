@@ -27,9 +27,8 @@
     <div id="main-menu" class="menu-overlay">
         <div class="menu-content">
             <div class="menu-brand">
-                <div class="brand-badge"><span class="brand-pulse-dot"></span> KOSMISCHES BIO-SCHIFF SURVIVAL</div>
                 <h1 class="menu-title-main">WHERE STARS DIE</h1>
-                <div class="menu-title-sub">PILLARS OF THE VOID &bull; AN BORD DER NAJMAFAR</div>
+                <div class="menu-title-sub">PILLARS OF THE VOID</div>
                 <div class="menu-version-tag">Alpha v0.20.0</div>
             </div>
 
@@ -66,9 +65,11 @@
                     <div class="quantum-drawer-inner">
                         <div class="quantum-drawer-header">
                             <h4 class="generator-title">🌌 IBM Quantum Generator</h4>
-                            <button id="close-quantum-box-btn" class="quantum-close-icon-btn" type="button" title="Zuklappen">✕</button>
+                            <button id="close-quantum-box-btn" class="quantum-close-icon-btn" type="button"
+                                title="Zuklappen">✕</button>
                         </div>
-                        <p class="generator-desc">Seede eine Galaxie aus 1.000 Systemen mittels Hadamard-Superpositionen auf IBM Quantum QPUs oder Simulator.</p>
+                        <p class="generator-desc">Seede eine Galaxie aus 1.000 Systemen mittels Hadamard-Superpositionen
+                            auf IBM Quantum QPUs oder Simulator.</p>
 
                         <input type="password" id="ibm-key-input" class="quantum-input"
                             placeholder="IBM Quantum Token eingeben (optional)" autocomplete="off" spellcheck="false"
@@ -83,7 +84,8 @@
 
                         <div class="quantum-actions-row">
                             <button id="generate-btn" class="quantum-gen-btn">Galaxie generieren</button>
-                            <button id="collapse-quantum-btn" class="quantum-collapse-btn" type="button">✕ Zuklappen</button>
+                            <button id="collapse-quantum-btn" class="quantum-collapse-btn" type="button">✕
+                                Zuklappen</button>
                         </div>
                         <div id="generation-status" class="generation-status">Bereit zum Seeden.</div>
                     </div>
@@ -168,26 +170,37 @@
                 </div>
 
                 <!-- Jamals Holographic Quantum Ising Time Simulator (36 Cycles / 18 Years on ibm_kingston) -->
-                <div id="ising-chronicle-bar" style="margin-top: 8px; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.3); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
+                <div id="ising-chronicle-bar"
+                    style="margin-top: 8px; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.3); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="font-size: 1.05rem;">⚛️</span>
                         <div>
-                            <div id="ising-chronicle-title" style="font-family: 'Orbitron', sans-serif; font-size: 0.74rem; font-weight: 700; color: #38bdf8;">
+                            <div id="ising-chronicle-title"
+                                style="font-family: 'Orbitron', sans-serif; font-size: 0.74rem; font-weight: 700; color: #38bdf8;">
                                 KOSMISCHE CHRONIK: ZYKLUS 1/36 &bull; JAHR 2242.0
                             </div>
                             <div id="ising-chronicle-sub" style="font-size: 0.68rem; color: #94a3b8;">
-                                IBM Heron r2 (ibm_kingston, 120 Qubits) &bull; Vollbremsungs-Faktor: 8.5% &bull; 0.0 Monate relativistische Reisezeit
+                                IBM Heron r2 (ibm_kingston, 120 Qubits) &bull; Vollbremsungs-Faktor: 8.5% &bull; 0.0
+                                Monate relativistische Reisezeit
                             </div>
                         </div>
                     </div>
 
-                    <div style="display: flex; align-items: center; gap: 8px; flex: 1; max-width: 460px; justify-content: flex-end;">
-                        <label for="ising-cycle-slider" style="font-size: 0.68rem; color: #cbd5e1; font-family: 'Orbitron', sans-serif; white-space: nowrap;">
+                    <div
+                        style="display: flex; align-items: center; gap: 8px; flex: 1; max-width: 460px; justify-content: flex-end;">
+                        <label for="ising-cycle-slider"
+                            style="font-size: 0.68rem; color: #cbd5e1; font-family: 'Orbitron', sans-serif; white-space: nowrap;">
                             🔮 Jamals Projektion:
                         </label>
-                        <input type="range" id="ising-cycle-slider" min="1" max="36" value="1" style="flex: 1; accent-color: #38bdf8; cursor: pointer;" title="Scrubbe durch alle 36 vom echten IBM QPU berechneten Zivilisations-Zyklen (2242.0 - 2259.5)" />
-                        <span id="ising-slider-val" style="font-family: 'Orbitron', sans-serif; font-size: 0.7rem; color: #facc15; min-width: 78px; text-align: right;">Zyklus 1</span>
-                        <button id="ising-reset-live-btn" class="quick-nav-btn" style="padding: 3px 8px; font-size: 0.65rem; display: none; border-color: rgba(250, 204, 21, 0.5); color: #facc15;">⏱️ Live</button>
+                        <input type="range" id="ising-cycle-slider" min="1" max="36" value="1"
+                            style="flex: 1; accent-color: #38bdf8; cursor: pointer;"
+                            title="Scrubbe durch alle 36 vom echten IBM QPU berechneten Zivilisations-Zyklen (2242.0 - 2259.5)" />
+                        <span id="ising-slider-val"
+                            style="font-family: 'Orbitron', sans-serif; font-size: 0.7rem; color: #facc15; min-width: 78px; text-align: right;">Zyklus
+                            1</span>
+                        <button id="ising-reset-live-btn" class="quick-nav-btn"
+                            style="padding: 3px 8px; font-size: 0.65rem; display: none; border-color: rgba(250, 204, 21, 0.5); color: #facc15;">⏱️
+                            Live</button>
                     </div>
                 </div>
             </header>
@@ -206,8 +219,9 @@
                         <div class="detail-row" id="row-anomaly" style="display: none;"><span class="label">Kosmische
                                 Anomalie:</span> <span id="val-anomaly-type" class="val"
                                 style="color: #f59e0b; font-weight: bold;">-</span></div>
-                        <div class="detail-row" id="row-ising-epoch"><span class="label">Ising-Epoche (QPU):</span> <span
-                                id="val-ising-epoch" class="val" style="font-weight: bold;">-</span></div>
+                        <div class="detail-row" id="row-ising-epoch"><span class="label">Ising-Epoche (QPU):</span>
+                            <span id="val-ising-epoch" class="val" style="font-weight: bold;">-</span>
+                        </div>
                         <div class="detail-row"><span class="label">Koordinaten:</span> <span class="val">[<span
                                     id="val-coord-x">0</span>, <span id="val-coord-z">0</span>]</span></div>
                         <div class="detail-row"><span class="label">Sternentyp:</span> <span id="val-star-type"
@@ -218,10 +232,17 @@
                                 class="val">0</span></div>
                         <div class="detail-row"><span class="label">Gedanken-Echo:</span> <span
                                 id="detail-psionic-resonance" class="val">-</span></div>
-                        <div class="detail-row" id="row-jump-dist"><span class="label">Sprungdistanz:</span> <span id="val-jump-dist" class="val">-</span></div>
-                        <div class="detail-row" id="row-jump-time"><span class="label">Relativ. Zeitverschiebung:</span> <span id="val-jump-time" class="val" style="color: #38bdf8;">-</span></div>
-                        <div class="detail-row" id="row-jump-precision"><span class="label">Faltungs-Präzision:</span> <span id="val-jump-precision" class="val">-</span></div>
-                        <div class="detail-row" id="row-jump-hazard" style="display: none;"><span class="label">Instabilitäts-Risiko:</span> <span id="val-jump-hazard" class="val" style="color: #f87171;">-</span></div>
+                        <div class="detail-row" id="row-jump-dist"><span class="label">Sprungdistanz:</span> <span
+                                id="val-jump-dist" class="val">-</span></div>
+                        <div class="detail-row" id="row-jump-time"><span class="label">Relativ. Zeitverschiebung:</span>
+                            <span id="val-jump-time" class="val" style="color: #38bdf8;">-</span>
+                        </div>
+                        <div class="detail-row" id="row-jump-precision"><span class="label">Faltungs-Präzision:</span>
+                            <span id="val-jump-precision" class="val">-</span>
+                        </div>
+                        <div class="detail-row" id="row-jump-hazard" style="display: none;"><span
+                                class="label">Instabilitäts-Risiko:</span> <span id="val-jump-hazard" class="val"
+                                style="color: #f87171;">-</span></div>
 
                         <div class="planets-list-header">Orbitaler Sensor-Scan:</div>
                         <ul id="val-planets-list" class="val-planets-list">
@@ -394,6 +415,26 @@
         </div>
     </div>
 
+    <!-- Right-Docked In-Game Cinematic Dialogue Panel (NPCs, Dr. Jamal, Story Quests) -->
+    <aside id="npc-dialog-card" class="npc-dialog-card hidden" aria-label="Interaktiver Dialog">
+        <header class="npc-dialog-header">
+            <div id="npc-dialog-eyebrow" class="prologue-eyebrow">
+                <span class="prologue-pulse-dot"></span>
+                <span id="npc-dialog-eyebrow-text">⚛️ TELEPATHIE &bull; DR. JAMAL</span>
+            </div>
+            <button id="close-npc-dialog-btn" class="close-diplo-btn" title="Dialog schließen [ESC]">✕</button>
+        </header>
+
+        <div class="npc-dialog-text-card">
+            <div id="npc-speaker-badge" class="prologue-speaker-badge speaker-character">Dr. Jamal</div>
+            <h2 id="npc-dialog-main-text" class="npc-dialog-main-text">...</h2>
+            <div id="npc-dialog-sub-text" class="npc-dialog-sub-text">...</div>
+        </div>
+
+        <!-- Interactive Multiple Choice Dialogue Options -->
+        <div id="npc-dialog-choices" class="prologue-choices-container"></div>
+    </aside>
+
     <!-- First Contact / Psionic Crossroads Modal Overlay -->
     <div id="first-contact-modal" class="modal-overlay" style="display: none; z-index: 1075;">
         <div class="first-contact-dialog-content glass-panel">
@@ -402,12 +443,14 @@
                     <span class="first-contact-emblem">🌌</span>
                     <div>
                         <h2>ERSTKONTAKT &bull; DIE PSIONISCHE WEGGABELUNG</h2>
-                        <span class="first-contact-header-sub">Najmafars Geist berührt zum ersten Mal ein sterbliches Bewusstsein</span>
+                        <span class="first-contact-header-sub">Najmafars Geist berührt zum ersten Mal ein sterbliches
+                            Bewusstsein</span>
                     </div>
                 </div>
                 <div class="first-contact-header-right">
                     <span class="first-contact-status-badge">✨ BEWUSSTSEINS-ERWACHEN</span>
-                    <button id="close-first-contact-modal-btn" class="close-diplo-btn" title="Schließen (Entscheidung im Deck fällen)">✕</button>
+                    <button id="close-first-contact-modal-btn" class="close-diplo-btn"
+                        title="Schließen (Entscheidung im Deck fällen)">✕</button>
                 </div>
             </header>
 
@@ -431,12 +474,15 @@
 
                 <div class="first-contact-narrative">
                     <p>
-                        Seit dem Zerfall seiner Heimatwelt hinter dem kosmischen Horizont trieb Najmafar in absoluter Stille und lähmender Kälte durch die Leere.
-                        Nun liegt das erste vernunftbegabte Wesen in den Kokon-Kammern. Die kosmische Einsamkeit weicht einer drängenden Frage:
+                        Seit dem Zerfall seiner Heimatwelt hinter dem kosmischen Horizont trieb Najmafar in absoluter
+                        Stille und lähmender Kälte durch die Leere.
+                        Nun liegt das erste vernunftbegabte Wesen in den Kokon-Kammern. Die kosmische Einsamkeit weicht
+                        einer drängenden Frage:
                         <strong>Wie soll Najmafar diesem sterblichen Geist begegnen?</strong>
                     </p>
                     <p class="first-contact-hint">
-                        Deine Wahl bestimmt Najmafars primäre Schiffs-Philosophie und schaltet spezifische evolutionäre Synergien frei. <em>(Später durch psionische Umwälzung wandelbar).</em>
+                        Deine Wahl bestimmt Najmafars primäre Schiffs-Philosophie und schaltet spezifische evolutionäre
+                        Synergien frei. <em>(Später durch psionische Umwälzung wandelbar).</em>
                     </p>
                 </div>
 
@@ -448,7 +494,8 @@
                             <div class="fc-choice-badge">⚡ PFAD DER HERRSCHAFT</div>
                             <h3>Unterwerfung & Zwang</h3>
                             <p class="fc-choice-flavor">
-                                „Unterwerfe den fremden Geist mit psionischem Joch. Eiserner Gehorsam und Disziplin befeuern Najmafars Triebwerke.“
+                                „Unterwerfe den fremden Geist mit psionischem Joch. Eiserner Gehorsam und Disziplin
+                                befeuern Najmafars Triebwerke.“
                             </p>
                             <ul class="fc-choice-perks">
                                 <li>🚀 <strong>+25% bis +45% Schub & Wendigkeit</strong></li>
@@ -456,7 +503,8 @@
                                 <li>⚠️ Erhöhter Mental-Drain & Meutereigefahr</li>
                             </ul>
                         </div>
-                        <button class="fc-select-btn domination" onclick="window.chooseFirstContactDoctrine('domination')">
+                        <button class="fc-select-btn domination"
+                            onclick="window.chooseFirstContactDoctrine('domination')">
                             ⚡ Herrschaft wählen
                         </button>
                     </div>
@@ -467,7 +515,8 @@
                             <div class="fc-choice-badge">🔮 PFAD DER TÄUSCHUNG</div>
                             <h3>Traum-Matrix & Illusion</h3>
                             <p class="fc-choice-flavor">
-                                „Errichte eine tröstliche Scheinwelt. Die Gefangenen glauben, sie forschen auf ihrer eigenen Heimatstation.“
+                                „Errichte eine tröstliche Scheinwelt. Die Gefangenen glauben, sie forschen auf ihrer
+                                eigenen Heimatstation.“
                             </p>
                             <ul class="fc-choice-perks">
                                 <li>🔮 <strong>+35% bis +70% Tarnung (Stealth)</strong></li>
@@ -475,7 +524,8 @@
                                 <li>🔍 Gelehrte können Matrix-Glitches bemerken</li>
                             </ul>
                         </div>
-                        <button class="fc-select-btn deception" onclick="window.chooseFirstContactDoctrine('deception')">
+                        <button class="fc-select-btn deception"
+                            onclick="window.chooseFirstContactDoctrine('deception')">
                             🔮 Täuschung wählen
                         </button>
                     </div>
@@ -486,7 +536,8 @@
                             <div class="fc-choice-badge">🌱 PFAD DER SYMBIOSE</div>
                             <h3>Organische Harmonie</h3>
                             <p class="fc-choice-flavor">
-                                „Öffne Najmafars Nervenbahnen für echte Resonanz. Verschmelzt als gleichberechtigte Partner im kosmischen Ozean.“
+                                „Öffne Najmafars Nervenbahnen für echte Resonanz. Verschmelzt als gleichberechtigte
+                                Partner im kosmischen Ozean.“
                             </p>
                             <ul class="fc-choice-perks">
                                 <li>🧪 <strong>+35% bis +60% Bio-Regeneration</strong></li>
@@ -494,7 +545,8 @@
                                 <li>💉 Telomer-Verjüngung stark begünstigt</li>
                             </ul>
                         </div>
-                        <button class="fc-select-btn symbiosis" onclick="window.chooseFirstContactDoctrine('symbiosis')">
+                        <button class="fc-select-btn symbiosis"
+                            onclick="window.chooseFirstContactDoctrine('symbiosis')">
                             🌱 Symbiose wählen
                         </button>
                     </div>
@@ -505,25 +557,35 @@
 
     <!-- Shuttle Expedition Modal Overlay -->
     <div id="shuttle-expedition-modal" class="modal-overlay" style="display: none; z-index: 1072;">
-        <div class="modal-content glass-panel" style="max-width: 540px; width: 92%; border-radius: 12px; padding: 24px; border: 1px solid rgba(56, 189, 248, 0.4); box-shadow: 0 0 40px rgba(56, 189, 248, 0.2);">
-            <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+        <div class="modal-content glass-panel"
+            style="max-width: 540px; width: 92%; border-radius: 12px; padding: 24px; border: 1px solid rgba(56, 189, 248, 0.4); box-shadow: 0 0 40px rgba(56, 189, 248, 0.2);">
+            <header
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 1.5rem;">🚀</span>
                     <div>
-                        <h2 id="shuttle-modal-title" style="margin: 0; font-size: 1.25rem; color: #38bdf8; font-family: 'Space Grotesk', sans-serif;">Expedition planen</h2>
-                        <div id="shuttle-modal-desc" style="font-size: 0.8rem; color: #94a3b8; margin-top: 2px;">Chitin-Shuttle Außenteam</div>
+                        <h2 id="shuttle-modal-title"
+                            style="margin: 0; font-size: 1.25rem; color: #38bdf8; font-family: 'Space Grotesk', sans-serif;">
+                            Expedition planen</h2>
+                        <div id="shuttle-modal-desc" style="font-size: 0.8rem; color: #94a3b8; margin-top: 2px;">
+                            Chitin-Shuttle Außenteam</div>
                     </div>
                 </div>
-                <button id="close-shuttle-modal-btn" class="close-diplo-btn" onclick="document.getElementById('shuttle-expedition-modal').style.display='none'">✕</button>
+                <button id="close-shuttle-modal-btn" class="close-diplo-btn"
+                    onclick="document.getElementById('shuttle-expedition-modal').style.display='none'">✕</button>
             </header>
 
             <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
                 <!-- Environmental Hazard & Expected Yield Briefing -->
-                <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); font-size: 0.85rem; display: flex; flex-direction: column; gap: 6px;">
+                <div
+                    style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); font-size: 0.85rem; display: flex; flex-direction: column; gap: 6px;">
                     <div id="shuttle-modal-hazards" style="font-size: 0.85rem;">Gefahr: Keine</div>
-                    <div id="shuttle-modal-yield" style="font-size: 0.85rem; color: #cbd5e1;">Erwartete Ausbeute: -</div>
+                    <div id="shuttle-modal-yield" style="font-size: 0.85rem; color: #cbd5e1;">Erwartete Ausbeute: -
+                    </div>
                     <div style="font-size: 0.75rem; color: #64748b; margin-top: 4px; line-height: 1.4;">
-                        💡 <em>Rollen-Boni: 🔬 Forscher schützen vor Strahlung & steigern Tech-Ausbeute (+50%). 🔧 Ingenieure dämpfen Hitze & erhöhen Minen-Ertrag (+40%). 💉 Sanitäter filtern toxische Dämpfe. 🛡️ Soldaten wehren aggressive Lebensformen ab.</em>
+                        💡 <em>Rollen-Boni: 🔬 Forscher schützen vor Strahlung & steigern Tech-Ausbeute (+50%). 🔧
+                            Ingenieure dämpfen Hitze & erhöhen Minen-Ertrag (+40%). 💉 Sanitäter filtern toxische
+                            Dämpfe. 🛡️ Soldaten wehren aggressive Lebensformen ab.</em>
                     </div>
                 </div>
 
@@ -532,15 +594,19 @@
                     <div style="font-size: 0.85rem; font-weight: bold; color: #f8fafc; margin-bottom: 8px;">
                         Außenteam Besatzung wählen (max. 3 Besatzungsmitglieder):
                     </div>
-                    <div id="shuttle-crew-selection-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 4px;">
+                    <div id="shuttle-crew-selection-list"
+                        style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 4px;">
                         <!-- Dynamically filled by openShuttleExpeditionModal -->
                     </div>
                 </div>
             </div>
 
             <footer style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
-                <button class="menu-btn secondary" style="padding: 8px 16px; font-size: 0.85rem;" onclick="document.getElementById('shuttle-expedition-modal').style.display='none'">Abbrechen</button>
-                <button id="shuttle-launch-confirm-btn" class="menu-btn primary" style="padding: 8px 20px; font-size: 0.85rem; background: linear-gradient(135deg, #0284c7, #38bdf8); color: #fff; font-weight: bold;">🚀 Shuttle Starten</button>
+                <button class="menu-btn secondary" style="padding: 8px 16px; font-size: 0.85rem;"
+                    onclick="document.getElementById('shuttle-expedition-modal').style.display='none'">Abbrechen</button>
+                <button id="shuttle-launch-confirm-btn" class="menu-btn primary"
+                    style="padding: 8px 20px; font-size: 0.85rem; background: linear-gradient(135deg, #0284c7, #38bdf8); color: #fff; font-weight: bold;">🚀
+                    Shuttle Starten</button>
             </footer>
         </div>
     </div>
@@ -594,20 +660,31 @@
     <!-- The WebGL Canvas for 3D simulation -->
     <div id="canvas-container"></div>
 
-    <!-- Cinematic Prologue Overlay -->
-    <div id="prologue-overlay" class="prologue-overlay hidden">
+    <!-- Cinematic Prologue Overlay: The Menagerie Breakout & Dr. Jamal Recruitment -->
+    <div id="prologue-overlay" class="prologue-overlay hidden stage-office">
         <div class="prologue-stars-backdrop"></div>
+        <div class="prologue-crt-scanlines"></div>
         <div class="prologue-vignette"></div>
+        <div class="prologue-glitch-flash" id="prologue-glitch-flash"></div>
         <div class="prologue-content">
-            <div class="prologue-eyebrow">
+            <div id="prologue-eyebrow" class="prologue-eyebrow">
                 <span class="prologue-pulse-dot"></span>
-                <span>CHRONIK DER LEERE &bull; VOYAGER-ECHO</span>
+                <span id="prologue-eyebrow-text">🖥️ ASTROPHYSIKALISCHES INSTITUT &bull; 23:47 UHR</span>
             </div>
-            <h1 id="prologue-main-text" class="prologue-text">Deine Heimatwelt ist weiter als das Licht entfernt...</h1>
-            <p id="prologue-sub-text" class="prologue-subtext">Milliarden Parsec im toten Vakuum.</p>
+
+            <div class="prologue-text-card">
+                <div id="prologue-speaker-badge" class="prologue-speaker-badge" style="display: none;"></div>
+                <h1 id="prologue-main-text" class="prologue-text">23:47 Uhr. Das Observatorium liegt im Halbdunkel.</h1>
+                <p id="prologue-sub-text" class="prologue-subtext">Auf den Monitoren flackern die Spektren der
+                    kosmischen Hintergrundstrahlung. Die Daten zeigen etwas Unmögliches.</p>
+            </div>
+
+            <!-- Interactive Choices & Directives -->
+            <div id="prologue-choices-container" class="prologue-choices-container"></div>
+
             <div class="prologue-footer">
-                <span id="prologue-step-counter" class="prologue-counter">1 / 6</span>
-                <button id="skip-prologue-btn" class="prologue-skip-btn">Überspringen [Leertaste / ESC]</button>
+                <span id="prologue-step-counter" class="prologue-counter">Szene 1 / 10 &bull; Akt I: Das Büro</span>
+                <button id="skip-prologue-btn" class="prologue-skip-btn">Prolog überspringen [ESC]</button>
             </div>
         </div>
     </div>
@@ -700,12 +777,18 @@
         <div id="hud-system-pill" class="hud-system-pill glass-capsule">
             <span class="sys-name" id="hud-current-system-name">🪐 Sol Invictus</span>
             <span class="sys-divider">•</span>
-            <span class="res-item" title="Biomasse"><span class="res-dot bio"></span> <span id="res-bio-count">0</span> Bio</span>
-            <span class="res-item" title="Silizium-Kristalle"><span class="res-dot silicon"></span> <span id="res-silicon-count">0</span> Sil</span>
-            <span class="res-item" title="Wasser / Volatiles"><span class="res-dot water"></span> <span id="res-water-count">0</span> H₂O</span>
-            <span class="res-item" title="Titan- & Legierungen"><span class="res-dot alloy"></span> <span id="res-alloy-count">0</span> Leg</span>
-            <span class="res-item" title="Vorläufer- & Hyper-Tech"><span class="res-dot tech"></span> <span id="res-tech-count">0</span> Tech</span>
-            <span class="res-item" title="Organische Nahrung"><span class="res-dot food"></span> <span id="res-food-count">0</span> Nhr</span>
+            <span class="res-item" title="Biomasse"><span class="res-dot bio"></span> <span id="res-bio-count">0</span>
+                Bio</span>
+            <span class="res-item" title="Silizium-Kristalle"><span class="res-dot silicon"></span> <span
+                    id="res-silicon-count">0</span> Sil</span>
+            <span class="res-item" title="Wasser / Volatiles"><span class="res-dot water"></span> <span
+                    id="res-water-count">0</span> H₂O</span>
+            <span class="res-item" title="Titan- & Legierungen"><span class="res-dot alloy"></span> <span
+                    id="res-alloy-count">0</span> Leg</span>
+            <span class="res-item" title="Vorläufer- & Hyper-Tech"><span class="res-dot tech"></span> <span
+                    id="res-tech-count">0</span> Tech</span>
+            <span class="res-item" title="Organische Nahrung"><span class="res-dot food"></span> <span
+                    id="res-food-count">0</span> Nhr</span>
             <span class="sys-divider">•</span>
             <span id="chronos-fragments-badge" class="chronos-badge" title="Psionische Chronos-Gedächtnisfragmente">⏳
                 <span id="chronos-count">0</span>/12</span>
@@ -714,16 +797,17 @@
         </div>
 
         <!-- 2b. Top-Right Quantum Ising Chronicle Sub-Pill -->
-        <div id="hud-chronicle-badge" class="hud-chronicle-pill glass-capsule" title="Kosmische Chronik & IBM QPU Zivilisations-Zyklus (Relativistische Zeitdilatation)">
+        <div id="hud-chronicle-badge" class="hud-chronicle-pill glass-capsule"
+            title="Kosmische Chronik & IBM QPU Zivilisations-Zyklus (Relativistische Zeitdilatation)">
             ⏱️ Zyklus 1/36 • 2242.0
         </div>
 
-        <!-- FTUE Directives / Mission Log (Top-Right under system pill) -->
-        <aside id="hud-directives" class="hud-directives glass-panel">
+        <!-- FTUE Directives / Mission Log (Top-Right under system pill - Unlocks with Jamal's Research Ship) -->
+        <aside id="hud-directives" class="hud-directives glass-panel" style="display: none;">
             <div class="directives-header">
                 <div class="directives-title-wrap">
                     <span class="directives-pulse-dot"></span>
-                    <span class="directives-heading">DIREKTIVEN &bull; ERSTE SCHRITTE</span>
+                    <span class="directives-heading">DIREKTIVEN &bull; LOGBUCH</span>
                 </div>
                 <button id="toggle-directives-btn" class="mini-icon-btn" title="Direktiven minimieren">➖</button>
             </div>
@@ -732,11 +816,11 @@
             </div>
         </aside>
 
-        <!-- Voyager 2 Signal Nav Pointer Widget -->
+        <!-- Signal Nav Pointer Widget -->
         <div id="voyager-nav-tracker" class="voyager-nav-tracker glass-capsule" style="display: none;">
-            <span class="voyager-ping-icon">📡</span>
+            <span class="voyager-ping-icon">🛰️</span>
             <div class="voyager-tracker-info">
-                <div class="voyager-tracker-title">UNBEKANNTES SIGNAL</div>
+                <div class="voyager-tracker-title">ZIEL-SIGNAL</div>
                 <div id="voyager-nav-dist" class="voyager-tracker-dist">35.2 AE</div>
             </div>
             <div id="voyager-nav-arrow" class="voyager-nav-arrow">▲</div>
@@ -747,7 +831,7 @@
             <div class="control-key-pill"><span class="key-badge">W</span> Bio-Schub</div>
             <div class="control-key-pill"><span class="key-badge">A / D</span> Ausrichten</div>
             <div class="control-key-pill"><span class="key-badge">S</span> Bremsen</div>
-            <div class="control-key-pill"><span class="key-badge">F</span> Voyager-Scan / Resonanz</div>
+            <div class="control-key-pill"><span class="key-badge">F</span> Scannen / Interaktion</div>
         </div>
 
         <!-- Orbital Resource Extension (extends the existing 3D target reticle; only visible after scan & only for present resources) -->
@@ -755,22 +839,26 @@
             <svg class="orbital-hud-svg" viewBox="0 0 320 320" aria-hidden="true">
                 <!-- Top-Left: Tech (Purple) -->
                 <g id="orbital-arc-group-tech">
-                    <path d="M 59.9 119.5 A 108 108 0 0 1 119.5 59.9" fill="none" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round" />
+                    <path d="M 59.9 119.5 A 108 108 0 0 1 119.5 59.9" fill="none" stroke="#a855f7" stroke-width="2.5"
+                        stroke-linecap="round" />
                     <line x1="83.6" y1="83.6" x2="71.0" y2="71.0" stroke="#a855f7" stroke-width="2" />
                 </g>
                 <!-- Top-Right: H2O (Blue) -->
                 <g id="orbital-arc-group-water">
-                    <path d="M 200.5 59.9 A 108 108 0 0 1 260.1 119.5" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" />
+                    <path d="M 200.5 59.9 A 108 108 0 0 1 260.1 119.5" fill="none" stroke="#38bdf8" stroke-width="2.5"
+                        stroke-linecap="round" />
                     <line x1="236.4" y1="83.6" x2="249.0" y2="71.0" stroke="#38bdf8" stroke-width="2" />
                 </g>
                 <!-- Bottom-Left: Leg (Silver) -->
                 <g id="orbital-arc-group-leg">
-                    <path d="M 119.5 260.1 A 108 108 0 0 1 59.9 200.5" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" />
+                    <path d="M 119.5 260.1 A 108 108 0 0 1 59.9 200.5" fill="none" stroke="#94a3b8" stroke-width="2.5"
+                        stroke-linecap="round" />
                     <line x1="83.6" y1="236.4" x2="71.0" y2="249.0" stroke="#94a3b8" stroke-width="2" />
                 </g>
                 <!-- Bottom-Right: Food / Bio (Green) -->
                 <g id="orbital-arc-group-bio">
-                    <path d="M 260.1 200.5 A 108 108 0 0 1 200.5 260.1" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" />
+                    <path d="M 260.1 200.5 A 108 108 0 0 1 200.5 260.1" fill="none" stroke="#22c55e" stroke-width="2.5"
+                        stroke-linecap="round" />
                     <line x1="236.4" y1="236.4" x2="249.0" y2="249.0" stroke="#22c55e" stroke-width="2" />
                 </g>
             </svg>
@@ -869,12 +957,10 @@
                 <div class="result-row" id="scan-planet-quantum-row" style="display: none;"><span
                         class="label">Quanten-Status:</span><span id="scan-planet-quantum" class="val"
                         style="color: #c084fc; font-weight: bold;">-</span></div>
-                <div class="result-row" id="scan-planet-physics-row"><span
-                        class="label">Planetare Physik:</span><span id="scan-planet-physics" class="val"
-                        style="color: #38bdf8;">-</span></div>
-                <div class="result-row" id="scan-planet-radiation-row"><span
-                        class="label">Strahlung / Feld:</span><span id="scan-planet-radiation" class="val"
-                        style="color: #facc15;">-</span></div>
+                <div class="result-row" id="scan-planet-physics-row"><span class="label">Planetare Physik:</span><span
+                        id="scan-planet-physics" class="val" style="color: #38bdf8;">-</span></div>
+                <div class="result-row" id="scan-planet-radiation-row"><span class="label">Strahlung / Feld:</span><span
+                        id="scan-planet-radiation" class="val" style="color: #facc15;">-</span></div>
                 <div class="result-row" id="scan-planet-species-row" style="display: none;"><span
                         class="label">Intelligentes Leben:</span><span id="scan-planet-species" class="val"
                         style="color: #d946ef; font-weight: bold;">-</span></div>
@@ -910,12 +996,16 @@
                 </div>
 
                 <!-- Surface Deposits & Shuttle Expeditions Section -->
-                <div id="scanner-deposits-container" class="scanner-deposits-container" style="display: none; margin-top: 10px; border-top: 1px solid rgba(56, 189, 248, 0.25); padding-top: 8px;">
-                    <div style="font-size: 0.75rem; text-transform: uppercase; color: #38bdf8; font-weight: bold; margin-bottom: 6px; letter-spacing: 0.05em; display: flex; justify-content: space-between; align-items: center;">
+                <div id="scanner-deposits-container" class="scanner-deposits-container"
+                    style="display: none; margin-top: 10px; border-top: 1px solid rgba(56, 189, 248, 0.25); padding-top: 8px;">
+                    <div
+                        style="font-size: 0.75rem; text-transform: uppercase; color: #38bdf8; font-weight: bold; margin-bottom: 6px; letter-spacing: 0.05em; display: flex; justify-content: space-between; align-items: center;">
                         <span>🚀 Boden-Vorkommen:</span>
-                        <span id="shuttle-status-badge" style="font-size: 0.7rem; color: #10b981; font-weight: normal;">Lander bereit</span>
+                        <span id="shuttle-status-badge"
+                            style="font-size: 0.7rem; color: #10b981; font-weight: normal;">Lander bereit</span>
                     </div>
-                    <div id="scanner-deposits-list" class="scanner-deposits-list" style="display: flex; flex-direction: column; gap: 6px;">
+                    <div id="scanner-deposits-list" class="scanner-deposits-list"
+                        style="display: flex; flex-direction: column; gap: 6px;">
                         <!-- Surface deposit cards populated dynamically -->
                     </div>
                 </div>
@@ -949,7 +1039,8 @@
                 <span class="dock-key">X</span>
                 <span class="dock-label">⚡ Bio-EMP</span>
             </button>
-            <button id="dock-stealth-btn" class="dock-btn stealth-btn" title="Psionischer Schimären-Schleier / Tarnung [T]">
+            <button id="dock-stealth-btn" class="dock-btn stealth-btn"
+                title="Psionischer Schimären-Schleier / Tarnung [T]">
                 <span class="dock-key">T</span>
                 <span id="dock-stealth-label" class="dock-label">🔮 Schleier</span>
             </button>
@@ -1025,8 +1116,11 @@
                                     <span id="crew-capacity-text" class="meta-val highlight">0 / 2</span>
                                 </div>
                                 <div class="organ-stations-section" style="margin: 8px 0;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                        <span style="font-size: 0.65rem; font-weight: 700; color: #a855f7; text-transform: uppercase; letter-spacing: 0.5px;">🫀 Schiffs-Organ-Stationen</span>
+                                    <div
+                                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                        <span
+                                            style="font-size: 0.65rem; font-weight: 700; color: #a855f7; text-transform: uppercase; letter-spacing: 0.5px;">🫀
+                                            Schiffs-Organ-Stationen</span>
                                         <span style="font-size: 0.58rem; color: #94a3b8;">Kollektiv-Bindung</span>
                                     </div>
                                     <div class="organ-stations-grid" id="organ-stations-grid">
@@ -1034,7 +1128,10 @@
                                     </div>
                                 </div>
                                 <div id="role-synergy-slots" style="display: none;">
-                                    <div id="slot-pilot"></div><div id="slot-biologist"></div><div id="slot-engineer"></div><div id="slot-psychologist"></div>
+                                    <div id="slot-pilot"></div>
+                                    <div id="slot-biologist"></div>
+                                    <div id="slot-engineer"></div>
+                                    <div id="slot-psychologist"></div>
                                 </div>
                                 <div id="crew-synergy-banner" class="crew-synergy-banner">
                                     <span id="crew-synergy-title" class="synergy-title">🌌 Kosmische Einsamkeit</span>
@@ -1042,45 +1139,70 @@
                                 </div>
                             </div>
 
-                            <div class="crew-life-support-panel glass-panel" id="crew-life-support-panel" style="margin: 8px 0; padding: 8px; border: 1px solid rgba(56,189,248,0.25); border-radius: 6px; background: rgba(15,23,42,0.85);">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                    <span style="font-size: 0.65rem; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px;">💧 Lebenserhaltung & Vorräte</span>
-                                    <span id="life-support-status-badge" style="font-size: 0.6rem; font-weight: 700; color: #10b981;">✓ Stabil</span>
+                            <div class="crew-life-support-panel glass-panel" id="crew-life-support-panel"
+                                style="margin: 8px 0; padding: 8px; border: 1px solid rgba(56,189,248,0.25); border-radius: 6px; background: rgba(15,23,42,0.85);">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <span
+                                        style="font-size: 0.65rem; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px;">💧
+                                        Lebenserhaltung & Vorräte</span>
+                                    <span id="life-support-status-badge"
+                                        style="font-size: 0.6rem; font-weight: 700; color: #10b981;">✓ Stabil</span>
                                 </div>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
-                                    <div style="background: rgba(14,165,233,0.1); border: 1px solid rgba(14,165,233,0.3); border-radius: 4px; padding: 4px 6px;">
+                                <div
+                                    style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                                    <div
+                                        style="background: rgba(14,165,233,0.1); border: 1px solid rgba(14,165,233,0.3); border-radius: 4px; padding: 4px 6px;">
                                         <div style="font-size: 0.58rem; color: #94a3b8;">Frischwasser</div>
-                                        <div id="deck-water-status" style="font-size: 0.72rem; font-weight: bold; color: #38bdf8;">💧 25L</div>
+                                        <div id="deck-water-status"
+                                            style="font-size: 0.72rem; font-weight: bold; color: #38bdf8;">💧 25L</div>
                                     </div>
-                                    <div style="background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 4px; padding: 4px 6px;">
+                                    <div
+                                        style="background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 4px; padding: 4px 6px;">
                                         <div style="font-size: 0.58rem; color: #94a3b8;">Nährstoff-Gel</div>
-                                        <div id="deck-food-status" style="font-size: 0.72rem; font-weight: bold; color: #f59e0b;">🍞 30kg</div>
+                                        <div id="deck-food-status"
+                                            style="font-size: 0.72rem; font-weight: bold; color: #f59e0b;">🍞 30kg</div>
                                     </div>
                                 </div>
-                                <div id="deck-biologist-boost-text" style="display: none; font-size: 0.6rem; color: #34d399; margin-bottom: 6px; text-align: center;">
+                                <div id="deck-biologist-boost-text"
+                                    style="display: none; font-size: 0.6rem; color: #34d399; margin-bottom: 6px; text-align: center;">
                                     🧪 Biologen-Boost: -20% Mutationskosten
                                 </div>
                                 <div style="display: flex; gap: 4px;">
-                                    <button id="repair-hull-alloy-btn" class="glass-btn" style="flex: 1; font-size: 0.58rem; padding: 4px; border: 1px solid rgba(168,85,247,0.4); background: rgba(168,85,247,0.15); color: #e9d5ff; border-radius: 4px; cursor: pointer;" title="5 Legierungen verbrauchen um 25 Hüllen-HP zu regenerieren">
+                                    <button id="repair-hull-alloy-btn" class="glass-btn"
+                                        style="flex: 1; font-size: 0.58rem; padding: 4px; border: 1px solid rgba(168,85,247,0.4); background: rgba(168,85,247,0.15); color: #e9d5ff; border-radius: 4px; cursor: pointer;"
+                                        title="5 Legierungen verbrauchen um 25 Hüllen-HP zu regenerieren">
                                         🛡️ Hülle (+25) <span style="color:#facc15;">[5 Leg.]</span>
                                     </button>
-                                    <button id="repair-shuttle-alloy-btn" class="glass-btn" style="flex: 1; font-size: 0.58rem; padding: 4px; border: 1px solid rgba(14,165,233,0.4); background: rgba(14,165,233,0.15); color: #bae6fd; border-radius: 4px; cursor: pointer;" title="10 Legierungen verbrauchen um das Bio-Shuttle auf 100% zu reparieren">
+                                    <button id="repair-shuttle-alloy-btn" class="glass-btn"
+                                        style="flex: 1; font-size: 0.58rem; padding: 4px; border: 1px solid rgba(14,165,233,0.4); background: rgba(14,165,233,0.15); color: #bae6fd; border-radius: 4px; cursor: pointer;"
+                                        title="10 Legierungen verbrauchen um das Bio-Shuttle auf 100% zu reparieren">
                                         🚀 Shuttle (100%) <span style="color:#facc15;">[10 Leg.]</span>
                                     </button>
                                 </div>
                             </div>
 
                             <!-- Big Freeze Trauma & Psionic Healing Panel -->
-                            <div class="big-freeze-trauma-panel glass-panel" id="big-freeze-trauma-panel" style="margin: 8px 0; padding: 8px; border: 1px solid rgba(168,85,247,0.3); border-radius: 6px; background: rgba(15,23,42,0.85);">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                    <span style="font-size: 0.65rem; font-weight: 700; color: #c084fc; text-transform: uppercase; letter-spacing: 0.5px;">🌌 Big-Freeze-Traumata & Geist</span>
-                                    <span id="big-freeze-trauma-status-badge" style="font-size: 0.6rem; font-weight: 700; color: #f43f5e;">3 Aktiv</span>
+                            <div class="big-freeze-trauma-panel glass-panel" id="big-freeze-trauma-panel"
+                                style="margin: 8px 0; padding: 8px; border: 1px solid rgba(168,85,247,0.3); border-radius: 6px; background: rgba(15,23,42,0.85);">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <span
+                                        style="font-size: 0.65rem; font-weight: 700; color: #c084fc; text-transform: uppercase; letter-spacing: 0.5px;">🌌
+                                        Big-Freeze-Traumata & Geist</span>
+                                    <span id="big-freeze-trauma-status-badge"
+                                        style="font-size: 0.6rem; font-weight: 700; color: #f43f5e;">3 Aktiv</span>
                                 </div>
-                                <div id="big-freeze-trauma-list" style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px;">
+                                <div id="big-freeze-trauma-list"
+                                    style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px;">
                                     <!-- Dynamic Traumas -->
                                 </div>
-                                <button id="therapy-session-btn" class="glass-btn" onclick="window.performTherapySession()" style="width: 100%; font-size: 0.62rem; padding: 5px; border: 1px solid rgba(192,132,252,0.4); background: rgba(192,132,252,0.18); color: #f3e8ff; border-radius: 4px; cursor: pointer; font-weight: bold;" title="Psionische Katharsis: Führt eine aktive Therapiesitzung durch (Kosten: 15 Mentalkraft, 10 Bio-Energie)">
-                                    🧠 Psionische Katharsis (+25% Heilung) <span style="color:#38bdf8;">[15 Mental / 10 Bio]</span>
+                                <button id="therapy-session-btn" class="glass-btn"
+                                    onclick="window.performTherapySession()"
+                                    style="width: 100%; font-size: 0.62rem; padding: 5px; border: 1px solid rgba(192,132,252,0.4); background: rgba(192,132,252,0.18); color: #f3e8ff; border-radius: 4px; cursor: pointer; font-weight: bold;"
+                                    title="Psionische Katharsis: Führt eine aktive Therapiesitzung durch (Kosten: 15 Mentalkraft, 10 Bio-Energie)">
+                                    🧠 Psionische Katharsis (+25% Heilung) <span style="color:#38bdf8;">[15 Mental / 10
+                                        Bio]</span>
                                 </button>
                             </div>
 
@@ -1107,14 +1229,21 @@
                         <div class="evo-top-bar">
                             <div class="evo-title-info">
                                 <span class="evo-title">🧬 Bio-Neuronales Evolutions-Netzwerk</span>
-                                <span class="evo-subtitle">Erweitere Najmafars lebende Organe, Chitin-Panzerung & Schwarm-Zerebrum</span>
+                                <span class="evo-subtitle">Erweitere Najmafars lebende Organe, Chitin-Panzerung &
+                                    Schwarm-Zerebrum</span>
                             </div>
                             <div class="evo-status-badges">
-                                <span class="evo-stat-pill" title="Aktive Evolutionen"><span id="evo-active-count">2/15</span> Aktiv</span>
-                                <span class="evo-res-pill bio" title="Verfügbare Biomasse">🌿 <span id="evo-bio-res">0</span> Bio</span>
-                                <span class="evo-res-pill silicon" title="Verfügbares Silizium">💠 <span id="evo-silicon-res">0</span> Silizium</span>
-                                <span class="evo-res-pill tech" title="Verfügbare Technologie">🔬 <span id="evo-tech-res">0</span> Tech</span>
-                                <span class="evo-stat-pill biologist" id="evo-biologist-badge" style="display: none; color: #38bdf8; border-color: rgba(56,189,248,0.4);" title="Biologen-Forschungsrabatt">🧪 Biologen-Boost: -20%</span>
+                                <span class="evo-stat-pill" title="Aktive Evolutionen"><span
+                                        id="evo-active-count">2/15</span> Aktiv</span>
+                                <span class="evo-res-pill bio" title="Verfügbare Biomasse">🌿 <span
+                                        id="evo-bio-res">0</span> Bio</span>
+                                <span class="evo-res-pill silicon" title="Verfügbares Silizium">💠 <span
+                                        id="evo-silicon-res">0</span> Silizium</span>
+                                <span class="evo-res-pill tech" title="Verfügbare Technologie">🔬 <span
+                                        id="evo-tech-res">0</span> Tech</span>
+                                <span class="evo-stat-pill biologist" id="evo-biologist-badge"
+                                    style="display: none; color: #38bdf8; border-color: rgba(56,189,248,0.4);"
+                                    title="Biologen-Forschungsrabatt">🧪 Biologen-Boost: -20%</span>
                             </div>
                         </div>
 
@@ -1126,13 +1255,14 @@
                                 <canvas id="synapse-neural-canvas" class="synapse-neural-canvas"></canvas>
 
                                 <!-- SVG Axon Pathways -->
-                                <svg class="synapse-axons-svg" id="synapse-axons-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                <svg class="synapse-axons-svg" id="synapse-axons-svg" viewBox="0 0 100 100"
+                                    preserveAspectRatio="none">
                                     <defs>
                                         <filter id="axon-glow-active" x="-20%" y="-20%" width="140%" height="140%">
-                                            <feGaussianBlur stdDeviation="1.2" result="blur"/>
+                                            <feGaussianBlur stdDeviation="1.2" result="blur" />
                                             <feMerge>
-                                                <feMergeNode in="blur"/>
-                                                <feMergeNode in="SourceGraphic"/>
+                                                <feMergeNode in="blur" />
+                                                <feMergeNode in="SourceGraphic" />
                                             </feMerge>
                                         </filter>
                                     </defs>
@@ -1153,17 +1283,28 @@
 
                     <!-- Compatibility elements for legacy queries and automated tests -->
                     <div class="mutation-list-compat" style="display: none;">
-                        <div class="mutation-item" id="mut-armor"><button class="mut-btn" data-mutation="armor"></button></div>
-                        <div class="mutation-item" id="mut-o2"><button class="mut-btn" data-mutation="o2"></button></div>
-                        <div class="mutation-item" id="mut-synapses"><button class="mut-btn" data-mutation="synapses"></button></div>
-                        <div class="mutation-item" id="mut-cocoon"><button class="mut-btn" data-mutation="cocoon"></button></div>
-                        <div class="mutation-item" id="mut-hivemind"><button class="mut-btn" data-mutation="hivemind"></button></div>
-                        <div class="mutation-item" id="mut-neural-cluster"><button class="mut-btn" data-mutation="neural_cluster"></button></div>
-                        <div class="mutation-item" id="mut-cryo-matrix"><button class="mut-btn" data-mutation="cryo_matrix"></button></div>
-                        <div class="mutation-item" id="mut-hive-cerebrum"><button class="mut-btn" data-mutation="hive_cerebrum"></button></div>
-                        <div class="mutation-item" id="mut-folddrive"><button class="mut-btn" data-mutation="folddrive"></button></div>
-                        <div class="mutation-item" id="mut-translator"><button class="mut-btn" data-mutation="translator"></button></div>
-                        <div class="mutation-item" id="mut-ibad"><button class="mut-btn purchased" data-mutation="ibad"></button></div>
+                        <div class="mutation-item" id="mut-armor"><button class="mut-btn"
+                                data-mutation="armor"></button></div>
+                        <div class="mutation-item" id="mut-o2"><button class="mut-btn" data-mutation="o2"></button>
+                        </div>
+                        <div class="mutation-item" id="mut-synapses"><button class="mut-btn"
+                                data-mutation="synapses"></button></div>
+                        <div class="mutation-item" id="mut-cocoon"><button class="mut-btn"
+                                data-mutation="cocoon"></button></div>
+                        <div class="mutation-item" id="mut-hivemind"><button class="mut-btn"
+                                data-mutation="hivemind"></button></div>
+                        <div class="mutation-item" id="mut-neural-cluster"><button class="mut-btn"
+                                data-mutation="neural_cluster"></button></div>
+                        <div class="mutation-item" id="mut-cryo-matrix"><button class="mut-btn"
+                                data-mutation="cryo_matrix"></button></div>
+                        <div class="mutation-item" id="mut-hive-cerebrum"><button class="mut-btn"
+                                data-mutation="hive_cerebrum"></button></div>
+                        <div class="mutation-item" id="mut-folddrive"><button class="mut-btn"
+                                data-mutation="folddrive"></button></div>
+                        <div class="mutation-item" id="mut-translator"><button class="mut-btn"
+                                data-mutation="translator"></button></div>
+                        <div class="mutation-item" id="mut-ibad"><button class="mut-btn purchased"
+                                data-mutation="ibad"></button></div>
                     </div>
                 </div>
 
@@ -1267,8 +1408,10 @@
                         <span class="opt-val">Persistenz</span>
                     </div>
                     <div class="save-quick-actions">
-                        <button id="opt-quick-save-btn" class="options-btn secondary" type="button">💾 Schnellspeichern</button>
-                        <button id="opt-open-saves-btn" class="options-btn primary" type="button">📂 Spielstände &amp; Profile</button>
+                        <button id="opt-quick-save-btn" class="options-btn secondary" type="button">💾
+                            Schnellspeichern</button>
+                        <button id="opt-open-saves-btn" class="options-btn primary" type="button">📂 Spielstände &amp;
+                            Profile</button>
                     </div>
                 </div>
             </div>
@@ -1288,7 +1431,8 @@
                     <span class="save-header-icon">💾</span>
                     <div>
                         <h2>KOSMISCHE SPEICHER-SYNAPSE</h2>
-                        <span class="save-header-sub">Zustands-Persistenz &amp; Experimentelle Entwicklungs-Profile</span>
+                        <span class="save-header-sub">Zustands-Persistenz &amp; Experimentelle
+                            Entwicklungs-Profile</span>
                     </div>
                 </div>
                 <button id="close-save-modal-btn" class="close-diplo-btn" type="button">✕</button>
@@ -1317,7 +1461,8 @@
                     <span class="preset-banner-icon">🧪</span>
                     <div class="preset-banner-text">
                         <strong>Sandbox- &amp; Playtest-Szenarien</strong>
-                        <p>Springe sofort in verschiedene Spielphasen mit definierter Besatzungsgröße (2, 10 oder 30), Ressourcen und freigeschalteten Mutationen.</p>
+                        <p>Springe sofort in verschiedene Spielphasen mit definierter Besatzungsgröße (2, 10 oder 30),
+                            Ressourcen und freigeschalteten Mutationen.</p>
                     </div>
                 </div>
                 <div class="presets-grid" id="presets-container">

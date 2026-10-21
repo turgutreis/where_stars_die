@@ -158,7 +158,7 @@ export function completeAbduction() {
                 addLogEntry("CREW", `Traum-Matrix initialisiert: ${candidate.name} lindert deine Einsamkeit! (${Math.round(STATE.loneliness)}% Einsamkeit)`);
                 collapseSystemQuantumBranch(STATE.currentSystemId, 'abduct', planet.name);
 
-                advanceFtueStep(6);
+                advanceFtueStep(7);
                 renderCrewUI();
                 updatePartyGrid();
                 updateHUDStats();

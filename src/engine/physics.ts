@@ -466,10 +466,15 @@ export function updatePhysics(dt: number) {
     if (STATE.playerGroup) {
         STATE.playerGroup.position.copy(STATE.playerPosition);
 
-        // Dynamic Ship Scaling: Ship gracefully scales down from 0.42 to 0.20 as you approach colossal worlds
-        const targetShipScale = 0.42 - 0.22 * combinedApproach;
-        const curShipScale = THREE.MathUtils.lerp(STATE.playerGroup.scale.x, targetShipScale, Math.min(1.0, dt * 5.0));
-        STATE.playerGroup.scale.set(curShipScale, curShipScale, curShipScale);
+        if (STATE.prologueActive) {
+            // Leviathan Proportions inside Menagerie: Fill the containment enclosure majestically
+            STATE.playerGroup.scale.set(2.4, 2.4, 2.4);
+        } else {
+            // Dynamic Ship Scaling: Ship gracefully scales down from 0.42 to 0.20 as you approach colossal worlds
+            const targetShipScale = 0.42 - 0.22 * combinedApproach;
+            const curShipScale = THREE.MathUtils.lerp(STATE.playerGroup.scale.x, targetShipScale, Math.min(1.0, dt * 5.0));
+            STATE.playerGroup.scale.set(curShipScale, curShipScale, curShipScale);
+        }
     }
 
     // 6.5 Continuous Distance-Based Camera Altitude & Responsive Following
@@ -492,16 +497,23 @@ export function updatePhysics(dt: number) {
 
     STATE.targetCameraHeight = targetHeight;
     if (camera) {
-        const camLerpSpeed = STATE.systemArrivalActive ? 2.5 : 4.0;
-        camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetHeight, Math.min(1.0, dt * camLerpSpeed));
-        STATE.cameraHeight = camera.position.y;
+        if (STATE.prologueActive && STATE.prologueStage !== 'office_dream') {
+            // Stable, beautifully framed 3D Menagerie Camera: elevated 45° angle, rock-solid framing
+            camera.up.set(0, 1, 0);
+            camera.position.set(0, 42, 48);
+            camera.lookAt(0, 4, 0);
+        } else {
+            const camLerpSpeed = STATE.systemArrivalActive ? 2.5 : 4.0;
+            camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetHeight, Math.min(1.0, dt * camLerpSpeed));
+            STATE.cameraHeight = camera.position.y;
 
-        camera.position.x = THREE.MathUtils.lerp(camera.position.x, STATE.playerPosition.x, Math.min(1.0, dt * 7.5));
-        camera.position.z = THREE.MathUtils.lerp(camera.position.z, STATE.playerPosition.z, Math.min(1.0, dt * 7.5));
+            camera.position.x = THREE.MathUtils.lerp(camera.position.x, STATE.playerPosition.x, Math.min(1.0, dt * 7.5));
+            camera.position.z = THREE.MathUtils.lerp(camera.position.z, STATE.playerPosition.z, Math.min(1.0, dt * 7.5));
 
-        // Rock-solid fixed orientation: strictly prevent any camera rotation when ship moves or turns
-        camera.rotation.set(-Math.PI / 2, 0, 0);
-        camera.up.set(0, 0, -1);
+            // Rock-solid fixed orientation: strictly prevent any camera rotation when ship moves or turns
+            camera.rotation.set(-Math.PI / 2, 0, 0);
+            camera.up.set(0, 0, -1);
+        }
 
         if (camera.fov !== 60.0) {
             camera.fov = 60.0;
