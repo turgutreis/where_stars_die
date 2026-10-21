@@ -1,4 +1,4 @@
-# 📖 STORY-WIKI & LORE-BIBEL: *The Second Law of Thermodynamics*
+# 📖 STORY-WIKI & LORE-BIBEL: *Where Stars Die*
 
 > **Zentrale Referenz für Weltbau, Handlung, Charaktere, Zeitebenen und Fraktionen.**
 > Dieses Dokument dient als lebendiges Story-Wiki des Projekts und wird fortlaufend erweitert.
