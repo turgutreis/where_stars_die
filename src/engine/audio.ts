@@ -609,6 +609,13 @@ export interface QuantumTrack {
 
 export const QUANTUM_PLAYLIST: QuantumTrack[] = [
     {
+        id: 'main_menu_theme',
+        title: 'Horizon of the Mu\'ammirun (Main Menu Theme)',
+        artist: 'Najmafar OST (Mastered)',
+        src: 'assets/music/main_menu_theme.wav',
+        description: 'Sanft aufblendendes Hauptmenü-Thema mit Tiefpass-Sweep & nahtlosem Loop'
+    },
+    {
         id: 'void_theme',
         title: 'Pillars of the Void (Quantum Core)',
         artist: 'IBM Quantum & Qiskit OST',
