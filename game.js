@@ -34237,14 +34237,9 @@ var dialogues_default = {
         keyHint: "2"
       },
       {
-        label: "„Was weißt du über diese kosmische Verlangsamung?“",
-        targetNodeId: "jamal_slowdown_2035",
-        keyHint: "3"
-      },
-      {
         label: "„Verstanden. Ich scanne den Orbit nach deinem Schiff ab. [Ende]“",
         action: "close",
-        keyHint: "4"
+        keyHint: "3"
       }
     ]
   },
@@ -34255,7 +34250,7 @@ var dialogues_default = {
     speakerType: "character",
     eyebrow: "🔭 HINTERGRUND • QUANTEN-KARTOGRAPHIE",
     mainText: "„Mein Name ist Tariq Jamal. Ich bin Quantenphysiker von der Erde.“",
-    subText: "„Beziehungsweise arbeite ich für eine Organisation, die mit modernsten neutralen Quantencomputern versucht, das Universum zu kartographieren. Wir suchen immer noch nach den Rätseln der Dunklen Materie und Dunklen Energie! Doch während meiner Untersuchungen – als ich altes Sternenlicht wie ein Video in die Vergangenheit zurückverfolgte – bin ich auf eine unmögliche Anomalie gestoßen.“",
+    subText: "„Beziehungsweise arbeite ich für eine Organisation, die mit den modernsten Quantencomputern versucht, das Universum zu kartographieren. Wir suchen immer noch nach der Dunklen Materie! Während meiner Untersuchungen bin ich jedoch auf eine unmögliche Anomalie gestoßen.“",
     sound: "sonar",
     options: [
       {
@@ -34264,14 +34259,9 @@ var dialogues_default = {
         keyHint: "1"
       },
       {
-        label: "„Und wie bist du dadurch auf mich gestoßen?“",
-        targetNodeId: "jamal_how_found_najmafar",
-        keyHint: "2"
-      },
-      {
         label: "„Lass uns zuerst dein Schiff sichern. [Ende]“",
         action: "close",
-        keyHint: "3"
+        keyHint: "2"
       }
     ]
   },
@@ -34281,17 +34271,17 @@ var dialogues_default = {
     speakerTitle: "Quantenphysiker",
     speakerType: "character",
     eyebrow: "🌑 DIE ABDRIFTENDE GALAXIE & DAS JAHR 2035",
-    mainText: "„Meine Neugier wurde auf eine ferne Galaxie gezogen, die dabei ist, sich vom sichtbaren Universum abzuschneiden – hinter den Horizont, in die absolute Dunkelheit.“",
-    subText: "„Normalerweise dehnt sich der Raum gleichmäßig aus. Aber dort draußen drückt irgendetwas gewaltig aufs Gaspedal, während hier bei uns plötzlich jemand auf die kosmische Bremse tritt! Als ich nachforschte, stieß ich auf uralte irdische Akten aus dem Jahr 2035: Damals schon hatten Forscher diese 'Verlangsamung' gemessen, aber die Daten wurden mit einem Sperr-Tag als 'Unwichtig / Sensorrauschen' im Datenmüll vergraben. Ich weiß noch nicht, was damals wirklich geschah – aber auf meinem Forschungsschiff habe ich die Analysegeräte, um es herauszufinden.“",
+    mainText: "„Meine Neugier wurde auf eine ferne Galaxie gezogen, die dabei ist, sich vom Universum abzuschneiden – hinter den Horizont zu verschwinden, in die absolute Dunkelheit.“",
+    subText: "„Und gleichzeitig gibt es Messungen, laut denen die kosmische Ausdehnung an anderer Stelle ins Stocken gerät – eine rätselhafte Verlangsamung. Als ich in uralten irdischen Datenbanken aus dem Jahr 2035 nachforschte, merkte ich, dass Wissenschaftler das schon damals gemessen hatten! Aber die Akten wurden mit einem speziellen Tag versehen: 'Unwichtig / Sensorrauschen', damit niemand weiterforscht. Auf meinem Forschungsschiff habe ich die Analysegeräte, um dem nachzugehen.“",
     sound: "synapse",
     options: [
       {
-        label: "„Wie haben dich diese Daten aus 2035 zu mir geführt?“",
+        label: "„Und wie bist du durch diese alten Daten auf mich gestoßen?“",
         targetNodeId: "jamal_how_found_najmafar",
         keyHint: "1"
       },
       {
-        label: "„Wenn du von dieser dunklen Galaxie sprichst ... schmerzt etwas tief in mir, aber die Erinnerung fehlt.“",
+        label: "„Wenn du von dieser dunklen Galaxie sprichst ... schmerzt etwas tief in mir, aber mir fehlt jede Erinnerung.“",
         targetNodeId: "jamal_amnesia_trauma",
         keyHint: "2"
       },
@@ -34308,24 +34298,19 @@ var dialogues_default = {
     speakerTitle: "Quantenphysiker",
     speakerType: "character",
     eyebrow: "🌑 DIE ABDRIFTENDE GALAXIE & DAS JAHR 2035",
-    mainText: "„Meine Neugier wurde auf eine ferne Galaxie gezogen, die dabei ist, hinter dem kosmischen Horizont in die absolute Dunkelheit zu verschwinden.“",
-    subText: "„Und gleichzeitig gibt es in unserer Galaxie schwere Gravitationsschwankungen – als würde jemand mit aller Macht auf die Bremse treten. In alten Archiven von der Erde aus dem Jahr 2035 fand ich heraus, dass Wissenschaftler diese Verlangsamung schon damals entdeckt hatten! Doch man hat die Daten mit einem Tag als 'Unwichtig' markiert und vertuscht. Ich kenne noch nicht die ganze Wahrheit, aber die Spur führte direkt hierher.“",
+    mainText: "„Meine Neugier wurde auf eine ferne Galaxie gezogen, die dabei ist, sich vom Universum abzuschneiden – hinter den Horizont zu verschwinden, in die absolute Dunkelheit.“",
+    subText: "„Und gleichzeitig gibt es Messungen, laut denen die kosmische Ausdehnung an anderer Stelle ins Stocken gerät – eine rätselhafte Verlangsamung. Als ich in uralten irdischen Datenbanken aus dem Jahr 2035 nachforschte, merkte ich, dass Wissenschaftler das schon damals gemessen hatten! Aber die Akten wurden mit einem speziellen Tag versehen: 'Unwichtig / Sensorrauschen', damit niemand weiterforscht.“",
     sound: "synapse",
     options: [
       {
-        label: "„Wie genau hat dich die Spur aus 2035 zu mir geführt?“",
+        label: "„Und wie bist du durch diese alten Daten auf mich gestoßen?“",
         targetNodeId: "jamal_how_found_najmafar",
         keyHint: "1"
       },
       {
-        label: "„Warum kann ich mich selbst nicht daran erinnern?“",
-        targetNodeId: "jamal_amnesia_trauma",
-        keyHint: "2"
-      },
-      {
-        label: "„Ich suche zuerst dein Forschungsschiff im Orbit. [Ende]“",
+        label: "„Ich nehme Kurs auf die Schiffssignatur. [Ende]“",
         action: "close",
-        keyHint: "3"
+        keyHint: "2"
       }
     ]
   },
@@ -34335,24 +34320,19 @@ var dialogues_default = {
     speakerTitle: "Quantenphysiker",
     speakerType: "character",
     eyebrow: "📡 DIE SIGNATUR VON 2035 • DER URSPRUNG",
-    mainText: "„Ich habe die weggesperrten Daten aus dem Jahr 2035 weiterverfolgt.“",
-    subText: "„Jemand hatte den Fall damals schon einmal heimlich analysiert. In den Datenpaketen von 2035 – manche nannten das Fragment intern nur 'GNN' oder 'Jann' – steckte eine schwache Ursprungssignatur, eine Art Echo mit Koordinaten. Diese Signatur aus dem Jahr 2035 hatte denselben Ursprung wie die Energiesignatur, die man hier am Perseus-Rand eingefangen und in den Zoo von Ceres-9 gesperrt hat: Dich! Ich weiß noch nicht, was du damals geschickt hast, aber der Schlüssel liegt in dir.“",
+    mainText: "„Ich habe diese alten Daten aus dem Jahr 2035 weiterverfolgt.“",
+    subText: "„Jemand hatte den Fall damals schon einmal analysiert. Dabei stieß ich darauf, dass die Daten aus dem Jahr 2035 eine bestimmte Signatur und Koordinaten trugen – denselben Ursprung wie die Signatur, die mich schließlich hierher in diesen Sektor und zu dir in den Zoo geführt hat! Ich weiß noch nicht alles, was dahintersteckt, aber auf meinem Forschungsschiff können wir die Daten endlich vollständig auswerten.“",
     sound: "sonar",
     options: [
       {
-        label: "„Ich spüre nur Leere und Fragmente ... Meine Erinnerungen sind verschüttet.“",
+        label: "„Mein Geist ist wie zersplittert ... Ich kann mich nicht mehr erinnern, was damals geschah.“",
         targetNodeId: "jamal_amnesia_trauma",
         keyHint: "1"
       },
       {
-        label: "„Wer bist du eigentlich genau, Tariq?“",
-        targetNodeId: "jamal_origin_2035",
-        keyHint: "2"
-      },
-      {
-        label: "„Dann lass uns dein Schiff finden, um die Daten auszuwerten. [Ende]“",
+        label: "„Dann lass uns dein Schiff finden, um die Daten zu prüfen. [Ende]“",
         action: "close",
-        keyHint: "3"
+        keyHint: "2"
       }
     ]
   },
@@ -34363,23 +34343,18 @@ var dialogues_default = {
     speakerType: "character",
     eyebrow: "🧠 NEURONALES TRAUMA • VERSCHÜTTETES GEDÄCHTNIS",
     mainText: "„Als wir unsere Gedanken im Käfig verbunden haben, habe ich die tiefen Narben in deinem Geist gespürt.“",
-    subText: "„Kein Wunder, dass du dich nicht erinnern kannst! Wer weiß, wie lange du allein im kalten Leerraum warst, bevor die Fänger dich in die Dämpfungsfelder der Menagerie gesperrt haben. Dein Bewusstsein hat die Erinnerungen aus Selbstschutz hinter einer Mauer aus Trauma abgeriegelt – nur das Gefühl einer sterbenden, dunkel werdenden Heimat ist geblieben. Überstürze nichts. Wenn wir erst meine ISS Ibn Battuta haben, finden wir gemeinsam heraus, wer du bist.“",
+    subText: "„Kein Wunder, dass du dich nicht direkt erinnern kannst. Die lange Einsamkeit im kalten Leerraum und die Dämpfungsfelder der Menagerie haben tiefe Traumata hinterlassen. Dein Bewusstsein hat fast alles abgeriegelt. Überstürze nichts – wenn wir erst meine ISS Ibn Battuta zurückhaben, finden wir Schritt für Schritt heraus, was passiert ist.“",
     sound: "synapse",
     options: [
       {
-        label: "„Erzähl mir mehr über die Anomalie und das Jahr 2035.“",
-        targetNodeId: "jamal_anomaly_2035",
+        label: "„Wer genau bist du eigentlich, und warum hast du mich gesucht?“",
+        targetNodeId: "jamal_origin_2035",
         keyHint: "1"
-      },
-      {
-        label: "„Wie hast du mich über die alten Daten überhaupt gefunden?“",
-        targetNodeId: "jamal_how_found_najmafar",
-        keyHint: "2"
       },
       {
         label: "„Du hast recht. Suchen wir zuerst dein Schiff im Orbit. [Ende]“",
         action: "close",
-        keyHint: "3"
+        keyHint: "2"
       }
     ]
   },
@@ -34422,7 +34397,7 @@ var dialogues_default = {
     speakerType: "character",
     eyebrow: "🤖 INSAN-BÜROKRATIE • LORE",
     mainText: "„Die Insan sind eine autonome Drohnen-Gesellschaft, die völlig außer Kontrolle geraten ist.“",
-    subText: "„Ironischerweise steht 'Insan' im Arabischen eigentlich für 'Mensch' – aber hier draußen bezeichnet man damit diese durchgedrehten Roboter. Ursprünglich waren es automatisierte Parkraum- und Bergungsdrohnen. Doch irgendetwas in ihrem tiefsten Code hat einen manischen Zwang ausgelöst, alles 'festzuhalten', was im Raum treibt: Sie verpassen jedem Schiff im Orbit von Planeten oder Asteroiden eine Kralle oder schleppen es gnadenlos ab!“",
+    subText: "„Ironischerweise steht 'Insan' im Arabischen eigentlich für 'Mensch' – aber hier draußen bezeichnet man damit diese durchgedrehten Roboter. Sie suchen im ganzen Sektor manisch nach Falschparkern im Orbit von Planeten oder Asteroiden, verpassen ihnen eine Parkkralle oder schleppen die Schiffe gnadenlos ab!“",
     sound: "sonar",
     options: [
       {
@@ -34476,7 +34451,7 @@ var dialogues_default = {
     speakerType: "character",
     eyebrow: "☕ STÖRUNG IM ZAHLUNGSVERKEHR • BARGELD",
     mainText: "„Ach verdammt, es gibt immer noch Störungen im System!“",
-    subText: "„Ich musste vorhin beim Zoo meinen Kaffee schon BAR bezahlen! Ich hatte gehört, dass die Menschen auf der Erde das damals gemacht haben ... Aber wer hat denn im offenen Weltraum so viel Bargeld für eine Abschleppdrohne dabei?! Uns bleibt wohl nichts anderes übrig, als uns an der Kralle zu versuchen.“",
+    subText: "„Ich musste vorhin beim Zoo meinen Kaffee schon BAR bezahlen! Ich hatte gehört, dass die Menschen auf der Erde das damals gemacht haben ... Aber wer hat denn im offenen Weltraum Bargeld für eine Abschleppdrohne dabei?! Uns bleibt wohl nichts anderes übrig, als uns an der Kralle zu versuchen.“",
     sound: "synapse",
     options: [
       {
@@ -34521,8 +34496,8 @@ Aber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die 
     speakerTitle: "Quantenphysiker",
     speakerType: "character",
     eyebrow: "🛰️ INSAN-VERWAHRSTELLE ZETA-9 • ANKUNFT",
-    mainText: "„Unglaublich ... die Drohnen haben hier draußen buchstäblich alles abgeschleppt, was nicht niet- und nagelfest war!“",
-    subText: "„Sieh dir dieses Schrottdepot an, Najmafar! Dort drüben an Pier 4 liegt tatsächlich meine echte ISS Ibn Battuta! Aber wir haben ein Problem: Hier herrscht eine extrem starke Interferenz, die das gesamte Kommunikationssystem stört. Und meine Sensoren zeigen noch etwas Verrücktes im Schrottfeld: Die Insan-Drohnen haben sogar die uralten Voyager-Sonden der Menschheit abgeschleppt!“",
+    mainText: "„Unglaublich ... die Drohnen haben hier draußen buchstäblich alles abgeschleppt, was sie finden konnten!“",
+    subText: "„Sieh dir dieses Schrottdepot an, Najmafar! Dort drüben an Pier 4 liegt tatsächlich meine echte ISS Ibn Battuta! Aber wir haben ein Problem: Hier herrscht eine extrem starke Interferenz, die das gesamte Kommunikationssystem stört. Und meine Sensoren zeigen noch etwas Verrücktes im Schrottfeld: Die Insan-Drohnen haben sogar die alten Voyager-Sonden der Menschheit abgeschleppt!“",
     sound: "sonar",
     options: [
       {
@@ -34566,7 +34541,7 @@ Aber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die 
     speakerType: "character",
     eyebrow: "💡 TARIQS PLAN • INTERFERENZ NUTZEN",
     mainText: "„Die starke Interferenz im Kommunikationssystem spielt uns in die Karten!“",
-    subText: "„Weil die zentrale Verwaltungs-KI durch die Störung isoliert ist, hängen die Klammern an Pier 4 nur am lokalen Notstrom. Wenn du sie mit einem psionischen Impuls überlädst, ist mein Forschungsschiff frei! Und wenn wir schon hier sind: Befreie unbedingt auch die Voyager-Sonde aus dem Schrottplatz – ihre alten Aufzeichnungen könnten uns verraten, was damals im Sonnensystem wirklich gemessen wurde!“",
+    subText: "„Weil die zentrale Verwaltungs-KI durch die Störung isoliert ist, hängen die Klammern an Pier 4 nur am lokalen Notstrom. Wenn du sie mit einem psionischen Impuls überlädst, ist mein Forschungsschiff frei! Und wenn wir schon hier sind: Befreie unbedingt auch die Voyager-Sonde aus dem Schrottplatz – ihre alten Aufzeichnungen könnten spannende Infos für uns bereithalten!“",
     sound: "synapse",
     options: [
       {
@@ -34588,11 +34563,11 @@ Aber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die 
     speakerType: "character",
     eyebrow: "🛰️ VOYAGER-SONDE BEFREIT • GEHEIME TELEMETRIE",
     mainText: "„Unglaublich ... die Sonde hat auf ihrer Reise am Rand des Sonnensystems alles aufgezeichnet!“",
-    subText: "„Die goldene Schallplatte der Menschheit berührt deinen verletzten Geist (+30 Mentalkraft, Einsamkeit gelindert). Doch im alten Telemetrie-Speicher der Voyager steckt noch mehr: Bevor sie abgeschleppt wurde, hat ihre Antenne im Jahr 2035 schwache, fremdartige Datenpakete aufgefangen – ein Echo, das genau zu deiner eigenen Resonanz passt! Langsam kehrt ein erstes Gefühl in dein Gedächtnis zurück ...“",
+    subText: "„Die goldene Schallplatte der Menschheit berührt deinen verletzten Geist (+30 Mentalkraft, Einsamkeit gelindert). Und im alten Telemetrie-Speicher der Voyager steckt noch mehr: Bevor sie abgeschleppt wurde, hat ihre Antenne im Jahr 2035 schwache, fremdartige Signale aufgefangen – wie ein fernes Echo in der Dunkelheit!“",
     sound: "sonar",
     options: [
       {
-        label: "„Ein vertrautes Flüstern in der Dunkelheit ... Holen wir jetzt dein Forschungsschiff! [Schließen]“",
+        label: "„Spannende Daten ... Holen wir jetzt dein Forschungsschiff! [Schließen]“",
         action: "close",
         keyHint: "1"
       }
@@ -34605,7 +34580,7 @@ Aber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die 
     speakerType: "character",
     eyebrow: "🎉 ECHTES FORSCHUNGSSCHIFF GEBORGEN!",
     mainText: "„Die echte ISS Ibn Battuta ist frei! Unser Quanten-Logbuch ist online!“",
-    subText: "„Endlich habe ich wieder Zugriff auf meine Labore und die Melange-Vorräte (+50 Melange-Spice, +60 Silizium)! Ich habe meinen Schiffscomputer mit deinen Synapsen gekoppelt – ab sofort steht dir das Direktiven-Logbuch zur Verfügung. Wir wissen noch nicht alles über deine Vergangenheit oder wer deine Heimat in die Dunkelheit stößt, Najmafar ... aber jetzt haben wir die Mittel, der Spur von 2035 nachzugehen!“",
+    subText: "„Endlich habe ich wieder Zugriff auf meine Labore und die Melange-Vorräte (+50 Melange-Spice, +60 Silizium)! Ich habe meinen Schiffscomputer mit deinen Synapsen gekoppelt – ab sofort steht dir das Direktiven-Logbuch zur Verfügung. Wir wissen noch nicht alles über deine Vergangenheit, Najmafar ... aber jetzt haben wir die Mittel, der Spur von 2035 nachzugehen!“",
     sound: "synapse",
     options: [
       {
