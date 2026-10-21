@@ -1612,13 +1612,12 @@ body.game-started .hud-left {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: #040814;
+    background-color: #030712;
     background-image: 
-        linear-gradient(to right, rgba(4, 8, 20, 0.05) 0%, rgba(4, 8, 20, 0.45) 60%, rgba(4, 8, 20, 0.88) 100%),
-        radial-gradient(ellipse at 80% 50%, rgba(4, 8, 20, 0.2) 0%, rgba(4, 8, 20, 0.75) 100%),
-        url('assets/images/pillars_of_creation.webp');
-    background-size: contain;
-    background-position: left center;
+        linear-gradient(to right, transparent 0%, rgba(3, 7, 18, 0.25) 50%, rgba(3, 7, 18, 0.75) 80%, rgba(3, 7, 18, 0.95) 100%),
+        url('assets/images/pillars_main_menu_16_9.webp');
+    background-size: cover;
+    background-position: center center;
     background-repeat: no-repeat;
     display: flex;
     justify-content: flex-end;
@@ -1636,7 +1635,7 @@ body.game-started .hud-left {
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at 35% 45%, rgba(56, 189, 248, 0.05) 0%, transparent 60%);
+    background: radial-gradient(circle at 25% 45%, rgba(56, 189, 248, 0.04) 0%, transparent 60%);
     pointer-events: none;
 }
 
@@ -1649,22 +1648,22 @@ body.game-started .hud-left {
 .menu-content {
     text-align: left;
     width: 100%;
-    max-width: 460px;
-    max-height: 92vh;
+    max-width: 440px;
+    max-height: 94vh;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(56, 189, 248, 0.3) transparent;
-    padding: 2rem 2.2rem;
-    background: rgba(8, 14, 28, 0.38);
-    backdrop-filter: blur(10px) saturate(120%);
-    -webkit-backdrop-filter: blur(10px) saturate(120%);
-    border: 1px solid rgba(56, 189, 248, 0.22);
-    border-radius: 18px;
+    padding: 1.8rem 2rem;
+    background: rgba(6, 11, 24, 0.28);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    border: 1px solid rgba(56, 189, 248, 0.18);
+    border-radius: 16px;
     box-shadow: 
-        0 15px 45px rgba(0, 0, 0, 0.65),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1),
-        inset 0 0 25px rgba(56, 189, 248, 0.05),
-        0 0 30px rgba(56, 189, 248, 0.12);
+        0 12px 40px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        inset 0 0 20px rgba(56, 189, 248, 0.03),
+        0 0 25px rgba(56, 189, 248, 0.08);
     position: relative;
     animation: menuFloatIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
