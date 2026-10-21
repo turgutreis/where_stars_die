@@ -1612,18 +1612,18 @@ body.game-started .hud-left {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: #030712;
+    background-color: #040814;
     background-image: 
-        radial-gradient(ellipse at 85% 50%, rgba(3, 7, 18, 0.45) 0%, rgba(3, 7, 18, 0.88) 100%),
-        linear-gradient(to right, rgba(3, 7, 18, 0.2) 0%, rgba(3, 7, 18, 0.7) 65%, rgba(3, 7, 18, 0.92) 100%),
+        linear-gradient(to right, rgba(4, 8, 20, 0.05) 0%, rgba(4, 8, 20, 0.45) 60%, rgba(4, 8, 20, 0.88) 100%),
+        radial-gradient(ellipse at 80% 50%, rgba(4, 8, 20, 0.2) 0%, rgba(4, 8, 20, 0.75) 100%),
         url('assets/images/pillars_of_creation.webp');
-    background-size: cover;
+    background-size: contain;
     background-position: left center;
     background-repeat: no-repeat;
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    padding-right: 6vw;
+    padding-right: 5vw;
     z-index: 1000;
     transition: opacity 0.5s ease, visibility 0.5s ease;
     overflow: hidden;
@@ -1636,7 +1636,7 @@ body.game-started .hud-left {
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at 30% 40%, rgba(56, 189, 248, 0.08) 0%, transparent 60%);
+    background: radial-gradient(circle at 35% 45%, rgba(56, 189, 248, 0.05) 0%, transparent 60%);
     pointer-events: none;
 }
 
@@ -1649,22 +1649,22 @@ body.game-started .hud-left {
 .menu-content {
     text-align: left;
     width: 100%;
-    max-width: 480px;
+    max-width: 460px;
     max-height: 92vh;
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: rgba(56, 189, 248, 0.4) transparent;
-    padding: 2.2rem 2.4rem;
-    background: rgba(10, 16, 32, 0.62);
-    backdrop-filter: blur(28px) saturate(160%);
-    -webkit-backdrop-filter: blur(28px) saturate(160%);
-    border: 1px solid rgba(56, 189, 248, 0.35);
-    border-radius: 20px;
+    scrollbar-color: rgba(56, 189, 248, 0.3) transparent;
+    padding: 2rem 2.2rem;
+    background: rgba(8, 14, 28, 0.38);
+    backdrop-filter: blur(10px) saturate(120%);
+    -webkit-backdrop-filter: blur(10px) saturate(120%);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+    border-radius: 18px;
     box-shadow: 
-        0 20px 60px rgba(0, 0, 0, 0.85),
-        inset 0 1px 0 rgba(255, 255, 255, 0.12),
-        inset 0 0 35px rgba(56, 189, 248, 0.08),
-        0 0 45px rgba(56, 189, 248, 0.22);
+        0 15px 45px rgba(0, 0, 0, 0.65),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        inset 0 0 25px rgba(56, 189, 248, 0.05),
+        0 0 30px rgba(56, 189, 248, 0.12);
     position: relative;
     animation: menuFloatIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
