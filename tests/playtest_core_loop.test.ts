@@ -4193,6 +4193,26 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         // Cleanup
         DialogueEngine.closeDialogue();
         expect(DialogueEngine.isDialogOpen()).toBe(false);
+
+        // 3. Prologue cannot be skipped with ESC and is paused cleanly by Main Menu
+        const { triggerPrologueSequence } = require('../src/ui/prologue');
+        let prologueCompleted = false;
+        triggerPrologueSequence(() => {
+            prologueCompleted = true;
+        });
+        expect(STATE.prologueActive).toBe(true);
+
+        // Opening Main Menu (Pause) during prologue does NOT finish/skip the prologue!
+        showMainMenu();
+        expect(isMainMenuOpen()).toBe(true);
+        expect(STATE.prologueActive).toBe(true);
+        expect(prologueCompleted).toBe(false);
+
+        // Resuming preserves prologue progression intact
+        hideMainMenu();
+        expect(isMainMenuOpen()).toBe(false);
+        expect(STATE.prologueActive).toBe(true);
+        expect(prologueCompleted).toBe(false);
     });
 });
 

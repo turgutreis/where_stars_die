@@ -49953,11 +49953,8 @@ function initPrologueListeners() {
   window.addEventListener("keydown", (e) => {
     if (!isPrologueActive)
       return;
-    if (e.key === "Escape") {
-      e.preventDefault();
-      finishPrologue();
+    if (isMainMenuOpen())
       return;
-    }
     const beat = PROLOGUE_BEATS[currentBeatIndex];
     if (!beat)
       return;

@@ -1623,7 +1623,7 @@ body.game-started .hud-left {
     justify-content: flex-end;
     align-items: center;
     padding-right: 5vw;
-    z-index: 2000;
+    z-index: 10100;
     transition: opacity 0.5s ease, visibility 0.5s ease;
     overflow: hidden;
 }
@@ -4061,7 +4061,7 @@ body.game-started .hud-left {
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 10000;
+    z-index: 10100;
     animation: fade-in 0.25s ease-out;
 }
 

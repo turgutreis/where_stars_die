@@ -18,6 +18,7 @@ import { openJamalIntroDialog } from './jamal-dialog';
 import { initMenagerieScene, shatterMenagerie, cleanupMenagerieScene, isMenagerieActive, menagerieGroup } from '../procedural/menagerie-scene';
 import { scene } from '../engine/scene';
 import { clearActiveSystem, spawnPlanetsAndAsteroids } from '../systems/universe';
+import { isMainMenuOpen } from './menu-controller';
 import storyData from '../data/prologue_story.json';
 
 export interface PrologueBeat {
@@ -414,12 +415,7 @@ export function initPrologueListeners() {
 
     window.addEventListener('keydown', (e) => {
         if (!isPrologueActive) return;
-
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            finishPrologue();
-            return;
-        }
+        if (isMainMenuOpen()) return;
 
         const beat = PROLOGUE_BEATS[currentBeatIndex];
         if (!beat) return;
