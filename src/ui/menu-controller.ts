@@ -1,5 +1,6 @@
 import { STATE } from '../core/state';
 import { checkAndUpdateContinueButton } from './save-modal';
+import { playMainMenuTheme, playIngameTheme } from '../engine/audio';
 
 export function showMainMenu() {
     const mainMenu = document.getElementById('main-menu');
@@ -19,6 +20,9 @@ export function showMainMenu() {
     }
 
     checkAndUpdateContinueButton();
+
+    // Switch to Main Menu soundtrack when menu is displayed
+    playMainMenuTheme();
 }
 
 export function hideMainMenu() {
@@ -27,6 +31,11 @@ export function hideMainMenu() {
 
     mainMenu.classList.add('menu-hidden');
     mainMenu.style.display = 'none';
+
+    // Transition back to in-game soundtrack if active session
+    if (STATE.gameStarted) {
+        playIngameTheme();
+    }
 }
 
 export function toggleMainMenu() {

@@ -1607,7 +1607,7 @@ body.game-started .hud-left {
 }
 
 .menu-overlay {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     width: 100%;
@@ -1623,7 +1623,7 @@ body.game-started .hud-left {
     justify-content: flex-end;
     align-items: center;
     padding-right: 5vw;
-    z-index: 1000;
+    z-index: 2000;
     transition: opacity 0.5s ease, visibility 0.5s ease;
     overflow: hidden;
 }

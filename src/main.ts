@@ -18,7 +18,7 @@ import { updateMinimap, updateSonarWave, initHUD, addLogEntry, updateHUDStats } 
 import { initDeckUI, updateMutationUI } from './ui/deck';
 import { initOptionsUI } from './ui/options';
 import { toggleGalaxyMap, warpToSystem, isMapOpen } from './systems/galaxy-map';
-import { toggleMusic, isMusicPlaying, isMusicUserMuted, initThreeAudio, attachShipAudio, playVoyagerBeaconPing } from './engine/audio';
+import { toggleMusic, isMusicPlaying, isMusicUserMuted, initThreeAudio, attachShipAudio, playVoyagerBeaconPing, playIngameTheme } from './engine/audio';
 import { initGameOverUI, updateExplosionEffects } from './engine/game-over';
 import { triggerPrologueSequence, initPrologueListeners } from './ui/prologue';
 import { initDirectivesHUD, renderDirectives, updateVoyagerHUDTracker } from './ui/directives';
@@ -26,12 +26,13 @@ import { initVoyagerDialogListeners } from './ui/voyager-dialog';
 import { updateAwayMissions } from './systems/shuttle-expeditions';
 import { initFirstContactModalListeners } from './ui/first-contact-modal';
 import { initSaveModal } from './ui/save-modal';
-import { hideMainMenu, showMainMenu, toggleMainMenu } from './ui/menu-controller';
+import { hideMainMenu, showMainMenu, toggleMainMenu, isMainMenuOpen } from './ui/menu-controller';
 import { initQuantumIsingSystem } from './systems/quantum-ising';
 import { updateMenagerieScene } from './procedural/menagerie-scene';
 
 let lastTime = 0;
 let voyagerBeaconTimer = 0;
+const zeroVelocity = new THREE.Vector3(0, 0, 0);
 
 function animate(time: number) {
     if (time === undefined) {
@@ -42,12 +43,18 @@ function animate(time: number) {
     const dt = Math.min((time - lastTime) / 1000, 0.1);
     lastTime = time;
 
+    const isPaused = STATE.gameStarted && isMainMenuOpen();
+
     // Background starfield & cosmic nebula updates (infinite celestial dome & dynamic space dust)
     if (starfieldController) {
-        starfieldController.update(dt, camera ? camera.position : STATE.playerPosition, STATE.playerVelocity);
+        if (isPaused) {
+            starfieldController.update(0, camera ? camera.position : STATE.playerPosition, zeroVelocity);
+        } else {
+            starfieldController.update(dt, camera ? camera.position : STATE.playerPosition, STATE.playerVelocity);
+        }
     }
 
-    if (!STATE.prologueActive) {
+    if (!STATE.prologueActive && !isPaused) {
         // Update active procedural shaders (solar corona, volumetric sun rays, and lens flares)
         updateUniverseShaders(dt, camera);
 
@@ -58,10 +65,12 @@ function animate(time: number) {
         });
     }
 
-    // Update 3D Menagerie Ceres-9 enclosure if active
-    updateMenagerieScene(dt);
+    // Update 3D Menagerie Ceres-9 enclosure if active and not paused
+    if (!isPaused) {
+        updateMenagerieScene(dt);
+    }
 
-    if (STATE.gameStarted) {
+    if (STATE.gameStarted && !isPaused) {
         if (!STATE.prologueActive) {
             // Unified Keyboard and Gamepad input processing
             processInput(dt);
@@ -196,9 +205,7 @@ function setupMenuListeners() {
         hideMainMenu();
         document.body.classList.add('game-started');
         if (resumeBtn) resumeBtn.style.display = 'flex';
-        if (!isMusicPlaying() && !isMusicUserMuted()) {
-            toggleMusic(true);
-        }
+        playIngameTheme();
         renderDirectives();
     });
 
@@ -234,10 +241,11 @@ function setupMenuListeners() {
 
             renderDirectives();
 
+            // Transition away from main menu theme to in-game soundtrack
+            playIngameTheme();
+
             triggerPrologueSequence(() => {
-                if (!isMusicPlaying() && !isMusicUserMuted()) {
-                    toggleMusic(true);
-                }
+                playIngameTheme();
                 addLogEntry("SYSTEM", "Biologisches Raumschiff erwacht. Sternensystem Perseus-Rand erreicht.");
                 addLogEntry("SYSTEM", "Psionische Sensoren online. Erkunde die Planeten des Systems nach Lebenszeichen.");
             });

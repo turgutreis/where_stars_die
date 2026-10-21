@@ -102,37 +102,22 @@ export function setupControls() {
                 return;
             }
 
-            // 4. Close Diplomacy Comms if open
-            if (isDiplomacyCommsOpen()) {
-                closeDiplomacyComms();
-                return;
-            }
-
-            // 5. Close Voyager Dialog if open
-            if (isVoyagerDialogOpen()) {
-                closeVoyagerDialog();
-                return;
-            }
-
-            // 5b. Close Jamal / NPC Dialogue if open
-            if (isJamalDialogOpen()) {
-                closeJamalDialog();
-                return;
-            }
-
-            // 6. Close Galaxy Map if open
+            // 4. Close Galaxy Map if open
             if (isMapOpen()) {
                 toggleGalaxyMap();
                 return;
             }
 
-            // 7. Close Bio-Deck if open
+            // 5. Close Bio-Deck if open
             if (isDeckOpen()) {
                 toggleDeckModal(false);
                 return;
             }
 
-            // 8. If NO modal was open: Toggle Main Pause Menu!
+            // 6. In-Game Pause & Main Menu Toggle:
+            // Does NOT abort active dialogues (Jamal, Voyager, Diplomacy).
+            // Opening the main menu freezes the game simulation cleanly;
+            // resuming restores the player directly to their active dialogue.
             if (STATE.gameStarted) {
                 toggleMainMenu();
             } else if (typeof (window as any).api !== 'undefined' && typeof (window as any).api.closeApp === 'function') {

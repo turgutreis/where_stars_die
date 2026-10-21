@@ -19,7 +19,10 @@ export function isSaveModalOpen(): boolean {
     return modal ? modal.style.display === 'flex' : false;
 }
 
+let onStartGame: (() => void) | undefined;
+
 export function initSaveModal(onStartGameCallback?: () => void) {
+    onStartGame = onStartGameCallback;
     const continueBtn = document.getElementById('continue-game-btn');
     const saveProfilesBtn = document.getElementById('save-profiles-btn');
     const closeBtn = document.getElementById('close-save-modal-btn');
@@ -224,6 +227,7 @@ export async function renderSaveSlotsUI() {
                     closeSaveModal();
                     hideMainMenu();
                     STATE.gameStarted = true;
+                    if (onStartGame) onStartGame();
                 }
             }
         });
@@ -306,6 +310,7 @@ export function renderPresetsUI() {
                     closeSaveModal();
                     hideMainMenu();
                     STATE.gameStarted = true;
+                    if (onStartGame) onStartGame();
                     addLogEntry("SYSTEM", `Playtest-Preset "${presetId}" initialisiert. Flugbereit!`);
                 }
             }

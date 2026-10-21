@@ -10,6 +10,7 @@ import { addLogEntry, updateHUDStats } from './hud';
 import { advanceFtueStep, renderDirectives } from './directives';
 import { DialogueEngine } from '../systems/dialogue';
 import { QuestManager } from '../systems/quests';
+import { isMainMenuOpen } from './menu-controller';
 import dialoguesData from '../data/dialogues.json';
 import type { DialogueNode, DialogueOption } from '../types/narrative';
 
@@ -203,7 +204,7 @@ export function liberateJamalShip() {
  * Initializes button listeners on modal (close button & keyboard number shortcuts).
  */
 export function initJamalDialogListeners() {
-    const closeBtn = document.getElementById('npc-dialog-close-btn');
+    const closeBtn = document.getElementById('close-npc-dialog-btn') || document.getElementById('npc-dialog-close-btn');
     if (closeBtn) {
         closeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -211,9 +212,9 @@ export function initJamalDialogListeners() {
         });
     }
 
-    // Number key shortcuts (1-4) for choices
+    // Number key shortcuts (1-9) for choices
     window.addEventListener('keydown', (e) => {
-        if (!isJamalDialogOpen()) return;
+        if (!isJamalDialogOpen() || isMainMenuOpen()) return;
 
         const key = e.key;
         if (key >= '1' && key <= '9') {

@@ -646,6 +646,7 @@ export const QUANTUM_PLAYLIST: QuantumTrack[] = [
 ];
 
 let currentTrackIdx = 0;
+let lastIngameTrackIdx = 1;
 let bgMusic: HTMLAudioElement | null = null;
 
 function initAudioTrack(idx: number) {
@@ -675,6 +676,9 @@ export function getCurrentTrackIndex(): number {
 
 export function selectTrackIndex(idx: number): QuantumTrack {
     currentTrackIdx = (idx + QUANTUM_PLAYLIST.length) % QUANTUM_PLAYLIST.length;
+    if (currentTrackIdx !== 0) {
+        lastIngameTrackIdx = currentTrackIdx;
+    }
     const isPlaying = musicPlaying;
     initAudioTrack(currentTrackIdx);
     
@@ -683,6 +687,36 @@ export function selectTrackIndex(idx: number): QuantumTrack {
     }
     updateMusicButtonsUI();
     return getCurrentTrack();
+}
+
+/**
+ * Switches to and plays the Main Menu Soundtrack (Track 0: Horizon of the Mu'ammirun).
+ */
+export function playMainMenuTheme(forceRestart = false) {
+    if (currentTrackIdx === 0 && musicPlaying && !forceRestart) {
+        return;
+    }
+    currentTrackIdx = 0;
+    initAudioTrack(0);
+    if (!musicUserMuted) {
+        toggleMusic(true);
+    }
+}
+
+/**
+ * Transitions to an in-game exploration/gameplay soundtrack.
+ * Switches from the main menu theme to the active in-game track (defaults to track 1: void_theme).
+ */
+export function playIngameTheme(forceRestart = false) {
+    if (currentTrackIdx !== 0 && musicPlaying && !forceRestart) {
+        return;
+    }
+    const targetIdx = lastIngameTrackIdx > 0 ? lastIngameTrackIdx : 1;
+    currentTrackIdx = targetIdx;
+    initAudioTrack(targetIdx);
+    if (!musicUserMuted) {
+        toggleMusic(true);
+    }
 }
 
 export function nextTrack(): QuantumTrack {

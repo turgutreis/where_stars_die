@@ -33335,6 +33335,7 @@ var QUANTUM_PLAYLIST = [
   }
 ];
 var currentTrackIdx = 0;
+var lastIngameTrackIdx = 1;
 var bgMusic = null;
 function initAudioTrack(idx) {
   if (typeof Audio === "undefined")
@@ -33355,6 +33356,9 @@ function getCurrentTrack() {
 }
 function selectTrackIndex(idx) {
   currentTrackIdx = (idx + QUANTUM_PLAYLIST.length) % QUANTUM_PLAYLIST.length;
+  if (currentTrackIdx !== 0) {
+    lastIngameTrackIdx = currentTrackIdx;
+  }
   const isPlaying = musicPlaying;
   initAudioTrack(currentTrackIdx);
   if (isPlaying && bgMusic) {
@@ -33362,6 +33366,27 @@ function selectTrackIndex(idx) {
   }
   updateMusicButtonsUI();
   return getCurrentTrack();
+}
+function playMainMenuTheme(forceRestart = false) {
+  if (currentTrackIdx === 0 && musicPlaying && !forceRestart) {
+    return;
+  }
+  currentTrackIdx = 0;
+  initAudioTrack(0);
+  if (!musicUserMuted) {
+    toggleMusic(true);
+  }
+}
+function playIngameTheme(forceRestart = false) {
+  if (currentTrackIdx !== 0 && musicPlaying && !forceRestart) {
+    return;
+  }
+  const targetIdx = lastIngameTrackIdx > 0 ? lastIngameTrackIdx : 1;
+  currentTrackIdx = targetIdx;
+  initAudioTrack(targetIdx);
+  if (!musicUserMuted) {
+    toggleMusic(true);
+  }
 }
 function nextTrack() {
   return selectTrackIndex(currentTrackIdx + 1);
@@ -34739,3189 +34764,6 @@ class DialogueEngine {
   }
 }
 
-// src/ui/jamal-dialog.ts
-var DIALOGUE_NODES = { ...dialogues_default };
-function isJamalDialogOpen() {
-  return DialogueEngine.isDialogOpen();
-}
-function getCurrentDialogueNodeId() {
-  return DialogueEngine.getCurrentNodeId();
-}
-function openNpcDialogue(nodeId) {
-  return DialogueEngine.openDialogue(nodeId);
-}
-function closeNpcDialogue() {
-  DialogueEngine.closeDialogue();
-}
-function handleDialogueChoice(optionOrTarget) {
-  DialogueEngine.handleChoice(optionOrTarget);
-}
-function triggerDecoyTrap() {
-  const penalty = 25;
-  STATE.mentalEnergy = Math.max(0, (STATE.mentalEnergy || 50) - penalty);
-  STATE.jamalDecoyRevealed = true;
-  STATE.jamalMissionDiscovered = true;
-  try {
-    playCrashSound();
-    playEmpChargeSound();
-    playFleetAlarmSound();
-  } catch (e) {}
-  if (STATE.jamalShip) {
-    STATE.jamalShip.name = "Köder-Attrappe [HOLOGRAFIE-ATTROPPE ENTLARVT]";
-    STATE.jamalShip.isDecoy = true;
-  }
-  if (STATE.towingDrone) {
-    STATE.towingDrone.name = "KI-Abschleppdrohne TX-9 [AGGRESSIV • VOLLSTRECKUNG]";
-    STATE.towingDrone.isHostile = true;
-    STATE.towingDrone.status = "hostile";
-  }
-  STATE.systemAlertLevel = "alert";
-  QuestManager.advanceQuest("prologue_jamal_ship", 2);
-  advanceFtueStep(3);
-  updateHUDStats();
-  addLogEntry("PSIONIK", "⚡ PSIONISCHE RÜCKKOPPLUNG: -25 Mentalkraft erlitten! Die Falle der Insan-Drohne schnappt zu!");
-  addLogEntry("SYSTEM", "\uD83D\uDEA8 HOLOGRAPHISCHE ATTRAPPE ENTLARVT: Die echte ISS Ibn Battuta wurde in die INSAN-Verwahrstelle Zeta-9 abgeschleppt (2 Sprünge entfernt)!");
-  openNpcDialogue("hologram_trap_revealed");
-}
-function liberateRealShipAtStation() {
-  if (STATE.jamalShipLiberated)
-    return;
-  STATE.jamalShipLiberated = true;
-  STATE.jamalMissionCompleted = true;
-  try {
-    playSynapseEvolveSound();
-    playSonarChime();
-  } catch (e) {}
-  if (STATE.jamalShip) {
-    if (STATE.jamalShip.setLiberated)
-      STATE.jamalShip.setLiberated(true);
-    STATE.jamalShip.name = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
-  }
-  QuestManager.completeQuest("prologue_jamal_ship");
-  grantJamalRewards();
-  addLogEntry("BERGUNG", "\uD83C\uDF89 ECHTES FORSCHUNGSSCHIFF GEBORGEN: ISS Ibn Battuta befreit! +50 Melange-Spice, +60 Silizium!");
-  addLogEntry("SYSTEM", "\uD83D\uDCDF QUANTEN-LOGBUCH AKTIVIERT: ISS Ibn Battuta gekoppelt! Missions-Direktiven und Galaktische Aufträge online.");
-  addLogEntry("JAMAL", "„Alle Sensoren online! Jetzt können wir die Verlangsamung und das Jahr 2035 aufklären!“");
-  advanceFtueStep(5);
-  renderDirectives();
-  openNpcDialogue("real_ship_liberated");
-}
-function liberateVoyagerProbe() {
-  STATE.voyagerLiberated = true;
-  STATE.voyagerScanned = true;
-  STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy || 100, (STATE.mentalEnergy || 0) + 30);
-  STATE.loneliness = Math.max(0, (STATE.loneliness || 30) - 20);
-  if (STATE.voyagerProbe) {
-    STATE.voyagerProbe.name = "Voyager 2 (Archaische Raumsonde) [BEFREIT]";
-  }
-  try {
-    playSonarChime();
-    playSynapseEvolveSound();
-  } catch (e) {}
-  addLogEntry("RELIKT", "\uD83D\uDEF0️ VOYAGER 2 BEFREIT: Golden Record geborgen! +30 Mentalkraft, Einsamkeit gelindert!");
-  updateHUDStats();
-  openNpcDialogue("insan_voyager_liberated");
-}
-var executeHackDroneDatabase = triggerDecoyTrap;
-function grantJamalRewards() {
-  STATE.loneliness = Math.max(5, (STATE.loneliness || 30) - 20);
-  updateHUDStats();
-}
-DialogueEngine.registerAction("hack_clamp_attempt", () => triggerDecoyTrap());
-DialogueEngine.registerAction("smash_clamp_attempt", () => triggerDecoyTrap());
-DialogueEngine.registerAction("smash_clamp", () => triggerDecoyTrap());
-DialogueEngine.registerAction("hack_drone_database", () => triggerDecoyTrap());
-DialogueEngine.registerAction("liberate_real_ship_at_station", () => liberateRealShipAtStation());
-DialogueEngine.registerAction("liberate_voyager_probe", () => liberateVoyagerProbe());
-function openJamalIntroDialog() {
-  if (STATE.jamalIntroModalSeen)
-    return;
-  STATE.jamalIntroModalSeen = true;
-  STATE.jamalMissionActive = true;
-  QuestManager.startQuest("prologue_jamal_ship");
-  openNpcDialogue("jamal_orbit_intro");
-}
-function triggerJamalShipScannedDialogue() {
-  QuestManager.advanceQuest("prologue_jamal_ship", 1);
-  advanceFtueStep(2);
-  const hint = document.getElementById("flight-controls-hint");
-  if (hint)
-    hint.classList.add("hidden");
-  openNpcDialogue("jamal_ship_scanned");
-}
-function closeJamalDialog() {
-  closeNpcDialogue();
-}
-function liberateJamalShip() {
-  executeHackDroneDatabase();
-}
-function initJamalDialogListeners() {
-  const closeBtn = document.getElementById("npc-dialog-close-btn");
-  if (closeBtn) {
-    closeBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      closeNpcDialogue();
-    });
-  }
-  window.addEventListener("keydown", (e) => {
-    if (!isJamalDialogOpen())
-      return;
-    const key = e.key;
-    if (key >= "1" && key <= "9") {
-      const idx = parseInt(key, 10) - 1;
-      const node = DIALOGUE_NODES[getCurrentDialogueNodeId()];
-      if (node && node.options && node.options[idx]) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleDialogueChoice(node.options[idx]);
-      }
-    }
-  });
-}
-
-// src/ui/party-grid.ts
-var lastRenderedCrewIds = "";
-function updatePartyGrid() {
-  const container = document.getElementById("hud-party-grid");
-  if (!container)
-    return;
-  const crew = STATE.crew;
-  if (!crew || crew.length === 0) {
-    if (container.innerHTML !== "") {
-      container.innerHTML = "";
-      lastRenderedCrewIds = "";
-    }
-    return;
-  }
-  const clusters = getSpeciesClusters();
-  const useClustering = crew.length >= 6 || clusters.some((cl) => cl.count >= 4);
-  const expandedKey = getExpandedClustersKey();
-  const isTrans = STATE.doctrineTransition && STATE.doctrineTransition.active;
-  const transPercent = isTrans ? Math.round(STATE.doctrineTransition.progress * 100) : 0;
-  const transTarget = isTrans ? STATE.doctrineTransition.targetParadigm === "domination" ? "⚡ Herrschaft" : STATE.doctrineTransition.targetParadigm === "symbiosis" ? "\uD83C\uDF31 Symbiose" : "\uD83D\uDD2E Täuschung" : "";
-  const transKey = isTrans ? `trans_${transPercent}` : "idle";
-  const stationKey = crew.map((c) => `${c.id}_${c.station}`).join("_");
-  const currentCrewIds = `${STATE.primaryParadigm}_${STATE.activeSubCodex}_${useClustering}_${expandedKey}_${transKey}_${stationKey}_` + crew.map((c) => `${c.id}_${c.ageCategory}`).join("|");
-  const structureChanged = currentCrewIds !== lastRenderedCrewIds;
-  const pIcon = STATE.primaryParadigm === "neutral" ? "\uD83C\uDF0C" : STATE.primaryParadigm === "domination" ? "⚡" : STATE.primaryParadigm === "symbiosis" ? "\uD83C\uDF31" : "\uD83D\uDD2E";
-  const pLabel = STATE.primaryParadigm === "neutral" ? "Einsamkeit (Neutral)" : STATE.primaryParadigm === "domination" ? "Herrschaft" : STATE.primaryParadigm === "symbiosis" ? "Symbiose" : "Täuschung";
-  const badgeLabel = isTrans ? `\uD83C\uDF00 Umwälzung ${transPercent}%` : `${pIcon} ${pLabel}`;
-  const badgeTitle = STATE.primaryParadigm === "neutral" ? crew.length > 0 ? "Klicken: Erstkontakt-Doktrin besiegeln!" : "Najmafar ist in Einsamkeit gefangen. Erstkontakt erforderlich." : isTrans ? `Geistige Umwälzung aktiv (Ziel: ${transTarget}). Klicken: Schiffs-Doktrin weiter schalten.` : `Klicken: Schiffs-Doktrin wechseln (Herrschaft / Täuschung / Symbiose)`;
-  const doctrineBadge = `
-        <button id="party-doctrine-btn" class="party-doctrine-btn" title="${badgeTitle}" style="width: 100%; margin-bottom: 6px; padding: 4px 6px; font-size: 0.65rem; font-weight: bold; border-radius: 4px; background: ${isTrans ? "rgba(88,28,135,0.85)" : "rgba(15,23,42,0.85)"}; border: 1px solid ${isTrans ? "#38bdf8" : "rgba(168,85,247,0.5)"}; color: #cbd5e1; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: all 0.2s ease;">
-            <span style="display: flex; align-items: center; gap: 4px;"><span>${isTrans ? "\uD83C\uDF00" : pIcon}</span> <span>${badgeLabel}</span></span>
-            <span style="font-size: 0.6rem; color: #38bdf8;">${crew.length}/${STATE.maxCrewCapacity} \uD83D\uDD04</span>
-        </button>
-    `;
-  if (structureChanged) {
-    lastRenderedCrewIds = currentCrewIds;
-    if (useClustering) {
-      let html = doctrineBadge;
-      clusters.forEach((cl) => {
-        html += renderPartyClusterCard(cl);
-      });
-      container.innerHTML = html;
-    } else {
-      container.innerHTML = doctrineBadge + crew.map((c) => renderPartyCard(c)).join("");
-    }
-    attachPartyGridEvents();
-  } else {
-    clusters.forEach((cl) => {
-      const clusterCard = document.getElementById(`party-cluster-${cl.speciesName}`);
-      if (clusterCard) {
-        let clusterColor = "#10b981";
-        if (cl.avgAgePercent < 15)
-          clusterColor = "#ef4444";
-        else if (cl.avgAgePercent < 45)
-          clusterColor = "#f59e0b";
-        const clusterBar = clusterCard.querySelector(".party-cluster-age-fill");
-        if (clusterBar) {
-          clusterBar.style.width = `${cl.avgAgePercent}%`;
-          clusterBar.style.backgroundColor = clusterColor;
-        }
-        const clusterVal = clusterCard.querySelector(".party-cluster-age-val");
-        if (clusterVal) {
-          clusterVal.innerText = `${cl.avgAgePercent}%`;
-          clusterVal.style.color = clusterColor;
-        }
-      }
-    });
-    crew.forEach((c) => {
-      const card = document.getElementById(`party-card-${c.id}`);
-      if (!card || typeof card.querySelector !== "function")
-        return;
-      const maxLife = c.maxLifespan || 540;
-      const currentAge = Math.min(maxLife, Math.floor(c.age || 0));
-      const lifePercent = Math.max(0, Math.min(100, Math.round((1 - currentAge / maxLife) * 100)));
-      let barColor = "#10b981";
-      if (lifePercent < 15)
-        barColor = "#ef4444";
-      else if (lifePercent < 45)
-        barColor = "#f59e0b";
-      const ageBar = card.querySelector(".party-age-fill");
-      if (ageBar) {
-        ageBar.style.width = `${lifePercent}%`;
-        ageBar.style.backgroundColor = barColor;
-      }
-      const ageText = card.querySelector(".party-age-val");
-      if (ageText) {
-        ageText.innerText = `${lifePercent}%`;
-        ageText.style.color = barColor;
-      }
-      const stressBar = card.querySelector(".party-stress-fill");
-      if (stressBar) {
-        stressBar.style.width = `${Math.min(100, Math.round(c.stress))}%`;
-      }
-      const stabilityBar = card.querySelector(".party-stability-fill");
-      if (stabilityBar) {
-        stabilityBar.style.width = `${Math.min(100, Math.round(c.illusionStability))}%`;
-      }
-      const tooltipAge = card.querySelector(".party-tooltip-age");
-      if (tooltipAge) {
-        tooltipAge.innerText = `${Math.floor(currentAge / 60)}:${String(currentAge % 60).padStart(2, "0")} / ${Math.floor(maxLife / 60)}:00 Min. (${lifePercent}% übrig)`;
-      }
-      const tooltipThought = card.querySelector(".party-tooltip-thought");
-      if (tooltipThought) {
-        tooltipThought.innerText = `"${c.thought}"`;
-      }
-      if (lifePercent <= 10 || c.ageCategory === "critical") {
-        if (!card.classList.contains("critical-pulse")) {
-          card.classList.add("critical-pulse");
-        }
-      } else {
-        card.classList.remove("critical-pulse");
-      }
-    });
-  }
-}
-function renderPartyClusterCard(cl) {
-  let dispIcon = "\uD83D\uDD2C";
-  if (cl.disposition === "martial")
-    dispIcon = "⚔️";
-  else if (cl.disposition === "empathic")
-    dispIcon = "\uD83C\uDF44";
-  else if (cl.disposition === "synthetic")
-    dispIcon = "\uD83E\uDD16";
-  else if (cl.disposition === "lithoid")
-    dispIcon = "\uD83D\uDCA0";
-  let clusterColor = "#10b981";
-  if (cl.avgAgePercent < 15)
-    clusterColor = "#ef4444";
-  else if (cl.avgAgePercent < 45)
-    clusterColor = "#f59e0b";
-  return `
-        <div id="party-cluster-${cl.speciesName}" class="party-cluster-card glass-panel" style="margin-bottom: 6px; padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(30,41,59,0.7);">
-            <div class="party-cluster-header" data-cluster-toggle="${cl.speciesName}" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
-                <div style="display: flex; align-items: center; gap: 6px;">
-                    <span style="font-size: 1.1rem;">${cl.avatarIcon}</span>
-                    <div>
-                        <div style="font-weight: 700; color: ${cl.speciesColor}; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px;">${cl.speciesName}</div>
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            <span style="font-size: 0.6rem; color: #38bdf8;">${cl.count}x • ${dispIcon}</span>
-                            <span class="party-cluster-age-val" style="font-size: 0.6rem; color: ${clusterColor}; font-weight: 700;">${cl.avgAgePercent}%</span>
-                        </div>
-                    </div>
-                </div>
-                <div style="display: flex; gap: 3px;" onclick="event.stopPropagation()">
-                    <button class="party-cluster-rejuv-btn" data-cluster-species="${cl.speciesName}" title="Kollektiv-Verjüngung (${cl.count}x)" style="cursor: pointer; background: rgba(16,185,129,0.3); border: 1px solid #10b981; color: #fff; border-radius: 3px; font-size: 0.65rem; padding: 1px 4px;">\uD83D\uDC89</button>
-                    <button class="party-cluster-toggle-btn" data-cluster-toggle="${cl.speciesName}" style="cursor: pointer; background: rgba(168,85,247,0.3); border: 1px solid #a855f7; color: #fff; border-radius: 3px; font-size: 0.65rem; padding: 1px 4px;">${cl.isExpanded ? "▲" : "▼"}</button>
-                </div>
-            </div>
-            <!-- Average Vitality Track -->
-            <div style="margin-top: 4px; height: 3px; background: rgba(0,0,0,0.4); border-radius: 2px; overflow: hidden;">
-                <div class="party-cluster-age-fill" style="width: ${cl.avgAgePercent}%; height: 100%; background: ${clusterColor}; transition: width 0.3s ease;"></div>
-            </div>
-            ${cl.isExpanded ? `
-                <div class="party-cluster-members" style="margin-top: 6px; padding-left: 4px; border-left: 2px solid ${cl.speciesColor};">
-                    ${cl.members.map((m) => renderPartyCard(m)).join("")}
-                </div>
-            ` : ""}
-        </div>
-    `;
-}
-function renderPartyCard(c) {
-  const maxLife = c.maxLifespan || 540;
-  const currentAge = Math.min(maxLife, Math.floor(c.age || 0));
-  const lifePercent = Math.max(0, Math.min(100, Math.round((1 - currentAge / maxLife) * 100)));
-  let barColor = "#10b981";
-  if (lifePercent < 15)
-    barColor = "#ef4444";
-  else if (lifePercent < 45)
-    barColor = "#f59e0b";
-  const isCritical = lifePercent <= 10 || c.ageCategory === "critical";
-  const speciesColor = c.speciesColor || "#38bdf8";
-  const avatar = c.avatarIcon || "\uD83D\uDC64";
-  const station = c.stationName || "Organ-Station";
-  const stationIcon = c.station === "flight_synapse" ? "\uD83D\uDE80" : c.station === "chitin_gland" ? "\uD83D\uDEE1️" : c.station === "bio_incubator" ? "\uD83E\uDDEA" : "\uD83D\uDD2E";
-  const traitText = c.trait ? `${c.trait.name}: ${c.trait.desc}` : c.perk || c.buffDesc;
-  return `
-        <div id="party-card-${c.id}" class="party-card glass-panel ${isCritical ? "critical-pulse" : ""}" data-crew-id="${c.id}">
-            <!-- Left Portrait Badge -->
-            <div class="party-portrait" style="--species-glow: ${speciesColor}">
-                <div class="party-avatar-ring">
-                    <span class="party-avatar-icon">${avatar}</span>
-                </div>
-                <div class="party-station-icon" title="${station}">${stationIcon}</div>
-            </div>
-
-            <!-- Card Body / Vital Details -->
-            <div class="party-details">
-                <div class="party-top-row">
-                    <span class="party-name" title="${c.name} (${c.species})">${c.name}</span>
-                    <button class="party-rejuv-btn" data-rejuv-id="${c.id}" title="Zell-Verjüngung (-35% Alter)">\uD83D\uDC89</button>
-                </div>
-                <div class="party-station-label">${stationIcon} ${station}</div>
-
-                <!-- Lifespan Bar -->
-                <div class="party-meter-row" title="Biologische Vitalität / Restlebensspanne">
-                    <span class="party-meter-label">⏳</span>
-                    <div class="party-meter-track">
-                        <div class="party-age-fill" style="width: ${lifePercent}%; background-color: ${barColor};"></div>
-                    </div>
-                    <span class="party-age-val" style="color: ${barColor};">${lifePercent}%</span>
-                </div>
-
-                <!-- Dual Micro Meters: Stability & Stress -->
-                <div class="party-micro-meters">
-                    <div class="micro-meter" title="Traum-Stabilität: ${Math.round(c.illusionStability)}%">
-                        <span class="micro-label">\uD83D\uDD2E</span>
-                        <div class="micro-track">
-                            <div class="party-stability-fill" style="width: ${Math.round(c.illusionStability)}%;"></div>
-                        </div>
-                    </div>
-                    <div class="micro-meter" title="Stress: ${Math.round(c.stress)}%">
-                        <span class="micro-label">⚡</span>
-                        <div class="micro-track">
-                            <div class="party-stress-fill" style="width: ${Math.round(c.stress)}%;"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Rich Tooltip on Hover -->
-            <div class="party-card-tooltip">
-                <div class="tooltip-header">
-                    <strong>${c.name}</strong>
-                    <span style="color: ${speciesColor}; font-size: 0.7rem;">${c.species}</span>
-                </div>
-                <div class="tooltip-row"><strong>Organ-Station:</strong> ${stationIcon} ${station}</div>
-                <div class="tooltip-row"><strong>Rolle:</strong> ${c.roleIcon || "\uD83D\uDC64"} ${c.roleName || c.role}</div>
-                <div class="tooltip-row"><strong>Eigenschaft:</strong> ${traitText}</div>
-                <div class="tooltip-row"><strong>Aktivität:</strong> <em>${c.stationActivity || "Synchronisiert"}</em></div>
-                <div class="tooltip-row"><strong>Alter:</strong> <span class="party-tooltip-age">${Math.floor(currentAge / 60)}:${String(currentAge % 60).padStart(2, "0")} / ${Math.floor(maxLife / 60)}:00 Min. (${lifePercent}% übrig)</span></div>
-                <div class="tooltip-thought">\uD83D\uDCAD <em><span class="party-tooltip-thought">"${c.thought}"</span></em></div>
-            </div>
-        </div>
-    `;
-}
-function attachPartyGridEvents() {
-  const doctrineBtn = document.getElementById("party-doctrine-btn");
-  if (doctrineBtn) {
-    doctrineBtn.onclick = (e) => {
-      e.stopPropagation();
-      if (STATE.primaryParadigm === "neutral") {
-        if (STATE.crew.length > 0 && typeof window.openFirstContactModal === "function") {
-          window.openFirstContactModal();
-        } else {
-          addLogEntry("DOKTRIN", "\uD83C\uDF0C Najmafar ist in mentaler Einsamkeit gefangen. Erstkontakt mit einer Spezies erforderlich!");
-        }
-        return;
-      }
-      cyclePrimaryParadigm();
-    };
-  }
-  const rejuvBtns = document.querySelectorAll(".party-rejuv-btn");
-  rejuvBtns.forEach((btn) => {
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      const id = Number(btn.getAttribute("data-rejuv-id"));
-      if (id) {
-        rejuvenateCrewMember(id);
-        updatePartyGrid();
-      }
-    };
-  });
-  const clusterRejuvBtns = document.querySelectorAll(".party-cluster-rejuv-btn");
-  clusterRejuvBtns.forEach((btn) => {
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      const species = btn.getAttribute("data-cluster-species");
-      if (species) {
-        rejuvenateSpeciesCluster(species);
-        updatePartyGrid();
-      }
-    };
-  });
-  const clusterHeaders = document.querySelectorAll(".party-cluster-header");
-  clusterHeaders.forEach((header) => {
-    header.onclick = (e) => {
-      const species = header.getAttribute("data-cluster-toggle");
-      if (species) {
-        toggleClusterExpansion(species);
-      }
-    };
-  });
-  const clusterToggleBtns = document.querySelectorAll(".party-cluster-toggle-btn");
-  clusterToggleBtns.forEach((btn) => {
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      const species = btn.getAttribute("data-cluster-toggle");
-      if (species) {
-        toggleClusterExpansion(species);
-      }
-    };
-  });
-  const partyCards = document.querySelectorAll(".party-card");
-  partyCards.forEach((card) => {
-    card.onclick = (e) => {
-      const id = Number(card.getAttribute("data-crew-id"));
-      const member = STATE.crew.find((c) => c.id === id);
-      if (member && (member.id === 101 || member.name.includes("Jamal"))) {
-        openNpcDialogue("jamal_orbit_intro");
-      }
-    };
-  });
-}
-function triggerCrewDeathNotification(name, species, avatar = "\uD83D\uDC64") {
-  const container = document.getElementById("crew-death-toast-container");
-  if (!container)
-    return;
-  const toast = document.createElement("div");
-  toast.className = "crew-death-toast";
-  toast.innerHTML = `
-        <div class="death-toast-left">
-            <span class="death-avatar">${avatar}</span>
-            <div class="death-aura-circle"></div>
-        </div>
-        <div class="death-toast-content">
-            <div class="death-kicker">⚰️ BIOLOGISCHER ZELLTOD & RESORPTION</div>
-            <div class="death-title">${name}</div>
-            <div class="death-meta">${species} ist friedlich in den Nährstoffkreislauf des Rumpfes übergegangen.</div>
-            <div class="death-resorption-badge">+45 Bio-Energie resorbiert</div>
-        </div>
-        <button class="death-toast-dismiss" title="Schließen">✕</button>
-    `;
-  const dismissBtn = toast.querySelector(".death-toast-dismiss");
-  if (dismissBtn) {
-    dismissBtn.addEventListener("click", () => {
-      toast.classList.add("dissolve-out");
-      setTimeout(() => toast.remove(), 400);
-    });
-  }
-  container.appendChild(toast);
-  setTimeout(() => {
-    if (toast.parentElement) {
-      toast.classList.add("dissolve-out");
-      setTimeout(() => toast.remove(), 400);
-    }
-  }, 7000);
-}
-
-// src/systems/crew.ts
-function isTraumaActive(traumaId) {
-  if (!STATE.psionicTraumas)
-    return false;
-  const t = STATE.psionicTraumas.find((item) => item.id === traumaId);
-  if (!t)
-    return false;
-  return !t.healed || t.flareUp;
-}
-function advanceTraumaTherapy(amount) {
-  if (!STATE.psionicTraumas)
-    return false;
-  const target = STATE.psionicTraumas.find((t) => !t.healed);
-  if (!target)
-    return false;
-  target.therapyProgress = Math.min(100, target.therapyProgress + amount);
-  if (target.therapyProgress >= 100 && !target.healed) {
-    target.healed = true;
-    target.flareUp = false;
-    addLogEntry("SYSTEM", `✨ PSIONISCHE KATHARSIS: [${target.name}] geheilt! Najmafar hat ein kosmisches Trauma überwunden!`);
-    calculateCrewBuffs();
-    return true;
-  }
-  return false;
-}
-function performTherapySession() {
-  const mentalCost = 15;
-  const bioCost = 10;
-  if (STATE.mentalEnergy < mentalCost || STATE.bioEnergy < bioCost) {
-    addLogEntry("SYSTEM", `⚠️ Zu wenig Mentalkraft oder Bio-Energie für Katharsis-Sitzung (benötigt ${mentalCost} Mental, ${bioCost} Bio)!`);
-    return false;
-  }
-  const unhealed = STATE.psionicTraumas?.find((t) => !t.healed || t.flareUp);
-  if (!unhealed) {
-    addLogEntry("SYSTEM", "\uD83E\uDDE0 Alle bekannten Traumata des Big Freeze sind bereits geheilt und stabil!");
-    return false;
-  }
-  STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - mentalCost);
-  STATE.bioEnergy = Math.max(0, STATE.bioEnergy - bioCost);
-  if (unhealed.flareUp) {
-    unhealed.flareUp = false;
-    addLogEntry("CREW", `✨ PSIONISCHE BERUHIGUNG: Akuter Rückfall von [${unhealed.name}] wurde gelindert!`);
-  } else {
-    advanceTraumaTherapy(25);
-    addLogEntry("CREW", `\uD83E\uDDE0 PSIONISCHE KATHARSIS: Therapiesitzung durchgeführt (+25% Heilung an [${unhealed.name}])!`);
-  }
-  renderCrewUI(true);
-  return true;
-}
-function triggerCrewSabotageEvent(c) {
-  const eventTypes = ["hull_tear", "gland_clog", "thruster_sabotage", "psionic_scream"];
-  const chosenType = eventTypes[Math.floor(Math.random() * eventTypes.length)];
-  let title = "";
-  let description = "";
-  if (chosenType === "hull_tear") {
-    title = "Chitin-Wanddurchbruch";
-    description = `${c.name} reißt im Wahn eine innere Chitin-Membran auf (-15 HP, -10 Silizium)!`;
-    STATE.health = Math.max(1, STATE.health - 15);
-    STATE.siliconRes = Math.max(0, STATE.siliconRes - 10);
-  } else if (chosenType === "thruster_sabotage") {
-    title = "Schub-Tentakel Sabotage";
-    description = `${c.name} blockiert einen Flug-Synapsen-Kanal (-20 Bio-Energie)!`;
-    STATE.bioEnergy = Math.max(0, STATE.bioEnergy - 20);
-  } else if (chosenType === "gland_clog") {
-    title = "Sekretions-Verstopfung";
-    description = `${c.name} verstopft Naniten-Poren in der Chitin-Drüse (-10 HP)!`;
-    STATE.health = Math.max(1, STATE.health - 10);
-  } else {
-    title = "Psionischer Verzweiflungsschrei";
-    description = `${c.name} stößt einen telepathischen Schrei aus (-25 Mental-Energie, Stress der Crew +15)!`;
-    STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - 25);
-    STATE.crew.forEach((other) => {
-      if (other !== c)
-        other.stress = Math.min(100, other.stress + 15);
-    });
-  }
-  c.stress = Math.max(50, c.stress - 25);
-  c.crisisActive = false;
-  c.crisisTimer = 25;
-  const crisisEvent = {
-    id: `crisis_${Date.now()}_${c.id}`,
-    crewId: c.id,
-    crewName: c.name,
-    type: chosenType,
-    title,
-    description,
-    timer: 0,
-    maxTimer: 15,
-    resolved: true
-  };
-  if (!STATE.activeCrisisEvents)
-    STATE.activeCrisisEvents = [];
-  STATE.activeCrisisEvents.unshift(crisisEvent);
-  if (STATE.activeCrisisEvents.length > 5)
-    STATE.activeCrisisEvents.pop();
-  addLogEntry("CREW", `\uD83D\uDCA5 SABOTAGE-VORFALL: ${title}! ${description}`);
-  return crisisEvent;
-}
-var radWarningCooldown = 0;
-var waterWarningCooldown = 0;
-var foodWarningCooldown = 0;
-var ORGAN_STATIONS = {
-  flight_synapse: {
-    name: "Flug-Synapse",
-    subtitle: "Nervenknoten des Cockpits",
-    icon: "\uD83D\uDE80",
-    optimalRoles: ["pilot"],
-    optimalDispositions: ["martial"],
-    description: "+15% Schub & Wendigkeit, dämpft Trägheitsdrift"
-  },
-  chitin_gland: {
-    name: "Chitin-Drüse",
-    subtitle: "Panzerung & Nanitenkammer",
-    icon: "\uD83D\uDEE1️",
-    optimalRoles: ["engineer"],
-    optimalDispositions: ["lithoid"],
-    description: "+Hüllenhärte, passive Rumpf-Reparatur im Flug"
-  },
-  bio_incubator: {
-    name: "Bio-Inkubator",
-    subtitle: "Stoffwechsel- & Telomerbecken",
-    icon: "\uD83E\uDDEA",
-    optimalRoles: ["biologist"],
-    optimalDispositions: ["synthetic"],
-    description: "-25% Verjüngungskosten, +30% Biomasse-Ernte"
-  },
-  dream_core: {
-    name: "Traum-Kern",
-    subtitle: "Seelen-Resonanzraum",
-    icon: "\uD83D\uDD2E",
-    optimalRoles: ["psychologist", "cryptologist"],
-    optimalDispositions: ["empathic", "scholarly"],
-    description: "-Einsamkeit, +Mentale Regeneration, beschleunigt Umwälzung"
-  }
-};
-function assignCrewToOptimalStation(c) {
-  if (!c.station || !ORGAN_STATIONS[c.station]) {
-    if (c.role === "pilot")
-      c.station = "flight_synapse";
-    else if (c.role === "engineer")
-      c.station = "chitin_gland";
-    else if (c.role === "biologist")
-      c.station = "bio_incubator";
-    else if (c.role === "psychologist" || c.role === "cryptologist")
-      c.station = "dream_core";
-    else if (c.disposition === "martial")
-      c.station = "flight_synapse";
-    else if (c.disposition === "lithoid")
-      c.station = "chitin_gland";
-    else if (c.disposition === "synthetic")
-      c.station = "bio_incubator";
-    else
-      c.station = "dream_core";
-  }
-  c.stationName = ORGAN_STATIONS[c.station]?.name || "Organ-Station";
-  updateSingleCrewActivity(c);
-}
-function updateSingleCrewActivity(c) {
-  const s = c.station || "dream_core";
-  if (s === "flight_synapse") {
-    c.stationActivity = `${c.name} synchronisiert neuronale Reflexe mit den Steuer-Tentakeln.`;
-  } else if (s === "chitin_gland") {
-    c.stationActivity = `${c.name} leitet Silizium-Naniten in rissige Chitin-Poren.`;
-  } else if (s === "bio_incubator") {
-    c.stationActivity = `${c.name} synthetisiert Telomer-Enzyme im Nährstoffbecken.`;
-  } else {
-    c.stationActivity = `${c.name} meditiert und glättet psionische Resonanzwellen.`;
-  }
-}
-function setCrewStation(crewId, stationId) {
-  const member = STATE.crew.find((c) => c.id === crewId);
-  if (!member)
-    return;
-  member.station = stationId;
-  member.stationName = ORGAN_STATIONS[stationId].name;
-  updateSingleCrewActivity(member);
-  calculateCrewBuffs();
-  renderCrewUI(true);
-  updatePartyGrid();
-  addLogEntry("CREW", `\uD83E\uDEC0 STATION: ${member.name} (${member.roleName}) an [${ORGAN_STATIONS[stationId].icon} ${ORGAN_STATIONS[stationId].name}] gebunden.`);
-}
-function setSpeciesClusterStation(speciesName, stationId) {
-  let count = 0;
-  STATE.crew.forEach((c) => {
-    const sName = c.speciesArchetypeName || c.species.split(" (")[0];
-    if (sName === speciesName) {
-      c.station = stationId;
-      c.stationName = ORGAN_STATIONS[stationId].name;
-      updateSingleCrewActivity(c);
-      count++;
-    }
-  });
-  calculateCrewBuffs();
-  renderCrewUI(true);
-  updatePartyGrid();
-  addLogEntry("CREW", `\uD83E\uDEC0 KOLLEKTIV-STATION: ${count}x ${speciesName} an [${ORGAN_STATIONS[stationId].icon} ${ORGAN_STATIONS[stationId].name}] gebunden.`);
-}
-function getStationCrewCounts() {
-  const counts = {
-    flight_synapse: 0,
-    chitin_gland: 0,
-    bio_incubator: 0,
-    dream_core: 0
-  };
-  STATE.crew.forEach((c) => {
-    assignCrewToOptimalStation(c);
-    if (counts[c.station] !== undefined) {
-      counts[c.station]++;
-    }
-  });
-  return counts;
-}
-var expandedClusters = new Set;
-function getExpandedClustersKey() {
-  return Array.from(expandedClusters).sort().join(",");
-}
-function toggleClusterExpansion(speciesName) {
-  if (expandedClusters.has(speciesName)) {
-    expandedClusters.delete(speciesName);
-  } else {
-    expandedClusters.add(speciesName);
-  }
-  renderCrewUI(true);
-  updatePartyGrid();
-}
-function cyclePrimaryParadigm(instant = false) {
-  if (STATE.primaryParadigm === "neutral") {
-    if (STATE.crew.length === 0) {
-      addLogEntry("DOKTRIN", "\uD83C\uDF0C Najmafar ist in mentaler Einsamkeit gefangen. Erstkontakt mit einer Spezies erforderlich!");
-      return;
-    } else {
-      if (typeof window.openFirstContactModal === "function") {
-        window.openFirstContactModal();
-      } else {
-        setPrimaryParadigm("deception", instant);
-      }
-      return;
-    }
-  }
-  const list = ["deception", "domination", "symbiosis"];
-  const currentBase = STATE.doctrineTransition?.active ? STATE.doctrineTransition.targetParadigm : STATE.primaryParadigm;
-  const currentIdx = list.indexOf(currentBase);
-  const next = list[(currentIdx + 1) % list.length];
-  setPrimaryParadigm(next, instant);
-}
-function setPrimaryParadigm(paradigm, instant = false) {
-  if (STATE.primaryParadigm === paradigm && (!STATE.doctrineTransition || !STATE.doctrineTransition.active)) {
-    return;
-  }
-  if (STATE.doctrineTransition?.active && STATE.doctrineTransition.targetParadigm === paradigm) {
-    return;
-  }
-  if (instant) {
-    completeDoctrineShift(paradigm);
-    return;
-  }
-  const fromP = STATE.primaryParadigm;
-  STATE.doctrineTransition = {
-    active: true,
-    fromParadigm: fromP,
-    targetParadigm: paradigm,
-    progress: 0,
-    duration: 25
-  };
-  const titles = {
-    domination: "⚡ Herrschaft & Zwang",
-    deception: "\uD83D\uDD2E Täuschung & Traum-Matrix",
-    symbiosis: "\uD83C\uDF31 Symbiose & Harmonie",
-    neutral: "\uD83C\uDF0C Neutrale Leere"
-  };
-  if (fromP === "neutral") {
-    addLogEntry("DOKTRIN", `✨ PSIONISCHES ERWACHEN: Najmafars Geist verlässt die Einsamkeit und richtet sich auf ${titles[paradigm]} aus...`);
-  } else if (fromP === "deception" && paradigm === "domination") {
-    STATE.crew.forEach((c) => {
-      if (c.disposition !== "martial") {
-        c.stress = Math.min(100, c.stress + 18);
-        c.illusionStability = Math.max(0, c.illusionStability - 25);
-        c.thought = "Panisch: 'Der Himmel reißt auf... das ist kein Schiff, das ist ein Ungeheuer!'";
-      }
-    });
-    addLogEntry("DOKTRIN", `\uD83C\uDF00 PSIONISCHE UMWÄLZUNG: [Täuschung ➔ Herrschaft] eingeleitet! Die Scheinwelt flackert – Panik bricht aus!`);
-  } else if (paradigm === "symbiosis") {
-    STATE.crew.forEach((c) => {
-      c.stress = Math.max(0, c.stress - 10);
-      c.thought = "Verblüfft: 'Die Tentakel entspannen sich... das Wesen tastet nach unseren Gedanken.'";
-    });
-    addLogEntry("DOKTRIN", `\uD83C\uDF00 PSIONISCHE UMWÄLZUNG: [➔ Symbiose] eingeleitet! Organische Synapsen öffnen sich für Harmonie.`);
-  } else if (paradigm === "deception") {
-    STATE.crew.forEach((c) => {
-      c.status = "Traum-Trance";
-      c.thought = "Benommen: 'Eine warme Welle umhüllt mich... war das alles nur ein Albtraum?'";
-    });
-    addLogEntry("DOKTRIN", `\uD83C\uDF00 PSIONISCHE UMWÄLZUNG: [➔ Täuschung] eingeleitet! Psionischer Traum-Schleier senkt sich herab.`);
-  } else {
-    addLogEntry("DOKTRIN", `\uD83C\uDF00 PSIONISCHE UMWÄLZUNG: Geisteszustand wandelt sich zu ${titles[paradigm]}...`);
-  }
-  renderCrewUI(true);
-  updatePartyGrid();
-}
-function completeDoctrineShift(paradigm) {
-  STATE.primaryParadigm = paradigm;
-  if (STATE.doctrineTransition) {
-    STATE.doctrineTransition.active = false;
-    STATE.doctrineTransition.progress = 1;
-  }
-  if (paradigm === "neutral") {
-    STATE.activeSubCodex = "none";
-  } else if (paradigm === "domination" && !["iron_discipline", "gunboat_diplomacy", "nightmare_terror"].includes(STATE.activeSubCodex)) {
-    STATE.activeSubCodex = "gunboat_diplomacy";
-  } else if (paradigm === "deception" && !["benevolent_facade", "illusory_matrix", "nightmare_terror"].includes(STATE.activeSubCodex)) {
-    STATE.activeSubCodex = "benevolent_facade";
-  } else if (paradigm === "symbiosis" && !["living_symbiosis", "pragmatic_accord", "gunboat_diplomacy"].includes(STATE.activeSubCodex)) {
-    STATE.activeSubCodex = "living_symbiosis";
-  }
-  updateParadigmModifiers();
-  calculateCrewBuffs();
-  renderCrewUI(true);
-  updatePartyGrid();
-  const titles = {
-    domination: "⚡ HERRSCHAFT & UNTERWERFUNG (Illithid)",
-    deception: "\uD83D\uDD2E TÄUSCHUNG & TRAUM-MATRIX (Holodeck)",
-    symbiosis: "\uD83C\uDF31 SYMBIOSE & HARMONIE (Organisch)",
-    neutral: "\uD83C\uDF0C NEUTRALE LEERE (Kosmische Einsamkeit)"
-  };
-  addLogEntry("DOKTRIN", `✨ PSIONISCHE UMWÄLZUNG VOLLENDET: ${titles[paradigm]}`);
-}
-function setActiveSubCodex(subCodex) {
-  STATE.activeSubCodex = subCodex;
-  updateParadigmModifiers();
-  calculateCrewBuffs();
-  renderCrewUI(true);
-  updatePartyGrid();
-  const subTitles = {
-    none: "Kein Sub-Kodex (Neutral)",
-    iron_discipline: "Eiserne Disziplin (Gewalt + Gewalt)",
-    gunboat_diplomacy: "Ehrfurchts-Vertrag (Gewalt + Diplomatie)",
-    nightmare_terror: "Albtraum-Matrix (Gewalt + Täuschung)",
-    benevolent_facade: "Falsche Utopie (Täuschung + Diplomatie)",
-    illusory_matrix: "Perfekte Simulation (Täuschung + Täuschung)",
-    living_symbiosis: "Lebendige Symbiose (Harmonie + Harmonie)",
-    pragmatic_accord: "Pragmatisches Abkommen (Harmonie + Diplomatie)"
-  };
-  if (subCodex !== "none") {
-    addLogEntry("DOKTRIN", `Sub-Kodex aktiviert: ${subTitles[subCodex] || subCodex}`);
-  }
-}
-function calculateParadigmBaseModifiers(primary, sub, martialCount, scholarlyCount) {
-  let drainMult = 1;
-  let stressMod = 0;
-  let thrustBonus = 0;
-  let stealthBonus = 0;
-  let bioBonus = 0;
-  let harmonyBonus = 0;
-  if (primary === "domination") {
-    thrustBonus = 0.25;
-    drainMult = 1.35;
-    stressMod = 0.3;
-    if (sub === "iron_discipline") {
-      thrustBonus = 0.45;
-      drainMult = 1.55;
-      stressMod = 0.7;
-      if (martialCount > 0) {
-        drainMult += martialCount * 0.12;
-        stressMod += martialCount * 0.25;
-      }
-    } else if (sub === "gunboat_diplomacy") {
-      thrustBonus = 0.3;
-      drainMult = 1.15;
-      stressMod = -0.2;
-      if (martialCount > 0) {
-        stressMod -= martialCount * 0.15;
-      }
-    } else if (sub === "nightmare_terror") {
-      thrustBonus = 0.5;
-      drainMult = 1.65;
-      stressMod = 1.6;
-    }
-  } else if (primary === "deception") {
-    stealthBonus = 0.35;
-    drainMult = 1;
-    stressMod = -0.5;
-    if (sub === "benevolent_facade") {
-      stealthBonus = 0.45;
-      harmonyBonus = 0.15;
-      stressMod = -1.2;
-      if (scholarlyCount > 0) {
-        drainMult += scholarlyCount * 0.08;
-      }
-    } else if (sub === "illusory_matrix") {
-      stealthBonus = 0.7;
-      drainMult = 1.25;
-      stressMod = -0.8;
-    }
-  } else if (primary === "symbiosis") {
-    bioBonus = 0.35;
-    harmonyBonus = 0.3;
-    stressMod = -1.5;
-    drainMult = 0.85;
-    if (sub === "living_symbiosis") {
-      bioBonus = 0.6;
-      harmonyBonus = 0.45;
-      stressMod = -2.2;
-      if (martialCount > 0) {
-        stressMod += martialCount * 0.1;
-      }
-    } else if (sub === "pragmatic_accord") {
-      bioBonus = 0.4;
-      harmonyBonus = 0.25;
-      stressMod = -1;
-    }
-  }
-  return { drainMult, stressMod, thrustBonus, stealthBonus, bioBonus, harmonyBonus };
-}
-function calculateRadiationProtection() {
-  let res = 0;
-  if (STATE.mutations.organic_siphon?.purchased)
-    res += 0.25;
-  if (STATE.mutations.chitin_armor?.purchased || STATE.mutations.armor?.purchased)
-    res += 0.25;
-  if (STATE.mutations.blade_armor?.purchased)
-    res += 0.35;
-  STATE.radiationResistance = Math.min(0.95, res);
-  return STATE.radiationResistance;
-}
-function updateParadigmModifiers() {
-  let martialCount = 0;
-  let scholarlyCount = 0;
-  let empathicCount = 0;
-  STATE.crew.forEach((c) => {
-    const disp = c.disposition || "scholarly";
-    if (disp === "martial")
-      martialCount++;
-    else if (disp === "scholarly")
-      scholarlyCount++;
-    else if (disp === "empathic")
-      empathicCount++;
-  });
-  const primary = STATE.primaryParadigm || "deception";
-  const sub = STATE.activeSubCodex || "benevolent_facade";
-  if (STATE.doctrineTransition && STATE.doctrineTransition.active) {
-    const t = Math.max(0, Math.min(1, STATE.doctrineTransition.progress));
-    const fromMods = calculateParadigmBaseModifiers(STATE.doctrineTransition.fromParadigm, sub, martialCount, scholarlyCount);
-    const toMods = calculateParadigmBaseModifiers(STATE.doctrineTransition.targetParadigm, sub, martialCount, scholarlyCount);
-    const lerp2 = (a, b) => a + (b - a) * t;
-    STATE.paradigmModifiers = {
-      mentalDrainMult: Math.max(0.4, Number(lerp2(fromMods.drainMult, toMods.drainMult).toFixed(2))),
-      stressModifier: Number(lerp2(fromMods.stressMod, toMods.stressMod).toFixed(2)),
-      thrustBonus: Number(lerp2(fromMods.thrustBonus, toMods.thrustBonus).toFixed(2)),
-      stealthBonus: Number(lerp2(fromMods.stealthBonus, toMods.stealthBonus).toFixed(2)),
-      bioRegenBonus: Number(lerp2(fromMods.bioBonus, toMods.bioBonus).toFixed(2)),
-      harmonyBonus: Number(lerp2(fromMods.harmonyBonus, toMods.harmonyBonus).toFixed(2))
-    };
-  } else {
-    const mods = calculateParadigmBaseModifiers(primary, sub, martialCount, scholarlyCount);
-    STATE.paradigmModifiers = {
-      mentalDrainMult: Math.max(0.4, Number(mods.drainMult.toFixed(2))),
-      stressModifier: Number(mods.stressMod.toFixed(2)),
-      thrustBonus: Number(mods.thrustBonus.toFixed(2)),
-      stealthBonus: Number(mods.stealthBonus.toFixed(2)),
-      bioRegenBonus: Number(mods.bioBonus.toFixed(2)),
-      harmonyBonus: Number(mods.harmonyBonus.toFixed(2))
-    };
-  }
-}
-function getSpeciesClusters() {
-  const map = new Map;
-  STATE.crew.forEach((c) => {
-    const rawSpecies = c.species || "Unbekannt";
-    const key = c.speciesArchetypeName || rawSpecies.split(" (")[0] || rawSpecies;
-    if (!map.has(key))
-      map.set(key, []);
-    map.get(key).push(c);
-  });
-  const clusters = [];
-  map.forEach((members, speciesName) => {
-    const first = members[0];
-    let totalLifeRatio = 0;
-    let totalStress = 0;
-    let totalStability = 0;
-    const roleCounts = {};
-    members.forEach((m) => {
-      const maxLife = m.maxLifespan || 540;
-      const currentAge = Math.min(maxLife, Math.floor(m.age || 0));
-      totalLifeRatio += Math.max(0, Math.min(100, Math.round((1 - currentAge / maxLife) * 100)));
-      totalStress += m.stress;
-      totalStability += m.illusionStability;
-      const r = m.roleName || m.role;
-      roleCounts[r] = (roleCounts[r] || 0) + 1;
-    });
-    let dominantRole = first.roleName || first.role;
-    let maxCount = 0;
-    Object.entries(roleCounts).forEach(([r, count2]) => {
-      if (count2 > maxCount) {
-        maxCount = count2;
-        dominantRole = r;
-      }
-    });
-    const count = members.length;
-    clusters.push({
-      speciesName,
-      speciesColor: first.speciesColor || "#38bdf8",
-      avatarIcon: first.avatarIcon || "\uD83D\uDC64",
-      disposition: first.disposition || "scholarly",
-      count,
-      members,
-      avgAgePercent: Math.round(totalLifeRatio / count),
-      avgStress: Math.round(totalStress / count),
-      avgStability: Math.round(totalStability / count),
-      dominantRole,
-      isExpanded: expandedClusters.has(speciesName)
-    });
-  });
-  return clusters;
-}
-function rejuvenateSpeciesCluster(speciesName) {
-  const clusterMembers = STATE.crew.filter((c) => (c.speciesArchetypeName || c.species.split(" (")[0]) === speciesName);
-  if (clusterMembers.length === 0)
-    return;
-  const stationCounts = getStationCrewCounts();
-  const bioDiscount = Math.min(0.5, stationCounts.bio_incubator * 0.15);
-  const requiredBio = Math.round(20 * (1 - bioDiscount));
-  const requiredRes = Math.round(10 * (1 - bioDiscount));
-  let successCount = 0;
-  clusterMembers.forEach((m) => {
-    if (STATE.bioEnergy >= requiredBio && STATE.bioRes >= requiredRes) {
-      STATE.bioEnergy -= requiredBio;
-      STATE.bioRes -= requiredRes;
-      m.age = Math.max(0, m.age - m.maxLifespan * 0.35);
-      m.stress = Math.max(0, m.stress - 25);
-      m.rejuvenationCount = (m.rejuvenationCount || 0) + 1;
-      m.ageCategory = m.age / m.maxLifespan < 0.5 ? "vital" : m.age / m.maxLifespan < 0.75 ? "mature" : "senescent";
-      successCount++;
-    }
-  });
-  if (successCount > 0) {
-    addLogEntry("SYSTEM", `\uD83D\uDC89 KOLLEKTIV-VERJÜNGUNG: ${successCount}x ${speciesName} regeneriert (-35% Alter)! Kosten: je ${requiredBio} Bio / ${requiredRes} Biomasse.`);
-    calculateCrewBuffs();
-    renderCrewUI(true);
-    updatePartyGrid();
-  } else {
-    addLogEntry("SYSTEM", `Zu wenig Bio-Energie / Biomasse für Kollektiv-Verjüngung (${requiredBio} Bio / ${requiredRes} Biomasse pro Wesen).`);
-  }
-}
-function calculateCrewBuffs() {
-  updateParadigmModifiers();
-  let thrustMult = 1 + (STATE.paradigmModifiers?.thrustBonus || 0);
-  let bioMult = 1 + (STATE.paradigmModifiers?.bioRegenBonus || 0);
-  let scanMult = 1 + (STATE.paradigmModifiers?.harmonyBonus || 0);
-  let repair = 0;
-  let stressDamp = 1;
-  let psioBonus = 0;
-  const hiveBonus = STATE.mutations.hivemind && STATE.mutations.hivemind.purchased ? 1.2 : 1;
-  const roleCounts = {};
-  let flightCount = 0;
-  let chitinCount = 0;
-  let bioCount = 0;
-  let dreamCount = 0;
-  STATE.crew.forEach((c) => {
-    assignCrewToOptimalStation(c);
-    const isSevered = (c.stress || 0) >= 70;
-    if (isSevered) {
-      c.connectionStatus = "severed";
-      c.escalationStage = (c.stress || 0) >= 85 ? 3 : 2;
-      return;
-    } else if ((c.stress || 0) >= 45) {
-      c.connectionStatus = "dissonant";
-      c.escalationStage = 1;
-    } else {
-      c.connectionStatus = "connected";
-      c.escalationStage = 1;
-    }
-    if (c.station === "flight_synapse")
-      flightCount++;
-    else if (c.station === "chitin_gland")
-      chitinCount++;
-    else if (c.station === "bio_incubator")
-      bioCount++;
-    else if (c.station === "dream_core")
-      dreamCount++;
-    roleCounts[c.role] = (roleCounts[c.role] || 0) + 1;
-    const count = roleCounts[c.role];
-    const dimFactor = 1 / Math.sqrt(Math.max(1, count * 0.6));
-    const agePenalty = c.ageCategory === "critical" ? 0.6 : c.ageCategory === "senescent" ? 0.85 : 1;
-    if (c.role === "pilot")
-      thrustMult += 0.15 * hiveBonus * agePenalty * dimFactor;
-    if (c.role === "biologist") {
-      bioMult += 0.3 * hiveBonus * agePenalty * dimFactor;
-      scanMult += 0.25 * hiveBonus * agePenalty * dimFactor;
-    }
-    if (c.role === "engineer")
-      repair += 0.6 * hiveBonus * agePenalty * dimFactor;
-    if (c.role === "psychologist")
-      stressDamp *= 1 - 0.35 * hiveBonus * agePenalty * dimFactor;
-    if (c.role === "cryptologist")
-      psioBonus += 30 * hiveBonus * agePenalty * dimFactor;
-    if (c.trait) {
-      if (c.trait.type === "bio")
-        bioMult += 0.15 * hiveBonus * agePenalty * dimFactor;
-      if (c.trait.type === "speed")
-        thrustMult += 0.12 * hiveBonus * agePenalty * dimFactor;
-      if (c.trait.type === "repair")
-        repair += 0.35 * hiveBonus * agePenalty * dimFactor;
-      if (c.trait.type === "stress")
-        stressDamp *= 1 - 0.12 * hiveBonus * agePenalty * dimFactor;
-      if (c.trait.type === "psionic")
-        psioBonus += 20 * hiveBonus * agePenalty * dimFactor;
-    }
-  });
-  thrustMult += flightCount * 0.08;
-  repair += chitinCount * 0.4;
-  bioMult += bioCount * 0.15;
-  scanMult += bioCount * 0.1;
-  psioBonus += dreamCount * 25;
-  stressDamp *= Math.pow(0.88, dreamCount);
-  if (isTraumaActive("cryo_apathy")) {
-    thrustMult *= 0.85;
-  }
-  const bioScientists = STATE.crew.filter((c) => c.role === "biologist" || c.role === "scientist").length;
-  const mutationDiscount = Math.min(0.5, bioScientists * 0.2);
-  STATE.mutationDiscount = Number(mutationDiscount.toFixed(2));
-  const isSynthetic = (c) => c.species === "Cyborg" || c.species === "Synthetisch" || c.disposition === "synthetic";
-  const organicCount = STATE.crew.filter((c) => !isSynthetic(c)).length;
-  const waterRecyclers = STATE.crew.filter((c) => c.role === "biologist" || c.role === "medic").length;
-  const waterDiscount = Math.min(0.6, waterRecyclers * 0.15 + (bioCount > 0 ? 0.15 : 0));
-  const netWaterRate = organicCount * 0.06 * (1 - waterDiscount);
-  const foodProduced = bioCount * 0.08;
-  const netFoodRate = Math.max(0, organicCount * 0.05 - foodProduced);
-  STATE.waterConsumptionRate = Number(netWaterRate.toFixed(3));
-  STATE.foodConsumptionRate = Number(netFoodRate.toFixed(3));
-  STATE.crewBuffs = {
-    thrust: Number(thrustMult.toFixed(2)),
-    bioGain: Number(bioMult.toFixed(2)),
-    scanSpeed: Number(scanMult.toFixed(2)),
-    repairRate: Number(repair.toFixed(2)),
-    stressDampening: Number(Math.max(0.1, stressDamp).toFixed(2)),
-    psionicBonus: Math.round(psioBonus),
-    mutationDiscount: STATE.mutationDiscount
-  };
-  const basePsio = STATE.mutations.synapses && STATE.mutations.synapses.purchased ? 140 : 75;
-  STATE.psionicRange = basePsio + STATE.crewBuffs.psionicBonus;
-}
-var STORY_LOGS = [
-  { time: 6, sender: "Capt. Miller", text: "Das Ding lebt! Wir sind im Bauch eines biologischen Leviathans gefangen... uralte Glyphen nennen es 'Najmafar'! Wo ist die Luft?" },
-  { time: 24, sender: "Dr. Song", text: "Die Schiffswände atmen... Valeria, die Najmafar absorbiert Weltraummaterie um sich zu heilen!" },
-  { time: 48, sender: "Valeria", text: "Jamal, guck dir die Messgeräte an. Die kosmische Hintergrundstrahlung... Die Sterne am Rand der Galaxie verglühen!" },
-  { time: 70, sender: "Jamal", text: "Das ist kein Messfehler. Die Entropie beschleunigt sich. Die Najmafar... reist sie dorthin, wo die Sterne sterben?" },
-  { time: 95, sender: "Capt. Miller", text: "Es sendet Gedankenwellen. Die Software übersetzt es als... Dschinn? Die Najmafar ist einsam." }
-];
-var storyIndex = 0;
-var playTime = 0;
-function encryptText(text) {
-  const alienGlyphs = "⏁⊑⟒⋔⍜⋏☿⏁⟒⍃⍜⌰⎍⌇⌇⊑⟟⌿⌇⏃⋏⎅⌇⏁⏃⍀⌇⏁⍀⟒☍⏁⊑⟒⌇⊑⟟⌿⟟⌇⏃⌰⟟⎎⟒";
-  return text.split("").map((char) => {
-    if (char === " " || char === '"' || char === "'" || char === ":" || char === "." || char === "," || char === "?" || char === "!" || char === "-" || char === "(" || char === ")")
-      return char;
-    return alienGlyphs[Math.floor(Math.random() * alienGlyphs.length)];
-  }).join("");
-}
-function encryptCrewMessage(sender, text) {
-  let outText = text;
-  if (!STATE.mutations.translator.purchased) {
-    outText = encryptText(text);
-  }
-  return `${sender}: "${outText}"`;
-}
-function updateCrewSimulation(dt) {
-  playTime += dt;
-  if (storyIndex < STORY_LOGS.length && playTime >= STORY_LOGS[storyIndex].time) {
-    const logObj = STORY_LOGS[storyIndex];
-    storyIndex++;
-    addLogEntry("CREW", encryptCrewMessage(logObj.sender, logObj.text));
-  }
-  if (STATE.doctrineTransition && STATE.doctrineTransition.active) {
-    const counts = getStationCrewCounts();
-    const dreamBoost = 1 + counts.dream_core * 0.35;
-    const telepathyBoost = STATE.telepathyActive ? 2 : 1;
-    const rate = 1 / (STATE.doctrineTransition.duration || 25) * dreamBoost * telepathyBoost;
-    STATE.doctrineTransition.progress = Math.min(1, STATE.doctrineTransition.progress + rate * dt);
-    updateParadigmModifiers();
-    if (STATE.doctrineTransition.progress >= 1) {
-      completeDoctrineShift(STATE.doctrineTransition.targetParadigm);
-    }
-  }
-  const stationCounts = getStationCrewCounts();
-  if (stationCounts.chitin_gland > 0 && STATE.health < STATE.maxHealth) {
-    const siliconCostPerHp = isTraumaActive("void_nihilism") ? 0.075 : 0.05;
-    if (STATE.siliconRes >= siliconCostPerHp * dt) {
-      const repairRate = 0.5 * stationCounts.chitin_gland;
-      const actualRepair = Math.min(STATE.maxHealth - STATE.health, repairRate * dt);
-      STATE.health += actualRepair;
-      STATE.siliconRes = Math.max(0, STATE.siliconRes - siliconCostPerHp * actualRepair);
-    }
-  }
-  if (stationCounts.dream_core > 0) {
-    const mentalRegenBonus = 0.8 * stationCounts.dream_core * dt;
-    STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + mentalRegenBonus);
-    STATE.loneliness = Math.max(0, STATE.loneliness - 0.2 * stationCounts.dream_core * dt);
-    const ibadBonus = STATE.mutations.ibad?.purchased ? 2 : 1;
-    advanceTraumaTherapy(0.35 * stationCounts.dream_core * ibadBonus * dt);
-  }
-  if (stationCounts.bio_incubator > 0) {
-    const bioTrickle = 0.2 * stationCounts.bio_incubator * dt;
-    STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + bioTrickle);
-  }
-  const isSynthetic = (c) => c.species === "Cyborg" || c.species === "Synthetisch" || c.disposition === "synthetic";
-  const organicMembers = STATE.crew.filter((c) => !isSynthetic(c));
-  const organicCount = organicMembers.length;
-  const wRate = STATE.waterConsumptionRate !== undefined ? STATE.waterConsumptionRate : 0;
-  const fRate = STATE.foodConsumptionRate !== undefined ? STATE.foodConsumptionRate : 0;
-  if (wRate > 0) {
-    STATE.waterRes = Math.max(0, (STATE.waterRes || 0) - wRate * dt);
-  }
-  if (fRate > 0) {
-    STATE.foodRes = Math.max(0, (STATE.foodRes || 0) - fRate * dt);
-  }
-  const bioIncubatorCount = stationCounts.bio_incubator || 0;
-  const foodProduced = bioIncubatorCount * 0.08;
-  if (foodProduced > organicCount * 0.05) {
-    const excessFood = (foodProduced - organicCount * 0.05) * dt;
-    STATE.foodRes = Math.min(250, (STATE.foodRes || 0) + excessFood);
-  }
-  const isDehydrated = organicCount > 0 && (STATE.waterRes || 0) <= 0;
-  const isStarving = organicCount > 0 && (STATE.foodRes || 0) <= 0;
-  if (isDehydrated) {
-    waterWarningCooldown -= dt;
-    if (waterWarningCooldown <= 0) {
-      waterWarningCooldown = 12;
-      addLogEntry("CREW", "⚠️ DEHYDRIERUNG: Wasservorräte erschöpft! Organische Crew leidet unter akutem Durst & Panik!");
-    }
-  } else {
-    waterWarningCooldown = Math.max(0, waterWarningCooldown - dt);
-  }
-  if (isStarving) {
-    foodWarningCooldown -= dt;
-    if (foodWarningCooldown <= 0) {
-      foodWarningCooldown = 12;
-      addLogEntry("CREW", "⚠️ NAHRUNGSMANGEL: Nährstoff-Gel aufgebraucht! Zelltod & Alterung beschleunigt!");
-    }
-  } else {
-    foodWarningCooldown = Math.max(0, foodWarningCooldown - dt);
-  }
-  const totalCrew = STATE.crew.length;
-  const connectedCrew = STATE.crew.filter((c) => (c.stress || 0) < 70);
-  const connectedCount = connectedCrew.length;
-  const severedCount = totalCrew - connectedCount;
-  const uniqueRoles = new Set(connectedCrew.map((c) => c.role)).size;
-  let targetLoneliness = 100;
-  let isHarmony = false;
-  if (totalCrew === 0 || connectedCount === 0) {
-    targetLoneliness = 100;
-  } else if (connectedCount === 1) {
-    STATE.crewSatietyTimer += dt;
-    const decay = Math.min(20, STATE.crewSatietyTimer / 120 * 20);
-    targetLoneliness = 45 + decay;
-  } else if (connectedCount === 2) {
-    targetLoneliness = uniqueRoles === 2 ? 20 : 30;
-  } else if (connectedCount >= 3) {
-    if (uniqueRoles >= 3) {
-      targetLoneliness = Math.max(0, 5 - (connectedCount - 3) * 2);
-      isHarmony = true;
-    } else {
-      targetLoneliness = Math.max(5, 15 - (connectedCount - 3) * 3);
-      if (connectedCount >= 4)
-        isHarmony = true;
-    }
-  }
-  if (severedCount > 0 && connectedCount > 0) {
-    targetLoneliness = Math.min(100, targetLoneliness + severedCount * 15);
-  }
-  if (STATE.loneliness < targetLoneliness) {
-    STATE.loneliness = Math.min(targetLoneliness, STATE.loneliness + 3 * dt);
-  } else if (STATE.loneliness > targetLoneliness) {
-    STATE.loneliness = Math.max(targetLoneliness, STATE.loneliness - 18 * dt);
-  }
-  if (STATE.loneliness >= 100) {
-    const healedTrauma = STATE.psionicTraumas?.find((t) => t.healed && !t.flareUp);
-    if (healedTrauma) {
-      healedTrauma.flareUp = true;
-      addLogEntry("CREW", `\uD83C\uDF0C TRAUMA-RÜCKFALL: Kosmische Einsamkeit des Big Freeze holt Najmafar wieder ein! [${healedTrauma.name}] bricht auf!`);
-      calculateCrewBuffs();
-    }
-  } else if (STATE.loneliness < 50) {
-    let hadFlare = false;
-    STATE.psionicTraumas?.forEach((t) => {
-      if (t.healed && t.flareUp) {
-        t.flareUp = false;
-        hadFlare = true;
-      }
-    });
-    if (hadFlare) {
-      addLogEntry("CREW", `✨ Seelische Geborgenheit: Der psionische Trauma-Rückfall klingt wieder ab.`);
-      calculateCrewBuffs();
-    }
-  }
-  if (isHarmony) {
-    STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 0.5 * dt);
-    STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 0.3 * dt);
-  }
-  let ambientRadiation = 0;
-  let radSource = "";
-  if (STATE.playerPosition) {
-    const distToCenterStar = STATE.playerPosition.length();
-    if (distToCenterStar < 45) {
-      const solarIntensity = Math.min(1, Math.max(0, (1 - distToCenterStar / 45) * 0.55));
-      if (solarIntensity > ambientRadiation) {
-        ambientRadiation = solarIntensity;
-        radSource = distToCenterStar < 18 ? "Solare Korona (Extrem)" : "Zentralstern-Heliosphäre";
-      }
-    }
-  }
-  if (STATE.nearestPlanet && STATE.nearestPlanet.attributes?.radiationLevel) {
-    const radLevel = STATE.nearestPlanet.attributes.radiationLevel;
-    const radBase = radLevel === "Extreme" ? 0.9 : radLevel === "High" ? 0.65 : radLevel === "Moderate" ? 0.35 : 0.1;
-    let planetDist = 0;
-    let hasDist = false;
-    const pObj = STATE.nearestPlanet;
-    const pPos = pObj.mesh ? pObj.mesh.position : pObj.position;
-    if (STATE.playerPosition && pPos) {
-      planetDist = STATE.playerPosition.distanceTo(pPos);
-      hasDist = true;
-    } else if (pObj.distToPlayer !== undefined) {
-      planetDist = pObj.distToPlayer;
-      hasDist = true;
-    }
-    if (!hasDist || planetDist < 55) {
-      const falloff = hasDist ? Math.max(0.2, 1 - planetDist / 55 * 0.45) : 1;
-      const planetIntensity = radBase * falloff;
-      if (planetIntensity > ambientRadiation) {
-        ambientRadiation = planetIntensity;
-        radSource = `${pObj.name || "Planet"} [${radLevel}]`;
-      }
-    } else if (planetDist < 90) {
-      const planetIntensity = radBase * 0.3;
-      if (planetIntensity > ambientRadiation) {
-        ambientRadiation = planetIntensity;
-        radSource = `${pObj.name || "Planet"} Magnetosphäre`;
-      }
-    }
-  }
-  const radProtection = calculateRadiationProtection();
-  const effectiveRadiation = Math.max(0, ambientRadiation * (1 - radProtection));
-  STATE.ambientRadiation = ambientRadiation;
-  STATE.effectiveRadiation = effectiveRadiation;
-  STATE.radiationSource = radSource;
-  if (effectiveRadiation > 0.15) {
-    const radHullDmg = (effectiveRadiation - 0.15) * 2.8 * dt;
-    STATE.health = Math.max(1, STATE.health - radHullDmg);
-    radWarningCooldown -= dt;
-    if (radWarningCooldown <= 0) {
-      radWarningCooldown = 8;
-      const effPercent = Math.round(effectiveRadiation * 100);
-      const protPercent = Math.round(radProtection * 100);
-      addLogEntry("SYSTEM", `⚠️ STRAHLUNGS-EROSION: Biologische Hülle nimmt Schaden (${effPercent}% Belastung, ${protPercent}% Bio-Filterung). Schalte Chitin-Panzerung im Bio-Deck frei!`);
-    }
-  } else {
-    radWarningCooldown = Math.max(0, radWarningCooldown - dt);
-  }
-  let speed = STATE.playerVelocity.length();
-  let speedStressModifier = speed > 10 ? 0.6 : 0;
-  for (let i = STATE.crew.length - 1;i >= 0; i--) {
-    const c = STATE.crew[i];
-    const radAgingMult = 1 + effectiveRadiation * 1.5;
-    c.age = (c.age || 0) + dt * radAgingMult;
-    if (effectiveRadiation > 0.15) {
-      c.stress = Math.min(100, c.stress + effectiveRadiation * 1.5 * dt);
-    }
-    const maxLife = c.maxLifespan || 540;
-    const lifeRatio = Math.min(1, c.age / maxLife);
-    if (lifeRatio < 0.5) {
-      c.ageCategory = "vital";
-    } else if (lifeRatio < 0.75) {
-      c.ageCategory = "mature";
-      c.stress = Math.min(100, c.stress + 0.35 * dt);
-    } else if (lifeRatio < 0.9) {
-      c.ageCategory = "senescent";
-      c.stress = Math.min(100, c.stress + 0.9 * dt);
-    } else {
-      c.ageCategory = "critical";
-      c.stress = Math.min(100, c.stress + 1.8 * dt);
-    }
-    if (lifeRatio >= 0.9 || c.ageCategory === "critical") {
-      if (!c.criticalAlertTriggered) {
-        c.criticalAlertTriggered = true;
-        addLogEntry("CREW", `⚠️ KRITISCHE SENESZENZ: ${c.name} (${c.species}) erreicht das Ende der natürlichen Lebensspanne! Nutze [\uD83D\uDC89] im Party-HUD vor dem Zelltod!`);
-      }
-    }
-    if (c.age >= maxLife) {
-      triggerCrewDeathNotification(c.name, c.species, c.avatarIcon || "\uD83D\uDC64");
-      addLogEntry("SYSTEM", `⚰️ BIOLOGISCHER ZELLTOD: ${c.name} (${c.species}) ist an Altersschwäche gestorben. Biomasse resorbiert (+45 Bio-Energie).`);
-      STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 45);
-      STATE.loneliness = Math.min(100, STATE.loneliness + 20);
-      STATE.crew.forEach((other) => {
-        if (other !== c) {
-          other.stress = Math.min(100, other.stress + 20);
-          other.illusionStability = Math.max(0, other.illusionStability - 15);
-        }
-      });
-      STATE.crew.splice(i, 1);
-      calculateCrewBuffs();
-      continue;
-    }
-    const decayRate = (0.35 + c.stress * 0.006) * dt;
-    c.illusionStability = Math.max(0, c.illusionStability - decayRate);
-    const disp = c.disposition || "scholarly";
-    const paradigmStressBonus = (STATE.paradigmModifiers?.stressModifier || 0) * dt;
-    if (STATE.primaryParadigm === "domination") {
-      if (STATE.mentalEnergy <= 10) {
-        c.stress = Math.min(100, c.stress + 5 * dt);
-        c.thought = "Wut flammt auf: 'Das psionische Joch schwächelt... MEUTEREI!'";
-        if (Math.random() < 0.006) {
-          addLogEntry("DOKTRIN", `⚠️ MEUTEREI-ALARM: ${c.name} spürt schwindende Unterwerfungskraft und sabotiert!`);
-        }
-      }
-    } else if (STATE.primaryParadigm === "deception") {
-      if (disp === "scholarly" && !STATE.telepathyActive) {
-        c.illusionStability = Math.max(0, c.illusionStability - 0.5 * dt);
-        if (c.illusionStability < 55) {
-          c.thought = "Misstrauisch: 'Diese Station ist eine Illusion... die Sensordaten sind eine Schleife!'";
-        }
-      }
-    } else if (STATE.primaryParadigm === "symbiosis") {
-      STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 0.15 * dt);
-    }
-    c.stress = Math.max(0, Math.min(100, c.stress + paradigmStressBonus));
-    if (STATE.telepathyActive && STATE.mentalEnergy > 0) {
-      c.stress = Math.max(0, c.stress - 7.5 * dt);
-      c.illusionStability = Math.min(100, c.illusionStability + 8 * dt);
-      c.status = "Traum-Trance";
-      c.thought = "Fühlt eine warme, beruhigende Welle... 'Alles ist friedlich.'";
-    } else {
-      if (c.illusionStability < 35) {
-        c.stress = Math.min(100, c.stress + (4.5 + speedStressModifier) * dt);
-        c.status = "Panik";
-        c.thought = "Verzweifelt: 'Die Wände pulsieren... das ist keine Station!'";
-      } else if (c.illusionStability < 65) {
-        c.stress = Math.min(100, c.stress + (1.2 + speedStressModifier) * dt);
-        c.status = "Misstrauisch";
-        c.thought = "Stutzt: 'Höre ich ein Atmen in den Lüftungsschächten?'";
-      } else {
-        c.stress = Math.max(0, c.stress - 2 * dt);
-        c.status = "Arbeitet";
-        if (c.ageCategory === "senescent") {
-          c.thought = "Erschöpft: 'Die Jahre vergehen... aber die Sterne bleiben ewig.'";
-        } else {
-          c.thought = "Konzentriert: 'Sternenkartierung verläuft nach Plan.'";
-        }
-      }
-    }
-    if (!isSynthetic(c)) {
-      if (isDehydrated) {
-        c.stress = Math.min(100, c.stress + 1.2 * dt);
-        c.illusionStability = Math.max(0, c.illusionStability - 1 * dt);
-      }
-      if (isStarving) {
-        c.stress = Math.min(100, c.stress + 0.9 * dt);
-        c.age = (c.age || 0) + 0.5 * dt;
-      }
-      if (!isDehydrated && !isStarving) {
-        c.stress = Math.max(0, c.stress - 0.25 * dt);
-      }
-    }
-    if (c.illusionStability >= 50) {
-      if (c.role === "engineer") {
-        STATE.health = Math.min(STATE.maxHealth, STATE.health + 0.25 * dt);
-      } else if (c.role === "biologist") {
-        STATE.bioRes += 0.1 * dt;
-      } else if (c.role === "psychologist") {
-        STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 1.5 * dt);
-      }
-    }
-    if (c.stress >= 85) {
-      c.escalationStage = 3;
-      c.connectionStatus = "severed";
-      if (c.crisisTimer !== undefined && c.crisisTimer > 0 && !c.crisisActive) {
-        c.crisisTimer = Math.max(0, c.crisisTimer - dt);
-      } else if (!c.crisisActive) {
-        c.crisisActive = true;
-        c.crisisTimer = 15;
-        addLogEntry("CREW", `⚠️ KRISEN-WARNUNG: ${c.name} steht vor einem Nervenzusammenbruch! Sabotage in 15s – Beruhige den Geist via [LEERTASTE] oder Traum-Kern!`);
-      } else {
-        c.crisisTimer = Math.max(0, c.crisisTimer - dt);
-        if (c.crisisTimer <= 0) {
-          triggerCrewSabotageEvent(c);
-        }
-      }
-    } else if (c.stress >= 70) {
-      c.escalationStage = 2;
-      c.connectionStatus = "severed";
-      if (c.crisisActive && c.stress < 80) {
-        c.crisisActive = false;
-        c.crisisTimer = undefined;
-        addLogEntry("CREW", `✨ KRISE ABGEWENDET: ${c.name} hat sich beruhigt. Sabotagegefahr gebannt.`);
-      }
-      c.status = "Verbindung gekappt";
-    } else if (c.stress >= 45) {
-      c.escalationStage = 1;
-      c.connectionStatus = "dissonant";
-      if (c.crisisActive) {
-        c.crisisActive = false;
-        c.crisisTimer = undefined;
-      }
-    } else {
-      c.escalationStage = 1;
-      c.connectionStatus = "connected";
-      if (c.crisisActive) {
-        c.crisisActive = false;
-        c.crisisTimer = undefined;
-      }
-    }
-  }
-  if (STATE.telepathyActive) {
-    const drain = 8.5 * (STATE.paradigmModifiers?.mentalDrainMult || 1);
-    STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - drain * dt);
-    if (STATE.mentalEnergy === 0) {
-      toggleTelepathy();
-      addLogEntry("SYSTEM", "Mentale Reserven erschöpft! Telepathische Traum-Matrix flackert.");
-    }
-  } else {
-    let regenSpeed = STATE.mutations.synapses && STATE.mutations.synapses.purchased ? 7 * dt : 3.5 * dt;
-    if (isTraumaActive("echo_paranoia")) {
-      regenSpeed *= 0.75;
-    }
-    STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + regenSpeed);
-  }
-  STATE.crewDialogueTimer -= dt;
-  if (STATE.crewDialogueTimer <= 0 && STATE.crew.length >= 2) {
-    STATE.crewDialogueTimer = 20 + Math.random() * 8;
-    triggerMultiCrewDialogue();
-  }
-  deckLiveUpdateTimer += dt;
-  if (deckLiveUpdateTimer >= 0.2) {
-    deckLiveUpdateTimer = 0;
-    renderCrewUI(false);
-  }
-}
-function rejuvenateCrewMember(id) {
-  const member = STATE.crew.find((c) => c.id === id);
-  if (!member)
-    return;
-  const stationCounts = getStationCrewCounts();
-  const bioDiscount = Math.min(0.5, stationCounts.bio_incubator * 0.15);
-  const requiredBio = Math.round(20 * (1 - bioDiscount));
-  const requiredRes = Math.round(10 * (1 - bioDiscount));
-  if (STATE.bioEnergy < requiredBio || STATE.bioRes < requiredRes) {
-    addLogEntry("SYSTEM", `Zu wenig Bio-Energie oder Biomasse für Zell-Verjüngung (benötigt ${requiredBio} Bio / ${requiredRes} Biomasse)!`);
-    return;
-  }
-  STATE.bioEnergy = Math.max(0, STATE.bioEnergy - requiredBio);
-  STATE.bioRes = Math.max(0, STATE.bioRes - requiredRes);
-  const maxLife = member.maxLifespan || 540;
-  member.age = Math.max(0, member.age - maxLife * 0.35);
-  if (member.age / maxLife < 0.85) {
-    member.criticalAlertTriggered = false;
-  }
-  member.stress = Math.max(0, member.stress - 25);
-  member.rejuvenationCount = (member.rejuvenationCount || 0) + 1;
-  playBioHarvestSound();
-  addLogEntry("SYSTEM", `\uD83D\uDC89 ZELL-REGENERATION: Telomere von ${member.name} erneuert (-35% Alter)! Kosten: ${requiredBio} Bio / ${requiredRes} Biomasse.`);
-  calculateCrewBuffs();
-  renderCrewUI(true);
-  updatePartyGrid();
-}
-function assimilateCrewMember(id) {
-  const idx = STATE.crew.findIndex((c) => c.id === id);
-  if (idx === -1)
-    return;
-  const member = STATE.crew[idx];
-  STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 50);
-  STATE.bioRes += 35;
-  STATE.siliconRes += 20;
-  addLogEntry("SYSTEM", `\uD83E\uDDEC GENOM-ASSIMILATION: ${member.name} (${member.species}) aufgelöst: +50 Bio-Energie, +35 Biomasse & +20 Silizium.`);
-  playCrashSound();
-  STATE.crew.splice(idx, 1);
-  calculateCrewBuffs();
-  renderCrewUI(true);
-  updatePartyGrid();
-}
-var lastRenderedDeckStructure = "";
-var deckLiveUpdateTimer = 0;
-function updateDeckLiveElements() {
-  const clusters = getSpeciesClusters();
-  clusters.forEach((cl) => {
-    const clusterEl = document.getElementById(`deck-cluster-${cl.speciesName}`);
-    if (clusterEl) {
-      let col = "#10b981";
-      if (cl.avgAgePercent < 15)
-        col = "#f43f5e";
-      else if (cl.avgAgePercent < 45)
-        col = "#fb923c";
-      const vitVal = clusterEl.querySelector(".deck-cluster-vitality-val");
-      if (vitVal) {
-        vitVal.innerText = `${cl.avgAgePercent}%`;
-        vitVal.style.color = col;
-      }
-      const stabVal = clusterEl.querySelector(".deck-cluster-stability-val");
-      if (stabVal)
-        stabVal.innerText = `${cl.avgStability}%`;
-      const stressVal = clusterEl.querySelector(".deck-cluster-stress-val");
-      if (stressVal) {
-        stressVal.innerText = `${cl.avgStress}%`;
-        stressVal.style.color = cl.avgStress > 50 ? "#ef4444" : "#f59e0b";
-      }
-    }
-  });
-  STATE.crew.forEach((c) => {
-    const card = document.getElementById(`deck-crew-card-${c.id}`);
-    if (!card)
-      return;
-    const maxLife = c.maxLifespan || 540;
-    const currentAge = Math.min(maxLife, Math.floor(c.age || 0));
-    const lifePercent = Math.max(0, Math.min(100, Math.round((1 - currentAge / maxLife) * 100)));
-    let ageLabel = "\uD83D\uDFE2 Vital";
-    let ageColor = "#00ff88";
-    if (c.ageCategory === "mature") {
-      ageLabel = "\uD83D\uDFE1 Reife";
-      ageColor = "#facc15";
-    } else if (c.ageCategory === "senescent") {
-      ageLabel = "\uD83D\uDFE0 Seneszenz";
-      ageColor = "#fb923c";
-    } else if (c.ageCategory === "critical") {
-      ageLabel = "\uD83D\uDD34 Altersschwäche";
-      ageColor = "#f43f5e";
-    }
-    const ageMin = Math.floor(currentAge / 60);
-    const ageSec = String(currentAge % 60).padStart(2, "0");
-    const maxMin = Math.floor(maxLife / 60);
-    const ageText = card.querySelector(".deck-age-text");
-    if (ageText)
-      ageText.innerText = `⏳ Alter: ${ageMin}:${ageSec} / ${maxMin}:00 Min.`;
-    const agePill = card.querySelector(".deck-age-pill");
-    if (agePill) {
-      agePill.innerText = `${ageLabel} (${lifePercent}% übrig)`;
-      agePill.style.color = ageColor;
-    }
-    const ageFill = card.querySelector(".deck-age-fill");
-    if (ageFill) {
-      ageFill.style.width = `${lifePercent}%`;
-      ageFill.style.background = ageColor;
-    }
-    const stabFill = card.querySelector(".deck-stability-fill");
-    if (stabFill)
-      stabFill.style.width = `${c.illusionStability}%`;
-    const stabVal = card.querySelector(".deck-stability-val");
-    if (stabVal)
-      stabVal.innerText = `${Math.round(c.illusionStability)}%`;
-    const stressFill = card.querySelector(".deck-stress-fill");
-    if (stressFill) {
-      stressFill.style.width = `${c.stress}%`;
-      stressFill.style.background = c.stress > 70 ? "#ef4444" : "#f59e0b";
-    }
-    const stressVal = card.querySelector(".deck-stress-val");
-    if (stressVal)
-      stressVal.innerText = `${Math.round(c.stress)}%`;
-    const thoughtEl = card.querySelector(".deck-thought-text");
-    if (thoughtEl)
-      thoughtEl.innerText = `\uD83D\uDCAD "${c.thought}"`;
-    const connBadge = card.querySelector(".deck-connection-badge");
-    if (connBadge) {
-      if (c.crisisActive && c.crisisTimer !== undefined) {
-        connBadge.innerText = `⚠️ SABOTAGE IN ${Math.ceil(c.crisisTimer)}s`;
-        connBadge.style.color = "#fff";
-        connBadge.style.background = "#ef4444";
-      } else if (c.connectionStatus === "severed") {
-        connBadge.innerText = "\uD83D\uDD12 Verbindung gekappt";
-        connBadge.style.color = "#ef4444";
-        connBadge.style.background = "rgba(239,68,68,0.15)";
-      } else if (c.connectionStatus === "dissonant") {
-        connBadge.innerText = "⚡ Dissonant";
-        connBadge.style.color = "#f59e0b";
-        connBadge.style.background = "rgba(245,158,11,0.15)";
-      } else {
-        connBadge.innerText = "✓ Verbunden";
-        connBadge.style.color = "#10b981";
-        connBadge.style.background = "rgba(16,185,129,0.15)";
-      }
-    }
-  });
-  if (STATE.psionicTraumas) {
-    const traumaBadge = document.getElementById("big-freeze-trauma-status-badge");
-    const activeCount = STATE.psionicTraumas.filter((t) => !t.healed || t.flareUp).length;
-    if (traumaBadge) {
-      traumaBadge.innerText = activeCount === 0 ? "✓ Alle Geheilt" : `${activeCount} Aktiv`;
-      traumaBadge.style.color = activeCount === 0 ? "#10b981" : "#f43f5e";
-    }
-    STATE.psionicTraumas.forEach((t) => {
-      const bar = document.getElementById(`trauma-prog-${t.id}`);
-      if (bar)
-        bar.style.width = `${t.therapyProgress}%`;
-      const val = document.getElementById(`trauma-status-${t.id}`);
-      if (val) {
-        if (t.flareUp) {
-          val.innerText = "⚠️ Rückfall (Einsamkeit)";
-          val.style.color = "#f43f5e";
-        } else if (t.healed) {
-          val.innerText = "✓ Geheilt";
-          val.style.color = "#10b981";
-        } else {
-          val.innerText = `${Math.round(t.therapyProgress)}% Verarbeitet`;
-          val.style.color = "#c084fc";
-        }
-      }
-    });
-  }
-}
-function renderCrewUI(force = false) {
-  const modal = document.getElementById("deck-modal");
-  const isModalOpen = modal ? modal.style.display === "flex" : false;
-  if (!isModalOpen && !force)
-    return;
-  const container = document.getElementById("crew-list-container");
-  const badge = document.getElementById("crew-count-badge");
-  const capText = document.getElementById("crew-capacity-text");
-  const synTitle = document.getElementById("crew-synergy-title");
-  const synDesc = document.getElementById("crew-synergy-desc");
-  const synBanner = document.getElementById("crew-synergy-banner");
-  if (badge)
-    badge.innerText = String(STATE.crew.length);
-  if (capText)
-    capText.innerText = `${STATE.crew.length} / ${STATE.maxCrewCapacity}`;
-  const uniqueRoles = new Set(STATE.crew.map((c) => c.role)).size;
-  const totalCrew = STATE.crew.length;
-  const rolesPresent = new Set(STATE.crew.map((c) => c.role));
-  const slotPilot = document.getElementById("slot-pilot");
-  const slotBio = document.getElementById("slot-biologist");
-  const slotEng = document.getElementById("slot-engineer");
-  const slotPsych = document.getElementById("slot-psychologist");
-  if (slotPilot)
-    slotPilot.className = rolesPresent.has("pilot") ? "role-slot active" : "role-slot";
-  if (slotBio)
-    slotBio.className = rolesPresent.has("biologist") ? "role-slot active" : "role-slot";
-  if (slotEng)
-    slotEng.className = rolesPresent.has("engineer") ? "role-slot active" : "role-slot";
-  if (slotPsych)
-    slotPsych.className = rolesPresent.has("psychologist") || rolesPresent.has("cryptologist") ? "role-slot active" : "role-slot";
-  const stationsGrid = document.getElementById("organ-stations-grid");
-  if (stationsGrid) {
-    const counts = getStationCrewCounts();
-    const stationKeys = ["flight_synapse", "chitin_gland", "bio_incubator", "dream_core"];
-    stationsGrid.innerHTML = stationKeys.map((key) => {
-      const st = ORGAN_STATIONS[key];
-      const cCount = counts[key] || 0;
-      return `
-                <div class="organ-station-card ${cCount > 0 ? "active" : ""}">
-                    <div class="organ-station-header">
-                        <span>${st.icon} ${st.name}</span>
-                        <span class="organ-station-count">${cCount}</span>
-                    </div>
-                    <div class="organ-station-desc">${st.description}</div>
-                </div>
-            `;
-    }).join("");
-  }
-  const lifeBadge = document.getElementById("life-support-status-badge");
-  const waterStatusEl = document.getElementById("deck-water-status");
-  const foodStatusEl = document.getElementById("deck-food-status");
-  const biologistBoostText = document.getElementById("deck-biologist-boost-text");
-  const waterRate = STATE.waterConsumptionRate || 0;
-  const foodRate = STATE.foodConsumptionRate || 0;
-  const isSyntheticMember = (c) => c.species === "Cyborg" || c.species === "Synthetisch" || c.disposition === "synthetic";
-  const organicCount = STATE.crew.filter((c) => !isSyntheticMember(c)).length;
-  if (waterStatusEl) {
-    waterStatusEl.innerHTML = `\uD83D\uDCA7 ${Math.floor(STATE.waterRes || 0)}L <span style="font-size:0.6rem; color:#94a3b8;">(-${waterRate.toFixed(2)}/s)</span>`;
-  }
-  if (foodStatusEl) {
-    foodStatusEl.innerHTML = `\uD83C\uDF5E ${Math.floor(STATE.foodRes || 0)}kg <span style="font-size:0.6rem; color:#94a3b8;">(-${foodRate.toFixed(2)}/s)</span>`;
-  }
-  if (lifeBadge) {
-    if (organicCount === 0) {
-      lifeBadge.innerText = "Synthetisch / Leer";
-      lifeBadge.style.color = "#94a3b8";
-    } else if ((STATE.waterRes || 0) <= 0 || (STATE.foodRes || 0) <= 0) {
-      lifeBadge.innerText = "⚠️ KRITISCHER MANGEL";
-      lifeBadge.style.color = "#ef4444";
-    } else {
-      lifeBadge.innerText = "✓ Stabil";
-      lifeBadge.style.color = "#10b981";
-    }
-  }
-  if (biologistBoostText) {
-    const discountPct = Math.round((STATE.mutationDiscount || 0) * 100);
-    if (discountPct > 0) {
-      biologistBoostText.innerText = `\uD83E\uDDEA Biologen-Boost aktiv: -${discountPct}% Mutationskosten`;
-      biologistBoostText.style.display = "block";
-    } else {
-      biologistBoostText.style.display = "none";
-    }
-  }
-  if (synBanner && synTitle && synDesc) {
-    if (totalCrew === 0) {
-      synBanner.className = "crew-synergy-banner";
-      synTitle.innerText = "\uD83C\uDF0C Kosmische Einsamkeit (100%)";
-      synDesc.innerText = "Keine Geister im Kollektiv. Entführe Wesen von habitablen Planeten, um Einsamkeit zu lindern.";
-    } else if (totalCrew === 1) {
-      synBanner.className = "crew-synergy-banner";
-      synTitle.innerText = `\uD83C\uDF31 Erste Bindung (${Math.round(STATE.loneliness)}% Einsamkeit)`;
-      synDesc.innerText = `1 Geist an Bord (${STATE.crew[0]?.roleName || "Begleiter"}). Finde weitere Wesen mit anderen Rollen für Synergien!`;
-    } else if (totalCrew >= 2 && uniqueRoles === 1) {
-      synBanner.className = "crew-synergy-banner";
-      synTitle.innerText = `\uD83D\uDC65 Doppelter Rollen-Fokus (${Math.round(STATE.loneliness)}% Einsamkeit)`;
-      synDesc.innerText = `${totalCrew}x selbe Rolle an Bord: Rollen-Effekt verstärkt! Finde eine andere Rolle für "Duale Resonanz".`;
-    } else if (uniqueRoles === 2) {
-      synBanner.className = "crew-synergy-banner";
-      synTitle.innerText = `✨ Duale Resonanz (${Math.round(STATE.loneliness)}% Einsamkeit)`;
-      synDesc.innerText = "2 verschiedene Rollen im Einklang! Einsamkeit stark gesenkt. Noch 1 weitere Rolle für 'Kosmische Harmonie'.";
-    } else if (uniqueRoles >= 3 || totalCrew >= 3) {
-      synBanner.className = "crew-synergy-banner harmony";
-      synTitle.innerText = "\uD83D\uDCAB Kosmische Harmonie (0% Einsamkeit)";
-      synDesc.innerText = "Diverses Trio aktiv! Einsamkeit vollständig beseitigt & passive Bio-/Mentalenergie-Regeneration online!";
-    }
-  }
-  const traumaList = document.getElementById("big-freeze-trauma-list");
-  const traumaBadge = document.getElementById("big-freeze-trauma-status-badge");
-  if (traumaList && STATE.psionicTraumas) {
-    const activeCount = STATE.psionicTraumas.filter((t) => !t.healed || t.flareUp).length;
-    if (traumaBadge) {
-      traumaBadge.innerText = activeCount === 0 ? "✓ Alle Geheilt" : `${activeCount} Aktiv`;
-      traumaBadge.style.color = activeCount === 0 ? "#10b981" : "#f43f5e";
-    }
-    traumaList.innerHTML = STATE.psionicTraumas.map((t) => {
-      const isActive = !t.healed || t.flareUp;
-      const isFlare = t.flareUp;
-      let statusText = "✓ Geheilt";
-      let statusColor = "#10b981";
-      if (isFlare) {
-        statusText = "⚠️ Rückfall (Einsamkeit)";
-        statusColor = "#f43f5e";
-      } else if (!t.healed) {
-        statusText = `${Math.round(t.therapyProgress)}% Verarbeitet`;
-        statusColor = "#c084fc";
-      }
-      return `
-                <div class="trauma-item" style="background: rgba(30,41,59,0.6); padding: 5px 7px; border-radius: 4px; border: 1px solid ${isActive ? "rgba(192,132,252,0.3)" : "rgba(16,185,129,0.3)"};">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-                        <span style="font-size: 0.68rem; font-weight: 700; color: ${isActive ? "#f8fafc" : "#94a3b8"};">
-                            ${t.icon} ${t.name}
-                        </span>
-                        <span id="trauma-status-${t.id}" style="font-size: 0.60rem; font-weight: bold; color: ${statusColor};">${statusText}</span>
-                    </div>
-                    <div style="font-size: 0.58rem; color: #94a3b8; margin-bottom: 3px;">
-                        ${t.effectDescription}
-                    </div>
-                    ${!t.healed ? `
-                        <div style="height: 3px; background: rgba(0,0,0,0.5); border-radius: 2px; overflow: hidden;">
-                            <div id="trauma-prog-${t.id}" style="width: ${t.therapyProgress}%; height: 100%; background: linear-gradient(90deg, #c084fc, #38bdf8);"></div>
-                        </div>
-                    ` : ""}
-                </div>
-            `;
-    }).join("");
-  }
-  if (!container)
-    return;
-  const p = STATE.primaryParadigm || "deception";
-  const sub = STATE.activeSubCodex || "benevolent_facade";
-  const mods = STATE.paradigmModifiers || { thrustBonus: 0, stealthBonus: 0, mentalDrainMult: 1, bioRegenBonus: 0, harmonyBonus: 0 };
-  let paradigmHtml = "";
-  if (p === "neutral") {
-    if (STATE.crew.length === 0) {
-      paradigmHtml = `
-                <div class="paradigm-control-card glass-panel" style="margin-bottom: 12px; padding: 10px; border: 1px solid rgba(148,163,184,0.3); border-radius: 6px; background: rgba(15,23,42,0.85); text-align: center;">
-                    <div style="font-size: 0.78rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
-                        \uD83C\uDF0C Kosmische Isolation • Neutrale Haltung
-                    </div>
-                    <div style="font-size: 0.65rem; color: #cbd5e1; line-height: 1.4;">
-                        Najmafar schweift einsam durch das All. Ohne Kontakt zu intelligentem Leben ist noch keine Doktrin erwacht.
-                    </div>
-                </div>
-            `;
-    } else {
-      paradigmHtml = `
-                <div class="paradigm-control-card glass-panel" style="margin-bottom: 12px; padding: 10px; border: 1px solid #c084fc; border-radius: 6px; background: rgba(88,28,135,0.3); text-align: center;">
-                    <div style="font-size: 0.78rem; font-weight: 700; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
-                        ✨ Erstkontakt: Doktrin-Entscheidung
-                    </div>
-                    <div style="font-size: 0.65rem; color: #cbd5e1; margin-bottom: 8px;">
-                        Ein fremdes Wesen ist an Bord! Wähle Najmafars prägende Gesinnung:
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
-                        <button onclick="window.chooseFirstContactDoctrine('domination')" style="padding: 6px; font-size: 0.68rem; font-weight: bold; border-radius: 4px; border: 1px solid #ef4444; background: rgba(239,68,68,0.3); color: #fff; cursor: pointer;">
-                            ⚡ Herrschaft
-                        </button>
-                        <button onclick="window.chooseFirstContactDoctrine('deception')" style="padding: 6px; font-size: 0.68rem; font-weight: bold; border-radius: 4px; border: 1px solid #38bdf8; background: rgba(56,189,248,0.3); color: #fff; cursor: pointer;">
-                            \uD83D\uDD2E Täuschung
-                        </button>
-                        <button onclick="window.chooseFirstContactDoctrine('symbiosis')" style="padding: 6px; font-size: 0.68rem; font-weight: bold; border-radius: 4px; border: 1px solid #10b981; background: rgba(16,185,129,0.3); color: #fff; cursor: pointer;">
-                            \uD83C\uDF31 Symbiose
-                        </button>
-                    </div>
-                </div>
-            `;
-    }
-  } else {
-    let subOptions = [];
-    if (p === "domination") {
-      subOptions = [
-        { id: "gunboat_diplomacy", label: "⚔️\uD83E\uDD1D Ehrfurchts-Vertrag (Gewalt + Diplo)" },
-        { id: "iron_discipline", label: "⚔️⛓️ Eiserne Disziplin (Gewalt + Gewalt)" },
-        { id: "nightmare_terror", label: "⚔️\uD83D\uDC41️ Albtraum-Matrix (Gewalt + Horror)" }
-      ];
-    } else if (p === "deception") {
-      subOptions = [
-        { id: "benevolent_facade", label: "\uD83D\uDD2E\uD83E\uDD1D Falsche Utopie (Täuschung + Diplo)" },
-        { id: "illusory_matrix", label: "\uD83D\uDD2E✨ Perfekte Matrix (Hoher Stealth)" },
-        { id: "nightmare_terror", label: "\uD83D\uDD2E\uD83D\uDC41️ Albtraum-Matrix (Schockstarre)" }
-      ];
-    } else {
-      subOptions = [
-        { id: "living_symbiosis", label: "\uD83C\uDF31\uD83E\uDDEC Lebendige Symbiose (Reine Harmonie)" },
-        { id: "pragmatic_accord", label: "\uD83C\uDF31⚖️ Pragmatisches Abkommen (Diplo)" },
-        { id: "gunboat_diplomacy", label: "\uD83C\uDF31⚔️ Schutz-Pakt (Stärke + Diplo)" }
-      ];
-    }
-    let transitionHtml = "";
-    if (STATE.doctrineTransition && STATE.doctrineTransition.active) {
-      const prog = Math.min(100, Math.round(STATE.doctrineTransition.progress * 100));
-      const toNames = {
-        domination: "⚡ Herrschaft",
-        deception: "\uD83D\uDD2E Täuschung",
-        symbiosis: "\uD83C\uDF31 Symbiose",
-        neutral: "\uD83C\uDF0C Neutral"
-      };
-      const targetTitle = toNames[STATE.doctrineTransition.targetParadigm];
-      transitionHtml = `
-                <div class="doctrine-transition-card" style="margin-bottom: 8px; padding: 6px 8px; border-radius: 4px; background: rgba(88,28,135,0.4); border: 1px solid rgba(168,85,247,0.7);">
-                    <div style="display: flex; justify-content: space-between; font-size: 0.65rem; font-weight: 700; color: #f8fafc; margin-bottom: 3px;">
-                        <span>\uD83C\uDF00 Psionische Umwälzung ➔ ${targetTitle}</span>
-                        <span style="color: #38bdf8;">${prog}%</span>
-                    </div>
-                    <div style="height: 5px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden;">
-                        <div class="transition-fill-bar" style="width: ${prog}%; height: 100%; background: linear-gradient(90deg, #a855f7, #38bdf8);"></div>
-                    </div>
-                    <div style="font-size: 0.58rem; color: #cbd5e1; margin-top: 3px;">
-                        Geisteshaltung wandelt sich... <em>(Traum-Kern & Telepathie beschleunigen)</em>
-                    </div>
-                </div>
-            `;
-    }
-    paradigmHtml = `
-            <div class="paradigm-control-card glass-panel" style="margin-bottom: 12px; padding: 8px 10px; border: 1px solid rgba(168,85,247,0.3); border-radius: 6px; background: rgba(15,23,42,0.75);">
-                ${transitionHtml}
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <span style="font-size: 0.72rem; font-weight: 700; color: #a855f7; text-transform: uppercase; letter-spacing: 0.5px;">\uD83E\uDDE0 Psionische Schiffs-Doktrin</span>
-                    <span style="font-size: 0.65rem; color: #38bdf8;">Schub: +${Math.round(mods.thrustBonus * 100)}% | Stealth: +${Math.round(mods.stealthBonus * 100)}% | Drain: x${mods.mentalDrainMult.toFixed(2)}</span>
-                </div>
-                
-                <!-- Primary Paradigm Tabs -->
-                <div class="paradigm-tabs" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-bottom: 6px;">
-                    <button class="paradigm-btn ${p === "domination" ? "active" : ""}" onclick="window.setPrimaryParadigm('domination')" style="padding: 4px 6px; font-size: 0.68rem; border-radius: 4px; border: 1px solid ${p === "domination" ? "#ef4444" : "rgba(255,255,255,0.1)"}; background: ${p === "domination" ? "rgba(239,68,68,0.25)" : "rgba(0,0,0,0.3)"}; color: #f8fafc; cursor: pointer;">
-                        ⚡ Herrschaft
-                    </button>
-                    <button class="paradigm-btn ${p === "deception" ? "active" : ""}" onclick="window.setPrimaryParadigm('deception')" style="padding: 4px 6px; font-size: 0.68rem; border-radius: 4px; border: 1px solid ${p === "deception" ? "#38bdf8" : "rgba(255,255,255,0.1)"}; background: ${p === "deception" ? "rgba(56,189,248,0.25)" : "rgba(0,0,0,0.3)"}; color: #f8fafc; cursor: pointer;">
-                        \uD83D\uDD2E Täuschung
-                    </button>
-                    <button class="paradigm-btn ${p === "symbiosis" ? "active" : ""}" onclick="window.setPrimaryParadigm('symbiosis')" style="padding: 4px 6px; font-size: 0.68rem; border-radius: 4px; border: 1px solid ${p === "symbiosis" ? "#10b981" : "rgba(255,255,255,0.1)"}; background: ${p === "symbiosis" ? "rgba(16,185,129,0.25)" : "rgba(0,0,0,0.3)"}; color: #f8fafc; cursor: pointer;">
-                        \uD83C\uDF31 Symbiose
-                    </button>
-                </div>
-
-                <!-- Sub-Codex Row -->
-                <div class="sub-codex-row" style="display: flex; gap: 4px; flex-wrap: wrap;">
-                    ${subOptions.map((opt) => `
-                        <button class="sub-codex-btn ${sub === opt.id ? "active" : ""}" onclick="window.setActiveSubCodex('${opt.id}')" style="flex: 1; padding: 3px 6px; font-size: 0.62rem; border-radius: 3px; border: 1px solid ${sub === opt.id ? "#c084fc" : "rgba(255,255,255,0.08)"}; background: ${sub === opt.id ? "rgba(192,132,252,0.3)" : "rgba(0,0,0,0.25)"}; color: ${sub === opt.id ? "#fff" : "#cbd5e1"}; cursor: pointer;">
-                            ${opt.label}
-                        </button>
-                    `).join("")}
-                </div>
-            </div>
-        `;
-  }
-  const clusters = getSpeciesClusters();
-  const useClustering = STATE.crew.length >= 6 || clusters.some((cl) => cl.count >= 4);
-  const expandedKey = getExpandedClustersKey();
-  const transKey = STATE.doctrineTransition?.active ? Math.round(STATE.doctrineTransition.progress * 10) : "none";
-  const stationKey = STATE.crew.map((c) => `${c.id}_${c.station}`).join("_");
-  const structureKey = `${p}_${sub}_${useClustering}_${expandedKey}_${transKey}_${stationKey}_` + STATE.crew.map((c) => `${c.id}_${c.ageCategory}`).join("|");
-  if (!force && structureKey === lastRenderedDeckStructure) {
-    updateDeckLiveElements();
-    return;
-  }
-  lastRenderedDeckStructure = structureKey;
-  if (STATE.crew.length === 0) {
-    container.innerHTML = paradigmHtml + `
-            <div class="matrix-empty-card">
-                <span class="highlight">Keine Vernunftbegabten Wesen</span>
-                Die psionische Traum-Matrix ist leer. Das Schiff leidet unter existenzieller kosmischer Einsamkeit.<br><br>
-                <em>Scanne habitable Planeten nach intelligentem Leben und starte eine psionische Entführung [F]!</em>
-            </div>
-        `;
-    return;
-  }
-  let html = paradigmHtml;
-  if (useClustering) {
-    clusters.forEach((cl) => {
-      let dispIcon = "\uD83D\uDD2C";
-      let dispLabel = "Wissenschaft";
-      if (cl.disposition === "martial") {
-        dispIcon = "⚔️";
-        dispLabel = "Kriegerisch";
-      } else if (cl.disposition === "empathic") {
-        dispIcon = "\uD83C\uDF44";
-        dispLabel = "Empathisch";
-      } else if (cl.disposition === "synthetic") {
-        dispIcon = "\uD83E\uDD16";
-        dispLabel = "Synthetisch";
-      } else if (cl.disposition === "lithoid") {
-        dispIcon = "\uD83D\uDCA0";
-        dispLabel = "Lithoid";
-      }
-      html += `
-                <div id="deck-cluster-${cl.speciesName}" class="species-cluster-card glass-panel" style="margin-bottom: 10px; padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: rgba(30,41,59,0.5);">
-                    <div class="species-cluster-header" onclick="window.toggleCluster('${cl.speciesName.replace(/'/g, "\\'")}')" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 1.2rem;">${cl.avatarIcon}</span>
-                            <div>
-                                <span style="font-weight: 700; color: ${cl.speciesColor}; font-size: 0.82rem;">${cl.speciesName}</span>
-                                <span style="font-size: 0.65rem; background: rgba(56,189,248,0.2); color: #38bdf8; padding: 1px 5px; border-radius: 3px; margin-left: 4px;">${cl.count}x Individuen</span>
-                                <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">${dispIcon} ${dispLabel}</span>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 6px;" onclick="event.stopPropagation()">
-                            <button class="crew-action-btn" onclick="event.stopPropagation(); window.rejuvenateCluster('${cl.speciesName.replace(/'/g, "\\'")}')" style="padding: 2px 6px; font-size: 0.62rem; cursor: pointer; background: rgba(16,185,129,0.3); border: 1px solid #10b981; color: #fff; border-radius: 3px;" title="Verjüngt alle Individuen dieser Spezies (-35% Alter)">
-                                \uD83D\uDC89 Kollektiv-Verjüngung
-                            </button>
-                            <button class="crew-action-btn" onclick="event.stopPropagation(); window.toggleCluster('${cl.speciesName.replace(/'/g, "\\'")}')" style="padding: 2px 6px; font-size: 0.62rem; cursor: pointer; background: rgba(168,85,247,0.3); border: 1px solid #a855f7; color: #fff; border-radius: 3px;">
-                                ${cl.isExpanded ? "▲ Zuklappen" : "▼ Aufklappen (" + cl.count + ")"}
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Clustered Averages Bars -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 6px; font-size: 0.65rem;">
-                        <div>
-                            <span style="color: #94a3b8;">⏳ Vitalität:</span> <strong class="deck-cluster-vitality-val" style="color: #10b981;">${cl.avgAgePercent}%</strong>
-                        </div>
-                        <div>
-                            <span style="color: #94a3b8;">\uD83D\uDD2E Stabilität:</span> <strong class="deck-cluster-stability-val" style="color: #a855f7;">${cl.avgStability}%</strong>
-                        </div>
-                        <div>
-                            <span style="color: #94a3b8;">⚡ Stress:</span> <strong class="deck-cluster-stress-val" style="color: ${cl.avgStress > 50 ? "#ef4444" : "#f59e0b"};">${cl.avgStress}%</strong>
-                        </div>
-                    </div>
-
-                    <!-- Collective Station Assignment Row -->
-                    <div class="station-switch-row" onclick="event.stopPropagation()" style="margin-top: 6px; padding: 4px 0 0 0; border-top: 1px solid rgba(255,255,255,0.06);">
-                        <span style="font-size: 0.60rem; color: #94a3b8;">Kollektiv-Station:</span>
-                        <button class="station-mini-btn" onclick="window.setSpeciesClusterStation('${cl.speciesName.replace(/'/g, "\\'")}', 'flight_synapse')" title="Alle auf Flug-Synapse">\uD83D\uDE80 Flug</button>
-                        <button class="station-mini-btn" onclick="window.setSpeciesClusterStation('${cl.speciesName.replace(/'/g, "\\'")}', 'chitin_gland')" title="Alle auf Chitin-Drüse">\uD83D\uDEE1️ Chitin</button>
-                        <button class="station-mini-btn" onclick="window.setSpeciesClusterStation('${cl.speciesName.replace(/'/g, "\\'")}', 'bio_incubator')" title="Alle auf Bio-Inkubator">\uD83E\uDDEA Inkubator</button>
-                        <button class="station-mini-btn" onclick="window.setSpeciesClusterStation('${cl.speciesName.replace(/'/g, "\\'")}', 'dream_core')" title="Alle auf Traum-Kern">\uD83D\uDD2E Traum</button>
-                    </div>
-
-                    <!-- Expanded Nested Cards -->
-                    ${cl.isExpanded ? `
-                        <div class="cluster-expanded-list" style="margin-top: 8px; padding-left: 8px; border-left: 2px solid ${cl.speciesColor};">
-                            ${cl.members.map((c) => renderSingleCrewMemberHTML(c)).join("")}
-                        </div>
-                    ` : ""}
-                </div>
-            `;
-    });
-  } else {
-    STATE.crew.forEach((c) => {
-      html += renderSingleCrewMemberHTML(c);
-    });
-  }
-  container.innerHTML = html;
-}
-function renderSingleCrewMemberHTML(c) {
-  let cardClass = "crew-member";
-  if (c.illusionStability < 35 || c.stress > 70)
-    cardClass += " panic";
-  else if (c.illusionStability < 65 || c.stress > 45)
-    cardClass += " suspicious";
-  const maxLife = c.maxLifespan || 540;
-  const currentAge = Math.min(maxLife, Math.floor(c.age || 0));
-  const lifePercent = Math.max(0, Math.min(100, Math.round((1 - currentAge / maxLife) * 100)));
-  let speciesTag = "\uD83D\uDC68‍\uD83D\uDE80 Mortal";
-  if (c.speciesType === "ephemeral")
-    speciesTag = "\uD83E\uDEB2 Ephemeral";
-  else if (c.speciesType === "longlived")
-    speciesTag = "\uD83E\uDD16 Synthet";
-  else if (c.speciesType === "ancient")
-    speciesTag = "\uD83D\uDC8E Uralt";
-  let ageLabel = "\uD83D\uDFE2 Vital";
-  let ageColor = "#00ff88";
-  if (c.ageCategory === "mature") {
-    ageLabel = "\uD83D\uDFE1 Reife";
-    ageColor = "#facc15";
-  } else if (c.ageCategory === "senescent") {
-    ageLabel = "\uD83D\uDFE0 Seneszenz";
-    ageColor = "#fb923c";
-  } else if (c.ageCategory === "critical") {
-    ageLabel = "\uD83D\uDD34 Altersschwäche";
-    ageColor = "#f43f5e";
-  }
-  const ageMin = Math.floor(currentAge / 60);
-  const ageSec = String(currentAge % 60).padStart(2, "0");
-  const maxMin = Math.floor(maxLife / 60);
-  let connBadgeHtml = '<span class="deck-connection-badge" style="font-size: 0.6rem; color: #10b981; background: rgba(16,185,129,0.15); padding: 1px 5px; border-radius: 3px;">✓ Verbunden</span>';
-  if (c.crisisActive && c.crisisTimer !== undefined) {
-    connBadgeHtml = `<span class="deck-connection-badge" style="font-size: 0.6rem; color: #fff; background: #ef4444; padding: 1px 5px; border-radius: 3px; font-weight: bold;">⚠️ SABOTAGE IN ${Math.ceil(c.crisisTimer)}s</span>`;
-  } else if (c.connectionStatus === "severed") {
-    connBadgeHtml = '<span class="deck-connection-badge" style="font-size: 0.6rem; color: #ef4444; background: rgba(239,68,68,0.15); padding: 1px 5px; border-radius: 3px;">\uD83D\uDD12 Verbindung gekappt</span>';
-  } else if (c.connectionStatus === "dissonant") {
-    connBadgeHtml = '<span class="deck-connection-badge" style="font-size: 0.6rem; color: #f59e0b; background: rgba(245,158,11,0.15); padding: 1px 5px; border-radius: 3px;">⚡ Dissonant</span>';
-  }
-  const isSevered = c.connectionStatus === "severed";
-  return `
-        <div id="deck-crew-card-${c.id}" class="${cardClass}" style="margin-bottom: 6px;">
-            <div class="crew-header" style="display: flex; justify-content: space-between; align-items: center;">
-                <div style="display: flex; align-items: center; gap: 6px;">
-                    <span class="crew-name" style="font-weight: 700; color: #f8fafc; font-size: 0.8rem;">${c.name}</span>
-                    <span style="font-size: 0.65rem; color: #94a3b8;">(${speciesTag})</span>
-                    ${connBadgeHtml}
-                </div>
-                <span class="crew-role-badge">${c.roleIcon || "\uD83D\uDC64"} ${c.roleName || c.role}</span>
-            </div>
-            <div class="crew-buff-tag" style="${isSevered ? "color: #94a3b8; text-decoration: line-through;" : ""}">
-                ⚡ ${c.buffDesc || c.perk}${isSevered ? " (Inaktiv - Geist getrennt)" : ""}
-            </div>
-
-            <!-- Lifespan & Biological Age Bar -->
-            <div class="lifespan-container" style="margin: 4px 0; background: rgba(15,23,42,0.6); padding: 4px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
-                <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: #cbd5e1; margin-bottom: 2px;">
-                    <span class="deck-age-text">⏳ Alter: ${ageMin}:${ageSec} / ${maxMin}:00 Min.</span>
-                    <span class="deck-age-pill" style="color: ${ageColor}; font-weight: 700;">${ageLabel} (${lifePercent}% übrig)</span>
-                </div>
-                <div class="lifespan-bar-bg" style="height: 4px; background: rgba(0,0,0,0.5); border-radius: 2px; overflow: hidden;">
-                    <div class="deck-age-fill lifespan-bar" style="width: ${lifePercent}%; height: 100%; background: ${ageColor}; transition: width 0.3s ease;"></div>
-                </div>
-            </div>
-            
-            <div class="stability-container">
-                <span class="stability-label">Traum-Stabilität:</span>
-                <div class="stability-bar-bg">
-                    <div class="deck-stability-fill stability-bar" style="width: ${c.illusionStability}%;"></div>
-                </div>
-                <span class="deck-stability-val" style="color: #a855f7; font-size: 0.68rem; font-weight: 700;">${Math.round(c.illusionStability)}%</span>
-            </div>
-
-            <div class="stress-container" style="display: flex; align-items: center; gap: 6px;">
-                <span class="stress-label" style="width: 90px; font-size: 0.68rem; color: #94a3b8;">Stress:</span>
-                <div class="stress-bar-bg" style="flex: 1; height: 5px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden;">
-                    <div class="deck-stress-fill stress-bar" style="width: ${c.stress}%; height: 100%; background: ${c.stress > 70 ? "#ef4444" : "#f59e0b"};"></div>
-                </div>
-                <span class="deck-stress-val stress-percentage" style="font-size: 0.68rem;">${Math.round(c.stress)}%</span>
-            </div>
-
-            <div class="thought-whisper deck-thought-text ${c.illusionStability < 35 ? "terrified" : ""}">
-                \uD83D\uDCAD "${c.thought}"
-            </div>
-
-            <!-- Station Assignment & Activity -->
-            <div class="crew-station-box" style="margin: 4px 0; padding: 4px 6px; background: rgba(15,23,42,0.5); border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
-                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.63rem;">
-                    <span style="color: #94a3b8;">Station:</span>
-                    <span style="color: #38bdf8; font-weight: 600;">${c.stationName || "Organ-Station"}</span>
-                </div>
-                <div class="station-switch-row">
-                    <button class="station-mini-btn ${c.station === "flight_synapse" ? "active" : ""}" onclick="window.setCrewStation(${c.id}, 'flight_synapse')" title="\uD83D\uDE80 Flug-Synapse (+Schub & Wendigkeit)">\uD83D\uDE80 Flug</button>
-                    <button class="station-mini-btn ${c.station === "chitin_gland" ? "active" : ""}" onclick="window.setCrewStation(${c.id}, 'chitin_gland')" title="\uD83D\uDEE1️ Chitin-Drüse (Rumpfhärte & Reparatur)">\uD83D\uDEE1️ Chitin</button>
-                    <button class="station-mini-btn ${c.station === "bio_incubator" ? "active" : ""}" onclick="window.setCrewStation(${c.id}, 'bio_incubator')" title="\uD83E\uDDEA Bio-Inkubator (Verjüngung & Biomasse)">\uD83E\uDDEA Inkubator</button>
-                    <button class="station-mini-btn ${c.station === "dream_core" ? "active" : ""}" onclick="window.setCrewStation(${c.id}, 'dream_core')" title="\uD83D\uDD2E Traum-Kern (Mentale Kraft & Umwälzung)">\uD83D\uDD2E Traum</button>
-                </div>
-                <div style="font-size: 0.58rem; color: #94a3b8; font-style: italic; margin-top: 3px;">
-                    ⚙️ ${c.stationActivity || ""}
-                </div>
-            </div>
-
-            <!-- Interactive Crew Care & Action Buttons -->
-            <div class="crew-actions" style="display: flex; gap: 6px; margin-top: 6px;">
-                <button class="crew-action-btn rejuv-btn" onclick="window.rejuvenateCrew(${c.id})" title="Zell-Verjüngung: -35% Alter (Kosten: 20 Bio / 10 Biomasse)">
-                    \uD83D\uDC89 Verjüngen
-                </button>
-                <button class="crew-action-btn assimilate-btn" onclick="window.assimilateCrew(${c.id})" title="Genom-Assimilation: Löst das Wesen in +50 Bio-Energie, +35 Biomasse & +20 Silizium auf">
-                    \uD83E\uDDEC Assimilieren
-                </button>
-            </div>
-        </div>
-    `;
-}
-if (typeof window !== "undefined") {
-  window.rejuvenateCrew = (id) => rejuvenateCrewMember(id);
-  window.assimilateCrew = (id) => assimilateCrewMember(id);
-  window.toggleCluster = (speciesName) => toggleClusterExpansion(speciesName);
-  window.rejuvenateCluster = (speciesName) => rejuvenateSpeciesCluster(speciesName);
-  window.setPrimaryParadigm = (p) => setPrimaryParadigm(p);
-  window.setActiveSubCodex = (sub) => setActiveSubCodex(sub);
-  window.cyclePrimaryParadigm = () => cyclePrimaryParadigm();
-  window.setCrewStation = (id, s) => setCrewStation(id, s);
-  window.setSpeciesClusterStation = (sp, s) => setSpeciesClusterStation(sp, s);
-  window.performTherapySession = () => performTherapySession();
-}
-var crewDialogueBank = {
-  pilot_engineer: [
-    { lineA: 'Miller: "Petrov, diese biomolekularen Trägheitsdämpfer... das Schiff richtet die Schubvektoren aus, bevor ich überhaupt lenke."', lineB: 'Petrov: "Die Naniten im Chitin leiten unsere Gedanken direkt weiter. Das ist kein Raumschiff, das ist ein lebendes Cockpit."' },
-    { lineA: 'Miller: "Wie sieht die Hüllenintegrität aus, wenn wir durch Asteroidengürtel tauchen?"', lineB: 'Petrov: "Silizium-Naniten schließen Risse im Flug. Solange wir Mineralien aufnehmen, hält die organische Panzerung stand."' }
-  ],
-  biologist_psychologist: [
-    { lineA: 'Dr. Song: "Die Traum-Matrix synchronisiert unsere neuronalen REM-Phasen. Es absorbiert nicht unsere Körper, sondern unsere Gefühle."', lineB: 'Dr. Vance: "Ein psionischer Stoffwechsel. Solange wir Gelassenheit und Zuversicht ausstrahlen, ernährt sich die Entität von Harmonie statt Verzweiflung."' },
-    { lineA: 'Dr. Song: "Die Biolumineszenz an den Synapsen-Wänden pulsiert im Takt unseres Herzschlags."', lineB: 'Dr. Vance: "Ein biologischer Resonanzraum. Wir halten das Wesen am Leben – und es beschützt uns vor der tödlichen Kälte des Alls."' }
-  ],
-  cryptologist_pilot: [
-    { lineA: 'Novak: "Ich fange schwache Tachyonen-Echos aus dem nächsten Sternensystem auf. Psio-Sensorhorizont erweitert."', lineB: 'Miller: "Kurs ist korrigiert, Novak. Bringen wir uns in den nächsten planetaren Orbit."' }
-  ],
-  engineer_biologist: [
-    { lineA: 'Petrov: "Dr. Song, die organischen Leitungen um die Faltungsmembran regenerieren erstaunlich schnell."', lineB: 'Dr. Song: "Es ist ein symbiotisches Ökosystem. Jede Ressource, die wir assimilieren, stärkt die Zellwände des Schiffes."' }
-  ],
-  general: [
-    { lineA: 'Crew-Funk: "Die Traum-Matrix flüstert Erinnerungen an Sternensysteme, die Lichtjahre entfernt liegen..."', lineB: 'Crew-Funk: "Wir reisen durch das Herz einer Galaxie, die kein Mensch zuvor erblickt hat."' }
-  ]
-};
-function triggerMultiCrewDialogue() {
-  if (STATE.crew.length < 2)
-    return;
-  const hasTranslator = STATE.mutations.translator && STATE.mutations.translator.purchased;
-  const c1 = STATE.crew[Math.floor(Math.random() * STATE.crew.length)];
-  const others = STATE.crew.filter((c) => c !== c1);
-  const c2 = others[Math.floor(Math.random() * others.length)];
-  let pairKey = `${c1.role}_${c2.role}`;
-  let revPairKey = `${c2.role}_${c1.role}`;
-  let dialogues = crewDialogueBank[pairKey] || crewDialogueBank[revPairKey] || crewDialogueBank.general;
-  const dialog = dialogues[Math.floor(Math.random() * dialogues.length)];
-  const name1 = c1.name.split(" ")[1] || c1.name;
-  const name2 = c2.name.split(" ")[1] || c2.name;
-  if (hasTranslator) {
-    addLogEntry("CREW", dialog.lineA.replace("Miller", name1).replace("Petrov", name2).replace("Dr. Song", c1.name).replace("Dr. Vance", c2.name).replace("Novak", name1));
-    setTimeout(() => {
-      addLogEntry("CREW", dialog.lineB.replace("Miller", name1).replace("Petrov", name2).replace("Dr. Song", c1.name).replace("Dr. Vance", c2.name).replace("Novak", name2));
-    }, 3200);
-  } else {
-    addLogEntry("CREW", `[Verschlüsselter Datenstrom zwischen ${c1.name} & ${c2.name}... Dschinn-Übersetzer benötigt!]`);
-  }
-}
-
-// src/systems/factions.ts
-var FACTIONS = {
-  vega_collective: {
-    id: "vega_collective",
-    name: "Das Vega-Qubit-Kollektiv",
-    shortName: "Vega-Kollektiv",
-    emblem: "⚛️",
-    color: "0x6366f1",
-    colorCss: "#6366f1",
-    doctrine: "Quanten-Logik & Kybernetische Ordnung",
-    description: "Ein Verbund aus vernetzten Maschinen-Intelligenzen und Transhumanen, die das Universum als gigantische Rechenoperation begreifen.",
-    specialTrait: "+30% Silizium-Handelskurs | EMP-Resistente Drohnen",
-    baseDisposition: "Defensive"
-  },
-  olyndar_psion: {
-    id: "olyndar_psion",
-    name: "Der Psionische Bund von Olyndar",
-    shortName: "Psioniker von Olyndar",
-    emblem: "\uD83D\uDD2E",
-    color: "0xd946ef",
-    colorCss: "#d946ef",
-    doctrine: "Telepathische Resonanz & Bio-Götterkult",
-    description: "Spirituelle Wesen, die mit der kosmischen Leere resonieren und dein Bio-Schiff als lebendige Sternengottheit verehren.",
-    specialTrait: "Freiwillige Crew-Kandidaten | Keine Abfangstaffeln",
-    baseDisposition: "Pacifist"
-  },
-  xenomilitary_ash: {
-    id: "xenomilitary_ash",
-    name: "Die Asche-Gilde der Xenomilitärs",
-    shortName: "Asche-Gilde",
-    emblem: "⚔️",
-    color: "0xf43f5e",
-    colorCss: "#f43f5e",
-    doctrine: "Totale Vorherrschaft & Kinetische Feuerkraft",
-    description: "Eine schwer gepanzerte Militär-Junta mit Schlachtschiffen und automatisierten Orbital-Bastionen. Misstraut organischen Anomalien.",
-    specialTrait: "Schwere Kampf-Korvetten | Verfolgung über Sektorgrenzen",
-    baseDisposition: "Militaristic"
-  },
-  free_traders: {
-    id: "free_traders",
-    name: "Konsortium der Freien Sternen-Händler",
-    shortName: "Händler-Konsortium",
-    emblem: "\uD83C\uDF3F",
-    color: "0x10b981",
-    colorCss: "#10b981",
-    doctrine: "Freier Austausch & Symbiotische Allianzen",
-    description: "Pragmatische interstellare Händlergilden, die bereitwillig Silizium gegen Biomasse tauschen und Schiffsreparaturen anbieten.",
-    specialTrait: "Günstiger Ressourcentausch | Kartographie-Angebote",
-    baseDisposition: "Pacifist"
-  },
-  aethelgard_guardians: {
-    id: "aethelgard_guardians",
-    name: "Die Vorläufer-Wächter von Aethelgard",
-    shortName: "Aethelgard-Wächter",
-    emblem: "\uD83C\uDF0C",
-    color: "0x38bdf8",
-    colorCss: "#38bdf8",
-    doctrine: "Bewahrung des Kosmischen Gleichgewichts",
-    description: "Eine uralte, schlummernde Zivilisation, deren Relikte und Megastrukturen seit Millionen Jahren die Expansion der Galaxie dämpfen.",
-    specialTrait: "Exklusive Vorläufer-Mutationen | Hyper-Raumzeit-Schilde",
-    baseDisposition: "Defensive"
-  }
-};
-function getFaction(id) {
-  return FACTIONS[id] || FACTIONS.free_traders;
-}
-function getReputationTitle(score) {
-  if (score >= 60) {
-    return { label: "\uD83C\uDF1F Verehrt / Heilige Allianz", color: "#d946ef", tier: "allied" };
-  } else if (score >= 20) {
-    return { label: "\uD83E\uDD1D Kooperativ / Handelspartner", color: "#10b981", tier: "friendly" };
-  } else if (score > -20) {
-    return { label: "⚖️ Neutral", color: "#94a3b8", tier: "neutral" };
-  } else if (score > -60) {
-    return { label: "⚔️ Feindselig / Wachsam", color: "#f59e0b", tier: "hostile" };
-  } else {
-    return { label: "\uD83D\uDEA8 Todfeind / Galaktisches Kopfgeld", color: "#f43f5e", tier: "nemesis" };
-  }
-}
-function modifyReputation(factionId, delta, reason) {
-  if (!STATE.reputation[factionId]) {
-    STATE.reputation[factionId] = 0;
-  }
-  const prevScore = STATE.reputation[factionId];
-  STATE.reputation[factionId] = Math.max(-100, Math.min(100, STATE.reputation[factionId] + delta));
-  const newScore = STATE.reputation[factionId];
-  const faction = getFaction(factionId);
-  const sign2 = delta > 0 ? `+${delta}` : `${delta}`;
-  if (delta > 0) {
-    addLogEntry("SYSTEM", `\uD83C\uDF1F REPUTATION GESTIEGEN: ${faction.name} (${sign2} -> ${newScore} Punkte). ${reason}`);
-  } else {
-    addLogEntry("SYSTEM", `⚠️ REPUTATION GESUNKEN: ${faction.name} (${sign2} -> ${newScore} Punkte). ${reason}`);
-  }
-  renderFactionReputationUI();
-}
-function renderFactionReputationUI() {
-  const listContainer = document.getElementById("faction-reputation-list");
-  if (!listContainer)
-    return;
-  listContainer.innerHTML = "";
-  Object.keys(FACTIONS).forEach((fId) => {
-    const faction = FACTIONS[fId];
-    const score = STATE.reputation[fId] || 0;
-    const repInfo = getReputationTitle(score);
-    const card = document.createElement("div");
-    card.className = "faction-rep-card";
-    card.innerHTML = `
-            <div class="faction-card-header">
-                <span class="faction-emblem">${faction.emblem}</span>
-                <div class="faction-title-group">
-                    <span class="faction-name" style="color: ${faction.colorCss};">${faction.shortName}</span>
-                    <span class="faction-doctrine">${faction.doctrine}</span>
-                </div>
-                <span class="faction-score" style="color: ${repInfo.color};">${score > 0 ? "+" : ""}${score}</span>
-            </div>
-            <div class="faction-rep-bar-bg">
-                <div class="faction-rep-bar" style="width: ${Math.max(5, (score + 100) / 2)}%; background: ${repInfo.color};"></div>
-            </div>
-            <div class="faction-status-row">
-                <span class="faction-status-label" style="color: ${repInfo.color};">${repInfo.label}</span>
-                <span class="faction-trait-tag">${faction.specialTrait}</span>
-            </div>
-        `;
-    listContainer.appendChild(card);
-  });
-}
-
-// src/ui/evolution-tree.ts
-var MUTATION_DEFINITIONS = {
-  nucleus: {
-    key: "nucleus",
-    name: "Najmafars Herzzelle",
-    shortName: "Herzzelle",
-    branch: "nucleus",
-    branchLabel: "Najmafars Zerebrum",
-    branchColor: "#f43f5e",
-    icon: "\uD83E\uDEC0",
-    desc: "Pulsierender biometrischer Kern und Zerebral-Knotenpunkt von Najmafar.",
-    effect: "Vitales Zentrum aller neuronalen Stränge & Lebenspulse",
-    lore: "Hier schlägt Najmafars Herz in der Einsamkeit des Vakuums und speist alle biologischen Synapsen.",
-    precursor: null,
-    x: 10,
-    y: 50,
-    bioCost: 0,
-    siliconCost: 0
-  },
-  organic_siphon: {
-    key: "organic_siphon",
-    name: "Organischer Siphon",
-    shortName: "Bio-Siphon",
-    branch: "chitin",
-    branchLabel: "Chitin & Fleisch",
-    branchColor: "#10b981",
-    icon: "\uD83C\uDF31",
-    desc: "Raffinierte Biomasse-Saugkanäle und integrierte Strahlungs-Filterschichten.",
-    effect: "+35% Ernte-Geschwindigkeit • +25% Strahlungsschutz (verlangsamt strahlungsbedingten Zelltod)",
-    lore: "Fleischige Röhren saugen Mineralien und filtern kosmische Partikel direkt in den Rumpf.",
-    precursor: "nucleus",
-    x: 30,
-    y: 22,
-    bioCost: 120,
-    siliconCost: 60
-  },
-  chitin_armor: {
-    key: "chitin_armor",
-    name: "Chitin-Panzer",
-    shortName: "Chitin-Panzer",
-    branch: "chitin",
-    branchLabel: "Chitin & Fleisch",
-    branchColor: "#10b981",
-    icon: "\uD83D\uDEE1️",
-    desc: "Kristallisierte biomolekulare Chitin-Schuppen mit zusätzlicher Strahlungs-Reflexionsschicht.",
-    effect: "-50% Kollisionsschaden • +25% Strahlungsschutz (+50% kumulativ)",
-    lore: "Ein dichter Panzer aus organischen Silikaten umschließt Najmafars weiche Tentakel.",
-    precursor: "organic_siphon",
-    x: 50,
-    y: 18,
-    bioCost: 220,
-    siliconCost: 130
-  },
-  vector_tentacles: {
-    key: "vector_tentacles",
-    name: "Vektor-Tentakel",
-    shortName: "Vektor-Tentakel",
-    branch: "chitin",
-    branchLabel: "Chitin & Fleisch",
-    branchColor: "#10b981",
-    icon: "\uD83D\uDC19",
-    desc: "Verstärkte Muskelstränge und hydrodynamische Bio-Gegenstromdüsen im Vakuum.",
-    effect: "+25% Schub • +35% Wendigkeit • Hydrodynamische Bio-Bremse",
-    lore: "Muskulöse Tentakel peitschen durch das Raumkrümmungsfeld und verleihen ungeahnte Agilität.",
-    precursor: "chitin_armor",
-    x: 70,
-    y: 20,
-    bioCost: 360,
-    siliconCost: 240,
-    techCost: 10
-  },
-  blade_armor: {
-    key: "blade_armor",
-    name: "Klingen-Panzerung",
-    shortName: "Klingen-Panzer",
-    branch: "chitin",
-    branchLabel: "Chitin & Fleisch (Apex)",
-    branchColor: "#059669",
-    icon: "⚔️",
-    desc: "Rasiermesserscharfe Chitin-Stacheln und dichte bio-magnetische Schutzmembran.",
-    effect: "+35% Strahlungsschutz (bis zu 85% gesamt) • Reflektiert Nahbereichsschaden",
-    lore: "Kristalline Klingen brechen tödliche Röntgen- und Gammawellen naher Sterne vollkommen.",
-    precursor: "vector_tentacles",
-    x: 90,
-    y: 26,
-    bioCost: 550,
-    siliconCost: 420,
-    techCost: 15
-  },
-  cocoon: {
-    key: "cocoon",
-    name: "Kokon (4)",
-    shortName: "Kokon (4)",
-    branch: "cocoon",
-    branchLabel: "Neuronales Nest",
-    branchColor: "#c084fc",
-    icon: "\uD83E\uDD5A",
-    desc: "Organische Brutkammern und biometrisches Kokongewebe zur Unterbringung von 4 entführten Wesen.",
-    effect: "Basis-Kapazität: 4 Crew-Mitglieder • Schützt vor Weltraum-Hypoxie",
-    lore: "Das primäre Nestgewebe. Najmafars Zellwände formen nachgiebige Membranen für fremde Körper.",
-    precursor: "nucleus",
-    x: 28,
-    y: 50,
-    bioCost: 320,
-    siliconCost: 140
-  },
-  hivemind: {
-    key: "hivemind",
-    name: "Schwarm-Synapse (6)",
-    shortName: "Schwarm (6)",
-    branch: "cocoon",
-    branchLabel: "Neuronales Nest",
-    branchColor: "#c084fc",
-    icon: "\uD83E\uDDEC",
-    desc: "Verschaltet Nervenenden der Besatzung direkt mit Najmafars zentralem Nervenstrang.",
-    effect: "Crew-Kapazität: 6 • +20% auf alle Spezialisten-Buffs (Pilot, Bio, Ing, Psych)",
-    lore: "Feine Synapsenfäden senken sich aus der Decke herab und synchronisieren Gehirnwellen.",
-    precursor: "cocoon",
-    x: 43,
-    y: 50,
-    bioCost: 500,
-    siliconCost: 320
-  },
-  neural_cluster: {
-    key: "neural_cluster",
-    name: "Neuronale Wabe (10)",
-    shortName: "Wabe (10)",
-    branch: "cocoon",
-    branchLabel: "Neuronales Nest",
-    branchColor: "#a855f7",
-    icon: "\uD83D\uDD78️",
-    desc: "Geometrisch angeordnete Chitin-Wabenstrukturen dämpfen psionische Dissonanzen.",
-    effect: "Crew-Kapazität: 10 • Spezies-Clustering & Schutz vor Massenpanik",
-    lore: "Sechseckige Kammern isolieren divergierende mentale Schwingungen verfeindeter Spezies.",
-    precursor: "hivemind",
-    x: 58,
-    y: 50,
-    bioCost: 650,
-    siliconCost: 450,
-    techCost: 20
-  },
-  cryo_matrix: {
-    key: "cryo_matrix",
-    name: "Kryo-Matrix (20)",
-    shortName: "Kryo (20)",
-    branch: "cocoon",
-    branchLabel: "Neuronales Nest",
-    branchColor: "#a855f7",
-    icon: "❄️",
-    desc: "Organische Frost-Enzyme verlangsamen den natürlichen Zelltod um 25%.",
-    effect: "Crew-Kapazität: 20 • -25% Zelltod (verlängert Lebensdauer aller Gefangenen)",
-    lore: "Kryogene Schleimhäute kühlen den Metabolismus und frieren Telomer-Verfall ein.",
-    precursor: "neural_cluster",
-    x: 74,
-    y: 50,
-    bioCost: 950,
-    siliconCost: 750,
-    techCost: 15
-  },
-  hive_cerebrum: {
-    key: "hive_cerebrum",
-    name: "Schwarm-Zerebrum (30)",
-    shortName: "Zerebrum (30)",
-    branch: "cocoon",
-    branchLabel: "Neuronales Nest (Apex)",
-    branchColor: "#ec4899",
-    icon: "\uD83D\uDC51",
-    desc: "Vollendete psionische Schwarm-Kollimation und telepathische Verschmelzung.",
-    effect: "Crew-Kapazität: 30 • Schaltet maximale kollektive Schwarm-Resonanz frei",
-    lore: "Najmafar und die 30 Wesen verschmelzen zu einem einzigen kosmischen Über-Bewusstsein.",
-    precursor: "cryo_matrix",
-    x: 90,
-    y: 50,
-    bioCost: 1500,
-    siliconCost: 1200,
-    techCost: 30
-  },
-  telepathic_focus: {
-    key: "telepathic_focus",
-    name: "Telepathischer Fokus",
-    shortName: "Telepathie",
-    branch: "psionic",
-    branchLabel: "Psionik & Geist",
-    branchColor: "#38bdf8",
-    icon: "\uD83D\uDCE1",
-    desc: "Sub-kognitiver Sprachknoten dechiffriert fremde Frequenz-Muster und Gedanken.",
-    effect: "Automatisierte Dechiffrierung von Funksignalen & Crew-Gedanken • -30% Mentalkraft-Verbrauch",
-    lore: "Najmafar lernt die Sprachen der Sterblichen zu fühlen statt sie zu hören.",
-    precursor: "nucleus",
-    x: 30,
-    y: 78,
-    bioCost: 140,
-    siliconCost: 80
-  },
-  psionic_pulse: {
-    key: "psionic_pulse",
-    name: "Psionischer Impuls",
-    shortName: "Psio-Impuls",
-    branch: "psionic",
-    branchLabel: "Psionik & Geist",
-    branchColor: "#38bdf8",
-    icon: "⚡",
-    desc: "Verstärkt Najmafars Gedanken-Echo und erweitert die Telepathie-Reichweite.",
-    effect: "150 Max Mentalkraft • 140 LJ Gedanken-Echo Reichweite",
-    lore: "Lange bio-elektrische Tentakel ragen ins Vakuum und fangen mentale Resonanzen ferner Welten auf.",
-    precursor: "telepathic_focus",
-    x: 50,
-    y: 82,
-    bioCost: 280,
-    siliconCost: 160
-  },
-  chimera_veil: {
-    key: "chimera_veil",
-    name: "Schimären-Schleier",
-    shortName: "Schimäre",
-    branch: "psionic",
-    branchLabel: "Psionik & Geist",
-    branchColor: "#38bdf8",
-    icon: "\uD83C\uDF2B️",
-    desc: "Licht- und Sensorbeugendes Tarnfeld aus psionischen Interferenzen.",
-    effect: "+40% Tarnung (Stealth) • Stress-Immunität bei gegnerischer Sensor-Erfassung",
-    lore: "Das Schiff verschwimmt zu einer geisterhaften Fata Morgana im Lichtspektrum fremder Scanner.",
-    precursor: "psionic_pulse",
-    x: 70,
-    y: 80,
-    bioCost: 420,
-    siliconCost: 300,
-    techCost: 15
-  },
-  resonance_screech: {
-    key: "resonance_screech",
-    name: "Resonanz-Schrei",
-    shortName: "Resonanz",
-    branch: "psionic",
-    branchLabel: "Psionik & Geist (Apex)",
-    branchColor: "#0284c7",
-    icon: "\uD83D\uDCE3",
-    desc: "Vernichtende bio-akustische & psionische Schockwelle bricht künstliche Elektronik.",
-    effect: "Bio-EMP lähmt Drohnen 50% länger • Schlägt feindliche Entermannschaften in Flucht",
-    lore: "Ein ohrenbetäubender Schrei auf allen Frequenzen gleichzeitig zerreißt Schaltkreise und Verstand.",
-    precursor: "chimera_veil",
-    x: 90,
-    y: 74,
-    bioCost: 600,
-    siliconCost: 480
-  },
-  ibad: {
-    key: "ibad",
-    name: "Augen des Ibad (Melange)",
-    shortName: "Augen d. Ibad",
-    branch: "artifact",
-    branchLabel: "Kosmisches Arrakis-Relikt",
-    branchColor: "#f59e0b",
-    icon: "\uD83D\uDC41️",
-    desc: "Blau-in-blau gefärbte Sklera durch Arrakis-Melange. Prophetische Weitsicht.",
-    effect: "Harmonisiert den Geist • Heilt Psychosen & Traumata der Gefangenen",
-    lore: "Die Melange von Arrakis öffnet Najmafars Geist für Pfade der Zeit und heilt verletzte Seelen.",
-    precursor: "psionic_pulse",
-    x: 60,
-    y: 66,
-    bioCost: 0,
-    siliconCost: 0
-  }
-};
-Object.defineProperty(MUTATION_DEFINITIONS, "armor", {
-  get() {
-    return MUTATION_DEFINITIONS.chitin_armor;
-  },
-  enumerable: false,
-  configurable: true
-});
-Object.defineProperty(MUTATION_DEFINITIONS, "translator", {
-  get() {
-    return MUTATION_DEFINITIONS.telepathic_focus;
-  },
-  enumerable: false,
-  configurable: true
-});
-Object.defineProperty(MUTATION_DEFINITIONS, "synapses", {
-  get() {
-    return MUTATION_DEFINITIONS.psionic_pulse;
-  },
-  enumerable: false,
-  configurable: true
-});
-var MUTATION_CONNECTIONS = [
-  ["nucleus", "organic_siphon"],
-  ["organic_siphon", "chitin_armor"],
-  ["chitin_armor", "vector_tentacles"],
-  ["vector_tentacles", "blade_armor"],
-  ["nucleus", "cocoon"],
-  ["cocoon", "hivemind"],
-  ["hivemind", "neural_cluster"],
-  ["neural_cluster", "cryo_matrix"],
-  ["cryo_matrix", "hive_cerebrum"],
-  ["nucleus", "telepathic_focus"],
-  ["telepathic_focus", "psionic_pulse"],
-  ["psionic_pulse", "chimera_veil"],
-  ["chimera_veil", "resonance_screech"],
-  ["psionic_pulse", "ibad"]
-];
-var selectedMutationKey = "cocoon";
-var isCanvasLoopRunning = false;
-var animationFrameId = null;
-var spores = [];
-var sparks = [];
-var shockwaves = [];
-function selectMutationNode(key) {
-  if (!MUTATION_DEFINITIONS[key])
-    return;
-  selectedMutationKey = key;
-  updateEvolutionTreeUI();
-  const def = MUTATION_DEFINITIONS[key];
-  if (def) {
-    triggerSynapseShockwave(def.x, def.y, def.branchColor, 40);
-  }
-}
-function getNodeAncestors(key) {
-  const ancestors = [];
-  let current = MUTATION_DEFINITIONS[key]?.precursor;
-  while (current) {
-    ancestors.push(current);
-    current = MUTATION_DEFINITIONS[current]?.precursor || null;
-  }
-  return ancestors;
-}
-function highlightPathway(targetKey) {
-  const axons = document.querySelectorAll(".axon-path");
-  const nodes = document.querySelectorAll(".synapse-node");
-  axons.forEach((a) => a.classList.remove("path-highlight"));
-  nodes.forEach((n) => n.classList.remove("path-highlight"));
-  if (!targetKey)
-    return;
-  const ancestors = getNodeAncestors(targetKey);
-  const fullChain = [targetKey, ...ancestors];
-  fullChain.forEach((k) => {
-    const nodeEl = document.getElementById(`mut-node-${k}`);
-    if (nodeEl)
-      nodeEl.classList.add("path-highlight");
-  });
-  for (let i = 0;i < fullChain.length - 1; i++) {
-    const child = fullChain[i];
-    const parent = fullChain[i + 1];
-    const axonEl = document.getElementById(`axon-${parent}-${child}`);
-    if (axonEl)
-      axonEl.classList.add("path-highlight");
-  }
-}
-function getCubicBezierPoint(p0x, p0y, p1x, p1y, t) {
-  const dx = p1x - p0x;
-  const cx1 = p0x + dx * 0.5;
-  const cy1 = p0y;
-  const cx2 = p0x + dx * 0.5;
-  const cy2 = p1y;
-  const u = 1 - t;
-  const tt = t * t;
-  const uu = u * u;
-  const uuu = uu * u;
-  const ttt = tt * t;
-  const x = uuu * p0x + 3 * uu * t * cx1 + 3 * u * tt * cx2 + ttt * p1x;
-  const y = uuu * p0y + 3 * uu * t * cy1 + 3 * u * tt * cy2 + ttt * p1y;
-  return { x, y };
-}
-function triggerSynapseShockwave(pctX, pctY, color = "#c084fc", maxR = 70) {
-  const canvas = document.getElementById("synapse-neural-canvas");
-  if (!canvas)
-    return;
-  const w = canvas.width || 600;
-  const h = canvas.height || 440;
-  shockwaves.push({
-    x: pctX / 100 * w,
-    y: pctY / 100 * h,
-    radius: 4,
-    maxRadius: maxR,
-    alpha: 0.9,
-    color
-  });
-}
-function initEvolutionTree() {
-  const axonsGroup = document.getElementById("synapse-axons-group");
-  const nodesLayer = document.getElementById("synapse-nodes-layer");
-  if (!axonsGroup || !nodesLayer)
-    return;
-  axonsGroup.innerHTML = MUTATION_CONNECTIONS.map(([pKey, cKey]) => {
-    const p = MUTATION_DEFINITIONS[pKey];
-    const c = MUTATION_DEFINITIONS[cKey];
-    if (!p || !c)
-      return "";
-    const dx = c.x - p.x;
-    const cx1 = p.x + dx * 0.5;
-    const cy1 = p.y;
-    const cx2 = p.x + dx * 0.5;
-    const cy2 = c.y;
-    const d = `M ${p.x} ${p.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${c.x} ${c.y}`;
-    return `
-            <path id="axon-${pKey}-${cKey}" class="axon-path axon-locked axon-${c.branch}" d="${d}" data-parent="${pKey}" data-child="${cKey}" />
-        `;
-  }).join("");
-  nodesLayer.innerHTML = Object.values(MUTATION_DEFINITIONS).map((def) => {
-    const isRoot = def.key === "nucleus";
-    return `
-            <div class="synapse-node ${isRoot ? "root-nucleus" : ""} branch-${def.branch}" id="mut-node-${def.key}" data-mutation="${def.key}" style="left: ${def.x}%; top: ${def.y}%;">
-                <div class="synapse-node-ring">
-                    <span class="synapse-node-icon">${def.icon}</span>
-                    <span class="synapse-node-pulse"></span>
-                </div>
-                <div class="synapse-node-tag">
-                    <span class="synapse-node-name">${def.shortName || def.name}</span>
-                    <span class="synapse-node-badge" id="mut-badge-${def.key}">...</span>
-                </div>
-                <!-- Hidden button for backward compatibility with querySelector('.mut-btn[data-mutation="..."]') -->
-                <button class="mut-btn" data-mutation="${def.key}" style="display: none;"></button>
-            </div>
-        `;
-  }).join("");
-  const nodeEls = nodesLayer.querySelectorAll(".synapse-node");
-  nodeEls.forEach((el) => {
-    const key = el.getAttribute("data-mutation");
-    if (!key)
-      return;
-    el.onclick = (e) => {
-      e.stopPropagation();
-      const def = MUTATION_DEFINITIONS[key];
-      const mut = STATE.mutations[key];
-      const isPurchased = Boolean(mut && mut.purchased);
-      let isPrecursorMet = true;
-      if (def && def.precursor) {
-        const prec = STATE.mutations[def.precursor];
-        isPrecursorMet = Boolean(prec && prec.purchased);
-      }
-      const canAfford = def && STATE.bioRes >= def.bioCost && STATE.siliconRes >= def.siliconCost;
-      if (def && !isPurchased && isPrecursorMet && canAfford) {
-        buyMutation(key);
-        playSynapseEvolveSound();
-        triggerSynapseShockwave(def.x, def.y, def.branchColor, 90);
-        selectMutationNode(key);
-      } else {
-        selectMutationNode(key);
-      }
-    };
-    el.onmouseenter = () => {
-      highlightPathway(key);
-      const def = MUTATION_DEFINITIONS[key];
-      if (def) {
-        const freq = 360 + def.y * 3.5;
-        playSynapseHoverSound(freq);
-      }
-    };
-    el.onmouseleave = () => {
-      highlightPathway(null);
-    };
-  });
-  spores.length = 0;
-  const sporeColors = ["#10b981", "#34d399", "#c084fc", "#a855f7", "#38bdf8", "#06b6d4", "#f43f5e"];
-  for (let i = 0;i < 42; i++) {
-    spores.push({
-      x: Math.random() * 600,
-      y: Math.random() * 440,
-      vx: (Math.random() - 0.5) * 8,
-      vy: (Math.random() - 0.5) * 8,
-      size: 1.5 + Math.random() * 2.5,
-      alpha: 0.15 + Math.random() * 0.45,
-      pulseSpeed: 1 + Math.random() * 2,
-      pulsePhase: Math.random() * Math.PI * 2,
-      color: sporeColors[Math.floor(Math.random() * sporeColors.length)]
-    });
-  }
-  startNeuralCanvasLoop();
-  updateEvolutionTreeUI();
-}
-function startNeuralCanvasLoop() {
-  if (isCanvasLoopRunning)
-    return;
-  isCanvasLoopRunning = true;
-  const canvas = document.getElementById("synapse-neural-canvas");
-  if (!canvas)
-    return;
-  let lastTimestamp = performance.now();
-  let sparkSpawnTimer = 0;
-  function renderLoop(time) {
-    if (!isCanvasLoopRunning)
-      return;
-    const dt = Math.min((time - lastTimestamp) / 1000, 0.1);
-    lastTimestamp = time;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      const rect = canvas.getBoundingClientRect();
-      if (canvas.width !== Math.floor(rect.width) || canvas.height !== Math.floor(rect.height)) {
-        canvas.width = Math.floor(rect.width) || 600;
-        canvas.height = Math.floor(rect.height) || 440;
-      }
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-      const timeSec = time / 1000;
-      const membranePairs = [
-        ["nucleus", "organic_siphon"],
-        ["nucleus", "cocoon"],
-        ["nucleus", "telepathic_focus"],
-        ["organic_siphon", "cocoon"],
-        ["cocoon", "telepathic_focus"],
-        ["chitin_armor", "hivemind"],
-        ["hivemind", "psionic_pulse"],
-        ["vector_tentacles", "neural_cluster"],
-        ["neural_cluster", "chimera_veil"],
-        ["blade_armor", "hive_cerebrum"],
-        ["hive_cerebrum", "resonance_screech"]
-      ];
-      ctx.save();
-      membranePairs.forEach(([k1, k2], idx) => {
-        const n1 = MUTATION_DEFINITIONS[k1];
-        const n2 = MUTATION_DEFINITIONS[k2];
-        if (!n1 || !n2)
-          return;
-        const x1 = n1.x / 100 * w;
-        const y1 = n1.y / 100 * h;
-        const x2 = n2.x / 100 * w;
-        const y2 = n2.y / 100 * h;
-        const midX = (x1 + x2) * 0.5;
-        const midY = (y1 + y2) * 0.5 + Math.sin(timeSec * 1.5 + idx) * 8;
-        const grad = ctx.createLinearGradient(x1, y1, x2, y2);
-        grad.addColorStop(0, n1.branchColor + "20");
-        grad.addColorStop(0.5, "#a855f725");
-        grad.addColorStop(1, n2.branchColor + "20");
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.quadraticCurveTo(midX, midY, x2, y2);
-        ctx.stroke();
-      });
-      ctx.restore();
-      spores.forEach((s) => {
-        s.x += s.vx * dt;
-        s.y += s.vy * dt;
-        if (s.x < 0) {
-          s.x = 0;
-          s.vx *= -1;
-        }
-        if (s.x > w) {
-          s.x = w;
-          s.vx *= -1;
-        }
-        if (s.y < 0) {
-          s.y = 0;
-          s.vy *= -1;
-        }
-        if (s.y > h) {
-          s.y = h;
-          s.vy *= -1;
-        }
-        s.pulsePhase += s.pulseSpeed * dt;
-        const dynamicAlpha = Math.max(0.05, s.alpha + Math.sin(s.pulsePhase) * 0.2);
-        ctx.save();
-        ctx.globalAlpha = dynamicAlpha;
-        ctx.fillStyle = s.color;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      });
-      sparkSpawnTimer += dt;
-      if (sparkSpawnTimer >= 0.28) {
-        sparkSpawnTimer = 0;
-        const activeConn = MUTATION_CONNECTIONS.filter(([pKey, cKey]) => {
-          const pMut = STATE.mutations[pKey];
-          return Boolean(pMut && pMut.purchased);
-        });
-        if (activeConn.length > 0) {
-          const [pKey, cKey] = activeConn[Math.floor(Math.random() * activeConn.length)];
-          const cMut = STATE.mutations[cKey];
-          const cDef = MUTATION_DEFINITIONS[cKey];
-          const isBothPurchased = Boolean(cMut && cMut.purchased);
-          sparks.push({
-            pKey,
-            cKey,
-            t: 0,
-            speed: 0.5 + Math.random() * 0.6,
-            color: isBothPurchased ? cDef?.branchColor || "#34d399" : "#c084fc",
-            size: isBothPurchased ? 3.2 : 2.2
-          });
-        }
-      }
-      for (let i = sparks.length - 1;i >= 0; i--) {
-        const sp = sparks[i];
-        sp.t += sp.speed * dt;
-        if (sp.t >= 1) {
-          sparks.splice(i, 1);
-          continue;
-        }
-        const pDef = MUTATION_DEFINITIONS[sp.pKey];
-        const cDef = MUTATION_DEFINITIONS[sp.cKey];
-        if (!pDef || !cDef) {
-          sparks.splice(i, 1);
-          continue;
-        }
-        const p0x = pDef.x / 100 * w;
-        const p0y = pDef.y / 100 * h;
-        const p1x = cDef.x / 100 * w;
-        const p1y = cDef.y / 100 * h;
-        const pt = getCubicBezierPoint(p0x, p0y, p1x, p1y, sp.t);
-        ctx.save();
-        ctx.fillStyle = sp.color;
-        ctx.shadowColor = sp.color;
-        ctx.shadowBlur = 8;
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, sp.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-      for (let i = shockwaves.length - 1;i >= 0; i--) {
-        const sw = shockwaves[i];
-        sw.radius += (sw.maxRadius - sw.radius) * (dt * 6);
-        sw.alpha -= dt * 1.5;
-        if (sw.alpha <= 0.02 || sw.radius >= sw.maxRadius * 0.95) {
-          shockwaves.splice(i, 1);
-          continue;
-        }
-        ctx.save();
-        ctx.strokeStyle = sw.color;
-        ctx.lineWidth = 2.5;
-        ctx.globalAlpha = Math.max(0, sw.alpha);
-        ctx.shadowColor = sw.color;
-        ctx.shadowBlur = 12;
-        ctx.beginPath();
-        ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-    animationFrameId = requestAnimationFrame(renderLoop);
-  }
-  animationFrameId = requestAnimationFrame(renderLoop);
-}
-function stopNeuralCanvasLoop() {
-  isCanvasLoopRunning = false;
-  if (animationFrameId !== null) {
-    cancelAnimationFrame(animationFrameId);
-    animationFrameId = null;
-  }
-}
-function updateEvolutionTreeUI() {
-  if (!STATE.mutations)
-    return;
-  let activeCount = 0;
-  const totalCount = Object.keys(MUTATION_DEFINITIONS).length;
-  const bioCountEl = document.getElementById("evo-bio-res");
-  const silCountEl = document.getElementById("evo-silicon-res");
-  const techCountEl = document.getElementById("evo-tech-res");
-  const bioBadgeEl = document.getElementById("evo-biologist-badge");
-  if (bioCountEl)
-    bioCountEl.innerText = `${Math.floor(STATE.bioRes)}`;
-  if (silCountEl)
-    silCountEl.innerText = `${Math.floor(STATE.siliconRes)}`;
-  if (techCountEl)
-    techCountEl.innerText = `${Math.floor(STATE.techRes || 0)}`;
-  const discount = STATE.mutationDiscount || 0;
-  if (bioBadgeEl) {
-    if (discount > 0) {
-      bioBadgeEl.style.display = "inline-flex";
-      bioBadgeEl.innerText = `\uD83E\uDDEA Biologen-Boost: -${Math.round(discount * 100)}%`;
-    } else {
-      bioBadgeEl.style.display = "none";
-    }
-  }
-  Object.values(MUTATION_DEFINITIONS).forEach((def) => {
-    const key = def.key;
-    const mut = STATE.mutations[key] || { purchased: false, bioCost: def.bioCost, siliconCost: def.siliconCost, techCost: def.techCost };
-    const isPurchased = Boolean(mut.purchased);
-    if (isPurchased)
-      activeCount++;
-    let isPrecursorMet = true;
-    if (def.precursor) {
-      const prec = STATE.mutations[def.precursor];
-      isPrecursorMet = Boolean(prec && prec.purchased);
-    }
-    const effBioCost = Math.round(def.bioCost * (1 - discount));
-    const effSilCost = Math.round(def.siliconCost * (1 - discount));
-    const effTechCost = Math.round((def.techCost || 0) * (1 - discount));
-    const canAfford = STATE.bioRes >= effBioCost && STATE.siliconRes >= effSilCost && (STATE.techRes || 0) >= effTechCost;
-    const isAvailable = !isPurchased && isPrecursorMet;
-    const isSelected = selectedMutationKey === key;
-    const nodeEl = document.getElementById(`mut-node-${key}`);
-    if (nodeEl) {
-      nodeEl.classList.toggle("purchased", isPurchased);
-      nodeEl.classList.toggle("available", isAvailable);
-      nodeEl.classList.toggle("affordable", isAvailable && canAfford);
-      nodeEl.classList.toggle("locked", !isPurchased && !isPrecursorMet);
-      nodeEl.classList.toggle("selected", isSelected);
-      const badgeEl = document.getElementById(`mut-badge-${key}`);
-      if (badgeEl) {
-        if (isPurchased) {
-          badgeEl.innerText = "✓ Aktiv";
-          badgeEl.style.color = "#10b981";
-        } else if (!isPrecursorMet) {
-          badgeEl.innerText = "\uD83D\uDD12 Gesperrt";
-          badgeEl.style.color = "#94a3b8";
-        } else {
-          badgeEl.innerText = effTechCost > 0 ? `${effBioCost}\uD83C\uDF3F ${effTechCost}\uD83D\uDD2C` : `${effBioCost}\uD83C\uDF3F`;
-          badgeEl.style.color = canAfford ? "#f59e0b" : "#ef4444";
-        }
-      }
-    }
-  });
-  const activeCountEl = document.getElementById("evo-active-count");
-  if (activeCountEl) {
-    activeCountEl.innerText = `${activeCount}/${totalCount}`;
-  }
-  MUTATION_CONNECTIONS.forEach(([pKey, cKey]) => {
-    const axonEl = document.getElementById(`axon-${pKey}-${cKey}`);
-    if (!axonEl)
-      return;
-    const pMut = STATE.mutations[pKey];
-    const cMut = STATE.mutations[cKey];
-    const pPurchased = Boolean(pMut && pMut.purchased);
-    const cPurchased = Boolean(cMut && cMut.purchased);
-    axonEl.classList.remove("axon-active", "axon-available", "axon-locked");
-    if (pPurchased && cPurchased) {
-      axonEl.classList.add("axon-active");
-    } else if (pPurchased) {
-      axonEl.classList.add("axon-available");
-    } else {
-      axonEl.classList.add("axon-locked");
-    }
-  });
-  renderSynapseInspector(selectedMutationKey);
-}
-function renderSynapseInspector(key) {
-  const inspector = document.getElementById("synapse-inspector-panel");
-  if (!inspector)
-    return;
-  const def = MUTATION_DEFINITIONS[key] || MUTATION_DEFINITIONS["cocoon"];
-  const mut = STATE.mutations[def.key] || { purchased: false, bioCost: def.bioCost, siliconCost: def.siliconCost };
-  const isPurchased = Boolean(mut.purchased);
-  let isPrecursorMet = true;
-  let precName = "";
-  if (def.precursor) {
-    const prec = STATE.mutations[def.precursor];
-    isPrecursorMet = Boolean(prec && prec.purchased);
-    precName = MUTATION_DEFINITIONS[def.precursor]?.name || def.precursor;
-  }
-  const discount = STATE.mutationDiscount || 0;
-  const effBioCost = Math.round(def.bioCost * (1 - discount));
-  const effSilCost = Math.round(def.siliconCost * (1 - discount));
-  const effTechCost = Math.round((def.techCost || 0) * (1 - discount));
-  const canAfford = STATE.bioRes >= effBioCost && STATE.siliconRes >= effSilCost && (STATE.techRes || 0) >= effTechCost;
-  const canMutate = !isPurchased && isPrecursorMet && canAfford;
-  let statusBadge = "";
-  if (isPurchased) {
-    statusBadge = `<span class="inspector-status-badge active">✓ VOLLSTÄNDIG ASSIMILIERT</span>`;
-  } else if (!isPrecursorMet) {
-    statusBadge = `<span class="inspector-status-badge locked">\uD83D\uDD12 GESPERRT (VORAUSSETZUNG FEHLT)</span>`;
-  } else if (canAfford) {
-    statusBadge = `<span class="inspector-status-badge ready">⚡ BEREIT ZUR SYNTHESE</span>`;
-  } else {
-    statusBadge = `<span class="inspector-status-badge insufficient">⚠️ RESSOURCEN FEHLEN</span>`;
-  }
-  const bioDeficit = Math.max(0, effBioCost - STATE.bioRes);
-  const silDeficit = Math.max(0, effSilCost - STATE.siliconRes);
-  const techDeficit = Math.max(0, effTechCost - (STATE.techRes || 0));
-  inspector.innerHTML = `
-        <div class="inspector-header">
-            <div class="inspector-icon-ring" style="border-color: ${def.branchColor}; box-shadow: 0 0 15px ${def.branchColor}66;">
-                <span class="inspector-icon">${def.icon}</span>
-            </div>
-            <div class="inspector-title-col">
-                <span class="inspector-branch-tag" style="color: ${def.branchColor};">${def.branchLabel}</span>
-                <h3 class="inspector-title">${def.name}</h3>
-                ${statusBadge}
-                ${discount > 0 ? `<div style="font-size:0.68rem; color:#38bdf8; margin-top:3px; font-weight:600;">\uD83E\uDDEA Biologen-Boost: -${Math.round(discount * 100)}% Kosten</div>` : ""}
-            </div>
-        </div>
-
-        <div class="inspector-body">
-            <!-- Lore & Description -->
-            <div class="inspector-section">
-                <div class="inspector-sec-label">\uD83E\uDDEC Biologische Mutation</div>
-                <p class="inspector-desc">${def.desc}</p>
-                <div class="inspector-lore">\uD83D\uDCAD <em>"${def.lore}"</em></div>
-            </div>
-
-            <!-- Effect & Game Mechanics -->
-            <div class="inspector-section">
-                <div class="inspector-sec-label">⚙️ Schiffs-Wirkung</div>
-                <div class="inspector-effect-pill">
-                    <span class="effect-icon">✨</span>
-                    <span class="effect-text">${def.effect}</span>
-                </div>
-            </div>
-
-            <!-- Precursor Requirement -->
-            ${def.precursor ? `
-                <div class="inspector-section">
-                    <div class="inspector-sec-label">\uD83D\uDD17 Synapsen-Verbindung</div>
-                    <div class="inspector-prec-row ${isPrecursorMet ? "met" : "missing"}">
-                        <span>${isPrecursorMet ? "✓" : "✗"} Erfordert:</span>
-                        <strong>${precName}</strong>
-                    </div>
-                </div>
-            ` : ""}
-
-            <!-- Costs -->
-            <div class="inspector-section">
-                <div class="inspector-sec-label">\uD83E\uDDEA Synthese-Kosten</div>
-                <div class="inspector-cost-grid">
-                    <div class="inspector-cost-card bio ${STATE.bioRes >= effBioCost ? "afford" : "lacking"}">
-                        <span class="cost-type">\uD83C\uDF3F Biomasse</span>
-                        <span class="cost-amount">${effBioCost} Bio</span>
-                        <span class="cost-status">${STATE.bioRes >= effBioCost ? "✓ Genügend" : `-${Math.ceil(bioDeficit)} fehlt`}</span>
-                    </div>
-                    <div class="inspector-cost-card silicon ${STATE.siliconRes >= effSilCost ? "afford" : "lacking"}">
-                        <span class="cost-type">\uD83D\uDCA0 Silizium</span>
-                        <span class="cost-amount">${effSilCost} Silizium</span>
-                        <span class="cost-status">${STATE.siliconRes >= effSilCost ? "✓ Genügend" : `-${Math.ceil(silDeficit)} fehlt`}</span>
-                    </div>
-                    ${effTechCost > 0 ? `
-                    <div class="inspector-cost-card tech ${(STATE.techRes || 0) >= effTechCost ? "afford" : "lacking"}">
-                        <span class="cost-type">\uD83D\uDD2C Technologie</span>
-                        <span class="cost-amount">${effTechCost} Tech</span>
-                        <span class="cost-status">${(STATE.techRes || 0) >= effTechCost ? "✓ Genügend" : `-${Math.ceil(techDeficit)} fehlt`}</span>
-                    </div>` : ""}
-                </div>
-            </div>
-        </div>
-
-        <!-- Action / Mutation Trigger Button -->
-        <div class="inspector-footer">
-            <button id="synapse-buy-trigger-btn" class="mut-btn synapse-inspect-buy-btn ${isPurchased ? "purchased" : ""}" data-mutation="${def.key}" ${!canMutate && !isPurchased || isPurchased ? "disabled" : ""}>
-                ${isPurchased ? "✓ Bereits assimiliert" : !isPrecursorMet ? "\uD83D\uDD12 Voraussetzung erforderlich" : canAfford ? "\uD83E\uDDEC Organ mutieren" : "⚠️ Ressourcen unzureichend"}
-            </button>
-        </div>
-    `;
-  const buyBtn = document.getElementById("synapse-buy-trigger-btn");
-  if (buyBtn && !isPurchased && isPrecursorMet && canAfford) {
-    buyBtn.onclick = () => {
-      buyMutation(def.key);
-      playSynapseEvolveSound();
-      triggerSynapseShockwave(def.x, def.y, def.branchColor, 90);
-      updateEvolutionTreeUI();
-    };
-  }
-}
-
 // src/procedural/jamal-shuttle.ts
 function createJamalResearchShuttleMesh(size = 2.5) {
   const group = new Group;
@@ -38429,6 +35271,133 @@ function collapseQuantumCivilization(systemId, planetIndex, seed) {
     militaryDoctrine: doctrine,
     quantumCollapseLog: collapseLog
   };
+}
+
+// src/systems/factions.ts
+var FACTIONS = {
+  vega_collective: {
+    id: "vega_collective",
+    name: "Das Vega-Qubit-Kollektiv",
+    shortName: "Vega-Kollektiv",
+    emblem: "⚛️",
+    color: "0x6366f1",
+    colorCss: "#6366f1",
+    doctrine: "Quanten-Logik & Kybernetische Ordnung",
+    description: "Ein Verbund aus vernetzten Maschinen-Intelligenzen und Transhumanen, die das Universum als gigantische Rechenoperation begreifen.",
+    specialTrait: "+30% Silizium-Handelskurs | EMP-Resistente Drohnen",
+    baseDisposition: "Defensive"
+  },
+  olyndar_psion: {
+    id: "olyndar_psion",
+    name: "Der Psionische Bund von Olyndar",
+    shortName: "Psioniker von Olyndar",
+    emblem: "\uD83D\uDD2E",
+    color: "0xd946ef",
+    colorCss: "#d946ef",
+    doctrine: "Telepathische Resonanz & Bio-Götterkult",
+    description: "Spirituelle Wesen, die mit der kosmischen Leere resonieren und dein Bio-Schiff als lebendige Sternengottheit verehren.",
+    specialTrait: "Freiwillige Crew-Kandidaten | Keine Abfangstaffeln",
+    baseDisposition: "Pacifist"
+  },
+  xenomilitary_ash: {
+    id: "xenomilitary_ash",
+    name: "Die Asche-Gilde der Xenomilitärs",
+    shortName: "Asche-Gilde",
+    emblem: "⚔️",
+    color: "0xf43f5e",
+    colorCss: "#f43f5e",
+    doctrine: "Totale Vorherrschaft & Kinetische Feuerkraft",
+    description: "Eine schwer gepanzerte Militär-Junta mit Schlachtschiffen und automatisierten Orbital-Bastionen. Misstraut organischen Anomalien.",
+    specialTrait: "Schwere Kampf-Korvetten | Verfolgung über Sektorgrenzen",
+    baseDisposition: "Militaristic"
+  },
+  free_traders: {
+    id: "free_traders",
+    name: "Konsortium der Freien Sternen-Händler",
+    shortName: "Händler-Konsortium",
+    emblem: "\uD83C\uDF3F",
+    color: "0x10b981",
+    colorCss: "#10b981",
+    doctrine: "Freier Austausch & Symbiotische Allianzen",
+    description: "Pragmatische interstellare Händlergilden, die bereitwillig Silizium gegen Biomasse tauschen und Schiffsreparaturen anbieten.",
+    specialTrait: "Günstiger Ressourcentausch | Kartographie-Angebote",
+    baseDisposition: "Pacifist"
+  },
+  aethelgard_guardians: {
+    id: "aethelgard_guardians",
+    name: "Die Vorläufer-Wächter von Aethelgard",
+    shortName: "Aethelgard-Wächter",
+    emblem: "\uD83C\uDF0C",
+    color: "0x38bdf8",
+    colorCss: "#38bdf8",
+    doctrine: "Bewahrung des Kosmischen Gleichgewichts",
+    description: "Eine uralte, schlummernde Zivilisation, deren Relikte und Megastrukturen seit Millionen Jahren die Expansion der Galaxie dämpfen.",
+    specialTrait: "Exklusive Vorläufer-Mutationen | Hyper-Raumzeit-Schilde",
+    baseDisposition: "Defensive"
+  }
+};
+function getFaction(id) {
+  return FACTIONS[id] || FACTIONS.free_traders;
+}
+function getReputationTitle(score) {
+  if (score >= 60) {
+    return { label: "\uD83C\uDF1F Verehrt / Heilige Allianz", color: "#d946ef", tier: "allied" };
+  } else if (score >= 20) {
+    return { label: "\uD83E\uDD1D Kooperativ / Handelspartner", color: "#10b981", tier: "friendly" };
+  } else if (score > -20) {
+    return { label: "⚖️ Neutral", color: "#94a3b8", tier: "neutral" };
+  } else if (score > -60) {
+    return { label: "⚔️ Feindselig / Wachsam", color: "#f59e0b", tier: "hostile" };
+  } else {
+    return { label: "\uD83D\uDEA8 Todfeind / Galaktisches Kopfgeld", color: "#f43f5e", tier: "nemesis" };
+  }
+}
+function modifyReputation(factionId, delta, reason) {
+  if (!STATE.reputation[factionId]) {
+    STATE.reputation[factionId] = 0;
+  }
+  const prevScore = STATE.reputation[factionId];
+  STATE.reputation[factionId] = Math.max(-100, Math.min(100, STATE.reputation[factionId] + delta));
+  const newScore = STATE.reputation[factionId];
+  const faction = getFaction(factionId);
+  const sign2 = delta > 0 ? `+${delta}` : `${delta}`;
+  if (delta > 0) {
+    addLogEntry("SYSTEM", `\uD83C\uDF1F REPUTATION GESTIEGEN: ${faction.name} (${sign2} -> ${newScore} Punkte). ${reason}`);
+  } else {
+    addLogEntry("SYSTEM", `⚠️ REPUTATION GESUNKEN: ${faction.name} (${sign2} -> ${newScore} Punkte). ${reason}`);
+  }
+  renderFactionReputationUI();
+}
+function renderFactionReputationUI() {
+  const listContainer = document.getElementById("faction-reputation-list");
+  if (!listContainer)
+    return;
+  listContainer.innerHTML = "";
+  Object.keys(FACTIONS).forEach((fId) => {
+    const faction = FACTIONS[fId];
+    const score = STATE.reputation[fId] || 0;
+    const repInfo = getReputationTitle(score);
+    const card = document.createElement("div");
+    card.className = "faction-rep-card";
+    card.innerHTML = `
+            <div class="faction-card-header">
+                <span class="faction-emblem">${faction.emblem}</span>
+                <div class="faction-title-group">
+                    <span class="faction-name" style="color: ${faction.colorCss};">${faction.shortName}</span>
+                    <span class="faction-doctrine">${faction.doctrine}</span>
+                </div>
+                <span class="faction-score" style="color: ${repInfo.color};">${score > 0 ? "+" : ""}${score}</span>
+            </div>
+            <div class="faction-rep-bar-bg">
+                <div class="faction-rep-bar" style="width: ${Math.max(5, (score + 100) / 2)}%; background: ${repInfo.color};"></div>
+            </div>
+            <div class="faction-status-row">
+                <span class="faction-status-label" style="color: ${repInfo.color};">${repInfo.label}</span>
+                <span class="faction-trait-tag">${faction.specialTrait}</span>
+            </div>
+        `;
+    listContainer.appendChild(card);
+  });
 }
 
 // src/systems/quantum-ising.ts
@@ -39052,10 +36021,6 @@ function closeDiplomacyComms() {
   if (overlay)
     overlay.style.display = "none";
   STATE.activeDiplomacyPlanet = null;
-}
-function isDiplomacyCommsOpen() {
-  const overlay = document.getElementById("diplomacy-overlay");
-  return overlay ? overlay.style.display === "flex" : false;
 }
 
 // src/systems/crew-generation.ts
@@ -44637,6 +41602,3388 @@ async function loadPlaytestPreset(presetId) {
   return true;
 }
 
+// src/ui/save-modal.ts
+var isSaveModalActive = false;
+function isSaveModalOpen() {
+  const modal = document.getElementById("save-load-modal");
+  return modal ? modal.style.display === "flex" : false;
+}
+var onStartGame;
+function initSaveModal(onStartGameCallback) {
+  onStartGame = onStartGameCallback;
+  const continueBtn = document.getElementById("continue-game-btn");
+  const saveProfilesBtn = document.getElementById("save-profiles-btn");
+  const closeBtn = document.getElementById("close-save-modal-btn");
+  const tabSlotsBtn = document.getElementById("save-tab-slots-btn");
+  const tabPresetsBtn = document.getElementById("save-tab-presets-btn");
+  const optQuickSaveBtn = document.getElementById("opt-quick-save-btn");
+  const optOpenSavesBtn = document.getElementById("opt-open-saves-btn");
+  if (continueBtn) {
+    continueBtn.addEventListener("click", async () => {
+      const latest = await getLatestSave();
+      if (latest) {
+        const res = await loadFromSlot(latest.slotId);
+        if (res.success) {
+          hideMainMenu();
+          STATE.gameStarted = true;
+          if (onStartGameCallback)
+            onStartGameCallback();
+        }
+      }
+    });
+  }
+  if (saveProfilesBtn) {
+    saveProfilesBtn.addEventListener("click", () => {
+      openSaveModal("slots");
+    });
+  }
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      closeSaveModal();
+    });
+  }
+  if (tabSlotsBtn && tabPresetsBtn) {
+    tabSlotsBtn.addEventListener("click", () => {
+      switchSaveTab("slots");
+    });
+    tabPresetsBtn.addEventListener("click", () => {
+      switchSaveTab("presets");
+    });
+  }
+  if (optQuickSaveBtn) {
+    optQuickSaveBtn.addEventListener("click", async () => {
+      await saveToSlot("slot_1", `Schnellspeicherstand (${STATE.currentSystemId === 1 ? "Sol Invictus" : "Sektor " + STATE.currentSystemId})`);
+      checkAndUpdateContinueButton();
+      renderSaveSlotsUI();
+    });
+  }
+  if (optOpenSavesBtn) {
+    optOpenSavesBtn.addEventListener("click", () => {
+      const optModal = document.getElementById("options-modal");
+      if (optModal)
+        optModal.style.display = "none";
+      openSaveModal("slots");
+    });
+  }
+  checkAndUpdateContinueButton();
+}
+async function checkAndUpdateContinueButton() {
+  const continueBtn = document.getElementById("continue-game-btn");
+  const continueText = document.getElementById("continue-game-text");
+  if (!continueBtn)
+    return;
+  try {
+    const latest = await getLatestSave();
+    if (latest) {
+      continueBtn.style.display = "flex";
+      if (continueText) {
+        continueText.innerHTML = `✨ <strong>Reise fortsetzen</strong> <span class="continue-meta">(${latest.systemName} • ${latest.crewCount}/${latest.maxCrewCapacity} Besatzung)</span>`;
+      }
+    } else {
+      continueBtn.style.display = "none";
+    }
+  } catch (e) {
+    continueBtn.style.display = "none";
+  }
+}
+function openSaveModal(initialTab = "slots") {
+  const modal = document.getElementById("save-load-modal");
+  if (!modal)
+    return;
+  isSaveModalActive = true;
+  modal.style.display = "flex";
+  switchSaveTab(initialTab);
+  renderSaveSlotsUI();
+  renderPresetsUI();
+}
+function closeSaveModal() {
+  const modal = document.getElementById("save-load-modal");
+  if (!modal)
+    return;
+  isSaveModalActive = false;
+  modal.style.display = "none";
+}
+function switchSaveTab(tab) {
+  const tabSlotsBtn = document.getElementById("save-tab-slots-btn");
+  const tabPresetsBtn = document.getElementById("save-tab-presets-btn");
+  const contentSlots = document.getElementById("save-tab-slots-content");
+  const contentPresets = document.getElementById("save-tab-presets-content");
+  if (tabSlotsBtn)
+    tabSlotsBtn.classList.toggle("active", tab === "slots");
+  if (tabPresetsBtn)
+    tabPresetsBtn.classList.toggle("active", tab === "presets");
+  if (contentSlots)
+    contentSlots.classList.toggle("active", tab === "slots");
+  if (contentPresets)
+    contentPresets.classList.toggle("active", tab === "presets");
+}
+async function renderSaveSlotsUI() {
+  const container = document.getElementById("save-slots-container");
+  if (!container)
+    return;
+  const allSaves = await listAllSaves();
+  const savesBySlot = {};
+  allSaves.forEach((s) => {
+    savesBySlot[s.slotId] = s;
+  });
+  const slotConfigs = [
+    { id: "autosave", title: "⚡ Automatischer Speicherstand", desc: "Sichert automatisch bei Hyperraum-Sprung & Evolutionen" },
+    { id: "slot_1", title: "\uD83D\uDCBE Speicherstand Slot 1", desc: "Manueller Speicherplatz" },
+    { id: "slot_2", title: "\uD83D\uDCBE Speicherstand Slot 2", desc: "Manueller Speicherplatz" },
+    { id: "slot_3", title: "\uD83D\uDCBE Speicherstand Slot 3", desc: "Manueller Speicherplatz" }
+  ];
+  container.innerHTML = "";
+  slotConfigs.forEach((slot) => {
+    const save = savesBySlot[slot.id];
+    const card = document.createElement("div");
+    card.className = `save-slot-card ${save ? "has-data" : "empty"}`;
+    if (save) {
+      const doctrineLabel = save.primaryParadigm === "symbiosis" ? "\uD83C\uDF31 Symbiose" : save.primaryParadigm === "domination" ? "⚡ Herrschaft" : save.primaryParadigm === "deception" ? "\uD83D\uDD2E Täuschung" : "\uD83D\uDCAB Neutral";
+      card.innerHTML = `
+                <div class="save-slot-main">
+                    <div class="slot-header-row">
+                        <span class="slot-title">${slot.title}</span>
+                        <span class="slot-date">\uD83D\uDCC5 ${save.dateFormatted}</span>
+                    </div>
+                    <div class="slot-name-highlight">${save.name}</div>
+                    <div class="slot-stats-row">
+                        <span class="slot-stat-chip">\uD83E\uDE90 ${save.systemName}</span>
+                        <span class="slot-stat-chip">\uD83D\uDC65 ${save.crewCount}/${save.maxCrewCapacity} Besatzung</span>
+                        <span class="slot-stat-chip">\uD83E\uDDEC ${save.bioRes} Bio &bull; \uD83D\uDC8E ${save.siliconRes} Sil</span>
+                        <span class="slot-stat-chip doctrine">${doctrineLabel}</span>
+                        <span class="slot-stat-chip health">❤️ ${save.health}% HP</span>
+                    </div>
+                </div>
+                <div class="save-slot-actions">
+                    <button class="slot-action-btn load-btn" data-slot="${slot.id}">
+                        <span>▶</span> Laden
+                    </button>
+                    ${STATE.gameStarted ? `
+                    <button class="slot-action-btn overwrite-btn" data-slot="${slot.id}">
+                        <span>\uD83D\uDCBE</span> Überschreiben
+                    </button>` : ""}
+                    <button class="slot-action-btn delete-btn" data-slot="${slot.id}" title="Löschen">
+                        ✕
+                    </button>
+                </div>
+            `;
+    } else {
+      card.innerHTML = `
+                <div class="save-slot-main">
+                    <div class="slot-header-row">
+                        <span class="slot-title">${slot.title}</span>
+                        <span class="slot-empty-badge">LEER</span>
+                    </div>
+                    <div class="slot-desc-sub">${slot.desc}</div>
+                </div>
+                <div class="save-slot-actions">
+                    ${STATE.gameStarted ? `
+                    <button class="slot-action-btn save-btn" data-slot="${slot.id}">
+                        <span>\uD83D\uDCBE</span> Jetzt Speichern
+                    </button>` : `
+                    <span class="slot-hint-text">Im Spiel speicherbar</span>`}
+                </div>
+            `;
+    }
+    container.appendChild(card);
+  });
+  container.querySelectorAll(".load-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const slotId = e.currentTarget.getAttribute("data-slot");
+      if (slotId) {
+        const res = await loadFromSlot(slotId);
+        if (res.success) {
+          closeSaveModal();
+          hideMainMenu();
+          STATE.gameStarted = true;
+          if (onStartGame)
+            onStartGame();
+        }
+      }
+    });
+  });
+  container.querySelectorAll(".save-btn, .overwrite-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const slotId = e.currentTarget.getAttribute("data-slot");
+      if (slotId) {
+        await saveToSlot(slotId);
+        checkAndUpdateContinueButton();
+        renderSaveSlotsUI();
+      }
+    });
+  });
+  container.querySelectorAll(".delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const slotId = e.currentTarget.getAttribute("data-slot");
+      if (slotId) {
+        await deleteSaveSlot(slotId);
+        checkAndUpdateContinueButton();
+        renderSaveSlotsUI();
+      }
+    });
+  });
+}
+function renderPresetsUI() {
+  const container = document.getElementById("presets-container");
+  if (!container)
+    return;
+  container.innerHTML = "";
+  Object.keys(PLAYTEST_PRESETS).forEach((key) => {
+    const preset = PLAYTEST_PRESETS[key];
+    const card = document.createElement("div");
+    card.className = `preset-card preset-${preset.id}`;
+    card.innerHTML = `
+            <div class="preset-card-top">
+                <div class="preset-badge">${preset.badge}</div>
+                <h3 class="preset-title">${preset.name}</h3>
+                <p class="preset-desc">${preset.description}</p>
+            </div>
+
+            <div class="preset-specs-list">
+                <div class="preset-spec-item">
+                    <span class="spec-label">\uD83D\uDC65 Besatzungs-Größe:</span>
+                    <span class="spec-val highlight">${preset.targetCrew} / ${preset.capacity} Individuen</span>
+                </div>
+                <div class="preset-spec-item">
+                    <span class="spec-label">\uD83E\uDDEA Ressourcen-Vorrat:</span>
+                    <span class="spec-val">${preset.resources.bio} Bio &bull; ${preset.resources.silicon} Silizium</span>
+                </div>
+                <div class="preset-spec-item">
+                    <span class="spec-label">\uD83E\uDDEC Mutationen freigeschaltet:</span>
+                    <span class="spec-val">${preset.mutations.length} Synapsen-Knoten</span>
+                </div>
+                <div class="preset-spec-item">
+                    <span class="spec-label">⚡ Paradigma:</span>
+                    <span class="spec-val">${preset.paradigm.toUpperCase()}</span>
+                </div>
+            </div>
+
+            <button class="preset-launch-btn" data-preset="${preset.id}">
+                <span>\uD83D\uDE80</span> Profil laden &amp; starten
+            </button>
+        `;
+    container.appendChild(card);
+  });
+  container.querySelectorAll(".preset-launch-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const presetId = e.currentTarget.getAttribute("data-preset");
+      if (presetId) {
+        const ok = await loadPlaytestPreset(presetId);
+        if (ok) {
+          closeSaveModal();
+          hideMainMenu();
+          STATE.gameStarted = true;
+          if (onStartGame)
+            onStartGame();
+          addLogEntry("SYSTEM", `Playtest-Preset "${presetId}" initialisiert. Flugbereit!`);
+        }
+      }
+    });
+  });
+}
+
+// src/ui/menu-controller.ts
+function showMainMenu() {
+  const mainMenu = document.getElementById("main-menu");
+  if (!mainMenu)
+    return;
+  mainMenu.style.display = "flex";
+  mainMenu.classList.remove("menu-hidden");
+  const resumeBtn = document.getElementById("resume-game-btn");
+  if (resumeBtn) {
+    resumeBtn.style.display = STATE.gameStarted ? "flex" : "none";
+  }
+  const startBtn = document.getElementById("start-game-btn");
+  if (startBtn) {
+    startBtn.innerText = STATE.gameStarted ? "\uD83D\uDD04 Neue Reise beginnen (Reset)" : "\uD83E\uDDEC Bewusstsein entfalten";
+  }
+  checkAndUpdateContinueButton();
+  playMainMenuTheme();
+}
+function hideMainMenu() {
+  const mainMenu = document.getElementById("main-menu");
+  if (!mainMenu)
+    return;
+  mainMenu.classList.add("menu-hidden");
+  mainMenu.style.display = "none";
+  if (STATE.gameStarted) {
+    playIngameTheme();
+  }
+}
+function toggleMainMenu() {
+  const mainMenu = document.getElementById("main-menu");
+  if (!mainMenu)
+    return;
+  const isHidden = mainMenu.classList.contains("menu-hidden") || mainMenu.style.display === "none";
+  if (isHidden) {
+    showMainMenu();
+  } else {
+    hideMainMenu();
+  }
+}
+function isMainMenuOpen() {
+  const mainMenu = document.getElementById("main-menu");
+  if (!mainMenu)
+    return false;
+  return !mainMenu.classList.contains("menu-hidden") && mainMenu.style.display !== "none";
+}
+
+// src/ui/jamal-dialog.ts
+var DIALOGUE_NODES = { ...dialogues_default };
+function isJamalDialogOpen() {
+  return DialogueEngine.isDialogOpen();
+}
+function getCurrentDialogueNodeId() {
+  return DialogueEngine.getCurrentNodeId();
+}
+function openNpcDialogue(nodeId) {
+  return DialogueEngine.openDialogue(nodeId);
+}
+function closeNpcDialogue() {
+  DialogueEngine.closeDialogue();
+}
+function handleDialogueChoice(optionOrTarget) {
+  DialogueEngine.handleChoice(optionOrTarget);
+}
+function triggerDecoyTrap() {
+  const penalty = 25;
+  STATE.mentalEnergy = Math.max(0, (STATE.mentalEnergy || 50) - penalty);
+  STATE.jamalDecoyRevealed = true;
+  STATE.jamalMissionDiscovered = true;
+  try {
+    playCrashSound();
+    playEmpChargeSound();
+    playFleetAlarmSound();
+  } catch (e) {}
+  if (STATE.jamalShip) {
+    STATE.jamalShip.name = "Köder-Attrappe [HOLOGRAFIE-ATTROPPE ENTLARVT]";
+    STATE.jamalShip.isDecoy = true;
+  }
+  if (STATE.towingDrone) {
+    STATE.towingDrone.name = "KI-Abschleppdrohne TX-9 [AGGRESSIV • VOLLSTRECKUNG]";
+    STATE.towingDrone.isHostile = true;
+    STATE.towingDrone.status = "hostile";
+  }
+  STATE.systemAlertLevel = "alert";
+  QuestManager.advanceQuest("prologue_jamal_ship", 2);
+  advanceFtueStep(3);
+  updateHUDStats();
+  addLogEntry("PSIONIK", "⚡ PSIONISCHE RÜCKKOPPLUNG: -25 Mentalkraft erlitten! Die Falle der Insan-Drohne schnappt zu!");
+  addLogEntry("SYSTEM", "\uD83D\uDEA8 HOLOGRAPHISCHE ATTRAPPE ENTLARVT: Die echte ISS Ibn Battuta wurde in die INSAN-Verwahrstelle Zeta-9 abgeschleppt (2 Sprünge entfernt)!");
+  openNpcDialogue("hologram_trap_revealed");
+}
+function liberateRealShipAtStation() {
+  if (STATE.jamalShipLiberated)
+    return;
+  STATE.jamalShipLiberated = true;
+  STATE.jamalMissionCompleted = true;
+  try {
+    playSynapseEvolveSound();
+    playSonarChime();
+  } catch (e) {}
+  if (STATE.jamalShip) {
+    if (STATE.jamalShip.setLiberated)
+      STATE.jamalShip.setLiberated(true);
+    STATE.jamalShip.name = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
+  }
+  QuestManager.completeQuest("prologue_jamal_ship");
+  grantJamalRewards();
+  addLogEntry("BERGUNG", "\uD83C\uDF89 ECHTES FORSCHUNGSSCHIFF GEBORGEN: ISS Ibn Battuta befreit! +50 Melange-Spice, +60 Silizium!");
+  addLogEntry("SYSTEM", "\uD83D\uDCDF QUANTEN-LOGBUCH AKTIVIERT: ISS Ibn Battuta gekoppelt! Missions-Direktiven und Galaktische Aufträge online.");
+  addLogEntry("JAMAL", "„Alle Sensoren online! Jetzt können wir die Verlangsamung und das Jahr 2035 aufklären!“");
+  advanceFtueStep(5);
+  renderDirectives();
+  openNpcDialogue("real_ship_liberated");
+}
+function liberateVoyagerProbe() {
+  STATE.voyagerLiberated = true;
+  STATE.voyagerScanned = true;
+  STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy || 100, (STATE.mentalEnergy || 0) + 30);
+  STATE.loneliness = Math.max(0, (STATE.loneliness || 30) - 20);
+  if (STATE.voyagerProbe) {
+    STATE.voyagerProbe.name = "Voyager 2 (Archaische Raumsonde) [BEFREIT]";
+  }
+  try {
+    playSonarChime();
+    playSynapseEvolveSound();
+  } catch (e) {}
+  addLogEntry("RELIKT", "\uD83D\uDEF0️ VOYAGER 2 BEFREIT: Golden Record geborgen! +30 Mentalkraft, Einsamkeit gelindert!");
+  updateHUDStats();
+  openNpcDialogue("insan_voyager_liberated");
+}
+var executeHackDroneDatabase = triggerDecoyTrap;
+function grantJamalRewards() {
+  STATE.loneliness = Math.max(5, (STATE.loneliness || 30) - 20);
+  updateHUDStats();
+}
+DialogueEngine.registerAction("hack_clamp_attempt", () => triggerDecoyTrap());
+DialogueEngine.registerAction("smash_clamp_attempt", () => triggerDecoyTrap());
+DialogueEngine.registerAction("smash_clamp", () => triggerDecoyTrap());
+DialogueEngine.registerAction("hack_drone_database", () => triggerDecoyTrap());
+DialogueEngine.registerAction("liberate_real_ship_at_station", () => liberateRealShipAtStation());
+DialogueEngine.registerAction("liberate_voyager_probe", () => liberateVoyagerProbe());
+function openJamalIntroDialog() {
+  if (STATE.jamalIntroModalSeen)
+    return;
+  STATE.jamalIntroModalSeen = true;
+  STATE.jamalMissionActive = true;
+  QuestManager.startQuest("prologue_jamal_ship");
+  openNpcDialogue("jamal_orbit_intro");
+}
+function triggerJamalShipScannedDialogue() {
+  QuestManager.advanceQuest("prologue_jamal_ship", 1);
+  advanceFtueStep(2);
+  const hint = document.getElementById("flight-controls-hint");
+  if (hint)
+    hint.classList.add("hidden");
+  openNpcDialogue("jamal_ship_scanned");
+}
+function closeJamalDialog() {
+  closeNpcDialogue();
+}
+function liberateJamalShip2() {
+  executeHackDroneDatabase();
+}
+function initJamalDialogListeners() {
+  const closeBtn = document.getElementById("close-npc-dialog-btn") || document.getElementById("npc-dialog-close-btn");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      closeNpcDialogue();
+    });
+  }
+  window.addEventListener("keydown", (e) => {
+    if (!isJamalDialogOpen() || isMainMenuOpen())
+      return;
+    const key = e.key;
+    if (key >= "1" && key <= "9") {
+      const idx = parseInt(key, 10) - 1;
+      const node = DIALOGUE_NODES[getCurrentDialogueNodeId()];
+      if (node && node.options && node.options[idx]) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleDialogueChoice(node.options[idx]);
+      }
+    }
+  });
+}
+
+// src/ui/party-grid.ts
+var lastRenderedCrewIds = "";
+function updatePartyGrid() {
+  const container = document.getElementById("hud-party-grid");
+  if (!container)
+    return;
+  const crew = STATE.crew;
+  if (!crew || crew.length === 0) {
+    if (container.innerHTML !== "") {
+      container.innerHTML = "";
+      lastRenderedCrewIds = "";
+    }
+    return;
+  }
+  const clusters = getSpeciesClusters();
+  const useClustering = crew.length >= 6 || clusters.some((cl) => cl.count >= 4);
+  const expandedKey = getExpandedClustersKey();
+  const isTrans = STATE.doctrineTransition && STATE.doctrineTransition.active;
+  const transPercent = isTrans ? Math.round(STATE.doctrineTransition.progress * 100) : 0;
+  const transTarget = isTrans ? STATE.doctrineTransition.targetParadigm === "domination" ? "⚡ Herrschaft" : STATE.doctrineTransition.targetParadigm === "symbiosis" ? "\uD83C\uDF31 Symbiose" : "\uD83D\uDD2E Täuschung" : "";
+  const transKey = isTrans ? `trans_${transPercent}` : "idle";
+  const stationKey = crew.map((c) => `${c.id}_${c.station}`).join("_");
+  const currentCrewIds = `${STATE.primaryParadigm}_${STATE.activeSubCodex}_${useClustering}_${expandedKey}_${transKey}_${stationKey}_` + crew.map((c) => `${c.id}_${c.ageCategory}`).join("|");
+  const structureChanged = currentCrewIds !== lastRenderedCrewIds;
+  const pIcon = STATE.primaryParadigm === "neutral" ? "\uD83C\uDF0C" : STATE.primaryParadigm === "domination" ? "⚡" : STATE.primaryParadigm === "symbiosis" ? "\uD83C\uDF31" : "\uD83D\uDD2E";
+  const pLabel = STATE.primaryParadigm === "neutral" ? "Einsamkeit (Neutral)" : STATE.primaryParadigm === "domination" ? "Herrschaft" : STATE.primaryParadigm === "symbiosis" ? "Symbiose" : "Täuschung";
+  const badgeLabel = isTrans ? `\uD83C\uDF00 Umwälzung ${transPercent}%` : `${pIcon} ${pLabel}`;
+  const badgeTitle = STATE.primaryParadigm === "neutral" ? crew.length > 0 ? "Klicken: Erstkontakt-Doktrin besiegeln!" : "Najmafar ist in Einsamkeit gefangen. Erstkontakt erforderlich." : isTrans ? `Geistige Umwälzung aktiv (Ziel: ${transTarget}). Klicken: Schiffs-Doktrin weiter schalten.` : `Klicken: Schiffs-Doktrin wechseln (Herrschaft / Täuschung / Symbiose)`;
+  const doctrineBadge = `
+        <button id="party-doctrine-btn" class="party-doctrine-btn" title="${badgeTitle}" style="width: 100%; margin-bottom: 6px; padding: 4px 6px; font-size: 0.65rem; font-weight: bold; border-radius: 4px; background: ${isTrans ? "rgba(88,28,135,0.85)" : "rgba(15,23,42,0.85)"}; border: 1px solid ${isTrans ? "#38bdf8" : "rgba(168,85,247,0.5)"}; color: #cbd5e1; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: all 0.2s ease;">
+            <span style="display: flex; align-items: center; gap: 4px;"><span>${isTrans ? "\uD83C\uDF00" : pIcon}</span> <span>${badgeLabel}</span></span>
+            <span style="font-size: 0.6rem; color: #38bdf8;">${crew.length}/${STATE.maxCrewCapacity} \uD83D\uDD04</span>
+        </button>
+    `;
+  if (structureChanged) {
+    lastRenderedCrewIds = currentCrewIds;
+    if (useClustering) {
+      let html = doctrineBadge;
+      clusters.forEach((cl) => {
+        html += renderPartyClusterCard(cl);
+      });
+      container.innerHTML = html;
+    } else {
+      container.innerHTML = doctrineBadge + crew.map((c) => renderPartyCard(c)).join("");
+    }
+    attachPartyGridEvents();
+  } else {
+    clusters.forEach((cl) => {
+      const clusterCard = document.getElementById(`party-cluster-${cl.speciesName}`);
+      if (clusterCard) {
+        let clusterColor = "#10b981";
+        if (cl.avgAgePercent < 15)
+          clusterColor = "#ef4444";
+        else if (cl.avgAgePercent < 45)
+          clusterColor = "#f59e0b";
+        const clusterBar = clusterCard.querySelector(".party-cluster-age-fill");
+        if (clusterBar) {
+          clusterBar.style.width = `${cl.avgAgePercent}%`;
+          clusterBar.style.backgroundColor = clusterColor;
+        }
+        const clusterVal = clusterCard.querySelector(".party-cluster-age-val");
+        if (clusterVal) {
+          clusterVal.innerText = `${cl.avgAgePercent}%`;
+          clusterVal.style.color = clusterColor;
+        }
+      }
+    });
+    crew.forEach((c) => {
+      const card = document.getElementById(`party-card-${c.id}`);
+      if (!card || typeof card.querySelector !== "function")
+        return;
+      const maxLife = c.maxLifespan || 540;
+      const currentAge = Math.min(maxLife, Math.floor(c.age || 0));
+      const lifePercent = Math.max(0, Math.min(100, Math.round((1 - currentAge / maxLife) * 100)));
+      let barColor = "#10b981";
+      if (lifePercent < 15)
+        barColor = "#ef4444";
+      else if (lifePercent < 45)
+        barColor = "#f59e0b";
+      const ageBar = card.querySelector(".party-age-fill");
+      if (ageBar) {
+        ageBar.style.width = `${lifePercent}%`;
+        ageBar.style.backgroundColor = barColor;
+      }
+      const ageText = card.querySelector(".party-age-val");
+      if (ageText) {
+        ageText.innerText = `${lifePercent}%`;
+        ageText.style.color = barColor;
+      }
+      const stressBar = card.querySelector(".party-stress-fill");
+      if (stressBar) {
+        stressBar.style.width = `${Math.min(100, Math.round(c.stress))}%`;
+      }
+      const stabilityBar = card.querySelector(".party-stability-fill");
+      if (stabilityBar) {
+        stabilityBar.style.width = `${Math.min(100, Math.round(c.illusionStability))}%`;
+      }
+      const tooltipAge = card.querySelector(".party-tooltip-age");
+      if (tooltipAge) {
+        tooltipAge.innerText = `${Math.floor(currentAge / 60)}:${String(currentAge % 60).padStart(2, "0")} / ${Math.floor(maxLife / 60)}:00 Min. (${lifePercent}% übrig)`;
+      }
+      const tooltipThought = card.querySelector(".party-tooltip-thought");
+      if (tooltipThought) {
+        tooltipThought.innerText = `"${c.thought}"`;
+      }
+      if (lifePercent <= 10 || c.ageCategory === "critical") {
+        if (!card.classList.contains("critical-pulse")) {
+          card.classList.add("critical-pulse");
+        }
+      } else {
+        card.classList.remove("critical-pulse");
+      }
+    });
+  }
+}
+function renderPartyClusterCard(cl) {
+  let dispIcon = "\uD83D\uDD2C";
+  if (cl.disposition === "martial")
+    dispIcon = "⚔️";
+  else if (cl.disposition === "empathic")
+    dispIcon = "\uD83C\uDF44";
+  else if (cl.disposition === "synthetic")
+    dispIcon = "\uD83E\uDD16";
+  else if (cl.disposition === "lithoid")
+    dispIcon = "\uD83D\uDCA0";
+  let clusterColor = "#10b981";
+  if (cl.avgAgePercent < 15)
+    clusterColor = "#ef4444";
+  else if (cl.avgAgePercent < 45)
+    clusterColor = "#f59e0b";
+  return `
+        <div id="party-cluster-${cl.speciesName}" class="party-cluster-card glass-panel" style="margin-bottom: 6px; padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(30,41,59,0.7);">
+            <div class="party-cluster-header" data-cluster-toggle="${cl.speciesName}" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 1.1rem;">${cl.avatarIcon}</span>
+                    <div>
+                        <div style="font-weight: 700; color: ${cl.speciesColor}; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px;">${cl.speciesName}</div>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span style="font-size: 0.6rem; color: #38bdf8;">${cl.count}x • ${dispIcon}</span>
+                            <span class="party-cluster-age-val" style="font-size: 0.6rem; color: ${clusterColor}; font-weight: 700;">${cl.avgAgePercent}%</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 3px;" onclick="event.stopPropagation()">
+                    <button class="party-cluster-rejuv-btn" data-cluster-species="${cl.speciesName}" title="Kollektiv-Verjüngung (${cl.count}x)" style="cursor: pointer; background: rgba(16,185,129,0.3); border: 1px solid #10b981; color: #fff; border-radius: 3px; font-size: 0.65rem; padding: 1px 4px;">\uD83D\uDC89</button>
+                    <button class="party-cluster-toggle-btn" data-cluster-toggle="${cl.speciesName}" style="cursor: pointer; background: rgba(168,85,247,0.3); border: 1px solid #a855f7; color: #fff; border-radius: 3px; font-size: 0.65rem; padding: 1px 4px;">${cl.isExpanded ? "▲" : "▼"}</button>
+                </div>
+            </div>
+            <!-- Average Vitality Track -->
+            <div style="margin-top: 4px; height: 3px; background: rgba(0,0,0,0.4); border-radius: 2px; overflow: hidden;">
+                <div class="party-cluster-age-fill" style="width: ${cl.avgAgePercent}%; height: 100%; background: ${clusterColor}; transition: width 0.3s ease;"></div>
+            </div>
+            ${cl.isExpanded ? `
+                <div class="party-cluster-members" style="margin-top: 6px; padding-left: 4px; border-left: 2px solid ${cl.speciesColor};">
+                    ${cl.members.map((m) => renderPartyCard(m)).join("")}
+                </div>
+            ` : ""}
+        </div>
+    `;
+}
+function renderPartyCard(c) {
+  const maxLife = c.maxLifespan || 540;
+  const currentAge = Math.min(maxLife, Math.floor(c.age || 0));
+  const lifePercent = Math.max(0, Math.min(100, Math.round((1 - currentAge / maxLife) * 100)));
+  let barColor = "#10b981";
+  if (lifePercent < 15)
+    barColor = "#ef4444";
+  else if (lifePercent < 45)
+    barColor = "#f59e0b";
+  const isCritical = lifePercent <= 10 || c.ageCategory === "critical";
+  const speciesColor = c.speciesColor || "#38bdf8";
+  const avatar = c.avatarIcon || "\uD83D\uDC64";
+  const station = c.stationName || "Organ-Station";
+  const stationIcon = c.station === "flight_synapse" ? "\uD83D\uDE80" : c.station === "chitin_gland" ? "\uD83D\uDEE1️" : c.station === "bio_incubator" ? "\uD83E\uDDEA" : "\uD83D\uDD2E";
+  const traitText = c.trait ? `${c.trait.name}: ${c.trait.desc}` : c.perk || c.buffDesc;
+  return `
+        <div id="party-card-${c.id}" class="party-card glass-panel ${isCritical ? "critical-pulse" : ""}" data-crew-id="${c.id}">
+            <!-- Left Portrait Badge -->
+            <div class="party-portrait" style="--species-glow: ${speciesColor}">
+                <div class="party-avatar-ring">
+                    <span class="party-avatar-icon">${avatar}</span>
+                </div>
+                <div class="party-station-icon" title="${station}">${stationIcon}</div>
+            </div>
+
+            <!-- Card Body / Vital Details -->
+            <div class="party-details">
+                <div class="party-top-row">
+                    <span class="party-name" title="${c.name} (${c.species})">${c.name}</span>
+                    <button class="party-rejuv-btn" data-rejuv-id="${c.id}" title="Zell-Verjüngung (-35% Alter)">\uD83D\uDC89</button>
+                </div>
+                <div class="party-station-label">${stationIcon} ${station}</div>
+
+                <!-- Lifespan Bar -->
+                <div class="party-meter-row" title="Biologische Vitalität / Restlebensspanne">
+                    <span class="party-meter-label">⏳</span>
+                    <div class="party-meter-track">
+                        <div class="party-age-fill" style="width: ${lifePercent}%; background-color: ${barColor};"></div>
+                    </div>
+                    <span class="party-age-val" style="color: ${barColor};">${lifePercent}%</span>
+                </div>
+
+                <!-- Dual Micro Meters: Stability & Stress -->
+                <div class="party-micro-meters">
+                    <div class="micro-meter" title="Traum-Stabilität: ${Math.round(c.illusionStability)}%">
+                        <span class="micro-label">\uD83D\uDD2E</span>
+                        <div class="micro-track">
+                            <div class="party-stability-fill" style="width: ${Math.round(c.illusionStability)}%;"></div>
+                        </div>
+                    </div>
+                    <div class="micro-meter" title="Stress: ${Math.round(c.stress)}%">
+                        <span class="micro-label">⚡</span>
+                        <div class="micro-track">
+                            <div class="party-stress-fill" style="width: ${Math.round(c.stress)}%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rich Tooltip on Hover -->
+            <div class="party-card-tooltip">
+                <div class="tooltip-header">
+                    <strong>${c.name}</strong>
+                    <span style="color: ${speciesColor}; font-size: 0.7rem;">${c.species}</span>
+                </div>
+                <div class="tooltip-row"><strong>Organ-Station:</strong> ${stationIcon} ${station}</div>
+                <div class="tooltip-row"><strong>Rolle:</strong> ${c.roleIcon || "\uD83D\uDC64"} ${c.roleName || c.role}</div>
+                <div class="tooltip-row"><strong>Eigenschaft:</strong> ${traitText}</div>
+                <div class="tooltip-row"><strong>Aktivität:</strong> <em>${c.stationActivity || "Synchronisiert"}</em></div>
+                <div class="tooltip-row"><strong>Alter:</strong> <span class="party-tooltip-age">${Math.floor(currentAge / 60)}:${String(currentAge % 60).padStart(2, "0")} / ${Math.floor(maxLife / 60)}:00 Min. (${lifePercent}% übrig)</span></div>
+                <div class="tooltip-thought">\uD83D\uDCAD <em><span class="party-tooltip-thought">"${c.thought}"</span></em></div>
+            </div>
+        </div>
+    `;
+}
+function attachPartyGridEvents() {
+  const doctrineBtn = document.getElementById("party-doctrine-btn");
+  if (doctrineBtn) {
+    doctrineBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (STATE.primaryParadigm === "neutral") {
+        if (STATE.crew.length > 0 && typeof window.openFirstContactModal === "function") {
+          window.openFirstContactModal();
+        } else {
+          addLogEntry("DOKTRIN", "\uD83C\uDF0C Najmafar ist in mentaler Einsamkeit gefangen. Erstkontakt mit einer Spezies erforderlich!");
+        }
+        return;
+      }
+      cyclePrimaryParadigm();
+    };
+  }
+  const rejuvBtns = document.querySelectorAll(".party-rejuv-btn");
+  rejuvBtns.forEach((btn) => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const id = Number(btn.getAttribute("data-rejuv-id"));
+      if (id) {
+        rejuvenateCrewMember(id);
+        updatePartyGrid();
+      }
+    };
+  });
+  const clusterRejuvBtns = document.querySelectorAll(".party-cluster-rejuv-btn");
+  clusterRejuvBtns.forEach((btn) => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const species = btn.getAttribute("data-cluster-species");
+      if (species) {
+        rejuvenateSpeciesCluster(species);
+        updatePartyGrid();
+      }
+    };
+  });
+  const clusterHeaders = document.querySelectorAll(".party-cluster-header");
+  clusterHeaders.forEach((header) => {
+    header.onclick = (e) => {
+      const species = header.getAttribute("data-cluster-toggle");
+      if (species) {
+        toggleClusterExpansion(species);
+      }
+    };
+  });
+  const clusterToggleBtns = document.querySelectorAll(".party-cluster-toggle-btn");
+  clusterToggleBtns.forEach((btn) => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const species = btn.getAttribute("data-cluster-toggle");
+      if (species) {
+        toggleClusterExpansion(species);
+      }
+    };
+  });
+  const partyCards = document.querySelectorAll(".party-card");
+  partyCards.forEach((card) => {
+    card.onclick = (e) => {
+      const id = Number(card.getAttribute("data-crew-id"));
+      const member = STATE.crew.find((c) => c.id === id);
+      if (member && (member.id === 101 || member.name.includes("Jamal"))) {
+        openNpcDialogue("jamal_orbit_intro");
+      }
+    };
+  });
+}
+function triggerCrewDeathNotification(name, species, avatar = "\uD83D\uDC64") {
+  const container = document.getElementById("crew-death-toast-container");
+  if (!container)
+    return;
+  const toast = document.createElement("div");
+  toast.className = "crew-death-toast";
+  toast.innerHTML = `
+        <div class="death-toast-left">
+            <span class="death-avatar">${avatar}</span>
+            <div class="death-aura-circle"></div>
+        </div>
+        <div class="death-toast-content">
+            <div class="death-kicker">⚰️ BIOLOGISCHER ZELLTOD & RESORPTION</div>
+            <div class="death-title">${name}</div>
+            <div class="death-meta">${species} ist friedlich in den Nährstoffkreislauf des Rumpfes übergegangen.</div>
+            <div class="death-resorption-badge">+45 Bio-Energie resorbiert</div>
+        </div>
+        <button class="death-toast-dismiss" title="Schließen">✕</button>
+    `;
+  const dismissBtn = toast.querySelector(".death-toast-dismiss");
+  if (dismissBtn) {
+    dismissBtn.addEventListener("click", () => {
+      toast.classList.add("dissolve-out");
+      setTimeout(() => toast.remove(), 400);
+    });
+  }
+  container.appendChild(toast);
+  setTimeout(() => {
+    if (toast.parentElement) {
+      toast.classList.add("dissolve-out");
+      setTimeout(() => toast.remove(), 400);
+    }
+  }, 7000);
+}
+
+// src/systems/crew.ts
+function isTraumaActive(traumaId) {
+  if (!STATE.psionicTraumas)
+    return false;
+  const t = STATE.psionicTraumas.find((item) => item.id === traumaId);
+  if (!t)
+    return false;
+  return !t.healed || t.flareUp;
+}
+function advanceTraumaTherapy(amount) {
+  if (!STATE.psionicTraumas)
+    return false;
+  const target = STATE.psionicTraumas.find((t) => !t.healed);
+  if (!target)
+    return false;
+  target.therapyProgress = Math.min(100, target.therapyProgress + amount);
+  if (target.therapyProgress >= 100 && !target.healed) {
+    target.healed = true;
+    target.flareUp = false;
+    addLogEntry("SYSTEM", `✨ PSIONISCHE KATHARSIS: [${target.name}] geheilt! Najmafar hat ein kosmisches Trauma überwunden!`);
+    calculateCrewBuffs();
+    return true;
+  }
+  return false;
+}
+function performTherapySession() {
+  const mentalCost = 15;
+  const bioCost = 10;
+  if (STATE.mentalEnergy < mentalCost || STATE.bioEnergy < bioCost) {
+    addLogEntry("SYSTEM", `⚠️ Zu wenig Mentalkraft oder Bio-Energie für Katharsis-Sitzung (benötigt ${mentalCost} Mental, ${bioCost} Bio)!`);
+    return false;
+  }
+  const unhealed = STATE.psionicTraumas?.find((t) => !t.healed || t.flareUp);
+  if (!unhealed) {
+    addLogEntry("SYSTEM", "\uD83E\uDDE0 Alle bekannten Traumata des Big Freeze sind bereits geheilt und stabil!");
+    return false;
+  }
+  STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - mentalCost);
+  STATE.bioEnergy = Math.max(0, STATE.bioEnergy - bioCost);
+  if (unhealed.flareUp) {
+    unhealed.flareUp = false;
+    addLogEntry("CREW", `✨ PSIONISCHE BERUHIGUNG: Akuter Rückfall von [${unhealed.name}] wurde gelindert!`);
+  } else {
+    advanceTraumaTherapy(25);
+    addLogEntry("CREW", `\uD83E\uDDE0 PSIONISCHE KATHARSIS: Therapiesitzung durchgeführt (+25% Heilung an [${unhealed.name}])!`);
+  }
+  renderCrewUI(true);
+  return true;
+}
+function triggerCrewSabotageEvent(c) {
+  const eventTypes = ["hull_tear", "gland_clog", "thruster_sabotage", "psionic_scream"];
+  const chosenType = eventTypes[Math.floor(Math.random() * eventTypes.length)];
+  let title = "";
+  let description = "";
+  if (chosenType === "hull_tear") {
+    title = "Chitin-Wanddurchbruch";
+    description = `${c.name} reißt im Wahn eine innere Chitin-Membran auf (-15 HP, -10 Silizium)!`;
+    STATE.health = Math.max(1, STATE.health - 15);
+    STATE.siliconRes = Math.max(0, STATE.siliconRes - 10);
+  } else if (chosenType === "thruster_sabotage") {
+    title = "Schub-Tentakel Sabotage";
+    description = `${c.name} blockiert einen Flug-Synapsen-Kanal (-20 Bio-Energie)!`;
+    STATE.bioEnergy = Math.max(0, STATE.bioEnergy - 20);
+  } else if (chosenType === "gland_clog") {
+    title = "Sekretions-Verstopfung";
+    description = `${c.name} verstopft Naniten-Poren in der Chitin-Drüse (-10 HP)!`;
+    STATE.health = Math.max(1, STATE.health - 10);
+  } else {
+    title = "Psionischer Verzweiflungsschrei";
+    description = `${c.name} stößt einen telepathischen Schrei aus (-25 Mental-Energie, Stress der Crew +15)!`;
+    STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - 25);
+    STATE.crew.forEach((other) => {
+      if (other !== c)
+        other.stress = Math.min(100, other.stress + 15);
+    });
+  }
+  c.stress = Math.max(50, c.stress - 25);
+  c.crisisActive = false;
+  c.crisisTimer = 25;
+  const crisisEvent = {
+    id: `crisis_${Date.now()}_${c.id}`,
+    crewId: c.id,
+    crewName: c.name,
+    type: chosenType,
+    title,
+    description,
+    timer: 0,
+    maxTimer: 15,
+    resolved: true
+  };
+  if (!STATE.activeCrisisEvents)
+    STATE.activeCrisisEvents = [];
+  STATE.activeCrisisEvents.unshift(crisisEvent);
+  if (STATE.activeCrisisEvents.length > 5)
+    STATE.activeCrisisEvents.pop();
+  addLogEntry("CREW", `\uD83D\uDCA5 SABOTAGE-VORFALL: ${title}! ${description}`);
+  return crisisEvent;
+}
+var radWarningCooldown = 0;
+var waterWarningCooldown = 0;
+var foodWarningCooldown = 0;
+var ORGAN_STATIONS = {
+  flight_synapse: {
+    name: "Flug-Synapse",
+    subtitle: "Nervenknoten des Cockpits",
+    icon: "\uD83D\uDE80",
+    optimalRoles: ["pilot"],
+    optimalDispositions: ["martial"],
+    description: "+15% Schub & Wendigkeit, dämpft Trägheitsdrift"
+  },
+  chitin_gland: {
+    name: "Chitin-Drüse",
+    subtitle: "Panzerung & Nanitenkammer",
+    icon: "\uD83D\uDEE1️",
+    optimalRoles: ["engineer"],
+    optimalDispositions: ["lithoid"],
+    description: "+Hüllenhärte, passive Rumpf-Reparatur im Flug"
+  },
+  bio_incubator: {
+    name: "Bio-Inkubator",
+    subtitle: "Stoffwechsel- & Telomerbecken",
+    icon: "\uD83E\uDDEA",
+    optimalRoles: ["biologist"],
+    optimalDispositions: ["synthetic"],
+    description: "-25% Verjüngungskosten, +30% Biomasse-Ernte"
+  },
+  dream_core: {
+    name: "Traum-Kern",
+    subtitle: "Seelen-Resonanzraum",
+    icon: "\uD83D\uDD2E",
+    optimalRoles: ["psychologist", "cryptologist"],
+    optimalDispositions: ["empathic", "scholarly"],
+    description: "-Einsamkeit, +Mentale Regeneration, beschleunigt Umwälzung"
+  }
+};
+function assignCrewToOptimalStation(c) {
+  if (!c.station || !ORGAN_STATIONS[c.station]) {
+    if (c.role === "pilot")
+      c.station = "flight_synapse";
+    else if (c.role === "engineer")
+      c.station = "chitin_gland";
+    else if (c.role === "biologist")
+      c.station = "bio_incubator";
+    else if (c.role === "psychologist" || c.role === "cryptologist")
+      c.station = "dream_core";
+    else if (c.disposition === "martial")
+      c.station = "flight_synapse";
+    else if (c.disposition === "lithoid")
+      c.station = "chitin_gland";
+    else if (c.disposition === "synthetic")
+      c.station = "bio_incubator";
+    else
+      c.station = "dream_core";
+  }
+  c.stationName = ORGAN_STATIONS[c.station]?.name || "Organ-Station";
+  updateSingleCrewActivity(c);
+}
+function updateSingleCrewActivity(c) {
+  const s = c.station || "dream_core";
+  if (s === "flight_synapse") {
+    c.stationActivity = `${c.name} synchronisiert neuronale Reflexe mit den Steuer-Tentakeln.`;
+  } else if (s === "chitin_gland") {
+    c.stationActivity = `${c.name} leitet Silizium-Naniten in rissige Chitin-Poren.`;
+  } else if (s === "bio_incubator") {
+    c.stationActivity = `${c.name} synthetisiert Telomer-Enzyme im Nährstoffbecken.`;
+  } else {
+    c.stationActivity = `${c.name} meditiert und glättet psionische Resonanzwellen.`;
+  }
+}
+function setCrewStation(crewId, stationId) {
+  const member = STATE.crew.find((c) => c.id === crewId);
+  if (!member)
+    return;
+  member.station = stationId;
+  member.stationName = ORGAN_STATIONS[stationId].name;
+  updateSingleCrewActivity(member);
+  calculateCrewBuffs();
+  renderCrewUI(true);
+  updatePartyGrid();
+  addLogEntry("CREW", `\uD83E\uDEC0 STATION: ${member.name} (${member.roleName}) an [${ORGAN_STATIONS[stationId].icon} ${ORGAN_STATIONS[stationId].name}] gebunden.`);
+}
+function setSpeciesClusterStation(speciesName, stationId) {
+  let count = 0;
+  STATE.crew.forEach((c) => {
+    const sName = c.speciesArchetypeName || c.species.split(" (")[0];
+    if (sName === speciesName) {
+      c.station = stationId;
+      c.stationName = ORGAN_STATIONS[stationId].name;
+      updateSingleCrewActivity(c);
+      count++;
+    }
+  });
+  calculateCrewBuffs();
+  renderCrewUI(true);
+  updatePartyGrid();
+  addLogEntry("CREW", `\uD83E\uDEC0 KOLLEKTIV-STATION: ${count}x ${speciesName} an [${ORGAN_STATIONS[stationId].icon} ${ORGAN_STATIONS[stationId].name}] gebunden.`);
+}
+function getStationCrewCounts() {
+  const counts = {
+    flight_synapse: 0,
+    chitin_gland: 0,
+    bio_incubator: 0,
+    dream_core: 0
+  };
+  STATE.crew.forEach((c) => {
+    assignCrewToOptimalStation(c);
+    if (counts[c.station] !== undefined) {
+      counts[c.station]++;
+    }
+  });
+  return counts;
+}
+var expandedClusters = new Set;
+function getExpandedClustersKey() {
+  return Array.from(expandedClusters).sort().join(",");
+}
+function toggleClusterExpansion(speciesName) {
+  if (expandedClusters.has(speciesName)) {
+    expandedClusters.delete(speciesName);
+  } else {
+    expandedClusters.add(speciesName);
+  }
+  renderCrewUI(true);
+  updatePartyGrid();
+}
+function cyclePrimaryParadigm(instant = false) {
+  if (STATE.primaryParadigm === "neutral") {
+    if (STATE.crew.length === 0) {
+      addLogEntry("DOKTRIN", "\uD83C\uDF0C Najmafar ist in mentaler Einsamkeit gefangen. Erstkontakt mit einer Spezies erforderlich!");
+      return;
+    } else {
+      if (typeof window.openFirstContactModal === "function") {
+        window.openFirstContactModal();
+      } else {
+        setPrimaryParadigm("deception", instant);
+      }
+      return;
+    }
+  }
+  const list = ["deception", "domination", "symbiosis"];
+  const currentBase = STATE.doctrineTransition?.active ? STATE.doctrineTransition.targetParadigm : STATE.primaryParadigm;
+  const currentIdx = list.indexOf(currentBase);
+  const next = list[(currentIdx + 1) % list.length];
+  setPrimaryParadigm(next, instant);
+}
+function setPrimaryParadigm(paradigm, instant = false) {
+  if (STATE.primaryParadigm === paradigm && (!STATE.doctrineTransition || !STATE.doctrineTransition.active)) {
+    return;
+  }
+  if (STATE.doctrineTransition?.active && STATE.doctrineTransition.targetParadigm === paradigm) {
+    return;
+  }
+  if (instant) {
+    completeDoctrineShift(paradigm);
+    return;
+  }
+  const fromP = STATE.primaryParadigm;
+  STATE.doctrineTransition = {
+    active: true,
+    fromParadigm: fromP,
+    targetParadigm: paradigm,
+    progress: 0,
+    duration: 25
+  };
+  const titles = {
+    domination: "⚡ Herrschaft & Zwang",
+    deception: "\uD83D\uDD2E Täuschung & Traum-Matrix",
+    symbiosis: "\uD83C\uDF31 Symbiose & Harmonie",
+    neutral: "\uD83C\uDF0C Neutrale Leere"
+  };
+  if (fromP === "neutral") {
+    addLogEntry("DOKTRIN", `✨ PSIONISCHES ERWACHEN: Najmafars Geist verlässt die Einsamkeit und richtet sich auf ${titles[paradigm]} aus...`);
+  } else if (fromP === "deception" && paradigm === "domination") {
+    STATE.crew.forEach((c) => {
+      if (c.disposition !== "martial") {
+        c.stress = Math.min(100, c.stress + 18);
+        c.illusionStability = Math.max(0, c.illusionStability - 25);
+        c.thought = "Panisch: 'Der Himmel reißt auf... das ist kein Schiff, das ist ein Ungeheuer!'";
+      }
+    });
+    addLogEntry("DOKTRIN", `\uD83C\uDF00 PSIONISCHE UMWÄLZUNG: [Täuschung ➔ Herrschaft] eingeleitet! Die Scheinwelt flackert – Panik bricht aus!`);
+  } else if (paradigm === "symbiosis") {
+    STATE.crew.forEach((c) => {
+      c.stress = Math.max(0, c.stress - 10);
+      c.thought = "Verblüfft: 'Die Tentakel entspannen sich... das Wesen tastet nach unseren Gedanken.'";
+    });
+    addLogEntry("DOKTRIN", `\uD83C\uDF00 PSIONISCHE UMWÄLZUNG: [➔ Symbiose] eingeleitet! Organische Synapsen öffnen sich für Harmonie.`);
+  } else if (paradigm === "deception") {
+    STATE.crew.forEach((c) => {
+      c.status = "Traum-Trance";
+      c.thought = "Benommen: 'Eine warme Welle umhüllt mich... war das alles nur ein Albtraum?'";
+    });
+    addLogEntry("DOKTRIN", `\uD83C\uDF00 PSIONISCHE UMWÄLZUNG: [➔ Täuschung] eingeleitet! Psionischer Traum-Schleier senkt sich herab.`);
+  } else {
+    addLogEntry("DOKTRIN", `\uD83C\uDF00 PSIONISCHE UMWÄLZUNG: Geisteszustand wandelt sich zu ${titles[paradigm]}...`);
+  }
+  renderCrewUI(true);
+  updatePartyGrid();
+}
+function completeDoctrineShift(paradigm) {
+  STATE.primaryParadigm = paradigm;
+  if (STATE.doctrineTransition) {
+    STATE.doctrineTransition.active = false;
+    STATE.doctrineTransition.progress = 1;
+  }
+  if (paradigm === "neutral") {
+    STATE.activeSubCodex = "none";
+  } else if (paradigm === "domination" && !["iron_discipline", "gunboat_diplomacy", "nightmare_terror"].includes(STATE.activeSubCodex)) {
+    STATE.activeSubCodex = "gunboat_diplomacy";
+  } else if (paradigm === "deception" && !["benevolent_facade", "illusory_matrix", "nightmare_terror"].includes(STATE.activeSubCodex)) {
+    STATE.activeSubCodex = "benevolent_facade";
+  } else if (paradigm === "symbiosis" && !["living_symbiosis", "pragmatic_accord", "gunboat_diplomacy"].includes(STATE.activeSubCodex)) {
+    STATE.activeSubCodex = "living_symbiosis";
+  }
+  updateParadigmModifiers();
+  calculateCrewBuffs();
+  renderCrewUI(true);
+  updatePartyGrid();
+  const titles = {
+    domination: "⚡ HERRSCHAFT & UNTERWERFUNG (Illithid)",
+    deception: "\uD83D\uDD2E TÄUSCHUNG & TRAUM-MATRIX (Holodeck)",
+    symbiosis: "\uD83C\uDF31 SYMBIOSE & HARMONIE (Organisch)",
+    neutral: "\uD83C\uDF0C NEUTRALE LEERE (Kosmische Einsamkeit)"
+  };
+  addLogEntry("DOKTRIN", `✨ PSIONISCHE UMWÄLZUNG VOLLENDET: ${titles[paradigm]}`);
+}
+function setActiveSubCodex(subCodex) {
+  STATE.activeSubCodex = subCodex;
+  updateParadigmModifiers();
+  calculateCrewBuffs();
+  renderCrewUI(true);
+  updatePartyGrid();
+  const subTitles = {
+    none: "Kein Sub-Kodex (Neutral)",
+    iron_discipline: "Eiserne Disziplin (Gewalt + Gewalt)",
+    gunboat_diplomacy: "Ehrfurchts-Vertrag (Gewalt + Diplomatie)",
+    nightmare_terror: "Albtraum-Matrix (Gewalt + Täuschung)",
+    benevolent_facade: "Falsche Utopie (Täuschung + Diplomatie)",
+    illusory_matrix: "Perfekte Simulation (Täuschung + Täuschung)",
+    living_symbiosis: "Lebendige Symbiose (Harmonie + Harmonie)",
+    pragmatic_accord: "Pragmatisches Abkommen (Harmonie + Diplomatie)"
+  };
+  if (subCodex !== "none") {
+    addLogEntry("DOKTRIN", `Sub-Kodex aktiviert: ${subTitles[subCodex] || subCodex}`);
+  }
+}
+function calculateParadigmBaseModifiers(primary, sub, martialCount, scholarlyCount) {
+  let drainMult = 1;
+  let stressMod = 0;
+  let thrustBonus = 0;
+  let stealthBonus = 0;
+  let bioBonus = 0;
+  let harmonyBonus = 0;
+  if (primary === "domination") {
+    thrustBonus = 0.25;
+    drainMult = 1.35;
+    stressMod = 0.3;
+    if (sub === "iron_discipline") {
+      thrustBonus = 0.45;
+      drainMult = 1.55;
+      stressMod = 0.7;
+      if (martialCount > 0) {
+        drainMult += martialCount * 0.12;
+        stressMod += martialCount * 0.25;
+      }
+    } else if (sub === "gunboat_diplomacy") {
+      thrustBonus = 0.3;
+      drainMult = 1.15;
+      stressMod = -0.2;
+      if (martialCount > 0) {
+        stressMod -= martialCount * 0.15;
+      }
+    } else if (sub === "nightmare_terror") {
+      thrustBonus = 0.5;
+      drainMult = 1.65;
+      stressMod = 1.6;
+    }
+  } else if (primary === "deception") {
+    stealthBonus = 0.35;
+    drainMult = 1;
+    stressMod = -0.5;
+    if (sub === "benevolent_facade") {
+      stealthBonus = 0.45;
+      harmonyBonus = 0.15;
+      stressMod = -1.2;
+      if (scholarlyCount > 0) {
+        drainMult += scholarlyCount * 0.08;
+      }
+    } else if (sub === "illusory_matrix") {
+      stealthBonus = 0.7;
+      drainMult = 1.25;
+      stressMod = -0.8;
+    }
+  } else if (primary === "symbiosis") {
+    bioBonus = 0.35;
+    harmonyBonus = 0.3;
+    stressMod = -1.5;
+    drainMult = 0.85;
+    if (sub === "living_symbiosis") {
+      bioBonus = 0.6;
+      harmonyBonus = 0.45;
+      stressMod = -2.2;
+      if (martialCount > 0) {
+        stressMod += martialCount * 0.1;
+      }
+    } else if (sub === "pragmatic_accord") {
+      bioBonus = 0.4;
+      harmonyBonus = 0.25;
+      stressMod = -1;
+    }
+  }
+  return { drainMult, stressMod, thrustBonus, stealthBonus, bioBonus, harmonyBonus };
+}
+function calculateRadiationProtection() {
+  let res = 0;
+  if (STATE.mutations.organic_siphon?.purchased)
+    res += 0.25;
+  if (STATE.mutations.chitin_armor?.purchased || STATE.mutations.armor?.purchased)
+    res += 0.25;
+  if (STATE.mutations.blade_armor?.purchased)
+    res += 0.35;
+  STATE.radiationResistance = Math.min(0.95, res);
+  return STATE.radiationResistance;
+}
+function updateParadigmModifiers() {
+  let martialCount = 0;
+  let scholarlyCount = 0;
+  let empathicCount = 0;
+  STATE.crew.forEach((c) => {
+    const disp = c.disposition || "scholarly";
+    if (disp === "martial")
+      martialCount++;
+    else if (disp === "scholarly")
+      scholarlyCount++;
+    else if (disp === "empathic")
+      empathicCount++;
+  });
+  const primary = STATE.primaryParadigm || "deception";
+  const sub = STATE.activeSubCodex || "benevolent_facade";
+  if (STATE.doctrineTransition && STATE.doctrineTransition.active) {
+    const t = Math.max(0, Math.min(1, STATE.doctrineTransition.progress));
+    const fromMods = calculateParadigmBaseModifiers(STATE.doctrineTransition.fromParadigm, sub, martialCount, scholarlyCount);
+    const toMods = calculateParadigmBaseModifiers(STATE.doctrineTransition.targetParadigm, sub, martialCount, scholarlyCount);
+    const lerp2 = (a, b) => a + (b - a) * t;
+    STATE.paradigmModifiers = {
+      mentalDrainMult: Math.max(0.4, Number(lerp2(fromMods.drainMult, toMods.drainMult).toFixed(2))),
+      stressModifier: Number(lerp2(fromMods.stressMod, toMods.stressMod).toFixed(2)),
+      thrustBonus: Number(lerp2(fromMods.thrustBonus, toMods.thrustBonus).toFixed(2)),
+      stealthBonus: Number(lerp2(fromMods.stealthBonus, toMods.stealthBonus).toFixed(2)),
+      bioRegenBonus: Number(lerp2(fromMods.bioBonus, toMods.bioBonus).toFixed(2)),
+      harmonyBonus: Number(lerp2(fromMods.harmonyBonus, toMods.harmonyBonus).toFixed(2))
+    };
+  } else {
+    const mods = calculateParadigmBaseModifiers(primary, sub, martialCount, scholarlyCount);
+    STATE.paradigmModifiers = {
+      mentalDrainMult: Math.max(0.4, Number(mods.drainMult.toFixed(2))),
+      stressModifier: Number(mods.stressMod.toFixed(2)),
+      thrustBonus: Number(mods.thrustBonus.toFixed(2)),
+      stealthBonus: Number(mods.stealthBonus.toFixed(2)),
+      bioRegenBonus: Number(mods.bioBonus.toFixed(2)),
+      harmonyBonus: Number(mods.harmonyBonus.toFixed(2))
+    };
+  }
+}
+function getSpeciesClusters() {
+  const map = new Map;
+  STATE.crew.forEach((c) => {
+    const rawSpecies = c.species || "Unbekannt";
+    const key = c.speciesArchetypeName || rawSpecies.split(" (")[0] || rawSpecies;
+    if (!map.has(key))
+      map.set(key, []);
+    map.get(key).push(c);
+  });
+  const clusters = [];
+  map.forEach((members, speciesName) => {
+    const first = members[0];
+    let totalLifeRatio = 0;
+    let totalStress = 0;
+    let totalStability = 0;
+    const roleCounts = {};
+    members.forEach((m) => {
+      const maxLife = m.maxLifespan || 540;
+      const currentAge = Math.min(maxLife, Math.floor(m.age || 0));
+      totalLifeRatio += Math.max(0, Math.min(100, Math.round((1 - currentAge / maxLife) * 100)));
+      totalStress += m.stress;
+      totalStability += m.illusionStability;
+      const r = m.roleName || m.role;
+      roleCounts[r] = (roleCounts[r] || 0) + 1;
+    });
+    let dominantRole = first.roleName || first.role;
+    let maxCount = 0;
+    Object.entries(roleCounts).forEach(([r, count2]) => {
+      if (count2 > maxCount) {
+        maxCount = count2;
+        dominantRole = r;
+      }
+    });
+    const count = members.length;
+    clusters.push({
+      speciesName,
+      speciesColor: first.speciesColor || "#38bdf8",
+      avatarIcon: first.avatarIcon || "\uD83D\uDC64",
+      disposition: first.disposition || "scholarly",
+      count,
+      members,
+      avgAgePercent: Math.round(totalLifeRatio / count),
+      avgStress: Math.round(totalStress / count),
+      avgStability: Math.round(totalStability / count),
+      dominantRole,
+      isExpanded: expandedClusters.has(speciesName)
+    });
+  });
+  return clusters;
+}
+function rejuvenateSpeciesCluster(speciesName) {
+  const clusterMembers = STATE.crew.filter((c) => (c.speciesArchetypeName || c.species.split(" (")[0]) === speciesName);
+  if (clusterMembers.length === 0)
+    return;
+  const stationCounts = getStationCrewCounts();
+  const bioDiscount = Math.min(0.5, stationCounts.bio_incubator * 0.15);
+  const requiredBio = Math.round(20 * (1 - bioDiscount));
+  const requiredRes = Math.round(10 * (1 - bioDiscount));
+  let successCount = 0;
+  clusterMembers.forEach((m) => {
+    if (STATE.bioEnergy >= requiredBio && STATE.bioRes >= requiredRes) {
+      STATE.bioEnergy -= requiredBio;
+      STATE.bioRes -= requiredRes;
+      m.age = Math.max(0, m.age - m.maxLifespan * 0.35);
+      m.stress = Math.max(0, m.stress - 25);
+      m.rejuvenationCount = (m.rejuvenationCount || 0) + 1;
+      m.ageCategory = m.age / m.maxLifespan < 0.5 ? "vital" : m.age / m.maxLifespan < 0.75 ? "mature" : "senescent";
+      successCount++;
+    }
+  });
+  if (successCount > 0) {
+    addLogEntry("SYSTEM", `\uD83D\uDC89 KOLLEKTIV-VERJÜNGUNG: ${successCount}x ${speciesName} regeneriert (-35% Alter)! Kosten: je ${requiredBio} Bio / ${requiredRes} Biomasse.`);
+    calculateCrewBuffs();
+    renderCrewUI(true);
+    updatePartyGrid();
+  } else {
+    addLogEntry("SYSTEM", `Zu wenig Bio-Energie / Biomasse für Kollektiv-Verjüngung (${requiredBio} Bio / ${requiredRes} Biomasse pro Wesen).`);
+  }
+}
+function calculateCrewBuffs() {
+  updateParadigmModifiers();
+  let thrustMult = 1 + (STATE.paradigmModifiers?.thrustBonus || 0);
+  let bioMult = 1 + (STATE.paradigmModifiers?.bioRegenBonus || 0);
+  let scanMult = 1 + (STATE.paradigmModifiers?.harmonyBonus || 0);
+  let repair = 0;
+  let stressDamp = 1;
+  let psioBonus = 0;
+  const hiveBonus = STATE.mutations.hivemind && STATE.mutations.hivemind.purchased ? 1.2 : 1;
+  const roleCounts = {};
+  let flightCount = 0;
+  let chitinCount = 0;
+  let bioCount = 0;
+  let dreamCount = 0;
+  STATE.crew.forEach((c) => {
+    assignCrewToOptimalStation(c);
+    const isSevered = (c.stress || 0) >= 70;
+    if (isSevered) {
+      c.connectionStatus = "severed";
+      c.escalationStage = (c.stress || 0) >= 85 ? 3 : 2;
+      return;
+    } else if ((c.stress || 0) >= 45) {
+      c.connectionStatus = "dissonant";
+      c.escalationStage = 1;
+    } else {
+      c.connectionStatus = "connected";
+      c.escalationStage = 1;
+    }
+    if (c.station === "flight_synapse")
+      flightCount++;
+    else if (c.station === "chitin_gland")
+      chitinCount++;
+    else if (c.station === "bio_incubator")
+      bioCount++;
+    else if (c.station === "dream_core")
+      dreamCount++;
+    roleCounts[c.role] = (roleCounts[c.role] || 0) + 1;
+    const count = roleCounts[c.role];
+    const dimFactor = 1 / Math.sqrt(Math.max(1, count * 0.6));
+    const agePenalty = c.ageCategory === "critical" ? 0.6 : c.ageCategory === "senescent" ? 0.85 : 1;
+    if (c.role === "pilot")
+      thrustMult += 0.15 * hiveBonus * agePenalty * dimFactor;
+    if (c.role === "biologist") {
+      bioMult += 0.3 * hiveBonus * agePenalty * dimFactor;
+      scanMult += 0.25 * hiveBonus * agePenalty * dimFactor;
+    }
+    if (c.role === "engineer")
+      repair += 0.6 * hiveBonus * agePenalty * dimFactor;
+    if (c.role === "psychologist")
+      stressDamp *= 1 - 0.35 * hiveBonus * agePenalty * dimFactor;
+    if (c.role === "cryptologist")
+      psioBonus += 30 * hiveBonus * agePenalty * dimFactor;
+    if (c.trait) {
+      if (c.trait.type === "bio")
+        bioMult += 0.15 * hiveBonus * agePenalty * dimFactor;
+      if (c.trait.type === "speed")
+        thrustMult += 0.12 * hiveBonus * agePenalty * dimFactor;
+      if (c.trait.type === "repair")
+        repair += 0.35 * hiveBonus * agePenalty * dimFactor;
+      if (c.trait.type === "stress")
+        stressDamp *= 1 - 0.12 * hiveBonus * agePenalty * dimFactor;
+      if (c.trait.type === "psionic")
+        psioBonus += 20 * hiveBonus * agePenalty * dimFactor;
+    }
+  });
+  thrustMult += flightCount * 0.08;
+  repair += chitinCount * 0.4;
+  bioMult += bioCount * 0.15;
+  scanMult += bioCount * 0.1;
+  psioBonus += dreamCount * 25;
+  stressDamp *= Math.pow(0.88, dreamCount);
+  if (isTraumaActive("cryo_apathy")) {
+    thrustMult *= 0.85;
+  }
+  const bioScientists = STATE.crew.filter((c) => c.role === "biologist" || c.role === "scientist").length;
+  const mutationDiscount = Math.min(0.5, bioScientists * 0.2);
+  STATE.mutationDiscount = Number(mutationDiscount.toFixed(2));
+  const isSynthetic = (c) => c.species === "Cyborg" || c.species === "Synthetisch" || c.disposition === "synthetic";
+  const organicCount = STATE.crew.filter((c) => !isSynthetic(c)).length;
+  const waterRecyclers = STATE.crew.filter((c) => c.role === "biologist" || c.role === "medic").length;
+  const waterDiscount = Math.min(0.6, waterRecyclers * 0.15 + (bioCount > 0 ? 0.15 : 0));
+  const netWaterRate = organicCount * 0.06 * (1 - waterDiscount);
+  const foodProduced = bioCount * 0.08;
+  const netFoodRate = Math.max(0, organicCount * 0.05 - foodProduced);
+  STATE.waterConsumptionRate = Number(netWaterRate.toFixed(3));
+  STATE.foodConsumptionRate = Number(netFoodRate.toFixed(3));
+  STATE.crewBuffs = {
+    thrust: Number(thrustMult.toFixed(2)),
+    bioGain: Number(bioMult.toFixed(2)),
+    scanSpeed: Number(scanMult.toFixed(2)),
+    repairRate: Number(repair.toFixed(2)),
+    stressDampening: Number(Math.max(0.1, stressDamp).toFixed(2)),
+    psionicBonus: Math.round(psioBonus),
+    mutationDiscount: STATE.mutationDiscount
+  };
+  const basePsio = STATE.mutations.synapses && STATE.mutations.synapses.purchased ? 140 : 75;
+  STATE.psionicRange = basePsio + STATE.crewBuffs.psionicBonus;
+}
+var STORY_LOGS = [
+  { time: 6, sender: "Capt. Miller", text: "Das Ding lebt! Wir sind im Bauch eines biologischen Leviathans gefangen... uralte Glyphen nennen es 'Najmafar'! Wo ist die Luft?" },
+  { time: 24, sender: "Dr. Song", text: "Die Schiffswände atmen... Valeria, die Najmafar absorbiert Weltraummaterie um sich zu heilen!" },
+  { time: 48, sender: "Valeria", text: "Jamal, guck dir die Messgeräte an. Die kosmische Hintergrundstrahlung... Die Sterne am Rand der Galaxie verglühen!" },
+  { time: 70, sender: "Jamal", text: "Das ist kein Messfehler. Die Entropie beschleunigt sich. Die Najmafar... reist sie dorthin, wo die Sterne sterben?" },
+  { time: 95, sender: "Capt. Miller", text: "Es sendet Gedankenwellen. Die Software übersetzt es als... Dschinn? Die Najmafar ist einsam." }
+];
+var storyIndex = 0;
+var playTime = 0;
+function encryptText(text) {
+  const alienGlyphs = "⏁⊑⟒⋔⍜⋏☿⏁⟒⍃⍜⌰⎍⌇⌇⊑⟟⌿⌇⏃⋏⎅⌇⏁⏃⍀⌇⏁⍀⟒☍⏁⊑⟒⌇⊑⟟⌿⟟⌇⏃⌰⟟⎎⟒";
+  return text.split("").map((char) => {
+    if (char === " " || char === '"' || char === "'" || char === ":" || char === "." || char === "," || char === "?" || char === "!" || char === "-" || char === "(" || char === ")")
+      return char;
+    return alienGlyphs[Math.floor(Math.random() * alienGlyphs.length)];
+  }).join("");
+}
+function encryptCrewMessage(sender, text) {
+  let outText = text;
+  if (!STATE.mutations.translator.purchased) {
+    outText = encryptText(text);
+  }
+  return `${sender}: "${outText}"`;
+}
+function updateCrewSimulation(dt) {
+  playTime += dt;
+  if (storyIndex < STORY_LOGS.length && playTime >= STORY_LOGS[storyIndex].time) {
+    const logObj = STORY_LOGS[storyIndex];
+    storyIndex++;
+    addLogEntry("CREW", encryptCrewMessage(logObj.sender, logObj.text));
+  }
+  if (STATE.doctrineTransition && STATE.doctrineTransition.active) {
+    const counts = getStationCrewCounts();
+    const dreamBoost = 1 + counts.dream_core * 0.35;
+    const telepathyBoost = STATE.telepathyActive ? 2 : 1;
+    const rate = 1 / (STATE.doctrineTransition.duration || 25) * dreamBoost * telepathyBoost;
+    STATE.doctrineTransition.progress = Math.min(1, STATE.doctrineTransition.progress + rate * dt);
+    updateParadigmModifiers();
+    if (STATE.doctrineTransition.progress >= 1) {
+      completeDoctrineShift(STATE.doctrineTransition.targetParadigm);
+    }
+  }
+  const stationCounts = getStationCrewCounts();
+  if (stationCounts.chitin_gland > 0 && STATE.health < STATE.maxHealth) {
+    const siliconCostPerHp = isTraumaActive("void_nihilism") ? 0.075 : 0.05;
+    if (STATE.siliconRes >= siliconCostPerHp * dt) {
+      const repairRate = 0.5 * stationCounts.chitin_gland;
+      const actualRepair = Math.min(STATE.maxHealth - STATE.health, repairRate * dt);
+      STATE.health += actualRepair;
+      STATE.siliconRes = Math.max(0, STATE.siliconRes - siliconCostPerHp * actualRepair);
+    }
+  }
+  if (stationCounts.dream_core > 0) {
+    const mentalRegenBonus = 0.8 * stationCounts.dream_core * dt;
+    STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + mentalRegenBonus);
+    STATE.loneliness = Math.max(0, STATE.loneliness - 0.2 * stationCounts.dream_core * dt);
+    const ibadBonus = STATE.mutations.ibad?.purchased ? 2 : 1;
+    advanceTraumaTherapy(0.35 * stationCounts.dream_core * ibadBonus * dt);
+  }
+  if (stationCounts.bio_incubator > 0) {
+    const bioTrickle = 0.2 * stationCounts.bio_incubator * dt;
+    STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + bioTrickle);
+  }
+  const isSynthetic = (c) => c.species === "Cyborg" || c.species === "Synthetisch" || c.disposition === "synthetic";
+  const organicMembers = STATE.crew.filter((c) => !isSynthetic(c));
+  const organicCount = organicMembers.length;
+  const wRate = STATE.waterConsumptionRate !== undefined ? STATE.waterConsumptionRate : 0;
+  const fRate = STATE.foodConsumptionRate !== undefined ? STATE.foodConsumptionRate : 0;
+  if (wRate > 0) {
+    STATE.waterRes = Math.max(0, (STATE.waterRes || 0) - wRate * dt);
+  }
+  if (fRate > 0) {
+    STATE.foodRes = Math.max(0, (STATE.foodRes || 0) - fRate * dt);
+  }
+  const bioIncubatorCount = stationCounts.bio_incubator || 0;
+  const foodProduced = bioIncubatorCount * 0.08;
+  if (foodProduced > organicCount * 0.05) {
+    const excessFood = (foodProduced - organicCount * 0.05) * dt;
+    STATE.foodRes = Math.min(250, (STATE.foodRes || 0) + excessFood);
+  }
+  const isDehydrated = organicCount > 0 && (STATE.waterRes || 0) <= 0;
+  const isStarving = organicCount > 0 && (STATE.foodRes || 0) <= 0;
+  if (isDehydrated) {
+    waterWarningCooldown -= dt;
+    if (waterWarningCooldown <= 0) {
+      waterWarningCooldown = 12;
+      addLogEntry("CREW", "⚠️ DEHYDRIERUNG: Wasservorräte erschöpft! Organische Crew leidet unter akutem Durst & Panik!");
+    }
+  } else {
+    waterWarningCooldown = Math.max(0, waterWarningCooldown - dt);
+  }
+  if (isStarving) {
+    foodWarningCooldown -= dt;
+    if (foodWarningCooldown <= 0) {
+      foodWarningCooldown = 12;
+      addLogEntry("CREW", "⚠️ NAHRUNGSMANGEL: Nährstoff-Gel aufgebraucht! Zelltod & Alterung beschleunigt!");
+    }
+  } else {
+    foodWarningCooldown = Math.max(0, foodWarningCooldown - dt);
+  }
+  const totalCrew = STATE.crew.length;
+  const connectedCrew = STATE.crew.filter((c) => (c.stress || 0) < 70);
+  const connectedCount = connectedCrew.length;
+  const severedCount = totalCrew - connectedCount;
+  const uniqueRoles = new Set(connectedCrew.map((c) => c.role)).size;
+  let targetLoneliness = 100;
+  let isHarmony = false;
+  if (totalCrew === 0 || connectedCount === 0) {
+    targetLoneliness = 100;
+  } else if (connectedCount === 1) {
+    STATE.crewSatietyTimer += dt;
+    const decay = Math.min(20, STATE.crewSatietyTimer / 120 * 20);
+    targetLoneliness = 45 + decay;
+  } else if (connectedCount === 2) {
+    targetLoneliness = uniqueRoles === 2 ? 20 : 30;
+  } else if (connectedCount >= 3) {
+    if (uniqueRoles >= 3) {
+      targetLoneliness = Math.max(0, 5 - (connectedCount - 3) * 2);
+      isHarmony = true;
+    } else {
+      targetLoneliness = Math.max(5, 15 - (connectedCount - 3) * 3);
+      if (connectedCount >= 4)
+        isHarmony = true;
+    }
+  }
+  if (severedCount > 0 && connectedCount > 0) {
+    targetLoneliness = Math.min(100, targetLoneliness + severedCount * 15);
+  }
+  if (STATE.loneliness < targetLoneliness) {
+    STATE.loneliness = Math.min(targetLoneliness, STATE.loneliness + 3 * dt);
+  } else if (STATE.loneliness > targetLoneliness) {
+    STATE.loneliness = Math.max(targetLoneliness, STATE.loneliness - 18 * dt);
+  }
+  if (STATE.loneliness >= 100) {
+    const healedTrauma = STATE.psionicTraumas?.find((t) => t.healed && !t.flareUp);
+    if (healedTrauma) {
+      healedTrauma.flareUp = true;
+      addLogEntry("CREW", `\uD83C\uDF0C TRAUMA-RÜCKFALL: Kosmische Einsamkeit des Big Freeze holt Najmafar wieder ein! [${healedTrauma.name}] bricht auf!`);
+      calculateCrewBuffs();
+    }
+  } else if (STATE.loneliness < 50) {
+    let hadFlare = false;
+    STATE.psionicTraumas?.forEach((t) => {
+      if (t.healed && t.flareUp) {
+        t.flareUp = false;
+        hadFlare = true;
+      }
+    });
+    if (hadFlare) {
+      addLogEntry("CREW", `✨ Seelische Geborgenheit: Der psionische Trauma-Rückfall klingt wieder ab.`);
+      calculateCrewBuffs();
+    }
+  }
+  if (isHarmony) {
+    STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 0.5 * dt);
+    STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 0.3 * dt);
+  }
+  let ambientRadiation = 0;
+  let radSource = "";
+  if (STATE.playerPosition) {
+    const distToCenterStar = STATE.playerPosition.length();
+    if (distToCenterStar < 45) {
+      const solarIntensity = Math.min(1, Math.max(0, (1 - distToCenterStar / 45) * 0.55));
+      if (solarIntensity > ambientRadiation) {
+        ambientRadiation = solarIntensity;
+        radSource = distToCenterStar < 18 ? "Solare Korona (Extrem)" : "Zentralstern-Heliosphäre";
+      }
+    }
+  }
+  if (STATE.nearestPlanet && STATE.nearestPlanet.attributes?.radiationLevel) {
+    const radLevel = STATE.nearestPlanet.attributes.radiationLevel;
+    const radBase = radLevel === "Extreme" ? 0.9 : radLevel === "High" ? 0.65 : radLevel === "Moderate" ? 0.35 : 0.1;
+    let planetDist = 0;
+    let hasDist = false;
+    const pObj = STATE.nearestPlanet;
+    const pPos = pObj.mesh ? pObj.mesh.position : pObj.position;
+    if (STATE.playerPosition && pPos) {
+      planetDist = STATE.playerPosition.distanceTo(pPos);
+      hasDist = true;
+    } else if (pObj.distToPlayer !== undefined) {
+      planetDist = pObj.distToPlayer;
+      hasDist = true;
+    }
+    if (!hasDist || planetDist < 55) {
+      const falloff = hasDist ? Math.max(0.2, 1 - planetDist / 55 * 0.45) : 1;
+      const planetIntensity = radBase * falloff;
+      if (planetIntensity > ambientRadiation) {
+        ambientRadiation = planetIntensity;
+        radSource = `${pObj.name || "Planet"} [${radLevel}]`;
+      }
+    } else if (planetDist < 90) {
+      const planetIntensity = radBase * 0.3;
+      if (planetIntensity > ambientRadiation) {
+        ambientRadiation = planetIntensity;
+        radSource = `${pObj.name || "Planet"} Magnetosphäre`;
+      }
+    }
+  }
+  const radProtection = calculateRadiationProtection();
+  const effectiveRadiation = Math.max(0, ambientRadiation * (1 - radProtection));
+  STATE.ambientRadiation = ambientRadiation;
+  STATE.effectiveRadiation = effectiveRadiation;
+  STATE.radiationSource = radSource;
+  if (effectiveRadiation > 0.15) {
+    const radHullDmg = (effectiveRadiation - 0.15) * 2.8 * dt;
+    STATE.health = Math.max(1, STATE.health - radHullDmg);
+    radWarningCooldown -= dt;
+    if (radWarningCooldown <= 0) {
+      radWarningCooldown = 8;
+      const effPercent = Math.round(effectiveRadiation * 100);
+      const protPercent = Math.round(radProtection * 100);
+      addLogEntry("SYSTEM", `⚠️ STRAHLUNGS-EROSION: Biologische Hülle nimmt Schaden (${effPercent}% Belastung, ${protPercent}% Bio-Filterung). Schalte Chitin-Panzerung im Bio-Deck frei!`);
+    }
+  } else {
+    radWarningCooldown = Math.max(0, radWarningCooldown - dt);
+  }
+  let speed = STATE.playerVelocity.length();
+  let speedStressModifier = speed > 10 ? 0.6 : 0;
+  for (let i = STATE.crew.length - 1;i >= 0; i--) {
+    const c = STATE.crew[i];
+    const radAgingMult = 1 + effectiveRadiation * 1.5;
+    c.age = (c.age || 0) + dt * radAgingMult;
+    if (effectiveRadiation > 0.15) {
+      c.stress = Math.min(100, c.stress + effectiveRadiation * 1.5 * dt);
+    }
+    const maxLife = c.maxLifespan || 540;
+    const lifeRatio = Math.min(1, c.age / maxLife);
+    if (lifeRatio < 0.5) {
+      c.ageCategory = "vital";
+    } else if (lifeRatio < 0.75) {
+      c.ageCategory = "mature";
+      c.stress = Math.min(100, c.stress + 0.35 * dt);
+    } else if (lifeRatio < 0.9) {
+      c.ageCategory = "senescent";
+      c.stress = Math.min(100, c.stress + 0.9 * dt);
+    } else {
+      c.ageCategory = "critical";
+      c.stress = Math.min(100, c.stress + 1.8 * dt);
+    }
+    if (lifeRatio >= 0.9 || c.ageCategory === "critical") {
+      if (!c.criticalAlertTriggered) {
+        c.criticalAlertTriggered = true;
+        addLogEntry("CREW", `⚠️ KRITISCHE SENESZENZ: ${c.name} (${c.species}) erreicht das Ende der natürlichen Lebensspanne! Nutze [\uD83D\uDC89] im Party-HUD vor dem Zelltod!`);
+      }
+    }
+    if (c.age >= maxLife) {
+      triggerCrewDeathNotification(c.name, c.species, c.avatarIcon || "\uD83D\uDC64");
+      addLogEntry("SYSTEM", `⚰️ BIOLOGISCHER ZELLTOD: ${c.name} (${c.species}) ist an Altersschwäche gestorben. Biomasse resorbiert (+45 Bio-Energie).`);
+      STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 45);
+      STATE.loneliness = Math.min(100, STATE.loneliness + 20);
+      STATE.crew.forEach((other) => {
+        if (other !== c) {
+          other.stress = Math.min(100, other.stress + 20);
+          other.illusionStability = Math.max(0, other.illusionStability - 15);
+        }
+      });
+      STATE.crew.splice(i, 1);
+      calculateCrewBuffs();
+      continue;
+    }
+    const decayRate = (0.35 + c.stress * 0.006) * dt;
+    c.illusionStability = Math.max(0, c.illusionStability - decayRate);
+    const disp = c.disposition || "scholarly";
+    const paradigmStressBonus = (STATE.paradigmModifiers?.stressModifier || 0) * dt;
+    if (STATE.primaryParadigm === "domination") {
+      if (STATE.mentalEnergy <= 10) {
+        c.stress = Math.min(100, c.stress + 5 * dt);
+        c.thought = "Wut flammt auf: 'Das psionische Joch schwächelt... MEUTEREI!'";
+        if (Math.random() < 0.006) {
+          addLogEntry("DOKTRIN", `⚠️ MEUTEREI-ALARM: ${c.name} spürt schwindende Unterwerfungskraft und sabotiert!`);
+        }
+      }
+    } else if (STATE.primaryParadigm === "deception") {
+      if (disp === "scholarly" && !STATE.telepathyActive) {
+        c.illusionStability = Math.max(0, c.illusionStability - 0.5 * dt);
+        if (c.illusionStability < 55) {
+          c.thought = "Misstrauisch: 'Diese Station ist eine Illusion... die Sensordaten sind eine Schleife!'";
+        }
+      }
+    } else if (STATE.primaryParadigm === "symbiosis") {
+      STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 0.15 * dt);
+    }
+    c.stress = Math.max(0, Math.min(100, c.stress + paradigmStressBonus));
+    if (STATE.telepathyActive && STATE.mentalEnergy > 0) {
+      c.stress = Math.max(0, c.stress - 7.5 * dt);
+      c.illusionStability = Math.min(100, c.illusionStability + 8 * dt);
+      c.status = "Traum-Trance";
+      c.thought = "Fühlt eine warme, beruhigende Welle... 'Alles ist friedlich.'";
+    } else {
+      if (c.illusionStability < 35) {
+        c.stress = Math.min(100, c.stress + (4.5 + speedStressModifier) * dt);
+        c.status = "Panik";
+        c.thought = "Verzweifelt: 'Die Wände pulsieren... das ist keine Station!'";
+      } else if (c.illusionStability < 65) {
+        c.stress = Math.min(100, c.stress + (1.2 + speedStressModifier) * dt);
+        c.status = "Misstrauisch";
+        c.thought = "Stutzt: 'Höre ich ein Atmen in den Lüftungsschächten?'";
+      } else {
+        c.stress = Math.max(0, c.stress - 2 * dt);
+        c.status = "Arbeitet";
+        if (c.ageCategory === "senescent") {
+          c.thought = "Erschöpft: 'Die Jahre vergehen... aber die Sterne bleiben ewig.'";
+        } else {
+          c.thought = "Konzentriert: 'Sternenkartierung verläuft nach Plan.'";
+        }
+      }
+    }
+    if (!isSynthetic(c)) {
+      if (isDehydrated) {
+        c.stress = Math.min(100, c.stress + 1.2 * dt);
+        c.illusionStability = Math.max(0, c.illusionStability - 1 * dt);
+      }
+      if (isStarving) {
+        c.stress = Math.min(100, c.stress + 0.9 * dt);
+        c.age = (c.age || 0) + 0.5 * dt;
+      }
+      if (!isDehydrated && !isStarving) {
+        c.stress = Math.max(0, c.stress - 0.25 * dt);
+      }
+    }
+    if (c.illusionStability >= 50) {
+      if (c.role === "engineer") {
+        STATE.health = Math.min(STATE.maxHealth, STATE.health + 0.25 * dt);
+      } else if (c.role === "biologist") {
+        STATE.bioRes += 0.1 * dt;
+      } else if (c.role === "psychologist") {
+        STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + 1.5 * dt);
+      }
+    }
+    if (c.stress >= 85) {
+      c.escalationStage = 3;
+      c.connectionStatus = "severed";
+      if (c.crisisTimer !== undefined && c.crisisTimer > 0 && !c.crisisActive) {
+        c.crisisTimer = Math.max(0, c.crisisTimer - dt);
+      } else if (!c.crisisActive) {
+        c.crisisActive = true;
+        c.crisisTimer = 15;
+        addLogEntry("CREW", `⚠️ KRISEN-WARNUNG: ${c.name} steht vor einem Nervenzusammenbruch! Sabotage in 15s – Beruhige den Geist via [LEERTASTE] oder Traum-Kern!`);
+      } else {
+        c.crisisTimer = Math.max(0, c.crisisTimer - dt);
+        if (c.crisisTimer <= 0) {
+          triggerCrewSabotageEvent(c);
+        }
+      }
+    } else if (c.stress >= 70) {
+      c.escalationStage = 2;
+      c.connectionStatus = "severed";
+      if (c.crisisActive && c.stress < 80) {
+        c.crisisActive = false;
+        c.crisisTimer = undefined;
+        addLogEntry("CREW", `✨ KRISE ABGEWENDET: ${c.name} hat sich beruhigt. Sabotagegefahr gebannt.`);
+      }
+      c.status = "Verbindung gekappt";
+    } else if (c.stress >= 45) {
+      c.escalationStage = 1;
+      c.connectionStatus = "dissonant";
+      if (c.crisisActive) {
+        c.crisisActive = false;
+        c.crisisTimer = undefined;
+      }
+    } else {
+      c.escalationStage = 1;
+      c.connectionStatus = "connected";
+      if (c.crisisActive) {
+        c.crisisActive = false;
+        c.crisisTimer = undefined;
+      }
+    }
+  }
+  if (STATE.telepathyActive) {
+    const drain = 8.5 * (STATE.paradigmModifiers?.mentalDrainMult || 1);
+    STATE.mentalEnergy = Math.max(0, STATE.mentalEnergy - drain * dt);
+    if (STATE.mentalEnergy === 0) {
+      toggleTelepathy();
+      addLogEntry("SYSTEM", "Mentale Reserven erschöpft! Telepathische Traum-Matrix flackert.");
+    }
+  } else {
+    let regenSpeed = STATE.mutations.synapses && STATE.mutations.synapses.purchased ? 7 * dt : 3.5 * dt;
+    if (isTraumaActive("echo_paranoia")) {
+      regenSpeed *= 0.75;
+    }
+    STATE.mentalEnergy = Math.min(STATE.maxMentalEnergy, STATE.mentalEnergy + regenSpeed);
+  }
+  STATE.crewDialogueTimer -= dt;
+  if (STATE.crewDialogueTimer <= 0 && STATE.crew.length >= 2) {
+    STATE.crewDialogueTimer = 20 + Math.random() * 8;
+    triggerMultiCrewDialogue();
+  }
+  deckLiveUpdateTimer += dt;
+  if (deckLiveUpdateTimer >= 0.2) {
+    deckLiveUpdateTimer = 0;
+    renderCrewUI(false);
+  }
+}
+function rejuvenateCrewMember(id) {
+  const member = STATE.crew.find((c) => c.id === id);
+  if (!member)
+    return;
+  const stationCounts = getStationCrewCounts();
+  const bioDiscount = Math.min(0.5, stationCounts.bio_incubator * 0.15);
+  const requiredBio = Math.round(20 * (1 - bioDiscount));
+  const requiredRes = Math.round(10 * (1 - bioDiscount));
+  if (STATE.bioEnergy < requiredBio || STATE.bioRes < requiredRes) {
+    addLogEntry("SYSTEM", `Zu wenig Bio-Energie oder Biomasse für Zell-Verjüngung (benötigt ${requiredBio} Bio / ${requiredRes} Biomasse)!`);
+    return;
+  }
+  STATE.bioEnergy = Math.max(0, STATE.bioEnergy - requiredBio);
+  STATE.bioRes = Math.max(0, STATE.bioRes - requiredRes);
+  const maxLife = member.maxLifespan || 540;
+  member.age = Math.max(0, member.age - maxLife * 0.35);
+  if (member.age / maxLife < 0.85) {
+    member.criticalAlertTriggered = false;
+  }
+  member.stress = Math.max(0, member.stress - 25);
+  member.rejuvenationCount = (member.rejuvenationCount || 0) + 1;
+  playBioHarvestSound();
+  addLogEntry("SYSTEM", `\uD83D\uDC89 ZELL-REGENERATION: Telomere von ${member.name} erneuert (-35% Alter)! Kosten: ${requiredBio} Bio / ${requiredRes} Biomasse.`);
+  calculateCrewBuffs();
+  renderCrewUI(true);
+  updatePartyGrid();
+}
+function assimilateCrewMember(id) {
+  const idx = STATE.crew.findIndex((c) => c.id === id);
+  if (idx === -1)
+    return;
+  const member = STATE.crew[idx];
+  STATE.bioEnergy = Math.min(STATE.maxBioEnergy, STATE.bioEnergy + 50);
+  STATE.bioRes += 35;
+  STATE.siliconRes += 20;
+  addLogEntry("SYSTEM", `\uD83E\uDDEC GENOM-ASSIMILATION: ${member.name} (${member.species}) aufgelöst: +50 Bio-Energie, +35 Biomasse & +20 Silizium.`);
+  playCrashSound();
+  STATE.crew.splice(idx, 1);
+  calculateCrewBuffs();
+  renderCrewUI(true);
+  updatePartyGrid();
+}
+var lastRenderedDeckStructure = "";
+var deckLiveUpdateTimer = 0;
+function updateDeckLiveElements() {
+  const clusters = getSpeciesClusters();
+  clusters.forEach((cl) => {
+    const clusterEl = document.getElementById(`deck-cluster-${cl.speciesName}`);
+    if (clusterEl) {
+      let col = "#10b981";
+      if (cl.avgAgePercent < 15)
+        col = "#f43f5e";
+      else if (cl.avgAgePercent < 45)
+        col = "#fb923c";
+      const vitVal = clusterEl.querySelector(".deck-cluster-vitality-val");
+      if (vitVal) {
+        vitVal.innerText = `${cl.avgAgePercent}%`;
+        vitVal.style.color = col;
+      }
+      const stabVal = clusterEl.querySelector(".deck-cluster-stability-val");
+      if (stabVal)
+        stabVal.innerText = `${cl.avgStability}%`;
+      const stressVal = clusterEl.querySelector(".deck-cluster-stress-val");
+      if (stressVal) {
+        stressVal.innerText = `${cl.avgStress}%`;
+        stressVal.style.color = cl.avgStress > 50 ? "#ef4444" : "#f59e0b";
+      }
+    }
+  });
+  STATE.crew.forEach((c) => {
+    const card = document.getElementById(`deck-crew-card-${c.id}`);
+    if (!card)
+      return;
+    const maxLife = c.maxLifespan || 540;
+    const currentAge = Math.min(maxLife, Math.floor(c.age || 0));
+    const lifePercent = Math.max(0, Math.min(100, Math.round((1 - currentAge / maxLife) * 100)));
+    let ageLabel = "\uD83D\uDFE2 Vital";
+    let ageColor = "#00ff88";
+    if (c.ageCategory === "mature") {
+      ageLabel = "\uD83D\uDFE1 Reife";
+      ageColor = "#facc15";
+    } else if (c.ageCategory === "senescent") {
+      ageLabel = "\uD83D\uDFE0 Seneszenz";
+      ageColor = "#fb923c";
+    } else if (c.ageCategory === "critical") {
+      ageLabel = "\uD83D\uDD34 Altersschwäche";
+      ageColor = "#f43f5e";
+    }
+    const ageMin = Math.floor(currentAge / 60);
+    const ageSec = String(currentAge % 60).padStart(2, "0");
+    const maxMin = Math.floor(maxLife / 60);
+    const ageText = card.querySelector(".deck-age-text");
+    if (ageText)
+      ageText.innerText = `⏳ Alter: ${ageMin}:${ageSec} / ${maxMin}:00 Min.`;
+    const agePill = card.querySelector(".deck-age-pill");
+    if (agePill) {
+      agePill.innerText = `${ageLabel} (${lifePercent}% übrig)`;
+      agePill.style.color = ageColor;
+    }
+    const ageFill = card.querySelector(".deck-age-fill");
+    if (ageFill) {
+      ageFill.style.width = `${lifePercent}%`;
+      ageFill.style.background = ageColor;
+    }
+    const stabFill = card.querySelector(".deck-stability-fill");
+    if (stabFill)
+      stabFill.style.width = `${c.illusionStability}%`;
+    const stabVal = card.querySelector(".deck-stability-val");
+    if (stabVal)
+      stabVal.innerText = `${Math.round(c.illusionStability)}%`;
+    const stressFill = card.querySelector(".deck-stress-fill");
+    if (stressFill) {
+      stressFill.style.width = `${c.stress}%`;
+      stressFill.style.background = c.stress > 70 ? "#ef4444" : "#f59e0b";
+    }
+    const stressVal = card.querySelector(".deck-stress-val");
+    if (stressVal)
+      stressVal.innerText = `${Math.round(c.stress)}%`;
+    const thoughtEl = card.querySelector(".deck-thought-text");
+    if (thoughtEl)
+      thoughtEl.innerText = `\uD83D\uDCAD "${c.thought}"`;
+    const connBadge = card.querySelector(".deck-connection-badge");
+    if (connBadge) {
+      if (c.crisisActive && c.crisisTimer !== undefined) {
+        connBadge.innerText = `⚠️ SABOTAGE IN ${Math.ceil(c.crisisTimer)}s`;
+        connBadge.style.color = "#fff";
+        connBadge.style.background = "#ef4444";
+      } else if (c.connectionStatus === "severed") {
+        connBadge.innerText = "\uD83D\uDD12 Verbindung gekappt";
+        connBadge.style.color = "#ef4444";
+        connBadge.style.background = "rgba(239,68,68,0.15)";
+      } else if (c.connectionStatus === "dissonant") {
+        connBadge.innerText = "⚡ Dissonant";
+        connBadge.style.color = "#f59e0b";
+        connBadge.style.background = "rgba(245,158,11,0.15)";
+      } else {
+        connBadge.innerText = "✓ Verbunden";
+        connBadge.style.color = "#10b981";
+        connBadge.style.background = "rgba(16,185,129,0.15)";
+      }
+    }
+  });
+  if (STATE.psionicTraumas) {
+    const traumaBadge = document.getElementById("big-freeze-trauma-status-badge");
+    const activeCount = STATE.psionicTraumas.filter((t) => !t.healed || t.flareUp).length;
+    if (traumaBadge) {
+      traumaBadge.innerText = activeCount === 0 ? "✓ Alle Geheilt" : `${activeCount} Aktiv`;
+      traumaBadge.style.color = activeCount === 0 ? "#10b981" : "#f43f5e";
+    }
+    STATE.psionicTraumas.forEach((t) => {
+      const bar = document.getElementById(`trauma-prog-${t.id}`);
+      if (bar)
+        bar.style.width = `${t.therapyProgress}%`;
+      const val = document.getElementById(`trauma-status-${t.id}`);
+      if (val) {
+        if (t.flareUp) {
+          val.innerText = "⚠️ Rückfall (Einsamkeit)";
+          val.style.color = "#f43f5e";
+        } else if (t.healed) {
+          val.innerText = "✓ Geheilt";
+          val.style.color = "#10b981";
+        } else {
+          val.innerText = `${Math.round(t.therapyProgress)}% Verarbeitet`;
+          val.style.color = "#c084fc";
+        }
+      }
+    });
+  }
+}
+function renderCrewUI(force = false) {
+  const modal = document.getElementById("deck-modal");
+  const isModalOpen2 = modal ? modal.style.display === "flex" : false;
+  if (!isModalOpen2 && !force)
+    return;
+  const container = document.getElementById("crew-list-container");
+  const badge = document.getElementById("crew-count-badge");
+  const capText = document.getElementById("crew-capacity-text");
+  const synTitle = document.getElementById("crew-synergy-title");
+  const synDesc = document.getElementById("crew-synergy-desc");
+  const synBanner = document.getElementById("crew-synergy-banner");
+  if (badge)
+    badge.innerText = String(STATE.crew.length);
+  if (capText)
+    capText.innerText = `${STATE.crew.length} / ${STATE.maxCrewCapacity}`;
+  const uniqueRoles = new Set(STATE.crew.map((c) => c.role)).size;
+  const totalCrew = STATE.crew.length;
+  const rolesPresent = new Set(STATE.crew.map((c) => c.role));
+  const slotPilot = document.getElementById("slot-pilot");
+  const slotBio = document.getElementById("slot-biologist");
+  const slotEng = document.getElementById("slot-engineer");
+  const slotPsych = document.getElementById("slot-psychologist");
+  if (slotPilot)
+    slotPilot.className = rolesPresent.has("pilot") ? "role-slot active" : "role-slot";
+  if (slotBio)
+    slotBio.className = rolesPresent.has("biologist") ? "role-slot active" : "role-slot";
+  if (slotEng)
+    slotEng.className = rolesPresent.has("engineer") ? "role-slot active" : "role-slot";
+  if (slotPsych)
+    slotPsych.className = rolesPresent.has("psychologist") || rolesPresent.has("cryptologist") ? "role-slot active" : "role-slot";
+  const stationsGrid = document.getElementById("organ-stations-grid");
+  if (stationsGrid) {
+    const counts = getStationCrewCounts();
+    const stationKeys = ["flight_synapse", "chitin_gland", "bio_incubator", "dream_core"];
+    stationsGrid.innerHTML = stationKeys.map((key) => {
+      const st = ORGAN_STATIONS[key];
+      const cCount = counts[key] || 0;
+      return `
+                <div class="organ-station-card ${cCount > 0 ? "active" : ""}">
+                    <div class="organ-station-header">
+                        <span>${st.icon} ${st.name}</span>
+                        <span class="organ-station-count">${cCount}</span>
+                    </div>
+                    <div class="organ-station-desc">${st.description}</div>
+                </div>
+            `;
+    }).join("");
+  }
+  const lifeBadge = document.getElementById("life-support-status-badge");
+  const waterStatusEl = document.getElementById("deck-water-status");
+  const foodStatusEl = document.getElementById("deck-food-status");
+  const biologistBoostText = document.getElementById("deck-biologist-boost-text");
+  const waterRate = STATE.waterConsumptionRate || 0;
+  const foodRate = STATE.foodConsumptionRate || 0;
+  const isSyntheticMember = (c) => c.species === "Cyborg" || c.species === "Synthetisch" || c.disposition === "synthetic";
+  const organicCount = STATE.crew.filter((c) => !isSyntheticMember(c)).length;
+  if (waterStatusEl) {
+    waterStatusEl.innerHTML = `\uD83D\uDCA7 ${Math.floor(STATE.waterRes || 0)}L <span style="font-size:0.6rem; color:#94a3b8;">(-${waterRate.toFixed(2)}/s)</span>`;
+  }
+  if (foodStatusEl) {
+    foodStatusEl.innerHTML = `\uD83C\uDF5E ${Math.floor(STATE.foodRes || 0)}kg <span style="font-size:0.6rem; color:#94a3b8;">(-${foodRate.toFixed(2)}/s)</span>`;
+  }
+  if (lifeBadge) {
+    if (organicCount === 0) {
+      lifeBadge.innerText = "Synthetisch / Leer";
+      lifeBadge.style.color = "#94a3b8";
+    } else if ((STATE.waterRes || 0) <= 0 || (STATE.foodRes || 0) <= 0) {
+      lifeBadge.innerText = "⚠️ KRITISCHER MANGEL";
+      lifeBadge.style.color = "#ef4444";
+    } else {
+      lifeBadge.innerText = "✓ Stabil";
+      lifeBadge.style.color = "#10b981";
+    }
+  }
+  if (biologistBoostText) {
+    const discountPct = Math.round((STATE.mutationDiscount || 0) * 100);
+    if (discountPct > 0) {
+      biologistBoostText.innerText = `\uD83E\uDDEA Biologen-Boost aktiv: -${discountPct}% Mutationskosten`;
+      biologistBoostText.style.display = "block";
+    } else {
+      biologistBoostText.style.display = "none";
+    }
+  }
+  if (synBanner && synTitle && synDesc) {
+    if (totalCrew === 0) {
+      synBanner.className = "crew-synergy-banner";
+      synTitle.innerText = "\uD83C\uDF0C Kosmische Einsamkeit (100%)";
+      synDesc.innerText = "Keine Geister im Kollektiv. Entführe Wesen von habitablen Planeten, um Einsamkeit zu lindern.";
+    } else if (totalCrew === 1) {
+      synBanner.className = "crew-synergy-banner";
+      synTitle.innerText = `\uD83C\uDF31 Erste Bindung (${Math.round(STATE.loneliness)}% Einsamkeit)`;
+      synDesc.innerText = `1 Geist an Bord (${STATE.crew[0]?.roleName || "Begleiter"}). Finde weitere Wesen mit anderen Rollen für Synergien!`;
+    } else if (totalCrew >= 2 && uniqueRoles === 1) {
+      synBanner.className = "crew-synergy-banner";
+      synTitle.innerText = `\uD83D\uDC65 Doppelter Rollen-Fokus (${Math.round(STATE.loneliness)}% Einsamkeit)`;
+      synDesc.innerText = `${totalCrew}x selbe Rolle an Bord: Rollen-Effekt verstärkt! Finde eine andere Rolle für "Duale Resonanz".`;
+    } else if (uniqueRoles === 2) {
+      synBanner.className = "crew-synergy-banner";
+      synTitle.innerText = `✨ Duale Resonanz (${Math.round(STATE.loneliness)}% Einsamkeit)`;
+      synDesc.innerText = "2 verschiedene Rollen im Einklang! Einsamkeit stark gesenkt. Noch 1 weitere Rolle für 'Kosmische Harmonie'.";
+    } else if (uniqueRoles >= 3 || totalCrew >= 3) {
+      synBanner.className = "crew-synergy-banner harmony";
+      synTitle.innerText = "\uD83D\uDCAB Kosmische Harmonie (0% Einsamkeit)";
+      synDesc.innerText = "Diverses Trio aktiv! Einsamkeit vollständig beseitigt & passive Bio-/Mentalenergie-Regeneration online!";
+    }
+  }
+  const traumaList = document.getElementById("big-freeze-trauma-list");
+  const traumaBadge = document.getElementById("big-freeze-trauma-status-badge");
+  if (traumaList && STATE.psionicTraumas) {
+    const activeCount = STATE.psionicTraumas.filter((t) => !t.healed || t.flareUp).length;
+    if (traumaBadge) {
+      traumaBadge.innerText = activeCount === 0 ? "✓ Alle Geheilt" : `${activeCount} Aktiv`;
+      traumaBadge.style.color = activeCount === 0 ? "#10b981" : "#f43f5e";
+    }
+    traumaList.innerHTML = STATE.psionicTraumas.map((t) => {
+      const isActive = !t.healed || t.flareUp;
+      const isFlare = t.flareUp;
+      let statusText = "✓ Geheilt";
+      let statusColor = "#10b981";
+      if (isFlare) {
+        statusText = "⚠️ Rückfall (Einsamkeit)";
+        statusColor = "#f43f5e";
+      } else if (!t.healed) {
+        statusText = `${Math.round(t.therapyProgress)}% Verarbeitet`;
+        statusColor = "#c084fc";
+      }
+      return `
+                <div class="trauma-item" style="background: rgba(30,41,59,0.6); padding: 5px 7px; border-radius: 4px; border: 1px solid ${isActive ? "rgba(192,132,252,0.3)" : "rgba(16,185,129,0.3)"};">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                        <span style="font-size: 0.68rem; font-weight: 700; color: ${isActive ? "#f8fafc" : "#94a3b8"};">
+                            ${t.icon} ${t.name}
+                        </span>
+                        <span id="trauma-status-${t.id}" style="font-size: 0.60rem; font-weight: bold; color: ${statusColor};">${statusText}</span>
+                    </div>
+                    <div style="font-size: 0.58rem; color: #94a3b8; margin-bottom: 3px;">
+                        ${t.effectDescription}
+                    </div>
+                    ${!t.healed ? `
+                        <div style="height: 3px; background: rgba(0,0,0,0.5); border-radius: 2px; overflow: hidden;">
+                            <div id="trauma-prog-${t.id}" style="width: ${t.therapyProgress}%; height: 100%; background: linear-gradient(90deg, #c084fc, #38bdf8);"></div>
+                        </div>
+                    ` : ""}
+                </div>
+            `;
+    }).join("");
+  }
+  if (!container)
+    return;
+  const p = STATE.primaryParadigm || "deception";
+  const sub = STATE.activeSubCodex || "benevolent_facade";
+  const mods = STATE.paradigmModifiers || { thrustBonus: 0, stealthBonus: 0, mentalDrainMult: 1, bioRegenBonus: 0, harmonyBonus: 0 };
+  let paradigmHtml = "";
+  if (p === "neutral") {
+    if (STATE.crew.length === 0) {
+      paradigmHtml = `
+                <div class="paradigm-control-card glass-panel" style="margin-bottom: 12px; padding: 10px; border: 1px solid rgba(148,163,184,0.3); border-radius: 6px; background: rgba(15,23,42,0.85); text-align: center;">
+                    <div style="font-size: 0.78rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
+                        \uD83C\uDF0C Kosmische Isolation • Neutrale Haltung
+                    </div>
+                    <div style="font-size: 0.65rem; color: #cbd5e1; line-height: 1.4;">
+                        Najmafar schweift einsam durch das All. Ohne Kontakt zu intelligentem Leben ist noch keine Doktrin erwacht.
+                    </div>
+                </div>
+            `;
+    } else {
+      paradigmHtml = `
+                <div class="paradigm-control-card glass-panel" style="margin-bottom: 12px; padding: 10px; border: 1px solid #c084fc; border-radius: 6px; background: rgba(88,28,135,0.3); text-align: center;">
+                    <div style="font-size: 0.78rem; font-weight: 700; color: #f8fafc; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
+                        ✨ Erstkontakt: Doktrin-Entscheidung
+                    </div>
+                    <div style="font-size: 0.65rem; color: #cbd5e1; margin-bottom: 8px;">
+                        Ein fremdes Wesen ist an Bord! Wähle Najmafars prägende Gesinnung:
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+                        <button onclick="window.chooseFirstContactDoctrine('domination')" style="padding: 6px; font-size: 0.68rem; font-weight: bold; border-radius: 4px; border: 1px solid #ef4444; background: rgba(239,68,68,0.3); color: #fff; cursor: pointer;">
+                            ⚡ Herrschaft
+                        </button>
+                        <button onclick="window.chooseFirstContactDoctrine('deception')" style="padding: 6px; font-size: 0.68rem; font-weight: bold; border-radius: 4px; border: 1px solid #38bdf8; background: rgba(56,189,248,0.3); color: #fff; cursor: pointer;">
+                            \uD83D\uDD2E Täuschung
+                        </button>
+                        <button onclick="window.chooseFirstContactDoctrine('symbiosis')" style="padding: 6px; font-size: 0.68rem; font-weight: bold; border-radius: 4px; border: 1px solid #10b981; background: rgba(16,185,129,0.3); color: #fff; cursor: pointer;">
+                            \uD83C\uDF31 Symbiose
+                        </button>
+                    </div>
+                </div>
+            `;
+    }
+  } else {
+    let subOptions = [];
+    if (p === "domination") {
+      subOptions = [
+        { id: "gunboat_diplomacy", label: "⚔️\uD83E\uDD1D Ehrfurchts-Vertrag (Gewalt + Diplo)" },
+        { id: "iron_discipline", label: "⚔️⛓️ Eiserne Disziplin (Gewalt + Gewalt)" },
+        { id: "nightmare_terror", label: "⚔️\uD83D\uDC41️ Albtraum-Matrix (Gewalt + Horror)" }
+      ];
+    } else if (p === "deception") {
+      subOptions = [
+        { id: "benevolent_facade", label: "\uD83D\uDD2E\uD83E\uDD1D Falsche Utopie (Täuschung + Diplo)" },
+        { id: "illusory_matrix", label: "\uD83D\uDD2E✨ Perfekte Matrix (Hoher Stealth)" },
+        { id: "nightmare_terror", label: "\uD83D\uDD2E\uD83D\uDC41️ Albtraum-Matrix (Schockstarre)" }
+      ];
+    } else {
+      subOptions = [
+        { id: "living_symbiosis", label: "\uD83C\uDF31\uD83E\uDDEC Lebendige Symbiose (Reine Harmonie)" },
+        { id: "pragmatic_accord", label: "\uD83C\uDF31⚖️ Pragmatisches Abkommen (Diplo)" },
+        { id: "gunboat_diplomacy", label: "\uD83C\uDF31⚔️ Schutz-Pakt (Stärke + Diplo)" }
+      ];
+    }
+    let transitionHtml = "";
+    if (STATE.doctrineTransition && STATE.doctrineTransition.active) {
+      const prog = Math.min(100, Math.round(STATE.doctrineTransition.progress * 100));
+      const toNames = {
+        domination: "⚡ Herrschaft",
+        deception: "\uD83D\uDD2E Täuschung",
+        symbiosis: "\uD83C\uDF31 Symbiose",
+        neutral: "\uD83C\uDF0C Neutral"
+      };
+      const targetTitle = toNames[STATE.doctrineTransition.targetParadigm];
+      transitionHtml = `
+                <div class="doctrine-transition-card" style="margin-bottom: 8px; padding: 6px 8px; border-radius: 4px; background: rgba(88,28,135,0.4); border: 1px solid rgba(168,85,247,0.7);">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.65rem; font-weight: 700; color: #f8fafc; margin-bottom: 3px;">
+                        <span>\uD83C\uDF00 Psionische Umwälzung ➔ ${targetTitle}</span>
+                        <span style="color: #38bdf8;">${prog}%</span>
+                    </div>
+                    <div style="height: 5px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden;">
+                        <div class="transition-fill-bar" style="width: ${prog}%; height: 100%; background: linear-gradient(90deg, #a855f7, #38bdf8);"></div>
+                    </div>
+                    <div style="font-size: 0.58rem; color: #cbd5e1; margin-top: 3px;">
+                        Geisteshaltung wandelt sich... <em>(Traum-Kern & Telepathie beschleunigen)</em>
+                    </div>
+                </div>
+            `;
+    }
+    paradigmHtml = `
+            <div class="paradigm-control-card glass-panel" style="margin-bottom: 12px; padding: 8px 10px; border: 1px solid rgba(168,85,247,0.3); border-radius: 6px; background: rgba(15,23,42,0.75);">
+                ${transitionHtml}
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 0.72rem; font-weight: 700; color: #a855f7; text-transform: uppercase; letter-spacing: 0.5px;">\uD83E\uDDE0 Psionische Schiffs-Doktrin</span>
+                    <span style="font-size: 0.65rem; color: #38bdf8;">Schub: +${Math.round(mods.thrustBonus * 100)}% | Stealth: +${Math.round(mods.stealthBonus * 100)}% | Drain: x${mods.mentalDrainMult.toFixed(2)}</span>
+                </div>
+                
+                <!-- Primary Paradigm Tabs -->
+                <div class="paradigm-tabs" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-bottom: 6px;">
+                    <button class="paradigm-btn ${p === "domination" ? "active" : ""}" onclick="window.setPrimaryParadigm('domination')" style="padding: 4px 6px; font-size: 0.68rem; border-radius: 4px; border: 1px solid ${p === "domination" ? "#ef4444" : "rgba(255,255,255,0.1)"}; background: ${p === "domination" ? "rgba(239,68,68,0.25)" : "rgba(0,0,0,0.3)"}; color: #f8fafc; cursor: pointer;">
+                        ⚡ Herrschaft
+                    </button>
+                    <button class="paradigm-btn ${p === "deception" ? "active" : ""}" onclick="window.setPrimaryParadigm('deception')" style="padding: 4px 6px; font-size: 0.68rem; border-radius: 4px; border: 1px solid ${p === "deception" ? "#38bdf8" : "rgba(255,255,255,0.1)"}; background: ${p === "deception" ? "rgba(56,189,248,0.25)" : "rgba(0,0,0,0.3)"}; color: #f8fafc; cursor: pointer;">
+                        \uD83D\uDD2E Täuschung
+                    </button>
+                    <button class="paradigm-btn ${p === "symbiosis" ? "active" : ""}" onclick="window.setPrimaryParadigm('symbiosis')" style="padding: 4px 6px; font-size: 0.68rem; border-radius: 4px; border: 1px solid ${p === "symbiosis" ? "#10b981" : "rgba(255,255,255,0.1)"}; background: ${p === "symbiosis" ? "rgba(16,185,129,0.25)" : "rgba(0,0,0,0.3)"}; color: #f8fafc; cursor: pointer;">
+                        \uD83C\uDF31 Symbiose
+                    </button>
+                </div>
+
+                <!-- Sub-Codex Row -->
+                <div class="sub-codex-row" style="display: flex; gap: 4px; flex-wrap: wrap;">
+                    ${subOptions.map((opt) => `
+                        <button class="sub-codex-btn ${sub === opt.id ? "active" : ""}" onclick="window.setActiveSubCodex('${opt.id}')" style="flex: 1; padding: 3px 6px; font-size: 0.62rem; border-radius: 3px; border: 1px solid ${sub === opt.id ? "#c084fc" : "rgba(255,255,255,0.08)"}; background: ${sub === opt.id ? "rgba(192,132,252,0.3)" : "rgba(0,0,0,0.25)"}; color: ${sub === opt.id ? "#fff" : "#cbd5e1"}; cursor: pointer;">
+                            ${opt.label}
+                        </button>
+                    `).join("")}
+                </div>
+            </div>
+        `;
+  }
+  const clusters = getSpeciesClusters();
+  const useClustering = STATE.crew.length >= 6 || clusters.some((cl) => cl.count >= 4);
+  const expandedKey = getExpandedClustersKey();
+  const transKey = STATE.doctrineTransition?.active ? Math.round(STATE.doctrineTransition.progress * 10) : "none";
+  const stationKey = STATE.crew.map((c) => `${c.id}_${c.station}`).join("_");
+  const structureKey = `${p}_${sub}_${useClustering}_${expandedKey}_${transKey}_${stationKey}_` + STATE.crew.map((c) => `${c.id}_${c.ageCategory}`).join("|");
+  if (!force && structureKey === lastRenderedDeckStructure) {
+    updateDeckLiveElements();
+    return;
+  }
+  lastRenderedDeckStructure = structureKey;
+  if (STATE.crew.length === 0) {
+    container.innerHTML = paradigmHtml + `
+            <div class="matrix-empty-card">
+                <span class="highlight">Keine Vernunftbegabten Wesen</span>
+                Die psionische Traum-Matrix ist leer. Das Schiff leidet unter existenzieller kosmischer Einsamkeit.<br><br>
+                <em>Scanne habitable Planeten nach intelligentem Leben und starte eine psionische Entführung [F]!</em>
+            </div>
+        `;
+    return;
+  }
+  let html = paradigmHtml;
+  if (useClustering) {
+    clusters.forEach((cl) => {
+      let dispIcon = "\uD83D\uDD2C";
+      let dispLabel = "Wissenschaft";
+      if (cl.disposition === "martial") {
+        dispIcon = "⚔️";
+        dispLabel = "Kriegerisch";
+      } else if (cl.disposition === "empathic") {
+        dispIcon = "\uD83C\uDF44";
+        dispLabel = "Empathisch";
+      } else if (cl.disposition === "synthetic") {
+        dispIcon = "\uD83E\uDD16";
+        dispLabel = "Synthetisch";
+      } else if (cl.disposition === "lithoid") {
+        dispIcon = "\uD83D\uDCA0";
+        dispLabel = "Lithoid";
+      }
+      html += `
+                <div id="deck-cluster-${cl.speciesName}" class="species-cluster-card glass-panel" style="margin-bottom: 10px; padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: rgba(30,41,59,0.5);">
+                    <div class="species-cluster-header" onclick="window.toggleCluster('${cl.speciesName.replace(/'/g, "\\'")}')" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.2rem;">${cl.avatarIcon}</span>
+                            <div>
+                                <span style="font-weight: 700; color: ${cl.speciesColor}; font-size: 0.82rem;">${cl.speciesName}</span>
+                                <span style="font-size: 0.65rem; background: rgba(56,189,248,0.2); color: #38bdf8; padding: 1px 5px; border-radius: 3px; margin-left: 4px;">${cl.count}x Individuen</span>
+                                <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">${dispIcon} ${dispLabel}</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 6px;" onclick="event.stopPropagation()">
+                            <button class="crew-action-btn" onclick="event.stopPropagation(); window.rejuvenateCluster('${cl.speciesName.replace(/'/g, "\\'")}')" style="padding: 2px 6px; font-size: 0.62rem; cursor: pointer; background: rgba(16,185,129,0.3); border: 1px solid #10b981; color: #fff; border-radius: 3px;" title="Verjüngt alle Individuen dieser Spezies (-35% Alter)">
+                                \uD83D\uDC89 Kollektiv-Verjüngung
+                            </button>
+                            <button class="crew-action-btn" onclick="event.stopPropagation(); window.toggleCluster('${cl.speciesName.replace(/'/g, "\\'")}')" style="padding: 2px 6px; font-size: 0.62rem; cursor: pointer; background: rgba(168,85,247,0.3); border: 1px solid #a855f7; color: #fff; border-radius: 3px;">
+                                ${cl.isExpanded ? "▲ Zuklappen" : "▼ Aufklappen (" + cl.count + ")"}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Clustered Averages Bars -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 6px; font-size: 0.65rem;">
+                        <div>
+                            <span style="color: #94a3b8;">⏳ Vitalität:</span> <strong class="deck-cluster-vitality-val" style="color: #10b981;">${cl.avgAgePercent}%</strong>
+                        </div>
+                        <div>
+                            <span style="color: #94a3b8;">\uD83D\uDD2E Stabilität:</span> <strong class="deck-cluster-stability-val" style="color: #a855f7;">${cl.avgStability}%</strong>
+                        </div>
+                        <div>
+                            <span style="color: #94a3b8;">⚡ Stress:</span> <strong class="deck-cluster-stress-val" style="color: ${cl.avgStress > 50 ? "#ef4444" : "#f59e0b"};">${cl.avgStress}%</strong>
+                        </div>
+                    </div>
+
+                    <!-- Collective Station Assignment Row -->
+                    <div class="station-switch-row" onclick="event.stopPropagation()" style="margin-top: 6px; padding: 4px 0 0 0; border-top: 1px solid rgba(255,255,255,0.06);">
+                        <span style="font-size: 0.60rem; color: #94a3b8;">Kollektiv-Station:</span>
+                        <button class="station-mini-btn" onclick="window.setSpeciesClusterStation('${cl.speciesName.replace(/'/g, "\\'")}', 'flight_synapse')" title="Alle auf Flug-Synapse">\uD83D\uDE80 Flug</button>
+                        <button class="station-mini-btn" onclick="window.setSpeciesClusterStation('${cl.speciesName.replace(/'/g, "\\'")}', 'chitin_gland')" title="Alle auf Chitin-Drüse">\uD83D\uDEE1️ Chitin</button>
+                        <button class="station-mini-btn" onclick="window.setSpeciesClusterStation('${cl.speciesName.replace(/'/g, "\\'")}', 'bio_incubator')" title="Alle auf Bio-Inkubator">\uD83E\uDDEA Inkubator</button>
+                        <button class="station-mini-btn" onclick="window.setSpeciesClusterStation('${cl.speciesName.replace(/'/g, "\\'")}', 'dream_core')" title="Alle auf Traum-Kern">\uD83D\uDD2E Traum</button>
+                    </div>
+
+                    <!-- Expanded Nested Cards -->
+                    ${cl.isExpanded ? `
+                        <div class="cluster-expanded-list" style="margin-top: 8px; padding-left: 8px; border-left: 2px solid ${cl.speciesColor};">
+                            ${cl.members.map((c) => renderSingleCrewMemberHTML(c)).join("")}
+                        </div>
+                    ` : ""}
+                </div>
+            `;
+    });
+  } else {
+    STATE.crew.forEach((c) => {
+      html += renderSingleCrewMemberHTML(c);
+    });
+  }
+  container.innerHTML = html;
+}
+function renderSingleCrewMemberHTML(c) {
+  let cardClass = "crew-member";
+  if (c.illusionStability < 35 || c.stress > 70)
+    cardClass += " panic";
+  else if (c.illusionStability < 65 || c.stress > 45)
+    cardClass += " suspicious";
+  const maxLife = c.maxLifespan || 540;
+  const currentAge = Math.min(maxLife, Math.floor(c.age || 0));
+  const lifePercent = Math.max(0, Math.min(100, Math.round((1 - currentAge / maxLife) * 100)));
+  let speciesTag = "\uD83D\uDC68‍\uD83D\uDE80 Mortal";
+  if (c.speciesType === "ephemeral")
+    speciesTag = "\uD83E\uDEB2 Ephemeral";
+  else if (c.speciesType === "longlived")
+    speciesTag = "\uD83E\uDD16 Synthet";
+  else if (c.speciesType === "ancient")
+    speciesTag = "\uD83D\uDC8E Uralt";
+  let ageLabel = "\uD83D\uDFE2 Vital";
+  let ageColor = "#00ff88";
+  if (c.ageCategory === "mature") {
+    ageLabel = "\uD83D\uDFE1 Reife";
+    ageColor = "#facc15";
+  } else if (c.ageCategory === "senescent") {
+    ageLabel = "\uD83D\uDFE0 Seneszenz";
+    ageColor = "#fb923c";
+  } else if (c.ageCategory === "critical") {
+    ageLabel = "\uD83D\uDD34 Altersschwäche";
+    ageColor = "#f43f5e";
+  }
+  const ageMin = Math.floor(currentAge / 60);
+  const ageSec = String(currentAge % 60).padStart(2, "0");
+  const maxMin = Math.floor(maxLife / 60);
+  let connBadgeHtml = '<span class="deck-connection-badge" style="font-size: 0.6rem; color: #10b981; background: rgba(16,185,129,0.15); padding: 1px 5px; border-radius: 3px;">✓ Verbunden</span>';
+  if (c.crisisActive && c.crisisTimer !== undefined) {
+    connBadgeHtml = `<span class="deck-connection-badge" style="font-size: 0.6rem; color: #fff; background: #ef4444; padding: 1px 5px; border-radius: 3px; font-weight: bold;">⚠️ SABOTAGE IN ${Math.ceil(c.crisisTimer)}s</span>`;
+  } else if (c.connectionStatus === "severed") {
+    connBadgeHtml = '<span class="deck-connection-badge" style="font-size: 0.6rem; color: #ef4444; background: rgba(239,68,68,0.15); padding: 1px 5px; border-radius: 3px;">\uD83D\uDD12 Verbindung gekappt</span>';
+  } else if (c.connectionStatus === "dissonant") {
+    connBadgeHtml = '<span class="deck-connection-badge" style="font-size: 0.6rem; color: #f59e0b; background: rgba(245,158,11,0.15); padding: 1px 5px; border-radius: 3px;">⚡ Dissonant</span>';
+  }
+  const isSevered = c.connectionStatus === "severed";
+  return `
+        <div id="deck-crew-card-${c.id}" class="${cardClass}" style="margin-bottom: 6px;">
+            <div class="crew-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span class="crew-name" style="font-weight: 700; color: #f8fafc; font-size: 0.8rem;">${c.name}</span>
+                    <span style="font-size: 0.65rem; color: #94a3b8;">(${speciesTag})</span>
+                    ${connBadgeHtml}
+                </div>
+                <span class="crew-role-badge">${c.roleIcon || "\uD83D\uDC64"} ${c.roleName || c.role}</span>
+            </div>
+            <div class="crew-buff-tag" style="${isSevered ? "color: #94a3b8; text-decoration: line-through;" : ""}">
+                ⚡ ${c.buffDesc || c.perk}${isSevered ? " (Inaktiv - Geist getrennt)" : ""}
+            </div>
+
+            <!-- Lifespan & Biological Age Bar -->
+            <div class="lifespan-container" style="margin: 4px 0; background: rgba(15,23,42,0.6); padding: 4px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.06);">
+                <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: #cbd5e1; margin-bottom: 2px;">
+                    <span class="deck-age-text">⏳ Alter: ${ageMin}:${ageSec} / ${maxMin}:00 Min.</span>
+                    <span class="deck-age-pill" style="color: ${ageColor}; font-weight: 700;">${ageLabel} (${lifePercent}% übrig)</span>
+                </div>
+                <div class="lifespan-bar-bg" style="height: 4px; background: rgba(0,0,0,0.5); border-radius: 2px; overflow: hidden;">
+                    <div class="deck-age-fill lifespan-bar" style="width: ${lifePercent}%; height: 100%; background: ${ageColor}; transition: width 0.3s ease;"></div>
+                </div>
+            </div>
+            
+            <div class="stability-container">
+                <span class="stability-label">Traum-Stabilität:</span>
+                <div class="stability-bar-bg">
+                    <div class="deck-stability-fill stability-bar" style="width: ${c.illusionStability}%;"></div>
+                </div>
+                <span class="deck-stability-val" style="color: #a855f7; font-size: 0.68rem; font-weight: 700;">${Math.round(c.illusionStability)}%</span>
+            </div>
+
+            <div class="stress-container" style="display: flex; align-items: center; gap: 6px;">
+                <span class="stress-label" style="width: 90px; font-size: 0.68rem; color: #94a3b8;">Stress:</span>
+                <div class="stress-bar-bg" style="flex: 1; height: 5px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden;">
+                    <div class="deck-stress-fill stress-bar" style="width: ${c.stress}%; height: 100%; background: ${c.stress > 70 ? "#ef4444" : "#f59e0b"};"></div>
+                </div>
+                <span class="deck-stress-val stress-percentage" style="font-size: 0.68rem;">${Math.round(c.stress)}%</span>
+            </div>
+
+            <div class="thought-whisper deck-thought-text ${c.illusionStability < 35 ? "terrified" : ""}">
+                \uD83D\uDCAD "${c.thought}"
+            </div>
+
+            <!-- Station Assignment & Activity -->
+            <div class="crew-station-box" style="margin: 4px 0; padding: 4px 6px; background: rgba(15,23,42,0.5); border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.63rem;">
+                    <span style="color: #94a3b8;">Station:</span>
+                    <span style="color: #38bdf8; font-weight: 600;">${c.stationName || "Organ-Station"}</span>
+                </div>
+                <div class="station-switch-row">
+                    <button class="station-mini-btn ${c.station === "flight_synapse" ? "active" : ""}" onclick="window.setCrewStation(${c.id}, 'flight_synapse')" title="\uD83D\uDE80 Flug-Synapse (+Schub & Wendigkeit)">\uD83D\uDE80 Flug</button>
+                    <button class="station-mini-btn ${c.station === "chitin_gland" ? "active" : ""}" onclick="window.setCrewStation(${c.id}, 'chitin_gland')" title="\uD83D\uDEE1️ Chitin-Drüse (Rumpfhärte & Reparatur)">\uD83D\uDEE1️ Chitin</button>
+                    <button class="station-mini-btn ${c.station === "bio_incubator" ? "active" : ""}" onclick="window.setCrewStation(${c.id}, 'bio_incubator')" title="\uD83E\uDDEA Bio-Inkubator (Verjüngung & Biomasse)">\uD83E\uDDEA Inkubator</button>
+                    <button class="station-mini-btn ${c.station === "dream_core" ? "active" : ""}" onclick="window.setCrewStation(${c.id}, 'dream_core')" title="\uD83D\uDD2E Traum-Kern (Mentale Kraft & Umwälzung)">\uD83D\uDD2E Traum</button>
+                </div>
+                <div style="font-size: 0.58rem; color: #94a3b8; font-style: italic; margin-top: 3px;">
+                    ⚙️ ${c.stationActivity || ""}
+                </div>
+            </div>
+
+            <!-- Interactive Crew Care & Action Buttons -->
+            <div class="crew-actions" style="display: flex; gap: 6px; margin-top: 6px;">
+                <button class="crew-action-btn rejuv-btn" onclick="window.rejuvenateCrew(${c.id})" title="Zell-Verjüngung: -35% Alter (Kosten: 20 Bio / 10 Biomasse)">
+                    \uD83D\uDC89 Verjüngen
+                </button>
+                <button class="crew-action-btn assimilate-btn" onclick="window.assimilateCrew(${c.id})" title="Genom-Assimilation: Löst das Wesen in +50 Bio-Energie, +35 Biomasse & +20 Silizium auf">
+                    \uD83E\uDDEC Assimilieren
+                </button>
+            </div>
+        </div>
+    `;
+}
+if (typeof window !== "undefined") {
+  window.rejuvenateCrew = (id) => rejuvenateCrewMember(id);
+  window.assimilateCrew = (id) => assimilateCrewMember(id);
+  window.toggleCluster = (speciesName) => toggleClusterExpansion(speciesName);
+  window.rejuvenateCluster = (speciesName) => rejuvenateSpeciesCluster(speciesName);
+  window.setPrimaryParadigm = (p) => setPrimaryParadigm(p);
+  window.setActiveSubCodex = (sub) => setActiveSubCodex(sub);
+  window.cyclePrimaryParadigm = () => cyclePrimaryParadigm();
+  window.setCrewStation = (id, s) => setCrewStation(id, s);
+  window.setSpeciesClusterStation = (sp, s) => setSpeciesClusterStation(sp, s);
+  window.performTherapySession = () => performTherapySession();
+}
+var crewDialogueBank = {
+  pilot_engineer: [
+    { lineA: 'Miller: "Petrov, diese biomolekularen Trägheitsdämpfer... das Schiff richtet die Schubvektoren aus, bevor ich überhaupt lenke."', lineB: 'Petrov: "Die Naniten im Chitin leiten unsere Gedanken direkt weiter. Das ist kein Raumschiff, das ist ein lebendes Cockpit."' },
+    { lineA: 'Miller: "Wie sieht die Hüllenintegrität aus, wenn wir durch Asteroidengürtel tauchen?"', lineB: 'Petrov: "Silizium-Naniten schließen Risse im Flug. Solange wir Mineralien aufnehmen, hält die organische Panzerung stand."' }
+  ],
+  biologist_psychologist: [
+    { lineA: 'Dr. Song: "Die Traum-Matrix synchronisiert unsere neuronalen REM-Phasen. Es absorbiert nicht unsere Körper, sondern unsere Gefühle."', lineB: 'Dr. Vance: "Ein psionischer Stoffwechsel. Solange wir Gelassenheit und Zuversicht ausstrahlen, ernährt sich die Entität von Harmonie statt Verzweiflung."' },
+    { lineA: 'Dr. Song: "Die Biolumineszenz an den Synapsen-Wänden pulsiert im Takt unseres Herzschlags."', lineB: 'Dr. Vance: "Ein biologischer Resonanzraum. Wir halten das Wesen am Leben – und es beschützt uns vor der tödlichen Kälte des Alls."' }
+  ],
+  cryptologist_pilot: [
+    { lineA: 'Novak: "Ich fange schwache Tachyonen-Echos aus dem nächsten Sternensystem auf. Psio-Sensorhorizont erweitert."', lineB: 'Miller: "Kurs ist korrigiert, Novak. Bringen wir uns in den nächsten planetaren Orbit."' }
+  ],
+  engineer_biologist: [
+    { lineA: 'Petrov: "Dr. Song, die organischen Leitungen um die Faltungsmembran regenerieren erstaunlich schnell."', lineB: 'Dr. Song: "Es ist ein symbiotisches Ökosystem. Jede Ressource, die wir assimilieren, stärkt die Zellwände des Schiffes."' }
+  ],
+  general: [
+    { lineA: 'Crew-Funk: "Die Traum-Matrix flüstert Erinnerungen an Sternensysteme, die Lichtjahre entfernt liegen..."', lineB: 'Crew-Funk: "Wir reisen durch das Herz einer Galaxie, die kein Mensch zuvor erblickt hat."' }
+  ]
+};
+function triggerMultiCrewDialogue() {
+  if (STATE.crew.length < 2)
+    return;
+  const hasTranslator = STATE.mutations.translator && STATE.mutations.translator.purchased;
+  const c1 = STATE.crew[Math.floor(Math.random() * STATE.crew.length)];
+  const others = STATE.crew.filter((c) => c !== c1);
+  const c2 = others[Math.floor(Math.random() * others.length)];
+  let pairKey = `${c1.role}_${c2.role}`;
+  let revPairKey = `${c2.role}_${c1.role}`;
+  let dialogues = crewDialogueBank[pairKey] || crewDialogueBank[revPairKey] || crewDialogueBank.general;
+  const dialog = dialogues[Math.floor(Math.random() * dialogues.length)];
+  const name1 = c1.name.split(" ")[1] || c1.name;
+  const name2 = c2.name.split(" ")[1] || c2.name;
+  if (hasTranslator) {
+    addLogEntry("CREW", dialog.lineA.replace("Miller", name1).replace("Petrov", name2).replace("Dr. Song", c1.name).replace("Dr. Vance", c2.name).replace("Novak", name1));
+    setTimeout(() => {
+      addLogEntry("CREW", dialog.lineB.replace("Miller", name1).replace("Petrov", name2).replace("Dr. Song", c1.name).replace("Dr. Vance", c2.name).replace("Novak", name2));
+    }, 3200);
+  } else {
+    addLogEntry("CREW", `[Verschlüsselter Datenstrom zwischen ${c1.name} & ${c2.name}... Dschinn-Übersetzer benötigt!]`);
+  }
+}
+
+// src/ui/evolution-tree.ts
+var MUTATION_DEFINITIONS = {
+  nucleus: {
+    key: "nucleus",
+    name: "Najmafars Herzzelle",
+    shortName: "Herzzelle",
+    branch: "nucleus",
+    branchLabel: "Najmafars Zerebrum",
+    branchColor: "#f43f5e",
+    icon: "\uD83E\uDEC0",
+    desc: "Pulsierender biometrischer Kern und Zerebral-Knotenpunkt von Najmafar.",
+    effect: "Vitales Zentrum aller neuronalen Stränge & Lebenspulse",
+    lore: "Hier schlägt Najmafars Herz in der Einsamkeit des Vakuums und speist alle biologischen Synapsen.",
+    precursor: null,
+    x: 10,
+    y: 50,
+    bioCost: 0,
+    siliconCost: 0
+  },
+  organic_siphon: {
+    key: "organic_siphon",
+    name: "Organischer Siphon",
+    shortName: "Bio-Siphon",
+    branch: "chitin",
+    branchLabel: "Chitin & Fleisch",
+    branchColor: "#10b981",
+    icon: "\uD83C\uDF31",
+    desc: "Raffinierte Biomasse-Saugkanäle und integrierte Strahlungs-Filterschichten.",
+    effect: "+35% Ernte-Geschwindigkeit • +25% Strahlungsschutz (verlangsamt strahlungsbedingten Zelltod)",
+    lore: "Fleischige Röhren saugen Mineralien und filtern kosmische Partikel direkt in den Rumpf.",
+    precursor: "nucleus",
+    x: 30,
+    y: 22,
+    bioCost: 120,
+    siliconCost: 60
+  },
+  chitin_armor: {
+    key: "chitin_armor",
+    name: "Chitin-Panzer",
+    shortName: "Chitin-Panzer",
+    branch: "chitin",
+    branchLabel: "Chitin & Fleisch",
+    branchColor: "#10b981",
+    icon: "\uD83D\uDEE1️",
+    desc: "Kristallisierte biomolekulare Chitin-Schuppen mit zusätzlicher Strahlungs-Reflexionsschicht.",
+    effect: "-50% Kollisionsschaden • +25% Strahlungsschutz (+50% kumulativ)",
+    lore: "Ein dichter Panzer aus organischen Silikaten umschließt Najmafars weiche Tentakel.",
+    precursor: "organic_siphon",
+    x: 50,
+    y: 18,
+    bioCost: 220,
+    siliconCost: 130
+  },
+  vector_tentacles: {
+    key: "vector_tentacles",
+    name: "Vektor-Tentakel",
+    shortName: "Vektor-Tentakel",
+    branch: "chitin",
+    branchLabel: "Chitin & Fleisch",
+    branchColor: "#10b981",
+    icon: "\uD83D\uDC19",
+    desc: "Verstärkte Muskelstränge und hydrodynamische Bio-Gegenstromdüsen im Vakuum.",
+    effect: "+25% Schub • +35% Wendigkeit • Hydrodynamische Bio-Bremse",
+    lore: "Muskulöse Tentakel peitschen durch das Raumkrümmungsfeld und verleihen ungeahnte Agilität.",
+    precursor: "chitin_armor",
+    x: 70,
+    y: 20,
+    bioCost: 360,
+    siliconCost: 240,
+    techCost: 10
+  },
+  blade_armor: {
+    key: "blade_armor",
+    name: "Klingen-Panzerung",
+    shortName: "Klingen-Panzer",
+    branch: "chitin",
+    branchLabel: "Chitin & Fleisch (Apex)",
+    branchColor: "#059669",
+    icon: "⚔️",
+    desc: "Rasiermesserscharfe Chitin-Stacheln und dichte bio-magnetische Schutzmembran.",
+    effect: "+35% Strahlungsschutz (bis zu 85% gesamt) • Reflektiert Nahbereichsschaden",
+    lore: "Kristalline Klingen brechen tödliche Röntgen- und Gammawellen naher Sterne vollkommen.",
+    precursor: "vector_tentacles",
+    x: 90,
+    y: 26,
+    bioCost: 550,
+    siliconCost: 420,
+    techCost: 15
+  },
+  cocoon: {
+    key: "cocoon",
+    name: "Kokon (4)",
+    shortName: "Kokon (4)",
+    branch: "cocoon",
+    branchLabel: "Neuronales Nest",
+    branchColor: "#c084fc",
+    icon: "\uD83E\uDD5A",
+    desc: "Organische Brutkammern und biometrisches Kokongewebe zur Unterbringung von 4 entführten Wesen.",
+    effect: "Basis-Kapazität: 4 Crew-Mitglieder • Schützt vor Weltraum-Hypoxie",
+    lore: "Das primäre Nestgewebe. Najmafars Zellwände formen nachgiebige Membranen für fremde Körper.",
+    precursor: "nucleus",
+    x: 28,
+    y: 50,
+    bioCost: 320,
+    siliconCost: 140
+  },
+  hivemind: {
+    key: "hivemind",
+    name: "Schwarm-Synapse (6)",
+    shortName: "Schwarm (6)",
+    branch: "cocoon",
+    branchLabel: "Neuronales Nest",
+    branchColor: "#c084fc",
+    icon: "\uD83E\uDDEC",
+    desc: "Verschaltet Nervenenden der Besatzung direkt mit Najmafars zentralem Nervenstrang.",
+    effect: "Crew-Kapazität: 6 • +20% auf alle Spezialisten-Buffs (Pilot, Bio, Ing, Psych)",
+    lore: "Feine Synapsenfäden senken sich aus der Decke herab und synchronisieren Gehirnwellen.",
+    precursor: "cocoon",
+    x: 43,
+    y: 50,
+    bioCost: 500,
+    siliconCost: 320
+  },
+  neural_cluster: {
+    key: "neural_cluster",
+    name: "Neuronale Wabe (10)",
+    shortName: "Wabe (10)",
+    branch: "cocoon",
+    branchLabel: "Neuronales Nest",
+    branchColor: "#a855f7",
+    icon: "\uD83D\uDD78️",
+    desc: "Geometrisch angeordnete Chitin-Wabenstrukturen dämpfen psionische Dissonanzen.",
+    effect: "Crew-Kapazität: 10 • Spezies-Clustering & Schutz vor Massenpanik",
+    lore: "Sechseckige Kammern isolieren divergierende mentale Schwingungen verfeindeter Spezies.",
+    precursor: "hivemind",
+    x: 58,
+    y: 50,
+    bioCost: 650,
+    siliconCost: 450,
+    techCost: 20
+  },
+  cryo_matrix: {
+    key: "cryo_matrix",
+    name: "Kryo-Matrix (20)",
+    shortName: "Kryo (20)",
+    branch: "cocoon",
+    branchLabel: "Neuronales Nest",
+    branchColor: "#a855f7",
+    icon: "❄️",
+    desc: "Organische Frost-Enzyme verlangsamen den natürlichen Zelltod um 25%.",
+    effect: "Crew-Kapazität: 20 • -25% Zelltod (verlängert Lebensdauer aller Gefangenen)",
+    lore: "Kryogene Schleimhäute kühlen den Metabolismus und frieren Telomer-Verfall ein.",
+    precursor: "neural_cluster",
+    x: 74,
+    y: 50,
+    bioCost: 950,
+    siliconCost: 750,
+    techCost: 15
+  },
+  hive_cerebrum: {
+    key: "hive_cerebrum",
+    name: "Schwarm-Zerebrum (30)",
+    shortName: "Zerebrum (30)",
+    branch: "cocoon",
+    branchLabel: "Neuronales Nest (Apex)",
+    branchColor: "#ec4899",
+    icon: "\uD83D\uDC51",
+    desc: "Vollendete psionische Schwarm-Kollimation und telepathische Verschmelzung.",
+    effect: "Crew-Kapazität: 30 • Schaltet maximale kollektive Schwarm-Resonanz frei",
+    lore: "Najmafar und die 30 Wesen verschmelzen zu einem einzigen kosmischen Über-Bewusstsein.",
+    precursor: "cryo_matrix",
+    x: 90,
+    y: 50,
+    bioCost: 1500,
+    siliconCost: 1200,
+    techCost: 30
+  },
+  telepathic_focus: {
+    key: "telepathic_focus",
+    name: "Telepathischer Fokus",
+    shortName: "Telepathie",
+    branch: "psionic",
+    branchLabel: "Psionik & Geist",
+    branchColor: "#38bdf8",
+    icon: "\uD83D\uDCE1",
+    desc: "Sub-kognitiver Sprachknoten dechiffriert fremde Frequenz-Muster und Gedanken.",
+    effect: "Automatisierte Dechiffrierung von Funksignalen & Crew-Gedanken • -30% Mentalkraft-Verbrauch",
+    lore: "Najmafar lernt die Sprachen der Sterblichen zu fühlen statt sie zu hören.",
+    precursor: "nucleus",
+    x: 30,
+    y: 78,
+    bioCost: 140,
+    siliconCost: 80
+  },
+  psionic_pulse: {
+    key: "psionic_pulse",
+    name: "Psionischer Impuls",
+    shortName: "Psio-Impuls",
+    branch: "psionic",
+    branchLabel: "Psionik & Geist",
+    branchColor: "#38bdf8",
+    icon: "⚡",
+    desc: "Verstärkt Najmafars Gedanken-Echo und erweitert die Telepathie-Reichweite.",
+    effect: "150 Max Mentalkraft • 140 LJ Gedanken-Echo Reichweite",
+    lore: "Lange bio-elektrische Tentakel ragen ins Vakuum und fangen mentale Resonanzen ferner Welten auf.",
+    precursor: "telepathic_focus",
+    x: 50,
+    y: 82,
+    bioCost: 280,
+    siliconCost: 160
+  },
+  chimera_veil: {
+    key: "chimera_veil",
+    name: "Schimären-Schleier",
+    shortName: "Schimäre",
+    branch: "psionic",
+    branchLabel: "Psionik & Geist",
+    branchColor: "#38bdf8",
+    icon: "\uD83C\uDF2B️",
+    desc: "Licht- und Sensorbeugendes Tarnfeld aus psionischen Interferenzen.",
+    effect: "+40% Tarnung (Stealth) • Stress-Immunität bei gegnerischer Sensor-Erfassung",
+    lore: "Das Schiff verschwimmt zu einer geisterhaften Fata Morgana im Lichtspektrum fremder Scanner.",
+    precursor: "psionic_pulse",
+    x: 70,
+    y: 80,
+    bioCost: 420,
+    siliconCost: 300,
+    techCost: 15
+  },
+  resonance_screech: {
+    key: "resonance_screech",
+    name: "Resonanz-Schrei",
+    shortName: "Resonanz",
+    branch: "psionic",
+    branchLabel: "Psionik & Geist (Apex)",
+    branchColor: "#0284c7",
+    icon: "\uD83D\uDCE3",
+    desc: "Vernichtende bio-akustische & psionische Schockwelle bricht künstliche Elektronik.",
+    effect: "Bio-EMP lähmt Drohnen 50% länger • Schlägt feindliche Entermannschaften in Flucht",
+    lore: "Ein ohrenbetäubender Schrei auf allen Frequenzen gleichzeitig zerreißt Schaltkreise und Verstand.",
+    precursor: "chimera_veil",
+    x: 90,
+    y: 74,
+    bioCost: 600,
+    siliconCost: 480
+  },
+  ibad: {
+    key: "ibad",
+    name: "Augen des Ibad (Melange)",
+    shortName: "Augen d. Ibad",
+    branch: "artifact",
+    branchLabel: "Kosmisches Arrakis-Relikt",
+    branchColor: "#f59e0b",
+    icon: "\uD83D\uDC41️",
+    desc: "Blau-in-blau gefärbte Sklera durch Arrakis-Melange. Prophetische Weitsicht.",
+    effect: "Harmonisiert den Geist • Heilt Psychosen & Traumata der Gefangenen",
+    lore: "Die Melange von Arrakis öffnet Najmafars Geist für Pfade der Zeit und heilt verletzte Seelen.",
+    precursor: "psionic_pulse",
+    x: 60,
+    y: 66,
+    bioCost: 0,
+    siliconCost: 0
+  }
+};
+Object.defineProperty(MUTATION_DEFINITIONS, "armor", {
+  get() {
+    return MUTATION_DEFINITIONS.chitin_armor;
+  },
+  enumerable: false,
+  configurable: true
+});
+Object.defineProperty(MUTATION_DEFINITIONS, "translator", {
+  get() {
+    return MUTATION_DEFINITIONS.telepathic_focus;
+  },
+  enumerable: false,
+  configurable: true
+});
+Object.defineProperty(MUTATION_DEFINITIONS, "synapses", {
+  get() {
+    return MUTATION_DEFINITIONS.psionic_pulse;
+  },
+  enumerable: false,
+  configurable: true
+});
+var MUTATION_CONNECTIONS = [
+  ["nucleus", "organic_siphon"],
+  ["organic_siphon", "chitin_armor"],
+  ["chitin_armor", "vector_tentacles"],
+  ["vector_tentacles", "blade_armor"],
+  ["nucleus", "cocoon"],
+  ["cocoon", "hivemind"],
+  ["hivemind", "neural_cluster"],
+  ["neural_cluster", "cryo_matrix"],
+  ["cryo_matrix", "hive_cerebrum"],
+  ["nucleus", "telepathic_focus"],
+  ["telepathic_focus", "psionic_pulse"],
+  ["psionic_pulse", "chimera_veil"],
+  ["chimera_veil", "resonance_screech"],
+  ["psionic_pulse", "ibad"]
+];
+var selectedMutationKey = "cocoon";
+var isCanvasLoopRunning = false;
+var animationFrameId = null;
+var spores = [];
+var sparks = [];
+var shockwaves = [];
+function selectMutationNode(key) {
+  if (!MUTATION_DEFINITIONS[key])
+    return;
+  selectedMutationKey = key;
+  updateEvolutionTreeUI();
+  const def = MUTATION_DEFINITIONS[key];
+  if (def) {
+    triggerSynapseShockwave(def.x, def.y, def.branchColor, 40);
+  }
+}
+function getNodeAncestors(key) {
+  const ancestors = [];
+  let current = MUTATION_DEFINITIONS[key]?.precursor;
+  while (current) {
+    ancestors.push(current);
+    current = MUTATION_DEFINITIONS[current]?.precursor || null;
+  }
+  return ancestors;
+}
+function highlightPathway(targetKey) {
+  const axons = document.querySelectorAll(".axon-path");
+  const nodes = document.querySelectorAll(".synapse-node");
+  axons.forEach((a) => a.classList.remove("path-highlight"));
+  nodes.forEach((n) => n.classList.remove("path-highlight"));
+  if (!targetKey)
+    return;
+  const ancestors = getNodeAncestors(targetKey);
+  const fullChain = [targetKey, ...ancestors];
+  fullChain.forEach((k) => {
+    const nodeEl = document.getElementById(`mut-node-${k}`);
+    if (nodeEl)
+      nodeEl.classList.add("path-highlight");
+  });
+  for (let i = 0;i < fullChain.length - 1; i++) {
+    const child = fullChain[i];
+    const parent = fullChain[i + 1];
+    const axonEl = document.getElementById(`axon-${parent}-${child}`);
+    if (axonEl)
+      axonEl.classList.add("path-highlight");
+  }
+}
+function getCubicBezierPoint(p0x, p0y, p1x, p1y, t) {
+  const dx = p1x - p0x;
+  const cx1 = p0x + dx * 0.5;
+  const cy1 = p0y;
+  const cx2 = p0x + dx * 0.5;
+  const cy2 = p1y;
+  const u = 1 - t;
+  const tt = t * t;
+  const uu = u * u;
+  const uuu = uu * u;
+  const ttt = tt * t;
+  const x = uuu * p0x + 3 * uu * t * cx1 + 3 * u * tt * cx2 + ttt * p1x;
+  const y = uuu * p0y + 3 * uu * t * cy1 + 3 * u * tt * cy2 + ttt * p1y;
+  return { x, y };
+}
+function triggerSynapseShockwave(pctX, pctY, color = "#c084fc", maxR = 70) {
+  const canvas = document.getElementById("synapse-neural-canvas");
+  if (!canvas)
+    return;
+  const w = canvas.width || 600;
+  const h = canvas.height || 440;
+  shockwaves.push({
+    x: pctX / 100 * w,
+    y: pctY / 100 * h,
+    radius: 4,
+    maxRadius: maxR,
+    alpha: 0.9,
+    color
+  });
+}
+function initEvolutionTree() {
+  const axonsGroup = document.getElementById("synapse-axons-group");
+  const nodesLayer = document.getElementById("synapse-nodes-layer");
+  if (!axonsGroup || !nodesLayer)
+    return;
+  axonsGroup.innerHTML = MUTATION_CONNECTIONS.map(([pKey, cKey]) => {
+    const p = MUTATION_DEFINITIONS[pKey];
+    const c = MUTATION_DEFINITIONS[cKey];
+    if (!p || !c)
+      return "";
+    const dx = c.x - p.x;
+    const cx1 = p.x + dx * 0.5;
+    const cy1 = p.y;
+    const cx2 = p.x + dx * 0.5;
+    const cy2 = c.y;
+    const d = `M ${p.x} ${p.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${c.x} ${c.y}`;
+    return `
+            <path id="axon-${pKey}-${cKey}" class="axon-path axon-locked axon-${c.branch}" d="${d}" data-parent="${pKey}" data-child="${cKey}" />
+        `;
+  }).join("");
+  nodesLayer.innerHTML = Object.values(MUTATION_DEFINITIONS).map((def) => {
+    const isRoot = def.key === "nucleus";
+    return `
+            <div class="synapse-node ${isRoot ? "root-nucleus" : ""} branch-${def.branch}" id="mut-node-${def.key}" data-mutation="${def.key}" style="left: ${def.x}%; top: ${def.y}%;">
+                <div class="synapse-node-ring">
+                    <span class="synapse-node-icon">${def.icon}</span>
+                    <span class="synapse-node-pulse"></span>
+                </div>
+                <div class="synapse-node-tag">
+                    <span class="synapse-node-name">${def.shortName || def.name}</span>
+                    <span class="synapse-node-badge" id="mut-badge-${def.key}">...</span>
+                </div>
+                <!-- Hidden button for backward compatibility with querySelector('.mut-btn[data-mutation="..."]') -->
+                <button class="mut-btn" data-mutation="${def.key}" style="display: none;"></button>
+            </div>
+        `;
+  }).join("");
+  const nodeEls = nodesLayer.querySelectorAll(".synapse-node");
+  nodeEls.forEach((el) => {
+    const key = el.getAttribute("data-mutation");
+    if (!key)
+      return;
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const def = MUTATION_DEFINITIONS[key];
+      const mut = STATE.mutations[key];
+      const isPurchased = Boolean(mut && mut.purchased);
+      let isPrecursorMet = true;
+      if (def && def.precursor) {
+        const prec = STATE.mutations[def.precursor];
+        isPrecursorMet = Boolean(prec && prec.purchased);
+      }
+      const canAfford = def && STATE.bioRes >= def.bioCost && STATE.siliconRes >= def.siliconCost;
+      if (def && !isPurchased && isPrecursorMet && canAfford) {
+        buyMutation(key);
+        playSynapseEvolveSound();
+        triggerSynapseShockwave(def.x, def.y, def.branchColor, 90);
+        selectMutationNode(key);
+      } else {
+        selectMutationNode(key);
+      }
+    };
+    el.onmouseenter = () => {
+      highlightPathway(key);
+      const def = MUTATION_DEFINITIONS[key];
+      if (def) {
+        const freq = 360 + def.y * 3.5;
+        playSynapseHoverSound(freq);
+      }
+    };
+    el.onmouseleave = () => {
+      highlightPathway(null);
+    };
+  });
+  spores.length = 0;
+  const sporeColors = ["#10b981", "#34d399", "#c084fc", "#a855f7", "#38bdf8", "#06b6d4", "#f43f5e"];
+  for (let i = 0;i < 42; i++) {
+    spores.push({
+      x: Math.random() * 600,
+      y: Math.random() * 440,
+      vx: (Math.random() - 0.5) * 8,
+      vy: (Math.random() - 0.5) * 8,
+      size: 1.5 + Math.random() * 2.5,
+      alpha: 0.15 + Math.random() * 0.45,
+      pulseSpeed: 1 + Math.random() * 2,
+      pulsePhase: Math.random() * Math.PI * 2,
+      color: sporeColors[Math.floor(Math.random() * sporeColors.length)]
+    });
+  }
+  startNeuralCanvasLoop();
+  updateEvolutionTreeUI();
+}
+function startNeuralCanvasLoop() {
+  if (isCanvasLoopRunning)
+    return;
+  isCanvasLoopRunning = true;
+  const canvas = document.getElementById("synapse-neural-canvas");
+  if (!canvas)
+    return;
+  let lastTimestamp = performance.now();
+  let sparkSpawnTimer = 0;
+  function renderLoop(time) {
+    if (!isCanvasLoopRunning)
+      return;
+    const dt = Math.min((time - lastTimestamp) / 1000, 0.1);
+    lastTimestamp = time;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      const rect = canvas.getBoundingClientRect();
+      if (canvas.width !== Math.floor(rect.width) || canvas.height !== Math.floor(rect.height)) {
+        canvas.width = Math.floor(rect.width) || 600;
+        canvas.height = Math.floor(rect.height) || 440;
+      }
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      const timeSec = time / 1000;
+      const membranePairs = [
+        ["nucleus", "organic_siphon"],
+        ["nucleus", "cocoon"],
+        ["nucleus", "telepathic_focus"],
+        ["organic_siphon", "cocoon"],
+        ["cocoon", "telepathic_focus"],
+        ["chitin_armor", "hivemind"],
+        ["hivemind", "psionic_pulse"],
+        ["vector_tentacles", "neural_cluster"],
+        ["neural_cluster", "chimera_veil"],
+        ["blade_armor", "hive_cerebrum"],
+        ["hive_cerebrum", "resonance_screech"]
+      ];
+      ctx.save();
+      membranePairs.forEach(([k1, k2], idx) => {
+        const n1 = MUTATION_DEFINITIONS[k1];
+        const n2 = MUTATION_DEFINITIONS[k2];
+        if (!n1 || !n2)
+          return;
+        const x1 = n1.x / 100 * w;
+        const y1 = n1.y / 100 * h;
+        const x2 = n2.x / 100 * w;
+        const y2 = n2.y / 100 * h;
+        const midX = (x1 + x2) * 0.5;
+        const midY = (y1 + y2) * 0.5 + Math.sin(timeSec * 1.5 + idx) * 8;
+        const grad = ctx.createLinearGradient(x1, y1, x2, y2);
+        grad.addColorStop(0, n1.branchColor + "20");
+        grad.addColorStop(0.5, "#a855f725");
+        grad.addColorStop(1, n2.branchColor + "20");
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.quadraticCurveTo(midX, midY, x2, y2);
+        ctx.stroke();
+      });
+      ctx.restore();
+      spores.forEach((s) => {
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+        if (s.x < 0) {
+          s.x = 0;
+          s.vx *= -1;
+        }
+        if (s.x > w) {
+          s.x = w;
+          s.vx *= -1;
+        }
+        if (s.y < 0) {
+          s.y = 0;
+          s.vy *= -1;
+        }
+        if (s.y > h) {
+          s.y = h;
+          s.vy *= -1;
+        }
+        s.pulsePhase += s.pulseSpeed * dt;
+        const dynamicAlpha = Math.max(0.05, s.alpha + Math.sin(s.pulsePhase) * 0.2);
+        ctx.save();
+        ctx.globalAlpha = dynamicAlpha;
+        ctx.fillStyle = s.color;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+      sparkSpawnTimer += dt;
+      if (sparkSpawnTimer >= 0.28) {
+        sparkSpawnTimer = 0;
+        const activeConn = MUTATION_CONNECTIONS.filter(([pKey, cKey]) => {
+          const pMut = STATE.mutations[pKey];
+          return Boolean(pMut && pMut.purchased);
+        });
+        if (activeConn.length > 0) {
+          const [pKey, cKey] = activeConn[Math.floor(Math.random() * activeConn.length)];
+          const cMut = STATE.mutations[cKey];
+          const cDef = MUTATION_DEFINITIONS[cKey];
+          const isBothPurchased = Boolean(cMut && cMut.purchased);
+          sparks.push({
+            pKey,
+            cKey,
+            t: 0,
+            speed: 0.5 + Math.random() * 0.6,
+            color: isBothPurchased ? cDef?.branchColor || "#34d399" : "#c084fc",
+            size: isBothPurchased ? 3.2 : 2.2
+          });
+        }
+      }
+      for (let i = sparks.length - 1;i >= 0; i--) {
+        const sp = sparks[i];
+        sp.t += sp.speed * dt;
+        if (sp.t >= 1) {
+          sparks.splice(i, 1);
+          continue;
+        }
+        const pDef = MUTATION_DEFINITIONS[sp.pKey];
+        const cDef = MUTATION_DEFINITIONS[sp.cKey];
+        if (!pDef || !cDef) {
+          sparks.splice(i, 1);
+          continue;
+        }
+        const p0x = pDef.x / 100 * w;
+        const p0y = pDef.y / 100 * h;
+        const p1x = cDef.x / 100 * w;
+        const p1y = cDef.y / 100 * h;
+        const pt = getCubicBezierPoint(p0x, p0y, p1x, p1y, sp.t);
+        ctx.save();
+        ctx.fillStyle = sp.color;
+        ctx.shadowColor = sp.color;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, sp.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      for (let i = shockwaves.length - 1;i >= 0; i--) {
+        const sw = shockwaves[i];
+        sw.radius += (sw.maxRadius - sw.radius) * (dt * 6);
+        sw.alpha -= dt * 1.5;
+        if (sw.alpha <= 0.02 || sw.radius >= sw.maxRadius * 0.95) {
+          shockwaves.splice(i, 1);
+          continue;
+        }
+        ctx.save();
+        ctx.strokeStyle = sw.color;
+        ctx.lineWidth = 2.5;
+        ctx.globalAlpha = Math.max(0, sw.alpha);
+        ctx.shadowColor = sw.color;
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+    animationFrameId = requestAnimationFrame(renderLoop);
+  }
+  animationFrameId = requestAnimationFrame(renderLoop);
+}
+function stopNeuralCanvasLoop() {
+  isCanvasLoopRunning = false;
+  if (animationFrameId !== null) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = null;
+  }
+}
+function updateEvolutionTreeUI() {
+  if (!STATE.mutations)
+    return;
+  let activeCount = 0;
+  const totalCount = Object.keys(MUTATION_DEFINITIONS).length;
+  const bioCountEl = document.getElementById("evo-bio-res");
+  const silCountEl = document.getElementById("evo-silicon-res");
+  const techCountEl = document.getElementById("evo-tech-res");
+  const bioBadgeEl = document.getElementById("evo-biologist-badge");
+  if (bioCountEl)
+    bioCountEl.innerText = `${Math.floor(STATE.bioRes)}`;
+  if (silCountEl)
+    silCountEl.innerText = `${Math.floor(STATE.siliconRes)}`;
+  if (techCountEl)
+    techCountEl.innerText = `${Math.floor(STATE.techRes || 0)}`;
+  const discount = STATE.mutationDiscount || 0;
+  if (bioBadgeEl) {
+    if (discount > 0) {
+      bioBadgeEl.style.display = "inline-flex";
+      bioBadgeEl.innerText = `\uD83E\uDDEA Biologen-Boost: -${Math.round(discount * 100)}%`;
+    } else {
+      bioBadgeEl.style.display = "none";
+    }
+  }
+  Object.values(MUTATION_DEFINITIONS).forEach((def) => {
+    const key = def.key;
+    const mut = STATE.mutations[key] || { purchased: false, bioCost: def.bioCost, siliconCost: def.siliconCost, techCost: def.techCost };
+    const isPurchased = Boolean(mut.purchased);
+    if (isPurchased)
+      activeCount++;
+    let isPrecursorMet = true;
+    if (def.precursor) {
+      const prec = STATE.mutations[def.precursor];
+      isPrecursorMet = Boolean(prec && prec.purchased);
+    }
+    const effBioCost = Math.round(def.bioCost * (1 - discount));
+    const effSilCost = Math.round(def.siliconCost * (1 - discount));
+    const effTechCost = Math.round((def.techCost || 0) * (1 - discount));
+    const canAfford = STATE.bioRes >= effBioCost && STATE.siliconRes >= effSilCost && (STATE.techRes || 0) >= effTechCost;
+    const isAvailable = !isPurchased && isPrecursorMet;
+    const isSelected = selectedMutationKey === key;
+    const nodeEl = document.getElementById(`mut-node-${key}`);
+    if (nodeEl) {
+      nodeEl.classList.toggle("purchased", isPurchased);
+      nodeEl.classList.toggle("available", isAvailable);
+      nodeEl.classList.toggle("affordable", isAvailable && canAfford);
+      nodeEl.classList.toggle("locked", !isPurchased && !isPrecursorMet);
+      nodeEl.classList.toggle("selected", isSelected);
+      const badgeEl = document.getElementById(`mut-badge-${key}`);
+      if (badgeEl) {
+        if (isPurchased) {
+          badgeEl.innerText = "✓ Aktiv";
+          badgeEl.style.color = "#10b981";
+        } else if (!isPrecursorMet) {
+          badgeEl.innerText = "\uD83D\uDD12 Gesperrt";
+          badgeEl.style.color = "#94a3b8";
+        } else {
+          badgeEl.innerText = effTechCost > 0 ? `${effBioCost}\uD83C\uDF3F ${effTechCost}\uD83D\uDD2C` : `${effBioCost}\uD83C\uDF3F`;
+          badgeEl.style.color = canAfford ? "#f59e0b" : "#ef4444";
+        }
+      }
+    }
+  });
+  const activeCountEl = document.getElementById("evo-active-count");
+  if (activeCountEl) {
+    activeCountEl.innerText = `${activeCount}/${totalCount}`;
+  }
+  MUTATION_CONNECTIONS.forEach(([pKey, cKey]) => {
+    const axonEl = document.getElementById(`axon-${pKey}-${cKey}`);
+    if (!axonEl)
+      return;
+    const pMut = STATE.mutations[pKey];
+    const cMut = STATE.mutations[cKey];
+    const pPurchased = Boolean(pMut && pMut.purchased);
+    const cPurchased = Boolean(cMut && cMut.purchased);
+    axonEl.classList.remove("axon-active", "axon-available", "axon-locked");
+    if (pPurchased && cPurchased) {
+      axonEl.classList.add("axon-active");
+    } else if (pPurchased) {
+      axonEl.classList.add("axon-available");
+    } else {
+      axonEl.classList.add("axon-locked");
+    }
+  });
+  renderSynapseInspector(selectedMutationKey);
+}
+function renderSynapseInspector(key) {
+  const inspector = document.getElementById("synapse-inspector-panel");
+  if (!inspector)
+    return;
+  const def = MUTATION_DEFINITIONS[key] || MUTATION_DEFINITIONS["cocoon"];
+  const mut = STATE.mutations[def.key] || { purchased: false, bioCost: def.bioCost, siliconCost: def.siliconCost };
+  const isPurchased = Boolean(mut.purchased);
+  let isPrecursorMet = true;
+  let precName = "";
+  if (def.precursor) {
+    const prec = STATE.mutations[def.precursor];
+    isPrecursorMet = Boolean(prec && prec.purchased);
+    precName = MUTATION_DEFINITIONS[def.precursor]?.name || def.precursor;
+  }
+  const discount = STATE.mutationDiscount || 0;
+  const effBioCost = Math.round(def.bioCost * (1 - discount));
+  const effSilCost = Math.round(def.siliconCost * (1 - discount));
+  const effTechCost = Math.round((def.techCost || 0) * (1 - discount));
+  const canAfford = STATE.bioRes >= effBioCost && STATE.siliconRes >= effSilCost && (STATE.techRes || 0) >= effTechCost;
+  const canMutate = !isPurchased && isPrecursorMet && canAfford;
+  let statusBadge = "";
+  if (isPurchased) {
+    statusBadge = `<span class="inspector-status-badge active">✓ VOLLSTÄNDIG ASSIMILIERT</span>`;
+  } else if (!isPrecursorMet) {
+    statusBadge = `<span class="inspector-status-badge locked">\uD83D\uDD12 GESPERRT (VORAUSSETZUNG FEHLT)</span>`;
+  } else if (canAfford) {
+    statusBadge = `<span class="inspector-status-badge ready">⚡ BEREIT ZUR SYNTHESE</span>`;
+  } else {
+    statusBadge = `<span class="inspector-status-badge insufficient">⚠️ RESSOURCEN FEHLEN</span>`;
+  }
+  const bioDeficit = Math.max(0, effBioCost - STATE.bioRes);
+  const silDeficit = Math.max(0, effSilCost - STATE.siliconRes);
+  const techDeficit = Math.max(0, effTechCost - (STATE.techRes || 0));
+  inspector.innerHTML = `
+        <div class="inspector-header">
+            <div class="inspector-icon-ring" style="border-color: ${def.branchColor}; box-shadow: 0 0 15px ${def.branchColor}66;">
+                <span class="inspector-icon">${def.icon}</span>
+            </div>
+            <div class="inspector-title-col">
+                <span class="inspector-branch-tag" style="color: ${def.branchColor};">${def.branchLabel}</span>
+                <h3 class="inspector-title">${def.name}</h3>
+                ${statusBadge}
+                ${discount > 0 ? `<div style="font-size:0.68rem; color:#38bdf8; margin-top:3px; font-weight:600;">\uD83E\uDDEA Biologen-Boost: -${Math.round(discount * 100)}% Kosten</div>` : ""}
+            </div>
+        </div>
+
+        <div class="inspector-body">
+            <!-- Lore & Description -->
+            <div class="inspector-section">
+                <div class="inspector-sec-label">\uD83E\uDDEC Biologische Mutation</div>
+                <p class="inspector-desc">${def.desc}</p>
+                <div class="inspector-lore">\uD83D\uDCAD <em>"${def.lore}"</em></div>
+            </div>
+
+            <!-- Effect & Game Mechanics -->
+            <div class="inspector-section">
+                <div class="inspector-sec-label">⚙️ Schiffs-Wirkung</div>
+                <div class="inspector-effect-pill">
+                    <span class="effect-icon">✨</span>
+                    <span class="effect-text">${def.effect}</span>
+                </div>
+            </div>
+
+            <!-- Precursor Requirement -->
+            ${def.precursor ? `
+                <div class="inspector-section">
+                    <div class="inspector-sec-label">\uD83D\uDD17 Synapsen-Verbindung</div>
+                    <div class="inspector-prec-row ${isPrecursorMet ? "met" : "missing"}">
+                        <span>${isPrecursorMet ? "✓" : "✗"} Erfordert:</span>
+                        <strong>${precName}</strong>
+                    </div>
+                </div>
+            ` : ""}
+
+            <!-- Costs -->
+            <div class="inspector-section">
+                <div class="inspector-sec-label">\uD83E\uDDEA Synthese-Kosten</div>
+                <div class="inspector-cost-grid">
+                    <div class="inspector-cost-card bio ${STATE.bioRes >= effBioCost ? "afford" : "lacking"}">
+                        <span class="cost-type">\uD83C\uDF3F Biomasse</span>
+                        <span class="cost-amount">${effBioCost} Bio</span>
+                        <span class="cost-status">${STATE.bioRes >= effBioCost ? "✓ Genügend" : `-${Math.ceil(bioDeficit)} fehlt`}</span>
+                    </div>
+                    <div class="inspector-cost-card silicon ${STATE.siliconRes >= effSilCost ? "afford" : "lacking"}">
+                        <span class="cost-type">\uD83D\uDCA0 Silizium</span>
+                        <span class="cost-amount">${effSilCost} Silizium</span>
+                        <span class="cost-status">${STATE.siliconRes >= effSilCost ? "✓ Genügend" : `-${Math.ceil(silDeficit)} fehlt`}</span>
+                    </div>
+                    ${effTechCost > 0 ? `
+                    <div class="inspector-cost-card tech ${(STATE.techRes || 0) >= effTechCost ? "afford" : "lacking"}">
+                        <span class="cost-type">\uD83D\uDD2C Technologie</span>
+                        <span class="cost-amount">${effTechCost} Tech</span>
+                        <span class="cost-status">${(STATE.techRes || 0) >= effTechCost ? "✓ Genügend" : `-${Math.ceil(techDeficit)} fehlt`}</span>
+                    </div>` : ""}
+                </div>
+            </div>
+        </div>
+
+        <!-- Action / Mutation Trigger Button -->
+        <div class="inspector-footer">
+            <button id="synapse-buy-trigger-btn" class="mut-btn synapse-inspect-buy-btn ${isPurchased ? "purchased" : ""}" data-mutation="${def.key}" ${!canMutate && !isPurchased || isPurchased ? "disabled" : ""}>
+                ${isPurchased ? "✓ Bereits assimiliert" : !isPrecursorMet ? "\uD83D\uDD12 Voraussetzung erforderlich" : canAfford ? "\uD83E\uDDEC Organ mutieren" : "⚠️ Ressourcen unzureichend"}
+            </button>
+        </div>
+    `;
+  const buyBtn = document.getElementById("synapse-buy-trigger-btn");
+  if (buyBtn && !isPurchased && isPrecursorMet && canAfford) {
+    buyBtn.onclick = () => {
+      buyMutation(def.key);
+      playSynapseEvolveSound();
+      triggerSynapseShockwave(def.x, def.y, def.branchColor, 90);
+      updateEvolutionTreeUI();
+    };
+  }
+}
+
 // src/ui/deck.ts
 function isDeckOpen() {
   const modal = document.getElementById("deck-modal");
@@ -47060,9 +47407,6 @@ function toggleOptionsModal() {
 
 // src/ui/voyager-dialog.ts
 var isDialogOpen2 = false;
-function isVoyagerDialogOpen() {
-  return isDialogOpen2;
-}
 function openVoyagerDialog() {
   const modal = document.getElementById("voyager-dialog-modal");
   if (!modal)
@@ -47138,316 +47482,6 @@ function initVoyagerDialogListeners() {
       e.preventDefault();
       closeVoyagerDialog();
     }
-  });
-}
-
-// src/ui/menu-controller.ts
-function showMainMenu() {
-  const mainMenu = document.getElementById("main-menu");
-  if (!mainMenu)
-    return;
-  mainMenu.style.display = "flex";
-  mainMenu.classList.remove("menu-hidden");
-  const resumeBtn = document.getElementById("resume-game-btn");
-  if (resumeBtn) {
-    resumeBtn.style.display = STATE.gameStarted ? "flex" : "none";
-  }
-  const startBtn = document.getElementById("start-game-btn");
-  if (startBtn) {
-    startBtn.innerText = STATE.gameStarted ? "\uD83D\uDD04 Neue Reise beginnen (Reset)" : "\uD83E\uDDEC Bewusstsein entfalten";
-  }
-  checkAndUpdateContinueButton();
-}
-function hideMainMenu() {
-  const mainMenu = document.getElementById("main-menu");
-  if (!mainMenu)
-    return;
-  mainMenu.classList.add("menu-hidden");
-  mainMenu.style.display = "none";
-}
-function toggleMainMenu() {
-  const mainMenu = document.getElementById("main-menu");
-  if (!mainMenu)
-    return;
-  const isHidden = mainMenu.classList.contains("menu-hidden") || mainMenu.style.display === "none";
-  if (isHidden) {
-    showMainMenu();
-  } else {
-    hideMainMenu();
-  }
-}
-
-// src/ui/save-modal.ts
-var isSaveModalActive = false;
-function isSaveModalOpen() {
-  const modal = document.getElementById("save-load-modal");
-  return modal ? modal.style.display === "flex" : false;
-}
-function initSaveModal(onStartGameCallback) {
-  const continueBtn = document.getElementById("continue-game-btn");
-  const saveProfilesBtn = document.getElementById("save-profiles-btn");
-  const closeBtn = document.getElementById("close-save-modal-btn");
-  const tabSlotsBtn = document.getElementById("save-tab-slots-btn");
-  const tabPresetsBtn = document.getElementById("save-tab-presets-btn");
-  const optQuickSaveBtn = document.getElementById("opt-quick-save-btn");
-  const optOpenSavesBtn = document.getElementById("opt-open-saves-btn");
-  if (continueBtn) {
-    continueBtn.addEventListener("click", async () => {
-      const latest = await getLatestSave();
-      if (latest) {
-        const res = await loadFromSlot(latest.slotId);
-        if (res.success) {
-          hideMainMenu();
-          STATE.gameStarted = true;
-          if (onStartGameCallback)
-            onStartGameCallback();
-        }
-      }
-    });
-  }
-  if (saveProfilesBtn) {
-    saveProfilesBtn.addEventListener("click", () => {
-      openSaveModal("slots");
-    });
-  }
-  if (closeBtn) {
-    closeBtn.addEventListener("click", () => {
-      closeSaveModal();
-    });
-  }
-  if (tabSlotsBtn && tabPresetsBtn) {
-    tabSlotsBtn.addEventListener("click", () => {
-      switchSaveTab("slots");
-    });
-    tabPresetsBtn.addEventListener("click", () => {
-      switchSaveTab("presets");
-    });
-  }
-  if (optQuickSaveBtn) {
-    optQuickSaveBtn.addEventListener("click", async () => {
-      await saveToSlot("slot_1", `Schnellspeicherstand (${STATE.currentSystemId === 1 ? "Sol Invictus" : "Sektor " + STATE.currentSystemId})`);
-      checkAndUpdateContinueButton();
-      renderSaveSlotsUI();
-    });
-  }
-  if (optOpenSavesBtn) {
-    optOpenSavesBtn.addEventListener("click", () => {
-      const optModal = document.getElementById("options-modal");
-      if (optModal)
-        optModal.style.display = "none";
-      openSaveModal("slots");
-    });
-  }
-  checkAndUpdateContinueButton();
-}
-async function checkAndUpdateContinueButton() {
-  const continueBtn = document.getElementById("continue-game-btn");
-  const continueText = document.getElementById("continue-game-text");
-  if (!continueBtn)
-    return;
-  try {
-    const latest = await getLatestSave();
-    if (latest) {
-      continueBtn.style.display = "flex";
-      if (continueText) {
-        continueText.innerHTML = `✨ <strong>Reise fortsetzen</strong> <span class="continue-meta">(${latest.systemName} • ${latest.crewCount}/${latest.maxCrewCapacity} Besatzung)</span>`;
-      }
-    } else {
-      continueBtn.style.display = "none";
-    }
-  } catch (e) {
-    continueBtn.style.display = "none";
-  }
-}
-function openSaveModal(initialTab = "slots") {
-  const modal = document.getElementById("save-load-modal");
-  if (!modal)
-    return;
-  isSaveModalActive = true;
-  modal.style.display = "flex";
-  switchSaveTab(initialTab);
-  renderSaveSlotsUI();
-  renderPresetsUI();
-}
-function closeSaveModal() {
-  const modal = document.getElementById("save-load-modal");
-  if (!modal)
-    return;
-  isSaveModalActive = false;
-  modal.style.display = "none";
-}
-function switchSaveTab(tab) {
-  const tabSlotsBtn = document.getElementById("save-tab-slots-btn");
-  const tabPresetsBtn = document.getElementById("save-tab-presets-btn");
-  const contentSlots = document.getElementById("save-tab-slots-content");
-  const contentPresets = document.getElementById("save-tab-presets-content");
-  if (tabSlotsBtn)
-    tabSlotsBtn.classList.toggle("active", tab === "slots");
-  if (tabPresetsBtn)
-    tabPresetsBtn.classList.toggle("active", tab === "presets");
-  if (contentSlots)
-    contentSlots.classList.toggle("active", tab === "slots");
-  if (contentPresets)
-    contentPresets.classList.toggle("active", tab === "presets");
-}
-async function renderSaveSlotsUI() {
-  const container = document.getElementById("save-slots-container");
-  if (!container)
-    return;
-  const allSaves = await listAllSaves();
-  const savesBySlot = {};
-  allSaves.forEach((s) => {
-    savesBySlot[s.slotId] = s;
-  });
-  const slotConfigs = [
-    { id: "autosave", title: "⚡ Automatischer Speicherstand", desc: "Sichert automatisch bei Hyperraum-Sprung & Evolutionen" },
-    { id: "slot_1", title: "\uD83D\uDCBE Speicherstand Slot 1", desc: "Manueller Speicherplatz" },
-    { id: "slot_2", title: "\uD83D\uDCBE Speicherstand Slot 2", desc: "Manueller Speicherplatz" },
-    { id: "slot_3", title: "\uD83D\uDCBE Speicherstand Slot 3", desc: "Manueller Speicherplatz" }
-  ];
-  container.innerHTML = "";
-  slotConfigs.forEach((slot) => {
-    const save = savesBySlot[slot.id];
-    const card = document.createElement("div");
-    card.className = `save-slot-card ${save ? "has-data" : "empty"}`;
-    if (save) {
-      const doctrineLabel = save.primaryParadigm === "symbiosis" ? "\uD83C\uDF31 Symbiose" : save.primaryParadigm === "domination" ? "⚡ Herrschaft" : save.primaryParadigm === "deception" ? "\uD83D\uDD2E Täuschung" : "\uD83D\uDCAB Neutral";
-      card.innerHTML = `
-                <div class="save-slot-main">
-                    <div class="slot-header-row">
-                        <span class="slot-title">${slot.title}</span>
-                        <span class="slot-date">\uD83D\uDCC5 ${save.dateFormatted}</span>
-                    </div>
-                    <div class="slot-name-highlight">${save.name}</div>
-                    <div class="slot-stats-row">
-                        <span class="slot-stat-chip">\uD83E\uDE90 ${save.systemName}</span>
-                        <span class="slot-stat-chip">\uD83D\uDC65 ${save.crewCount}/${save.maxCrewCapacity} Besatzung</span>
-                        <span class="slot-stat-chip">\uD83E\uDDEC ${save.bioRes} Bio &bull; \uD83D\uDC8E ${save.siliconRes} Sil</span>
-                        <span class="slot-stat-chip doctrine">${doctrineLabel}</span>
-                        <span class="slot-stat-chip health">❤️ ${save.health}% HP</span>
-                    </div>
-                </div>
-                <div class="save-slot-actions">
-                    <button class="slot-action-btn load-btn" data-slot="${slot.id}">
-                        <span>▶</span> Laden
-                    </button>
-                    ${STATE.gameStarted ? `
-                    <button class="slot-action-btn overwrite-btn" data-slot="${slot.id}">
-                        <span>\uD83D\uDCBE</span> Überschreiben
-                    </button>` : ""}
-                    <button class="slot-action-btn delete-btn" data-slot="${slot.id}" title="Löschen">
-                        ✕
-                    </button>
-                </div>
-            `;
-    } else {
-      card.innerHTML = `
-                <div class="save-slot-main">
-                    <div class="slot-header-row">
-                        <span class="slot-title">${slot.title}</span>
-                        <span class="slot-empty-badge">LEER</span>
-                    </div>
-                    <div class="slot-desc-sub">${slot.desc}</div>
-                </div>
-                <div class="save-slot-actions">
-                    ${STATE.gameStarted ? `
-                    <button class="slot-action-btn save-btn" data-slot="${slot.id}">
-                        <span>\uD83D\uDCBE</span> Jetzt Speichern
-                    </button>` : `
-                    <span class="slot-hint-text">Im Spiel speicherbar</span>`}
-                </div>
-            `;
-    }
-    container.appendChild(card);
-  });
-  container.querySelectorAll(".load-btn").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      const slotId = e.currentTarget.getAttribute("data-slot");
-      if (slotId) {
-        const res = await loadFromSlot(slotId);
-        if (res.success) {
-          closeSaveModal();
-          hideMainMenu();
-          STATE.gameStarted = true;
-        }
-      }
-    });
-  });
-  container.querySelectorAll(".save-btn, .overwrite-btn").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      const slotId = e.currentTarget.getAttribute("data-slot");
-      if (slotId) {
-        await saveToSlot(slotId);
-        checkAndUpdateContinueButton();
-        renderSaveSlotsUI();
-      }
-    });
-  });
-  container.querySelectorAll(".delete-btn").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      const slotId = e.currentTarget.getAttribute("data-slot");
-      if (slotId) {
-        await deleteSaveSlot(slotId);
-        checkAndUpdateContinueButton();
-        renderSaveSlotsUI();
-      }
-    });
-  });
-}
-function renderPresetsUI() {
-  const container = document.getElementById("presets-container");
-  if (!container)
-    return;
-  container.innerHTML = "";
-  Object.keys(PLAYTEST_PRESETS).forEach((key) => {
-    const preset = PLAYTEST_PRESETS[key];
-    const card = document.createElement("div");
-    card.className = `preset-card preset-${preset.id}`;
-    card.innerHTML = `
-            <div class="preset-card-top">
-                <div class="preset-badge">${preset.badge}</div>
-                <h3 class="preset-title">${preset.name}</h3>
-                <p class="preset-desc">${preset.description}</p>
-            </div>
-
-            <div class="preset-specs-list">
-                <div class="preset-spec-item">
-                    <span class="spec-label">\uD83D\uDC65 Besatzungs-Größe:</span>
-                    <span class="spec-val highlight">${preset.targetCrew} / ${preset.capacity} Individuen</span>
-                </div>
-                <div class="preset-spec-item">
-                    <span class="spec-label">\uD83E\uDDEA Ressourcen-Vorrat:</span>
-                    <span class="spec-val">${preset.resources.bio} Bio &bull; ${preset.resources.silicon} Silizium</span>
-                </div>
-                <div class="preset-spec-item">
-                    <span class="spec-label">\uD83E\uDDEC Mutationen freigeschaltet:</span>
-                    <span class="spec-val">${preset.mutations.length} Synapsen-Knoten</span>
-                </div>
-                <div class="preset-spec-item">
-                    <span class="spec-label">⚡ Paradigma:</span>
-                    <span class="spec-val">${preset.paradigm.toUpperCase()}</span>
-                </div>
-            </div>
-
-            <button class="preset-launch-btn" data-preset="${preset.id}">
-                <span>\uD83D\uDE80</span> Profil laden &amp; starten
-            </button>
-        `;
-    container.appendChild(card);
-  });
-  container.querySelectorAll(".preset-launch-btn").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      const presetId = e.currentTarget.getAttribute("data-preset");
-      if (presetId) {
-        const ok = await loadPlaytestPreset(presetId);
-        if (ok) {
-          closeSaveModal();
-          hideMainMenu();
-          STATE.gameStarted = true;
-          addLogEntry("SYSTEM", `Playtest-Preset "${presetId}" initialisiert. Flugbereit!`);
-        }
-      }
-    });
   });
 }
 
@@ -47622,18 +47656,6 @@ function setupControls() {
         closeShuttleExpeditionModal();
         return;
       }
-      if (isDiplomacyCommsOpen()) {
-        closeDiplomacyComms();
-        return;
-      }
-      if (isVoyagerDialogOpen()) {
-        closeVoyagerDialog();
-        return;
-      }
-      if (isJamalDialogOpen()) {
-        closeJamalDialog();
-        return;
-      }
       if (isMapOpen()) {
         toggleGalaxyMap();
         return;
@@ -47740,7 +47762,7 @@ function setupControls() {
       if (STATE.jamalShip && !STATE.jamalShipLiberated && STATE.jamalShip.position) {
         const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
         if (jamalDist <= 28) {
-          liberateJamalShip();
+          liberateJamalShip2();
           return;
         }
       }
@@ -49957,6 +49979,7 @@ function initPrologueListeners() {
 // src/main.ts
 var lastTime = 0;
 var voyagerBeaconTimer = 0;
+var zeroVelocity = new Vector3(0, 0, 0);
 function animate(time) {
   if (time === undefined) {
     requestAnimationFrame(animate);
@@ -49966,18 +49989,25 @@ function animate(time) {
     lastTime = time;
   const dt = Math.min((time - lastTime) / 1000, 0.1);
   lastTime = time;
+  const isPaused = STATE.gameStarted && isMainMenuOpen();
   if (starfieldController) {
-    starfieldController.update(dt, camera ? camera.position : STATE.playerPosition, STATE.playerVelocity);
+    if (isPaused) {
+      starfieldController.update(0, camera ? camera.position : STATE.playerPosition, zeroVelocity);
+    } else {
+      starfieldController.update(dt, camera ? camera.position : STATE.playerPosition, STATE.playerVelocity);
+    }
   }
-  if (!STATE.prologueActive) {
+  if (!STATE.prologueActive && !isPaused) {
     updateUniverseShaders(dt, camera);
     gravityCircles.forEach((c) => {
       const timePulse = Math.sin(Date.now() * 0.003 * c.pulseSpeed);
       c.mesh.material.opacity = c.baseOpacity + timePulse * (c.baseOpacity * 0.5);
     });
   }
-  updateMenagerieScene(dt);
-  if (STATE.gameStarted) {
+  if (!isPaused) {
+    updateMenagerieScene(dt);
+  }
+  if (STATE.gameStarted && !isPaused) {
     if (!STATE.prologueActive) {
       processInput(dt);
       updatePhysics(dt);
@@ -50076,9 +50106,7 @@ function setupMenuListeners() {
     document.body.classList.add("game-started");
     if (resumeBtn)
       resumeBtn.style.display = "flex";
-    if (!isMusicPlaying() && !isMusicUserMuted()) {
-      toggleMusic(true);
-    }
+    playIngameTheme();
     renderDirectives();
   });
   if (startBtn) {
@@ -50109,10 +50137,9 @@ function setupMenuListeners() {
         }
       }
       renderDirectives();
+      playIngameTheme();
       triggerPrologueSequence(() => {
-        if (!isMusicPlaying() && !isMusicUserMuted()) {
-          toggleMusic(true);
-        }
+        playIngameTheme();
         addLogEntry("SYSTEM", "Biologisches Raumschiff erwacht. Sternensystem Perseus-Rand erreicht.");
         addLogEntry("SYSTEM", "Psionische Sensoren online. Erkunde die Planeten des Systems nach Lebenszeichen.");
       });

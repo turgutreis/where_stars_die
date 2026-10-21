@@ -4130,6 +4130,70 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         DialogueEngine.closeDialogue();
         expect(DialogueEngine.isDialogOpen()).toBe(false);
     });
+
+    test("52. Main Menu Dialogue Preservation, Simulation Pause Guarantee & Soundtrack Transition (Bugticket #1)", () => {
+        // 1. Audio track transitions between Main Menu (Track 0) and In-Game (Track 1+)
+        const { 
+            playMainMenuTheme, 
+            playIngameTheme, 
+            getCurrentTrackIndex, 
+            getCurrentTrack, 
+            selectTrackIndex, 
+            QUANTUM_PLAYLIST 
+        } = require('../src/engine/audio');
+
+        expect(QUANTUM_PLAYLIST[0].id).toBe('main_menu_theme');
+        expect(QUANTUM_PLAYLIST[1].id).toBe('void_theme');
+
+        // Play main menu theme
+        playMainMenuTheme(true);
+        expect(getCurrentTrackIndex()).toBe(0);
+        expect(getCurrentTrack().id).toBe('main_menu_theme');
+
+        // Transition to in-game soundtrack
+        playIngameTheme(true);
+        expect(getCurrentTrackIndex()).toBe(1);
+        expect(getCurrentTrack().id).toBe('void_theme');
+
+        // Custom player track selection in-game (e.g. Track 2: outer_rim)
+        selectTrackIndex(2);
+        expect(getCurrentTrackIndex()).toBe(2);
+
+        // Opening main menu switches to track 0
+        playMainMenuTheme();
+        expect(getCurrentTrackIndex()).toBe(0);
+
+        // Resuming game returns to the player's last active in-game track (Track 2)
+        playIngameTheme();
+        expect(getCurrentTrackIndex()).toBe(2);
+
+        // 2. Dialogue persistence across Main Menu pause
+        const { DialogueEngine } = require('../src/systems/dialogue');
+        const { showMainMenu, hideMainMenu, isMainMenuOpen } = require('../src/ui/menu-controller');
+
+        STATE.gameStarted = true;
+        DialogueEngine.openDialogue('jamal_orbit_intro');
+        expect(DialogueEngine.isDialogOpen()).toBe(true);
+        expect(DialogueEngine.getCurrentNodeId()).toBe('jamal_orbit_intro');
+
+        // Open Main Menu (Pause)
+        showMainMenu();
+        expect(isMainMenuOpen()).toBe(true);
+
+        // Dialogue MUST remain intact and not closed/destroyed!
+        expect(DialogueEngine.isDialogOpen()).toBe(true);
+        expect(DialogueEngine.getCurrentNodeId()).toBe('jamal_orbit_intro');
+
+        // Close Main Menu (Resume)
+        hideMainMenu();
+        expect(isMainMenuOpen()).toBe(false);
+        expect(DialogueEngine.isDialogOpen()).toBe(true);
+        expect(DialogueEngine.getCurrentNodeId()).toBe('jamal_orbit_intro');
+
+        // Cleanup
+        DialogueEngine.closeDialogue();
+        expect(DialogueEngine.isDialogOpen()).toBe(false);
+    });
 });
 
 
