@@ -67,7 +67,7 @@ Doch in einem bestimmten Sektor des Kosmos wurde dieses Naturgesetz gebrochen �
 
 ### 👨‍🔬 Dr. Tariq Jamal ibn Battūta
 * Quantenphysiker und Raumfahrer in der Zukunft. Ein prinzipientreuer *Muslim in Space*, der auch in den Tiefen des Alls an seinen Werten und seinem Glauben an den Schöpfer festhält.
-* Er entdeckt auf seinem neutralen Quantencomputer die unmögliche Kombination aus extremer Rotverschiebung (die weggestoßene Galaxie) und der näherrollenden gravitativen Vollbremsung aus Richtung Sagittarius A*.
+* Er entdeckt auf seinem Quantencomputer die unmögliche Kombination aus extremer Rotverschiebung (die weggestoßene Galaxie) und der näherrollenden gravitativen Vollbremsung aus Richtung Sagittarius A*.
 * Indem er das alte, mit Lichtgeschwindigkeit reisende Licht wie ein historisches Video auswertet und mit gesperrten Archiven aus dem Jahr **2035** verknüpft, kommt er der vertuschten Wahrheit auf die Spur und befreit Najmafar auf Ceres-9.
 * Sein echtes Forschungsschiff ist die **Ar-Riḥla**.
 
