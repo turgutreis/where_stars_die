@@ -679,24 +679,28 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         renderDirectives();
         expect(hudDirectives.style.display).toBe('none'); // Still hidden!
 
-        // 6. Liberate real ship at Pier 4 -> Sets jamalShipLiberated, unlocks Questlog & advances to Step 5
-        liberateRealShipAtStation();
+        // 6. Contact INSAN Administration at Schalter 7B -> advances to Step 5
+        advanceFtueStep(5);
         expect(STATE.ftueStep).toBe(5);
+
+        // 7. Liberate real ship at Pier 4 -> Sets jamalShipLiberated, unlocks Questlog & advances to Step 6
+        liberateRealShipAtStation();
+        expect(STATE.ftueStep).toBe(6);
         expect(STATE.jamalShipLiberated).toBe(true);
         renderDirectives();
         expect(hudDirectives.style.display).not.toBe('none'); // UNLOCKED & VISIBLE!
 
-        // 7. Galactic Transit: Warp jump to inhabited world -> Step 6 (Der erste Wirt)
-        advanceFtueStep(6);
-        expect(STATE.ftueStep).toBe(6);
-
-        // 8. Host abduction completed -> Step 7 (Traum-Matrix & Organe)
+        // 8. Galactic Transit: Warp jump to inhabited world -> Step 7 (Der erste Wirt)
         advanceFtueStep(7);
         expect(STATE.ftueStep).toBe(7);
 
-        // 9. Bio-deck stabilization -> Completes FTUE (Step 8)
+        // 9. Host abduction completed -> Step 8 (Traum-Matrix & Organe)
         advanceFtueStep(8);
         expect(STATE.ftueStep).toBe(8);
+
+        // 10. Bio-deck stabilization -> Completes FTUE (Step 9)
+        advanceFtueStep(9);
+        expect(STATE.ftueStep).toBe(9);
         expect(STATE.ftueCompleted).toBe(true);
     });
 
@@ -3982,6 +3986,10 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.jamalShip.name).toContain("PIER 4 - BESCHLAGNAHMT");
 
         // Open arrival at depot dialogue
+        QuestManager.advanceQuest('prologue_jamal_ship', 3);
+        advanceFtueStep(4);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.stage).toBe(3);
+
         openNpcDialogue('insan_depot_arrival');
         expect(getCurrentDialogueNodeId()).toBe('insan_depot_arrival');
 
@@ -3990,6 +3998,8 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         handleDialogueChoice('insan_station_bypass_plan');
         expect(getCurrentDialogueNodeId()).toBe('insan_station_bypass_plan');
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.stage).toBe(4);
+        expect(STATE.ftueStep).toBe(5);
 
         // 10. Liberate impounded Voyager 2 probe
         handleDialogueChoice('liberate_voyager_probe');
@@ -4033,7 +4043,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         const questDef = QuestManager.getQuest('prologue_jamal_ship');
         expect(questDef).toBeDefined();
         expect(questDef!.title).toBe("Jamals Forschungsschiff");
-        expect(questDef!.stages.length).toBe(5);
+        expect(questDef!.stages.length).toBe(6);
 
         // Start quest
         const progress = QuestManager.startQuest('prologue_jamal_ship');
@@ -4052,6 +4062,16 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         QuestManager.advanceQuest('prologue_jamal_ship', 2);
         expect(progress!.currentStage).toBe(2);
         expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.title).toContain("INSAN-Abschleppstation");
+
+        // Advance to stage 3 (arrive at depot, locate INSAN administration station)
+        QuestManager.advanceQuest('prologue_jamal_ship', 3);
+        expect(progress!.currentStage).toBe(3);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.title).toContain("INSAN-Station & Verwaltung orten");
+
+        // Advance to stage 4 (consulted administration at Schalter 7B, proceed to Pier 4)
+        QuestManager.advanceQuest('prologue_jamal_ship', 4);
+        expect(progress!.currentStage).toBe(4);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.title).toContain("Echtes Forschungsschiff bergen");
 
         // Complete quest -> awards rewards from JSON (spice: 50, silicon: 60)
         QuestManager.completeQuest('prologue_jamal_ship');
@@ -4213,6 +4233,92 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(isMainMenuOpen()).toBe(false);
         expect(STATE.prologueActive).toBe(true);
         expect(prologueCompleted).toBe(false);
+    });
+
+    test("53. INSAN Depot Arrival, Orientation & Administration Interaction (QuestMarker, Schalter 7B Bureaucracy & Pier 4 Liberation)", () => {
+        const { QuestManager } = require('../src/systems/quests');
+        const { DialogueEngine } = require('../src/systems/dialogue');
+        const { updateVoyagerHUDTracker, advanceFtueStep, renderDirectives } = require('../src/ui/directives');
+        const { spawnSystemSpaceStations } = require('../src/procedural/space-stations');
+        const { spawnJamalMissionEntities } = require('../src/systems/universe');
+        const { openInsanAdministrationDialogue } = require('../src/ui/jamal-dialog');
+
+        // Reset state
+        STATE.jamalMissionActive = true;
+        STATE.jamalShipLiberated = false;
+        STATE.insanArrivalSeen = false;
+        STATE.playerPosition = new THREE.Vector3(0, 0, 0);
+        STATE.shipHeading = 0;
+        STATE.ftueStep = 3;
+
+        QuestManager.startQuest('prologue_jamal_ship');
+        QuestManager.advanceQuest('prologue_jamal_ship', 2);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.stage).toBe(2);
+
+        // 1. Simulate arrival at INSAN-Verwahrstelle Zeta-9
+        STATE.currentSystemId = 77;
+        const mockDepotPlanet: any = {
+            name: "Zeta-9 Zentral-Depot (Pier 4)",
+            size: 4.2,
+            species: {
+                hasSentient: true,
+                name: "INSAN-Verwaltungskollektiv",
+                population: 500000,
+                techLevel: "Automated Bureaucracy"
+            },
+            mesh: { position: new THREE.Vector3(100, 0, 100) },
+            position: new THREE.Vector3(100, 0, 100)
+        };
+
+        spawnSystemSpaceStations([mockDepotPlanet]);
+        spawnJamalMissionEntities(mockDepotPlanet, true);
+
+        // Verify INSAN Administrative Station spawned in orbit
+        const insanStation = STATE.spaceStations.find(s => (s as any).isInsanStation || s.name.includes("INSAN"));
+        expect(insanStation).toBeDefined();
+        expect(insanStation!.name).toContain("INSAN-Hauptverwaltung Zeta-9 (Schalter 7B)");
+        expect(insanStation!.commanderName).toContain("Verwaltungs-Automaton INSAN-Zeta");
+
+        // System arrival advances quest to stage 3: Orient & locate INSAN administration
+        QuestManager.advanceQuest('prologue_jamal_ship', 3);
+        advanceFtueStep(4);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.stage).toBe(3);
+        expect(STATE.ftueStep).toBe(4);
+
+        // Verify Nav Tracker targets the INSAN Station (Schalter 7B)
+        const trackerTitleEl = document.getElementById('voyager-tracker-title') as HTMLElement;
+        const trackerDistEl = document.getElementById('voyager-nav-dist') as HTMLElement;
+        updateVoyagerHUDTracker();
+        expect(trackerTitleEl.innerText).toBe("INSAN-STATION (SCHALTER 7B)");
+        expect(parseFloat(trackerDistEl.innerText)).toBeGreaterThan(0);
+
+        // 2. Player approaches station (< 30 AE) and speaks with administration
+        openInsanAdministrationDialogue();
+        expect(getCurrentDialogueNodeId()).toBe('insan_depot_arrival');
+        expect(STATE.insanArrivalSeen).toBe(true);
+
+        // Talk to the bureaucracy automaton at Schalter 7B
+        handleDialogueChoice('insan_station_bureaucracy');
+        expect(getCurrentDialogueNodeId()).toBe('insan_station_bureaucracy');
+
+        // Tariq presents the EMP-Bypass plan -> automatically advances quest to stage 4 (Pier 4)
+        handleDialogueChoice('insan_station_bypass_plan');
+        expect(getCurrentDialogueNodeId()).toBe('insan_station_bypass_plan');
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.stage).toBe(4);
+        expect(STATE.ftueStep).toBe(5);
+
+        // Nav Tracker now switches focus to Pier 4!
+        updateVoyagerHUDTracker();
+        expect(trackerTitleEl.innerText).toBe("ECHTE AR-RIḤLA (PIER 4)");
+
+        // 3. Liberate real ship at Pier 4
+        liberateRealShipAtStation();
+        expect(STATE.jamalShipLiberated).toBe(true);
+        expect(STATE.jamalMissionCompleted).toBe(true);
+        expect(QuestManager.isQuestCompleted('prologue_jamal_ship')).toBe(true);
+        expect(STATE.ftueStep).toBe(6);
+
+        DialogueEngine.closeDialogue();
     });
 });
 

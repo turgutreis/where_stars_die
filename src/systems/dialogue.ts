@@ -18,10 +18,20 @@ const dialogueRegistry: Record<string, DialogueNode> = { ...(dialoguesData as Re
 type ActionHandler = (option?: DialogueOption) => void;
 const actionHandlers: Record<string, ActionHandler> = {};
 
+// Node open listeners registry
+type NodeOpenListener = (nodeId: string) => void;
+const nodeOpenListeners: NodeOpenListener[] = [];
+
 let isDialogOpen = false;
 let currentNodeId: string = 'jamal_orbit_intro';
 
 export class DialogueEngine {
+    /**
+     * Registers a listener triggered whenever a dialogue node is opened.
+     */
+    static onNodeOpened(listener: NodeOpenListener): void {
+        nodeOpenListeners.push(listener);
+    }
     /**
      * Registers additional dialogue nodes dynamically.
      */
@@ -75,6 +85,10 @@ export class DialogueEngine {
 
         currentNodeId = nodeId;
         isDialogOpen = true;
+
+        nodeOpenListeners.forEach(fn => {
+            try { fn(nodeId); } catch (e) { console.error(e); }
+        });
 
         // Play contextual sound
         try {

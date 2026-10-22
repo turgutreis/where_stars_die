@@ -19,6 +19,7 @@ import {
     initJamalDialogListeners, 
     openNpcDialogue, 
     triggerJamalShipScannedDialogue, 
+    openInsanAdministrationDialogue,
     isJamalDialogOpen, 
     closeJamalDialog 
 } from '../ui/jamal-dialog';
@@ -199,11 +200,19 @@ export function setupControls() {
             if (STATE.spaceStations) {
                 const nearbyStation = STATE.spaceStations.find(s => {
                     const pos = s.mesh ? s.mesh.position : s.position;
-                    return pos && STATE.playerPosition.distanceTo(pos) <= 25;
+                    return pos && STATE.playerPosition.distanceTo(pos) <= 30;
                 });
-                if (nearbyStation && !nearbyStation.scanned) {
-                    triggerScanStart();
-                    return;
+                if (nearbyStation) {
+                    if ((nearbyStation as any).isInsanStation || nearbyStation.name.includes("INSAN")) {
+                        if (!STATE.jamalShipLiberated) {
+                            openInsanAdministrationDialogue();
+                            return;
+                        }
+                    }
+                    if (!nearbyStation.scanned) {
+                        triggerScanStart();
+                        return;
+                    }
                 }
             }
 
@@ -496,6 +505,14 @@ export function setupTargetRaycasting() {
                 });
                 if (targetStation) {
                     setLockedTarget(targetStation);
+                    if ((targetStation as any).isInsanStation || targetStation.name.includes("INSAN")) {
+                        const dist = STATE.playerPosition.distanceTo(targetStation.position);
+                        if (dist <= 30 && !STATE.jamalShipLiberated) {
+                            openInsanAdministrationDialogue();
+                        } else {
+                            addLogEntry("NAV", `INSAN-Hauptverwaltung Zeta-9 anvisiert (${dist.toFixed(1)} AE). Fliege heran (< 30 AE) und drücke [F] für Schalter 7B.`);
+                        }
+                    }
                     return;
                 }
             }

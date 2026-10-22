@@ -29718,6 +29718,7 @@ var STATE = {
   voyagerLiberated: false,
   jamalIntroModalSeen: false,
   jamalLiberatedModalSeen: false,
+  insanArrivalSeen: false,
   activeQuests: {},
   spaceStations: [],
   stealthActive: false,
@@ -33840,6 +33841,16 @@ var quests_default = {
       },
       {
         stage: 3,
+        title: "INSAN-Station & Verwaltung orten",
+        instruction: "Fliege zur INSAN-Verwahrstelle Zeta-9 & sprich mit der Verwaltung [F]",
+        hint: "Orte die Hauptstation im Schrottfeld von Zeta-9. Schalter 7B verwaltet alle beschlagnahmten Schiffe.",
+        objective: {
+          type: "dialogue_completed",
+          nodeId: "insan_station_bureaucracy"
+        }
+      },
+      {
+        stage: 4,
         title: "Echtes Forschungsschiff bergen",
         instruction: "Befreie die echte Ar-Riḥla an Pier 4 & rette die abgeschleppte Voyager-Sonde",
         hint: "Nutze die Subraum-Interferenzen der Station, um die Verankerung zu sprengen.",
@@ -33849,7 +33860,7 @@ var quests_default = {
         }
       },
       {
-        stage: 4,
+        stage: 5,
         title: "Forschungsschiff geborgen",
         instruction: 'Echte "Ar-Riḥla" geborgen (+50 Melange) & Sensoren gekoppelt.',
         hint: "Alle Scanner- und Telemetriedaten von Dr. Tariq Jamal sind online.",
@@ -34074,26 +34085,33 @@ var FTUE_DIRECTIVES = [
   {
     id: 4,
     badge: "PROLOG 5",
+    title: "INSAN-Station & Verwaltung orten",
+    instruction: "Fliege zur INSAN-Verwahrstelle Zeta-9 & sprich mit der Verwaltung [F]",
+    hint: "Orte die Hauptstation im Schrottfeld. Schalter 7B verwaltet alle beschlagnahmten Schiffe."
+  },
+  {
+    id: 5,
+    badge: "PROLOG 6",
     title: "Echtes Forschungsschiff bergen",
     instruction: "Befreie die echte Ar-Riḥla an Pier 4 & rette das Voyager-Relikt",
     hint: "Sprenge die Verankerung per EMP – dies koppelt Jamals Schiffsdatenbank & schaltet das Logbuch frei!"
   },
   {
-    id: 5,
+    id: 6,
     badge: "PHASE 1",
     title: "Galaktischer Transit",
     instruction: "Öffne die Sternenkarte [M] – Kurs auf ein bewohntes Sternensystem",
     hint: "Im Startsystem gibt es keine Biosphäre. Finde ein System mit intelligentem Leben!"
   },
   {
-    id: 6,
+    id: 7,
     badge: "PHASE 2",
     title: "Der erste Wirt",
     instruction: "Scanne eine bewohnte Welt & führe eine psionische Aufnahme [F] durch",
     hint: "Nimm ein intelligentes Wesen in deine Kokon-Matrix auf, um Einsamkeit zu lindern."
   },
   {
-    id: 7,
+    id: 8,
     badge: "PHASE 3",
     title: "Traum-Matrix & Organe",
     instruction: "Öffne das Bio-Deck [TAB], weise Besatzung zu & halte [LEERTASTE] zur Stabilisierung",
@@ -34196,10 +34214,34 @@ function updateVoyagerHUDTracker() {
   const trackerEl = document.getElementById("voyager-nav-tracker");
   if (!trackerEl)
     return;
-  const titleEl = trackerEl.querySelector(".voyager-tracker-title");
+  const titleEl = document.getElementById("voyager-tracker-title") || trackerEl.querySelector(".voyager-tracker-title");
   const distEl = document.getElementById("voyager-nav-dist");
   const angleEl = document.getElementById("voyager-nav-arrow");
   const playerPos = STATE.playerPosition;
+  const isAtDepot = STATE.jamalShip && STATE.jamalShip.isRealShipAtDepot;
+  const isStageOrientation = STATE.ftueStep === 4;
+  if (isAtDepot && isStageOrientation && !STATE.jamalShipLiberated) {
+    const station = STATE.spaceStations ? STATE.spaceStations.find((s) => s.isInsanStation || s.name.includes("INSAN") || s.name.includes("Zeta-9")) : null;
+    const targetPos = station ? station.mesh ? station.mesh.position : station.position : STATE.jamalShip ? STATE.jamalShip.position : null;
+    if (targetPos) {
+      const dx = targetPos.x - playerPos.x;
+      const dz = targetPos.z - playerPos.z;
+      const dist = Math.hypot(dx, dz);
+      trackerEl.style.display = "flex";
+      if (titleEl) {
+        titleEl.innerText = "INSAN-STATION (SCHALTER 7B)";
+      }
+      if (distEl)
+        distEl.innerText = `${dist.toFixed(1)} AE`;
+      if (angleEl) {
+        const targetAngle = Math.atan2(dz, dx);
+        const heading = STATE.shipHeading || 0;
+        const relativeAngleDeg = (targetAngle - heading) * 180 / Math.PI;
+        angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
+      }
+      return;
+    }
+  }
   if (STATE.jamalMissionActive && !STATE.jamalShipLiberated && STATE.jamalShip && STATE.jamalShip.position) {
     const shipPos = STATE.jamalShip.position;
     const dx = shipPos.x - playerPos.x;
@@ -34208,7 +34250,7 @@ function updateVoyagerHUDTracker() {
     trackerEl.style.display = "flex";
     if (titleEl) {
       if (STATE.jamalShip.isRealShipAtDepot) {
-        titleEl.innerText = "ECHTE IBN BATTUTA (PIER 4)";
+        titleEl.innerText = "ECHTE AR-RIḤLA (PIER 4)";
       } else if (STATE.jamalDecoyRevealed) {
         titleEl.innerText = "KÖDER-ATTRAPPE (ALARM)";
       } else {
@@ -34627,10 +34669,14 @@ Aber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die 
 // src/systems/dialogue.ts
 var dialogueRegistry = { ...dialogues_default };
 var actionHandlers = {};
+var nodeOpenListeners = [];
 var isDialogOpen = false;
 var currentNodeId = "jamal_orbit_intro";
 
 class DialogueEngine {
+  static onNodeOpened(listener) {
+    nodeOpenListeners.push(listener);
+  }
   static registerNodes(nodes) {
     Object.assign(dialogueRegistry, nodes);
   }
@@ -34670,6 +34716,13 @@ class DialogueEngine {
     }
     currentNodeId = nodeId;
     isDialogOpen = true;
+    nodeOpenListeners.forEach((fn) => {
+      try {
+        fn(nodeId);
+      } catch (e) {
+        console.error(e);
+      }
+    });
     try {
       if (node.sound === "synapse")
         playSynapseEvolveSound();
@@ -38887,10 +38940,11 @@ function spawnSystemSpaceStations(planetsInput) {
     if (!species || !species.techLevel)
       return;
     const tech = species.techLevel;
-    if (tech === "Spacefaring" || tech === "Hyper-Advanced") {
+    const isBureaucracy = tech === "Automated Bureaucracy" || p.name.includes("Zeta-9") || p.name.includes("Pier 4");
+    if (tech === "Spacefaring" || tech === "Hyper-Advanced" || isBureaucracy) {
       const isHyper = tech === "Hyper-Advanced";
-      const stationType = isHyper ? "citadel" : "trade_hub";
-      const factionCol = isHyper ? 11032055 : 3718648;
+      const stationType = isBureaucracy ? "citadel" : isHyper ? "citadel" : "trade_hub";
+      const factionCol = isBureaucracy ? 16096779 : isHyper ? 11032055 : 3718648;
       const controller = createSpaceStationMesh(stationType, factionCol);
       const pSize = p.size || 5;
       const orbitRadius = pSize * 2.5 + 7.5;
@@ -38900,7 +38954,7 @@ function spawnSystemSpaceStations(planetsInput) {
       const planetZ = p.mesh ? p.mesh.position.z : 0;
       controller.group.position.set(planetX + Math.cos(orbitAngle) * orbitRadius, 0, planetZ + Math.sin(orbitAngle) * orbitRadius);
       scene.add(controller.group);
-      const stName = isHyper ? `Orbital-Zitadelle ${p.name.replace(/ Prime| Major| A| B/g, "")}-Alpha` : `Handelsrelais ${p.name.replace(/ Prime| Major| A| B/g, "")}-Dock`;
+      const stName = isBureaucracy ? "INSAN-Hauptverwaltung Zeta-9 (Schalter 7B)" : isHyper ? `Orbital-Zitadelle ${p.name.replace(/ Prime| Major| A| B/g, "")}-Alpha` : `Handelsrelais ${p.name.replace(/ Prime| Major| A| B/g, "")}-Dock`;
       const factionId = species.factionId || "free_traders";
       const faction = getFaction(factionId);
       const civName = species.name || faction.name;
@@ -38908,10 +38962,15 @@ function spawnSystemSpaceStations(planetsInput) {
       const stationCrew = generateProceduralCandidates(stationSeed, 3);
       const commander = stationCrew[0];
       if (commander) {
-        commander.thought = isHyper ? "Überwacht die Quantenschilde der Zitadelle... 'Keine feindlichen Schiffe im Orbit.'" : "Koordiniert eintreffende Frachter-Konvois... 'Docking-Bucht 3 bereit zum Andocken.'";
+        if (isBureaucracy) {
+          commander.name = "Verwaltungs-Automaton INSAN-Zeta";
+          commander.thought = "Verarbeitet Wartenummern... 'Formular 38-Alpha fehlt. Bitte ziehen Sie ein neues Ticket.'";
+        } else {
+          commander.thought = isHyper ? "Überwacht die Quantenschilde der Zitadelle... 'Keine feindlichen Schiffe im Orbit.'" : "Koordiniert eintreffende Frachter-Konvois... 'Docking-Bucht 3 bereit zum Andocken.'";
+        }
       }
       const population = isHyper ? 3200 + stationSeed % 1400 : 1150 + stationSeed % 750;
-      const description = isHyper ? "Schwer befestigte Orbital-Zitadelle zur planetaren Raumraum-Überwachung und Flottenkoordination." : "Zentraler Handels-Hub für interplanetare Frachtrouten, Mineralientausch und Schiffswartung.";
+      const description = isBureaucracy ? "Zentrales Verwaltungszentrum des interstellaren INSAN-Abschleppdienstes. Überwacht beschlagnahmte Schiffe an Pier 4." : isHyper ? "Schwer befestigte Orbital-Zitadelle zur planetaren Raumraum-Überwachung und Flottenkoordination." : "Zentraler Handels-Hub für interplanetare Frachtrouten, Mineralientausch und Schiffswartung.";
       const station = {
         id: Date.now() + stationIdCounter++,
         name: stName,
@@ -38938,7 +38997,8 @@ function spawnSystemSpaceStations(planetsInput) {
         commanderName: commander ? `${commander.name} (${commander.roleName || commander.role})` : "Stations-Kommandant",
         commanderRole: commander ? commander.role : "pilot",
         crewMembers: stationCrew,
-        description
+        description,
+        isInsanStation: isBureaucracy
       };
       STATE.spaceStations.push(station);
       const stationGravSource = {
@@ -40906,7 +40966,8 @@ function spawnPlanetsAndAsteroids() {
     if (QuestManager.isQuestActive("prologue_jamal_ship")) {
       QuestManager.advanceQuest("prologue_jamal_ship", 3);
       advanceFtueStep(4);
-      openNpcDialogue("insan_depot_arrival");
+      addLogEntry("SENSOR", "⚠️ HYPER-MAGNETISCHE STÖRFELDER: Die INSAN-Verwahrstelle Zeta-9 liegt tief im Schrottgürtel.");
+      addLogEntry("JAMAL", "„Wir haben das Zeta-9-System erreicht! Meine Scanner erfassen die Hauptverwaltung der INSAN-Station. Wir müssen die Station anfliegen und herausfinden, an welchem Pier sie mein Schiff festhalten!“");
     }
   }
   addLogEntry("NAV", `Sensoren initialisiert: ${activeSystem.name} [${activeSystem.sectorName || "Sektor"}].`);
@@ -41991,9 +42052,28 @@ function liberateRealShipAtStation() {
   addLogEntry("BERGUNG", "\uD83C\uDF89 ECHTES FORSCHUNGSSCHIFF GEBORGEN: Ar-Riḥla befreit! +50 Melange-Spice, +60 Silizium!");
   addLogEntry("SYSTEM", "\uD83D\uDCDF QUANTEN-LOGBUCH AKTIVIERT: Ar-Riḥla gekoppelt! Missions-Direktiven und Galaktische Aufträge online.");
   addLogEntry("JAMAL", "„Alle Sensoren online! Jetzt können wir die Verlangsamung und das Jahr 2035 aufklären!“");
-  advanceFtueStep(5);
+  advanceFtueStep(6);
   renderDirectives();
   openNpcDialogue("real_ship_liberated");
+}
+function onInsanBureaucracyEncountered() {
+  if (QuestManager.isQuestActive("prologue_jamal_ship")) {
+    const currentStage = QuestManager.getCurrentStage("prologue_jamal_ship");
+    if (currentStage && currentStage.stage === 3) {
+      QuestManager.advanceQuest("prologue_jamal_ship", 4);
+      advanceFtueStep(5);
+      addLogEntry("JAMAL", "„Alles klar! Fliegen wir rüber zu Pier 4 und überladen die Verankerungsklammern mit einem EMP-Impuls!“");
+      renderDirectives();
+    }
+  }
+}
+function openInsanAdministrationDialogue() {
+  if (!STATE.insanArrivalSeen) {
+    STATE.insanArrivalSeen = true;
+    openNpcDialogue("insan_depot_arrival");
+  } else {
+    openNpcDialogue("insan_station_bureaucracy");
+  }
 }
 function liberateVoyagerProbe() {
   STATE.voyagerLiberated = true;
@@ -42022,6 +42102,11 @@ DialogueEngine.registerAction("smash_clamp", () => triggerDecoyTrap());
 DialogueEngine.registerAction("hack_drone_database", () => triggerDecoyTrap());
 DialogueEngine.registerAction("liberate_real_ship_at_station", () => liberateRealShipAtStation());
 DialogueEngine.registerAction("liberate_voyager_probe", () => liberateVoyagerProbe());
+DialogueEngine.onNodeOpened((nodeId) => {
+  if (nodeId === "insan_station_bureaucracy" || nodeId === "insan_station_bypass_plan") {
+    onInsanBureaucracyEncountered();
+  }
+});
 function openJamalIntroDialog() {
   if (STATE.jamalIntroModalSeen)
     return;
@@ -45699,8 +45784,18 @@ function updateMinimap() {
       if (dist < range) {
         const sx = cx + dx * invRangeRadius;
         const sy = cy + dz * invRangeRadius;
-        minimapCtx.fillStyle = st.alertLevel === "hunt" ? "#ef4444" : "#38bdf8";
-        minimapCtx.strokeStyle = st.alertLevel === "hunt" ? "rgba(239, 68, 68, 0.8)" : "rgba(56, 189, 248, 0.8)";
+        const isInsan = st.isInsanStation || st.name.includes("INSAN");
+        const isQuestTarget = isInsan && !STATE.jamalShipLiberated;
+        if (isQuestTarget) {
+          const pulse = 1 + 0.25 * Math.sin(performance.now() * 0.006);
+          minimapCtx.strokeStyle = "#f59e0b";
+          minimapCtx.lineWidth = 1.8;
+          minimapCtx.beginPath();
+          minimapCtx.arc(sx, sy, 7.5 * pulse, 0, Math.PI * 2);
+          minimapCtx.stroke();
+        }
+        minimapCtx.fillStyle = isQuestTarget ? "#f59e0b" : st.alertLevel === "hunt" ? "#ef4444" : "#38bdf8";
+        minimapCtx.strokeStyle = isQuestTarget ? "#fbbf24" : st.alertLevel === "hunt" ? "rgba(239, 68, 68, 0.8)" : "rgba(56, 189, 248, 0.8)";
         minimapCtx.lineWidth = 1.2;
         minimapCtx.beginPath();
         minimapCtx.moveTo(sx, sy - 4.5);
@@ -47738,11 +47833,19 @@ function setupControls() {
       if (STATE.spaceStations) {
         const nearbyStation = STATE.spaceStations.find((s) => {
           const pos = s.mesh ? s.mesh.position : s.position;
-          return pos && STATE.playerPosition.distanceTo(pos) <= 25;
+          return pos && STATE.playerPosition.distanceTo(pos) <= 30;
         });
-        if (nearbyStation && !nearbyStation.scanned) {
-          triggerScanStart();
-          return;
+        if (nearbyStation) {
+          if (nearbyStation.isInsanStation || nearbyStation.name.includes("INSAN")) {
+            if (!STATE.jamalShipLiberated) {
+              openInsanAdministrationDialogue();
+              return;
+            }
+          }
+          if (!nearbyStation.scanned) {
+            triggerScanStart();
+            return;
+          }
         }
       }
       if (STATE.nearestPlanet) {
@@ -48013,6 +48116,14 @@ function setupTargetRaycasting() {
         });
         if (targetStation) {
           setLockedTarget(targetStation);
+          if (targetStation.isInsanStation || targetStation.name.includes("INSAN")) {
+            const dist = STATE.playerPosition.distanceTo(targetStation.position);
+            if (dist <= 30 && !STATE.jamalShipLiberated) {
+              openInsanAdministrationDialogue();
+            } else {
+              addLogEntry("NAV", `INSAN-Hauptverwaltung Zeta-9 anvisiert (${dist.toFixed(1)} AE). Fliege heran (< 30 AE) und drücke [F] für Schalter 7B.`);
+            }
+          }
           return;
         }
       }

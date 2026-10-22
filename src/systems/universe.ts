@@ -840,7 +840,8 @@ export function spawnPlanetsAndAsteroids() {
         if (QuestManager.isQuestActive('prologue_jamal_ship')) {
             QuestManager.advanceQuest('prologue_jamal_ship', 3);
             advanceFtueStep(4);
-            openNpcDialogue('insan_depot_arrival');
+            addLogEntry("SENSOR", "⚠️ HYPER-MAGNETISCHE STÖRFELDER: Die INSAN-Verwahrstelle Zeta-9 liegt tief im Schrottgürtel.");
+            addLogEntry("JAMAL", "„Wir haben das Zeta-9-System erreicht! Meine Scanner erfassen die Hauptverwaltung der INSAN-Station. Wir müssen die Station anfliegen und herausfinden, an welchem Pier sie mein Schiff festhalten!“");
         }
     }
 

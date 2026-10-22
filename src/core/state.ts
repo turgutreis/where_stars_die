@@ -270,6 +270,7 @@ export const STATE: GameState = {
     voyagerLiberated: false,
     jamalIntroModalSeen: false,
     jamalLiberatedModalSeen: false,
+    insanArrivalSeen: false,
     activeQuests: {},
 
     // Space Stations & Psionic Stealth System
