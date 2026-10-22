@@ -133,7 +133,7 @@ export function setupControls() {
             return;
         }
         if (key === 'f') {
-            // 0. Proximity interaction with Dr. Jamal's Research Shuttle / Towing Drone (< 25 AE)
+            // 0. Proximity interaction with Dr. Tariq Jamal's Research Ship / Towing Drone (< 25 AE)
             if (STATE.jamalShip && STATE.jamalShip.position) {
                 const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
                 if (jamalDist <= 25) {

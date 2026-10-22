@@ -24,7 +24,7 @@ export interface TowingDroneController {
 }
 
 /**
- * Creates Dr. Jamal's research shuttle (ISS Ibn Battuta)
+ * Creates Dr. Tariq Jamal's research ship (Ar-Riḥla)
  * Equipped with high-tech science wings, quantum sensor arrays, and a glowing propulsion core.
  * Features a heavy industrial parking clamp (Parkkralle) locked onto the engines until liberated!
  */

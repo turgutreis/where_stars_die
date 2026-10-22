@@ -63,18 +63,18 @@ Doch in einem bestimmten Sektor des Kosmos wurde dieses Naturgesetz gebrochen �
 ### 🧬 Najmafar (Spieler-Charakter / Bote der Mu'ammirun)
 * Einer der ausgesandten Boten der Mu'ammirun, der im äußeren Spiralarm der Milchstraße (*Perseus-Rand*, nahe dem Sol-Sektor) stationiert war.
 * Als er merkte, dass sein Bruder im galaktischen Zentrum (Sagittarius A*) die Kontrolle über die Bremsung verliert, versuchte Najmafar nicht, sich in eine Sonne zu stürzen. Stattdessen sandte er über Jahrzehnte (1859, 1971, 2035) das adaptive **Jann-Protokoll** zur Erde, um die Menschheit technologisch aufzubauen, damit sie ihm und seinem Bruder helfen kann.
-* Von diesen gewaltigen Übertragungen völlig geschwächt, wurde er von Sammlern eingefangen und als exotisches Ausstellungsstück in der intergalaktischen Menagerie auf **Ceres-9** eingesperrt – bis Dr. Jamal Tariq ihn befreit.
+* Von diesen gewaltigen Übertragungen völlig geschwächt, wurde er von Sammlern eingefangen und als exotisches Ausstellungsstück in der intergalaktischen Menagerie auf **Ceres-9** eingesperrt – bis Dr. Tariq Jamal ibn Battūta ihn befreit.
 
-### 👨‍🔬 Dr. Jamal Tariq
+### 👨‍🔬 Dr. Tariq Jamal ibn Battūta
 * Quantenphysiker und Raumfahrer in der Zukunft. Ein prinzipientreuer *Muslim in Space*, der auch in den Tiefen des Alls an seinen Werten und seinem Glauben an den Schöpfer festhält.
 * Er entdeckt auf seinem neutralen Quantencomputer die unmögliche Kombination aus extremer Rotverschiebung (die weggestoßene Galaxie) und der näherrollenden gravitativen Vollbremsung aus Richtung Sagittarius A*.
 * Indem er das alte, mit Lichtgeschwindigkeit reisende Licht wie ein historisches Video auswertet und mit gesperrten Archiven aus dem Jahr **2035** verknüpft, kommt er der vertuschten Wahrheit auf die Spur und befreit Najmafar auf Ceres-9.
-* Sein echtes Forschungsschiff ist die **ISS Ibn Battuta**.
+* Sein echtes Forschungsschiff ist die **Ar-Riḥla**.
 
 ### 👩‍🚀 Valeria
-* Wissenschaftlerin auf der Deep-Space-Forschungsstation und enge Freundin von Jamal Tariq.
-* Sie merkt als Erste, dass mit Jamal etwas nicht stimmt, als er ihr gemeinsames wöchentliches Ritual – das *Gasriesen-Sky-Diving* – schwänzt und enorme Mengen an Rechenkapazität auf den Stationsservern verbraucht.
-* Sie empfindet mehr für Jamal als nur Freundschaft, respektiert aber seine religiösen Prinzipien. Als sie ihn zur Rede stellt, weiht Jamal sie in die lebensgefährliche Entdeckung rund um Sagittarius A* und die Lüge von 2035 ein.
+* Wissenschaftlerin auf der Deep-Space-Forschungsstation und enge Freundin von Dr. Tariq Jamal.
+* Sie merkt als Erste, dass mit Tariq etwas nicht stimmt, als er ihr gemeinsames wöchentliches Ritual – das *Gasriesen-Sky-Diving* – schwänzt und enorme Mengen an Rechenkapazität auf den Stationsservern verbraucht.
+* Sie empfindet mehr für Tariq als nur Freundschaft, respektiert aber seine religiösen Prinzipien. Als sie ihn zur Rede stellt, weiht Tariq sie in die lebensgefährliche Entdeckung rund um Sagittarius A* und die Lüge von 2035 ein.
 
 ### 📡 Markus (Zeitebene 2035)
 * Astrophysiker auf der Erde im Jahr **2035** (noch vor der interstellaren Raumfahrt der Menschheit).
@@ -93,7 +93,7 @@ Doch in einem bestimmten Sektor des Kosmos wurde dieses Naturgesetz gebrochen �
 | **2035 (Erde)** | **Markus & Das Jann-Protokoll** | Najmafars verzweifelte Datenströme überlasten kurzzeitig das Internet. Markus entdeckt die Daten der „Verlangsamung“ und den adaptiven Code (*Al-Jann*). Ein Hacker-Angriff führt zum Leak; Regierungen vertuschen den Vorfall, sperren die Daten mit dem Tag „Unwichtig“ weg und nutzen *Al-Jann* heimlich für sich. |
 | **Nach 2035** | Der falsche Raumfahrt-Boom | Dank des geplünderten *Jann*-Codes kolonisiert die Menschheit rasch den Mars, entwickelt Quantenantriebe, neue Genetik und Medizin. Offizielle Geschichte später: Man habe ein *totes* Alien-Artefakt gefunden. Der aktive Hilferuf Najmafars wird komplett totgeschwiegen. |
 | **Vor Spielbeginn** | Najmafars Gefangennahme | Ausgezehrt von den Übertragungen und der Einsamkeit wird Najmafar am Perseus-Rand eingefangen und im Zoo von **Ceres-9** zur Schau gestellt. |
-| **Gegenwart (Spiel)** | **Dr. Jamal Tariq & Der Ausbruch** | Die Schockwelle und Gammablitze der außer Kontrolle geratenen Bremsung bei Sagittarius A* erreichen die Milchstraße. Jamal entschlüsselt über altes Licht und die 2035-Archive die Koordinaten, reist nach Ceres-9 und befreit Najmafar. |
+| **Gegenwart (Spiel)** | **Dr. Tariq Jamal & Der Ausbruch** | Die Schockwelle und Gammablitze der außer Kontrolle geratenen Bremsung bei Sagittarius A* erreichen die Milchstraße. Tariq entschlüsselt über altes Licht und die 2035-Archive die Koordinaten, reist nach Ceres-9 und befreit Najmafar. |
 
 ---
 
@@ -102,7 +102,7 @@ Doch in einem bestimmten Sektor des Kosmos wurde dieses Naturgesetz gebrochen �
 * **Al-Jann / Das Jann-Protokoll (`GNN`):**
   Von Najmafar gesendeter, extrem hochentwickelter, selbstlernender Datenstrom. Er gleicht keinem menschlichen Quellcode, sondern analysiert die Denk- und Kommunikationsweise einer Zivilisation, um ihr technologisch auf die Sprünge zu helfen, damit eine Verständigung möglich wird. Die Übersetzungssoftware wählte für ihren Absender die semitische Wurzel **G-N-N (ج-ن-ن / *Ğann* – „das Verborgene / Unsichtbare“)**, was von menschlichen Informatikern zunächst als *Generative Neural Network (GNN)* fehlinterpretiert wurde.
 * **Licht-Archäologie (Blick in die Vergangenheit):**
-  Jamal Tariqs wissenschaftliche Methode, das vor Jahrhunderten oder Jahrtausenden abgestrahlte Licht im Weltraum mithilfe seines neutralen Quantencomputers wie eine Videoaufnahme der Vergangenheit auszulesen und mit historischen Erddaten (2035) zu korrelieren.
+  Tariq Jamals wissenschaftliche Methode, das vor Jahrhunderten oder Jahrtausenden abgestrahlte Licht im Weltraum mithilfe seines neutralen Quantencomputers wie eine Videoaufnahme der Vergangenheit auszulesen und mit historischen Erddaten (2035) zu korrelieren.
 * **Sagittarius A* (Das überladene Herz):**
   Das supermassereiche Schwarze Loch im Zentrum der Milchstraße (~26.000 Lichtjahre entfernt). Dort manipuliert ein verzweifeltes Geschwisterwesen von Najmafar die Gravitation so stark, dass tödliche Gammablitze und Schockwellen entstehen.
 
@@ -119,19 +119,19 @@ Doch in einem bestimmten Sektor des Kosmos wurde dieses Naturgesetz gebrochen �
 
 ## 7. Übergang ins Gameplay (Prolog & Quests)
 
-1. **Ceres-9 Ausbruch:** Jamal Tariq befreit Najmafar mithilfe von Melange-Spice aus der Menagerie.
-2. **Orbit von Perseus-Rand:** Najmafar sucht im Orbit nach Jamals verstecktem Forschungsschiff, stößt dort aber auf die Parkkralle und die holografische Köderfalle der durchgedrehten **INSAN-Drohne TX-9**.
+1. **Ceres-9 Ausbruch:** Dr. Tariq Jamal befreit Najmafar mithilfe von Melange-Spice aus der Menagerie.
+2. **Orbit von Perseus-Rand:** Najmafar sucht im Orbit nach Tariqs verstecktem Forschungsschiff, stößt dort aber auf die Parkkralle und die holografische Köderfalle der durchgedrehten **INSAN-Drohne TX-9**.
 3. **INSAN-Verwahrstelle Zeta-9 (2 Sprünge entfernt):**
    - Überwindung der bürokratischen Blockade und des gestörten Zahlungssystems.
    - **Nebenquest:** Befreiung der ebenfalls abgeschleppten **Voyager 2** (Golden Record & historische Spuren).
-   - **Hauptquest:** Bergung der echten **ISS Ibn Battuta** an Pier 4 $\rightarrow$ Aktiviert das **Quanten-Logbuch (Questlog)** und Jamals Forschungsdatenbank.
+   - **Hauptquest:** Bergung der echten **Ar-Riḥla** an Pier 4 $\rightarrow$ Aktiviert das **Quanten-Logbuch (Questlog)** und Tariqs Forschungsdatenbank.
 
 ---
 
 ## 8. Offene Design-Fragen & Nächste Story-Schritte
 
 - [ ] **Name der Heimatgalaxie der Mu'ammirun:** Wie soll die abdriftende Galaxie heißen (in der Sprache der Mu'ammirun vs. der astronomischen Katalogbezeichnung von Jamal)?
-- [ ] **Verlauf nach der INSAN-Station (Akt 2):** Welche konkreten Stationen/Quests besuchen Jamal und Najmafar mit der *ISS Ibn Battuta* als Nächstes? (z. B. Valerias Forschungsstation, ein altes 2035-Relais im Sol-System, oder die Spur eines weiteren Mu'ammirun-Boten?)
+- [ ] **Verlauf nach der INSAN-Station (Akt 2):** Welche konkreten Stationen/Quests besuchen Tariq und Najmafar mit der *Ar-Riḥla* als Nächstes? (z. B. Valerias Forschungsstation, ein altes 2035-Relais im Sol-System, oder die Spur eines weiteren Mu'ammirun-Boten?)
 - [ ] **Ausgestaltung der Gegenspieler:** Wann und wie treten die Gegenspieler (die die Dunkle Energie manipuliert haben) im Spiel direkt in Erscheinung?
 
 ---

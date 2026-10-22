@@ -259,7 +259,7 @@ export const STATE: GameState = {
     ftueStep: 0,
     ftueCompleted: false,
 
-    // Dr. Jamal's Hidden Research Shuttle & Rogue AI Towing Drone Mission
+    // Dr. Tariq Jamal's Hidden Research Ship & Rogue AI Towing Drone Mission
     jamalShip: null,
     towingDrone: null,
     jamalMissionActive: false,
@@ -286,7 +286,7 @@ export const STATE: GameState = {
     previewGalacticCycle: null,
     intervenedSystems: {},
 
-    // Story Prologue: The Menagerie Breakout & Dr. Jamal Recruitment
+    // Story Prologue: The Menagerie Breakout & Dr. Tariq Jamal Recruitment
     prologueCompleted: false,
     prologueActive: false,
     prologueStage: 'office_dream',

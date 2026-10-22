@@ -869,11 +869,11 @@ export function spawnJamalMissionEntities(targetPlanet?: any, isRealShipAtDepot:
     shuttleController.group.lookAt(planetPos);
     scene.add(shuttleController.group);
 
-    let shipName = "Dr. Jamals Forschungsschiff [FALSPARKER-STATUS]";
+    let shipName = "Dr. Tariq Jamals Forschungsschiff [FALSPARKER-STATUS]";
     if (isRealShipAtDepot) {
-        shipName = STATE.jamalShipLiberated ? "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]" : "Echte 'ISS Ibn Battuta' [PIER 4 - BESCHLAGNAHMT]";
+        shipName = STATE.jamalShipLiberated ? "Forschungsschiff 'Ar-Riḥla' [GEBORGEN]" : "Echte 'Ar-Riḥla' [PIER 4 - BESCHLAGNAHMT]";
     } else if (STATE.jamalShipLiberated) {
-        shipName = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
+        shipName = "Forschungsschiff 'Ar-Riḥla' [GEBORGEN]";
     } else if (STATE.jamalDecoyRevealed) {
         shipName = "Köder-Attrappe [HOLOGRAFIE-ATTROPPE ENTLARVT]";
     }

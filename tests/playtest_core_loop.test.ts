@@ -3806,7 +3806,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         clearFleet();
     });
 
-    test("49. Dr. Jamal Story Prologue & Menagerie Breakout: Office dream, Melange spice reality tear, Ceres-9 alien zoo escape, and recruitment into crew", () => {
+    test("49. Dr. Tariq Jamal Story Prologue & Menagerie Breakout: Office dream, Melange spice reality tear, Ceres-9 alien zoo escape, and recruitment into crew", () => {
         // 1. Initial State: Solitary Najmafar with no crew, high loneliness
         STATE.crew = [];
         STATE.loneliness = 85;
@@ -3837,16 +3837,16 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.playerPosition.x).toBe(0);
         expect(STATE.playerPosition.z).toBe(0);
 
-        // 2. Test Dr. Jamal recruitment logic
+        // 2. Test Dr. Tariq Jamal recruitment logic
         const jamal = recruitJamal();
         expect(jamal).toBeDefined();
-        expect(jamal.name).toBe("Dr. Jamal");
+        expect(jamal.name).toBe("Dr. Tariq Jamal");
         expect(jamal.name).not.toContain("Vance");
         expect(jamal.roleName).toContain("Chef-Quantenphysiker");
         expect(jamal.ageCategory).toBe("vital");
         expect(jamal.trait?.name).toBe("Quanten-Theoretiker");
         expect(STATE.crew.length).toBe(1);
-        expect(STATE.crew[0].name).toBe("Dr. Jamal");
+        expect(STATE.crew[0].name).toBe("Dr. Tariq Jamal");
         expect(STATE.loneliness).toBeLessThanOrEqual(50); // Solitude alleviated
 
         // 3. Test finishPrologue & verify safe standoff orbit
@@ -3865,7 +3865,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(hasAwayTeamCrew()).toBe(true);
     });
 
-    test("50. Dr. Jamal's Hidden Research Shuttle & Insan Rogue Drone Mission: Right-docked branching NPC dialogue, spectral scan sequence, Insan parking clamp, bureaucratic payment timeout & liberation choices", () => {
+    test("50. Dr. Tariq Jamal's Hidden Research Ship & Insan Rogue Drone Mission: Right-docked branching NPC dialogue, spectral scan sequence, Insan parking clamp, bureaucratic payment timeout & liberation choices", () => {
         // 1. Reset state & setup starting planet
         STATE.jamalShip = null;
         STATE.towingDrone = null;
@@ -3997,7 +3997,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.voyagerLiberated).toBe(true);
         expect(STATE.voyagerProbe.name).toContain("BEFREIT");
 
-        // 11. Liberate the real ISS Ibn Battuta at Pier 4
+        // 11. Liberate the real Ar-Riḥla at Pier 4
         const initialSpice = STATE.spiceRes || 0;
         const initialSilicon = STATE.siliconRes || 0;
 

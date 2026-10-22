@@ -85,13 +85,13 @@ export function triggerDecoyTrap() {
     updateHUDStats();
 
     addLogEntry("PSIONIK", "⚡ PSIONISCHE RÜCKKOPPLUNG: -25 Mentalkraft erlitten! Die Falle der Insan-Drohne schnappt zu!");
-    addLogEntry("SYSTEM", "🚨 HOLOGRAPHISCHE ATTRAPPE ENTLARVT: Die echte ISS Ibn Battuta wurde in die INSAN-Verwahrstelle Zeta-9 abgeschleppt (2 Sprünge entfernt)!");
+    addLogEntry("SYSTEM", "🚨 HOLOGRAPHISCHE ATTRAPPE ENTLARVT: Die echte Ar-Riḥla wurde in die INSAN-Verwahrstelle Zeta-9 abgeschleppt (2 Sprünge entfernt)!");
 
     openNpcDialogue('hologram_trap_revealed');
 }
 
 /**
- * Player liberates the real ISS Ibn Battuta at the INSAN Depot station Pier 4.
+ * Player liberates the real Ar-Riḥla at the INSAN Depot station Pier 4.
  */
 export function liberateRealShipAtStation() {
     if (STATE.jamalShipLiberated) return;
@@ -105,14 +105,14 @@ export function liberateRealShipAtStation() {
 
     if (STATE.jamalShip) {
         if (STATE.jamalShip.setLiberated) STATE.jamalShip.setLiberated(true);
-        STATE.jamalShip.name = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
+        STATE.jamalShip.name = "Forschungsschiff 'Ar-Riḥla' [GEBORGEN]";
     }
 
     QuestManager.completeQuest('prologue_jamal_ship');
     grantJamalRewards();
 
-    addLogEntry("BERGUNG", "🎉 ECHTES FORSCHUNGSSCHIFF GEBORGEN: ISS Ibn Battuta befreit! +50 Melange-Spice, +60 Silizium!");
-    addLogEntry("SYSTEM", "📟 QUANTEN-LOGBUCH AKTIVIERT: ISS Ibn Battuta gekoppelt! Missions-Direktiven und Galaktische Aufträge online.");
+    addLogEntry("BERGUNG", "🎉 ECHTES FORSCHUNGSSCHIFF GEBORGEN: Ar-Riḥla befreit! +50 Melange-Spice, +60 Silizium!");
+    addLogEntry("SYSTEM", "📟 QUANTEN-LOGBUCH AKTIVIERT: Ar-Riḥla gekoppelt! Missions-Direktiven und Galaktische Aufträge online.");
     addLogEntry("JAMAL", "„Alle Sensoren online! Jetzt können wir die Verlangsamung und das Jahr 2035 aufklären!“");
 
     advanceFtueStep(5);
@@ -165,7 +165,7 @@ DialogueEngine.registerAction('liberate_real_ship_at_station', () => liberateRea
 DialogueEngine.registerAction('liberate_voyager_probe', () => liberateVoyagerProbe());
 
 /**
- * Opens initial telepathic intro brief from Dr. Jamal in right-docked dialogue panel.
+ * Opens initial telepathic intro brief from Dr. Tariq Jamal in right-docked dialogue panel.
  */
 export function openJamalIntroDialog() {
     if (STATE.jamalIntroModalSeen) return;

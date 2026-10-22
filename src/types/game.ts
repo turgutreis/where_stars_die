@@ -723,7 +723,7 @@ export interface GameState {
     ftueStep?: number;
     ftueCompleted?: boolean;
 
-    // Dr. Jamal's Hidden Research Shuttle & Rogue AI Towing Drone Mission
+    // Dr. Tariq Jamal's Hidden Research Ship & Rogue AI Towing Drone Mission
     jamalShip?: any | null;
     towingDrone?: any | null;
     jamalMissionActive?: boolean;
@@ -750,7 +750,7 @@ export interface GameState {
     previewGalacticCycle: number | null;
     intervenedSystems: Record<number, boolean>;
 
-    // Story Prologue: The Menagerie Breakout & Dr. Jamal Recruitment
+    // Story Prologue: The Menagerie Breakout & Dr. Tariq Jamal Recruitment
     prologueCompleted?: boolean;
     prologueActive?: boolean;
     prologueStage?: 'office_dream' | 'alien_zoo' | 'jamal_contact' | 'absorption_sync' | 'breakout_warp' | 'completed';

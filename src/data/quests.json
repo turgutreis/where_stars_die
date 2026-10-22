@@ -9,7 +9,7 @@
         "stage": 0,
         "title": "Schiffssignatur im Orbit orten",
         "instruction": "Fliege zum Planeten & scanne die Schiffssignatur im Orbit mit [F]",
-        "hint": "Jamal hat sein Forschungsschiff im Orbit des nahen Planeten versteckt. Nähere dich auf < 25 AE.",
+        "hint": "Dr. Tariq Jamal hat sein Forschungsschiff im Orbit des nahen Planeten versteckt. Nähere dich auf < 25 AE.",
         "objective": {
           "type": "scan_target",
           "targetId": "jamal_shuttle"
@@ -38,7 +38,7 @@
       {
         "stage": 3,
         "title": "Echtes Forschungsschiff bergen",
-        "instruction": "Befreie die echte ISS Ibn Battuta an Pier 4 & rette die abgeschleppte Voyager-Sonde",
+        "instruction": "Befreie die echte Ar-Riḥla an Pier 4 & rette die abgeschleppte Voyager-Sonde",
         "hint": "Nutze die Subraum-Interferenzen der Station, um die Verankerung zu sprengen.",
         "objective": {
           "type": "dialogue_completed",
@@ -48,8 +48,8 @@
       {
         "stage": 4,
         "title": "Forschungsschiff geborgen",
-        "instruction": "Echte \"ISS Ibn Battuta\" geborgen (+50 Melange) & Sensoren gekoppelt.",
-        "hint": "Alle Scanner- und Telemetriedaten von Dr. Jamal sind online.",
+        "instruction": "Echte \"Ar-Riḥla\" geborgen (+50 Melange) & Sensoren gekoppelt.",
+        "hint": "Alle Scanner- und Telemetriedaten von Dr. Tariq Jamal sind online.",
         "objective": {
           "type": "completed"
         }

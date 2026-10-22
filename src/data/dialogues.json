@@ -6,7 +6,7 @@
     "speakerType": "character",
     "eyebrow": "⚛️ TELEPATHIE • PERSEUS-RAND",
     "mainText": "„Najmafar, spürst du meine synaptische Koppelung? Wir haben es geschafft!“",
-    "subText": "„Wir sind der Menagerie von Ceres-9 entkommen. Aber ich bin nur mit einem kleinen, zivilen Touristen-Shuttle gereist, um keine Aufmerksamkeit zu erregen. Mein eigentliches Forschungsschiff – die ISS Ibn Battuta – habe ich im Orbit dieses Planeten versteckt. Fliege heran und scanne die Energiesignatur mit [F]!“",
+    "subText": "„Wir sind der Menagerie von Ceres-9 entkommen. Aber ich bin nur mit einem kleinen, zivilen Touristen-Shuttle gereist, um keine Aufmerksamkeit zu erregen. Mein eigentliches Forschungsschiff – die Ar-Riḥla – habe ich im Orbit dieses Planeten versteckt. Fliege heran und scanne die Energiesignatur mit [F]!“",
     "sound": "synapse",
     "options": [
       {
@@ -32,7 +32,7 @@
     "speakerTitle": "Quantenphysiker",
     "speakerType": "character",
     "eyebrow": "🔭 HINTERGRUND • QUANTEN-KARTOGRAPHIE",
-    "mainText": "„Mein Name ist Tariq Jamal. Ich bin Quantenphysiker von der Erde.“",
+    "mainText": "„Mein Name ist Dr. Tariq Jamal ibn Battūta. Ich bin Quantenphysiker von der Erde.“",
     "subText": "„Beziehungsweise arbeite ich für eine Organisation, die mit den modernsten Quantencomputern versucht, das Universum zu kartographieren. Wir suchen immer noch nach der Dunklen Materie! Während meiner Untersuchungen bin ich jedoch auf eine unmögliche Anomalie gestoßen.“",
     "sound": "sonar",
     "options": [
@@ -126,7 +126,7 @@
     "speakerType": "character",
     "eyebrow": "🧠 NEURONALES TRAUMA • VERSCHÜTTETES GEDÄCHTNIS",
     "mainText": "„Als wir unsere Gedanken im Käfig verbunden haben, habe ich die tiefen Narben in deinem Geist gespürt.“",
-    "subText": "„Kein Wunder, dass du dich nicht direkt erinnern kannst. Die lange Einsamkeit im kalten Leerraum und die Dämpfungsfelder der Menagerie haben tiefe Traumata hinterlassen. Dein Bewusstsein hat fast alles abgeriegelt. Überstürze nichts – wenn wir erst meine ISS Ibn Battuta zurückhaben, finden wir Schritt für Schritt heraus, was passiert ist.“",
+    "subText": "„Kein Wunder, dass du dich nicht direkt erinnern kannst. Die lange Einsamkeit im kalten Leerraum und die Dämpfungsfelder der Menagerie haben tiefe Traumata hinterlassen. Dein Bewusstsein hat fast alles abgeriegelt. Überstürze nichts – wenn wir erst meine Ar-Riḥla zurückhaben, finden wir Schritt für Schritt heraus, was passiert ist.“",
     "sound": "synapse",
     "options": [
       {
@@ -147,7 +147,7 @@
     "speakerTitle": "Quantenphysiker",
     "speakerType": "character",
     "eyebrow": "⚠️ SPEKTRAL-SCAN • ORBITALE BLOCKADE",
-    "mainText": "„Da ist die Ibn Battuta! Aber Moment ... sie hängt in einer Insan-Parkkralle fest!“",
+    "mainText": "„Da ist die Ar-Riḥla! Aber Moment ... sie hängt in einer Insan-Parkkralle fest!“",
     "subText": "„Eine autonome Drohne der Insan-Organisation blockiert das Schiff. Sie verlangen astronomische Parkgebühren für das Halten im Orbit.“",
     "sound": "alarm",
     "options": [
@@ -261,7 +261,7 @@
     "speakerType": "character",
     "eyebrow": "🚨 HOLOGRAPHISCHE ATTRAPPE • DIE FALLE SCHNAPPT ZU",
     "mainText": "„Verflucht! Das Forschungsschiff ist nur eine holographische Attrappe!“",
-    "subText": "„Kaum greifst du ein, trifft dich eine heftige psionische Rückkopplung! Die Schiffshülle flackert und entpuppt sich als reine Projektion – eine Köderfalle der Insan-Drohnen, um potenziell gefährliche Parksünder aus der Reserve zu locken! Der Sicherheitsalarm heult los!\n\nAber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die echte ISS Ibn Battuta längst in ihre nächste INSAN-Abschleppstation geschleppt – zwei Raum-Sprünge von hier entfernt!“",
+    "subText": "„Kaum greifst du ein, trifft dich eine heftige psionische Rückkopplung! Die Schiffshülle flackert und entpuppt sich als reine Projektion – eine Köderfalle der Insan-Drohnen, um potenziell gefährliche Parksünder aus der Reserve zu locken! Der Sicherheitsalarm heult los!\n\nAber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die echte Ar-Riḥla längst in ihre nächste INSAN-Abschleppstation geschleppt – zwei Raum-Sprünge von hier entfernt!“",
     "sound": "crash",
     "options": [
       {
@@ -278,7 +278,7 @@
     "speakerType": "character",
     "eyebrow": "🛰️ INSAN-VERWAHRSTELLE ZETA-9 • ANKUNFT",
     "mainText": "„Unglaublich ... die Drohnen haben hier draußen buchstäblich alles abgeschleppt, was sie finden konnten!“",
-    "subText": "„Sieh dir dieses Schrottdepot an, Najmafar! Dort drüben an Pier 4 liegt tatsächlich meine echte ISS Ibn Battuta! Aber wir haben ein Problem: Hier herrscht eine extrem starke Interferenz, die das gesamte Kommunikationssystem stört. Und meine Sensoren zeigen noch etwas Verrücktes im Schrottfeld: Die Insan-Drohnen haben sogar die alten Voyager-Sonden der Menschheit abgeschleppt!“",
+    "subText": "„Sieh dir dieses Schrottdepot an, Najmafar! Dort drüben an Pier 4 liegt tatsächlich meine echte Ar-Riḥla! Aber wir haben ein Problem: Hier herrscht eine extrem starke Interferenz, die das gesamte Kommunikationssystem stört. Und meine Sensoren zeigen noch etwas Verrücktes im Schrottfeld: Die Insan-Drohnen haben sogar die alten Voyager-Sonden der Menschheit abgeschleppt!“",
     "sound": "sonar",
     "options": [
       {
@@ -326,7 +326,7 @@
     "sound": "synapse",
     "options": [
       {
-        "label": "„Verstanden! Ich befreie die echte ISS Ibn Battuta an Pier 4!“",
+        "label": "„Verstanden! Ich befreie die echte Ar-Riḥla an Pier 4!“",
         "action": "liberate_real_ship_at_station",
         "keyHint": "1"
       },
@@ -360,7 +360,7 @@
     "speakerTitle": "Quantenphysiker",
     "speakerType": "character",
     "eyebrow": "🎉 ECHTES FORSCHUNGSSCHIFF GEBORGEN!",
-    "mainText": "„Die echte ISS Ibn Battuta ist frei! Unser Quanten-Logbuch ist online!“",
+    "mainText": "„Die echte Ar-Riḥla ist frei! Unser Quanten-Logbuch ist online!“",
     "subText": "„Endlich habe ich wieder Zugriff auf meine Labore und die Melange-Vorräte (+50 Melange-Spice, +60 Silizium)! Ich habe meinen Schiffscomputer mit deinen Synapsen gekoppelt – ab sofort steht dir das Direktiven-Logbuch zur Verfügung. Wir wissen noch nicht alles über deine Vergangenheit, Najmafar ... aber jetzt haben wir die Mittel, der Spur von 2035 nachzugehen!“",
     "sound": "synapse",
     "options": [

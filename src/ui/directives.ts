@@ -24,7 +24,7 @@ export const FTUE_DIRECTIVES: DirectiveItem[] = [
         badge: "PROLOG 2",
         title: "Jamals Forschungsschiff orten",
         instruction: "Fliege zum nahen Planeten & scanne Jamals Schiffssignatur im Orbit mit [F]",
-        hint: "Dr. Jamal hat sein Schiff vor der psionischen Gilde im Schatten des Planeten versteckt."
+        hint: "Dr. Tariq Jamal hat sein Schiff vor der psionischen Gilde im Schatten des Planeten versteckt."
     },
     {
         id: 2,
@@ -44,7 +44,7 @@ export const FTUE_DIRECTIVES: DirectiveItem[] = [
         id: 4,
         badge: "PROLOG 5",
         title: "Echtes Forschungsschiff bergen",
-        instruction: "Befreie die echte ISS Ibn Battuta an Pier 4 & rette das Voyager-Relikt",
+        instruction: "Befreie die echte Ar-Riḥla an Pier 4 & rette das Voyager-Relikt",
         hint: "Sprenge die Verankerung per EMP – dies koppelt Jamals Schiffsdatenbank & schaltet das Logbuch frei!"
     },
     {
@@ -101,7 +101,7 @@ export function renderDirectives() {
     const container = document.getElementById('directives-list');
     if (!container) return;
 
-    // Questlog is strictly hidden until Najmafar has acquired Dr. Jamal's research ship!
+    // Questlog is strictly hidden until Najmafar has acquired Dr. Tariq Jamal's research ship!
     if (!isQuestlogUnlocked()) {
         if (hudDirectives) hudDirectives.style.display = 'none';
         return;

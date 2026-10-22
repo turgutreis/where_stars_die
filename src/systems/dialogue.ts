@@ -157,7 +157,7 @@ export class DialogueEngine {
         const choicesContainer = document.getElementById('npc-dialog-choices');
 
         if (eyebrowEl) eyebrowEl.innerText = node.eyebrow || 'KOMMUNIKATION';
-        if (speakerEl) speakerEl.innerText = `${node.speakerName || 'Dr. Jamal'} [${node.speakerTitle || 'Telepathie'}]`;
+        if (speakerEl) speakerEl.innerText = `${node.speakerName || 'Dr. Tariq Jamal'} [${node.speakerTitle || 'Telepathie'}]`;
         if (mainTextEl) mainTextEl.innerText = node.mainText;
         if (subTextEl) subTextEl.innerText = node.subText;
 

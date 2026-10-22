@@ -415,7 +415,7 @@ export function completeScanning() {
                 target.scanned = true;
                 if (!STATE.jamalShipLiberated) {
                     if (target.isRealShipAtDepot || target.name?.includes('Pier 4')) {
-                        addLogEntry("SENSOR", "🛰️ SPEKTRAL-SCAN: Die echte ISS Ibn Battuta an Pier 4 lokalisiert! Verankerungsbolzen aktiv.");
+                        addLogEntry("SENSOR", "🛰️ SPEKTRAL-SCAN: Die echte Ar-Riḥla an Pier 4 lokalisiert! Verankerungsbolzen aktiv.");
                         openNpcDialogue('insan_station_bypass_plan');
                     } else if (STATE.jamalDecoyRevealed) {
                         addLogEntry("SENSOR", "⚠️ SPEKTRAL-SCAN: Holografisches Köder-Signal der Insan-Falle erfasst.");
@@ -426,7 +426,7 @@ export function completeScanning() {
                         triggerJamalShipScannedDialogue();
                     }
                 } else {
-                    addLogEntry("JAMAL", "„Die ISS Ibn Battuta ist sicher geborgen. Alle Sensoren sind online!“");
+                    addLogEntry("JAMAL", "„Die Ar-Riḥla ist sicher geborgen. Alle Sensoren sind online!“");
                     openNpcDialogue('real_ship_liberated');
                 }
                 return;

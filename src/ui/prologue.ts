@@ -298,12 +298,12 @@ function triggerWarpBreakout() {
 }
 
 export function recruitJamal(): CrewMember {
-    const existing = STATE.crew.find(c => c.name === 'Dr. Jamal' || c.id === 101);
+    const existing = STATE.crew.find(c => c.name === 'Dr. Tariq Jamal' || c.name === 'Dr. Jamal' || c.id === 101);
     if (existing) return existing;
 
     const jamal: CrewMember = {
         id: 101,
-        name: "Dr. Jamal",
+        name: "Dr. Tariq Jamal",
         species: "Mensch (Sol-Terraner)",
         speciesArchetypeName: "Mensch (Sol-Terraner)",
         speciesType: "mortal",
@@ -336,7 +336,7 @@ export function recruitJamal(): CrewMember {
     STATE.loneliness = Math.min(STATE.loneliness, 45); // Jamal cures profound solitude!
     renderCrewUI();
 
-    addLogEntry("CREW", "👨‍🚀 Dr. Jamal im Traum-Kern verankert: „Wir haben es geschafft, Najmafar! Meine Scanner sind online.“");
+    addLogEntry("CREW", "👨‍🚀 Dr. Tariq Jamal im Traum-Kern verankert: „Wir haben es geschafft, Najmafar! Meine Scanner sind online.“");
     addLogEntry("SYSTEM", "⚛️ Tiefenscan-Protokolle aktiv: Tech, H₂O, Legierungen & Shuttle-Expeditionen auf Planeten freigeschaltet!");
 
     return jamal;
@@ -377,7 +377,7 @@ export function finishPrologue() {
         STATE.playerGroup.scale.set(0.42, 0.42, 0.42);
     }
 
-    // Recruit Dr. Jamal as the guaranteed starting co-pilot!
+    // Recruit Dr. Tariq Jamal as the guaranteed starting co-pilot!
     recruitJamal();
 
     const overlay = document.getElementById('prologue-overlay');
@@ -392,7 +392,7 @@ export function finishPrologue() {
 
     renderDirectives();
 
-    // Trigger Dr. Jamal's telepathic mission brief shortly after escaping into space
+    // Trigger Dr. Tariq Jamal's telepathic mission brief shortly after escaping into space
     setTimeout(() => {
         openJamalIntroDialog();
     }, 1200);

@@ -33812,7 +33812,7 @@ var quests_default = {
         stage: 0,
         title: "Schiffssignatur im Orbit orten",
         instruction: "Fliege zum Planeten & scanne die Schiffssignatur im Orbit mit [F]",
-        hint: "Jamal hat sein Forschungsschiff im Orbit des nahen Planeten versteckt. Nähere dich auf < 25 AE.",
+        hint: "Dr. Tariq Jamal hat sein Forschungsschiff im Orbit des nahen Planeten versteckt. Nähere dich auf < 25 AE.",
         objective: {
           type: "scan_target",
           targetId: "jamal_shuttle"
@@ -33841,7 +33841,7 @@ var quests_default = {
       {
         stage: 3,
         title: "Echtes Forschungsschiff bergen",
-        instruction: "Befreie die echte ISS Ibn Battuta an Pier 4 & rette die abgeschleppte Voyager-Sonde",
+        instruction: "Befreie die echte Ar-Riḥla an Pier 4 & rette die abgeschleppte Voyager-Sonde",
         hint: "Nutze die Subraum-Interferenzen der Station, um die Verankerung zu sprengen.",
         objective: {
           type: "dialogue_completed",
@@ -33851,8 +33851,8 @@ var quests_default = {
       {
         stage: 4,
         title: "Forschungsschiff geborgen",
-        instruction: 'Echte "ISS Ibn Battuta" geborgen (+50 Melange) & Sensoren gekoppelt.',
-        hint: "Alle Scanner- und Telemetriedaten von Dr. Jamal sind online.",
+        instruction: 'Echte "Ar-Riḥla" geborgen (+50 Melange) & Sensoren gekoppelt.',
+        hint: "Alle Scanner- und Telemetriedaten von Dr. Tariq Jamal sind online.",
         objective: {
           type: "completed"
         }
@@ -34055,7 +34055,7 @@ var FTUE_DIRECTIVES = [
     badge: "PROLOG 2",
     title: "Jamals Forschungsschiff orten",
     instruction: "Fliege zum nahen Planeten & scanne Jamals Schiffssignatur im Orbit mit [F]",
-    hint: "Dr. Jamal hat sein Schiff vor der psionischen Gilde im Schatten des Planeten versteckt."
+    hint: "Dr. Tariq Jamal hat sein Schiff vor der psionischen Gilde im Schatten des Planeten versteckt."
   },
   {
     id: 2,
@@ -34075,7 +34075,7 @@ var FTUE_DIRECTIVES = [
     id: 4,
     badge: "PROLOG 5",
     title: "Echtes Forschungsschiff bergen",
-    instruction: "Befreie die echte ISS Ibn Battuta an Pier 4 & rette das Voyager-Relikt",
+    instruction: "Befreie die echte Ar-Riḥla an Pier 4 & rette das Voyager-Relikt",
     hint: "Sprenge die Verankerung per EMP – dies koppelt Jamals Schiffsdatenbank & schaltet das Logbuch frei!"
   },
   {
@@ -34255,7 +34255,7 @@ var dialogues_default = {
     speakerType: "character",
     eyebrow: "⚛️ TELEPATHIE • PERSEUS-RAND",
     mainText: "„Najmafar, spürst du meine synaptische Koppelung? Wir haben es geschafft!“",
-    subText: "„Wir sind der Menagerie von Ceres-9 entkommen. Aber ich bin nur mit einem kleinen, zivilen Touristen-Shuttle gereist, um keine Aufmerksamkeit zu erregen. Mein eigentliches Forschungsschiff – die ISS Ibn Battuta – habe ich im Orbit dieses Planeten versteckt. Fliege heran und scanne die Energiesignatur mit [F]!“",
+    subText: "„Wir sind der Menagerie von Ceres-9 entkommen. Aber ich bin nur mit einem kleinen, zivilen Touristen-Shuttle gereist, um keine Aufmerksamkeit zu erregen. Mein eigentliches Forschungsschiff – die Ar-Riḥla – habe ich im Orbit dieses Planeten versteckt. Fliege heran und scanne die Energiesignatur mit [F]!“",
     sound: "synapse",
     options: [
       {
@@ -34281,7 +34281,7 @@ var dialogues_default = {
     speakerTitle: "Quantenphysiker",
     speakerType: "character",
     eyebrow: "🔭 HINTERGRUND • QUANTEN-KARTOGRAPHIE",
-    mainText: "„Mein Name ist Tariq Jamal. Ich bin Quantenphysiker von der Erde.“",
+    mainText: "„Mein Name ist Dr. Tariq Jamal ibn Battūta. Ich bin Quantenphysiker von der Erde.“",
     subText: "„Beziehungsweise arbeite ich für eine Organisation, die mit den modernsten Quantencomputern versucht, das Universum zu kartographieren. Wir suchen immer noch nach der Dunklen Materie! Während meiner Untersuchungen bin ich jedoch auf eine unmögliche Anomalie gestoßen.“",
     sound: "sonar",
     options: [
@@ -34375,7 +34375,7 @@ var dialogues_default = {
     speakerType: "character",
     eyebrow: "🧠 NEURONALES TRAUMA • VERSCHÜTTETES GEDÄCHTNIS",
     mainText: "„Als wir unsere Gedanken im Käfig verbunden haben, habe ich die tiefen Narben in deinem Geist gespürt.“",
-    subText: "„Kein Wunder, dass du dich nicht direkt erinnern kannst. Die lange Einsamkeit im kalten Leerraum und die Dämpfungsfelder der Menagerie haben tiefe Traumata hinterlassen. Dein Bewusstsein hat fast alles abgeriegelt. Überstürze nichts – wenn wir erst meine ISS Ibn Battuta zurückhaben, finden wir Schritt für Schritt heraus, was passiert ist.“",
+    subText: "„Kein Wunder, dass du dich nicht direkt erinnern kannst. Die lange Einsamkeit im kalten Leerraum und die Dämpfungsfelder der Menagerie haben tiefe Traumata hinterlassen. Dein Bewusstsein hat fast alles abgeriegelt. Überstürze nichts – wenn wir erst meine Ar-Riḥla zurückhaben, finden wir Schritt für Schritt heraus, was passiert ist.“",
     sound: "synapse",
     options: [
       {
@@ -34396,7 +34396,7 @@ var dialogues_default = {
     speakerTitle: "Quantenphysiker",
     speakerType: "character",
     eyebrow: "⚠️ SPEKTRAL-SCAN • ORBITALE BLOCKADE",
-    mainText: "„Da ist die Ibn Battuta! Aber Moment ... sie hängt in einer Insan-Parkkralle fest!“",
+    mainText: "„Da ist die Ar-Riḥla! Aber Moment ... sie hängt in einer Insan-Parkkralle fest!“",
     subText: "„Eine autonome Drohne der Insan-Organisation blockiert das Schiff. Sie verlangen astronomische Parkgebühren für das Halten im Orbit.“",
     sound: "alarm",
     options: [
@@ -34512,7 +34512,7 @@ var dialogues_default = {
     mainText: "„Verflucht! Das Forschungsschiff ist nur eine holographische Attrappe!“",
     subText: `„Kaum greifst du ein, trifft dich eine heftige psionische Rückkopplung! Die Schiffshülle flackert und entpuppt sich als reine Projektion – eine Köderfalle der Insan-Drohnen, um potenziell gefährliche Parksünder aus der Reserve zu locken! Der Sicherheitsalarm heult los!
 
-Aber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die echte ISS Ibn Battuta längst in ihre nächste INSAN-Abschleppstation geschleppt – zwei Raum-Sprünge von hier entfernt!“`,
+Aber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die echte Ar-Riḥla längst in ihre nächste INSAN-Abschleppstation geschleppt – zwei Raum-Sprünge von hier entfernt!“`,
     sound: "crash",
     options: [
       {
@@ -34529,7 +34529,7 @@ Aber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die 
     speakerType: "character",
     eyebrow: "🛰️ INSAN-VERWAHRSTELLE ZETA-9 • ANKUNFT",
     mainText: "„Unglaublich ... die Drohnen haben hier draußen buchstäblich alles abgeschleppt, was sie finden konnten!“",
-    subText: "„Sieh dir dieses Schrottdepot an, Najmafar! Dort drüben an Pier 4 liegt tatsächlich meine echte ISS Ibn Battuta! Aber wir haben ein Problem: Hier herrscht eine extrem starke Interferenz, die das gesamte Kommunikationssystem stört. Und meine Sensoren zeigen noch etwas Verrücktes im Schrottfeld: Die Insan-Drohnen haben sogar die alten Voyager-Sonden der Menschheit abgeschleppt!“",
+    subText: "„Sieh dir dieses Schrottdepot an, Najmafar! Dort drüben an Pier 4 liegt tatsächlich meine echte Ar-Riḥla! Aber wir haben ein Problem: Hier herrscht eine extrem starke Interferenz, die das gesamte Kommunikationssystem stört. Und meine Sensoren zeigen noch etwas Verrücktes im Schrottfeld: Die Insan-Drohnen haben sogar die alten Voyager-Sonden der Menschheit abgeschleppt!“",
     sound: "sonar",
     options: [
       {
@@ -34577,7 +34577,7 @@ Aber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die 
     sound: "synapse",
     options: [
       {
-        label: "„Verstanden! Ich befreie die echte ISS Ibn Battuta an Pier 4!“",
+        label: "„Verstanden! Ich befreie die echte Ar-Riḥla an Pier 4!“",
         action: "liberate_real_ship_at_station",
         keyHint: "1"
       },
@@ -34611,7 +34611,7 @@ Aber warte ... im Datenstrom der Drohne sehe ich die Koordinaten: Sie haben die 
     speakerTitle: "Quantenphysiker",
     speakerType: "character",
     eyebrow: "🎉 ECHTES FORSCHUNGSSCHIFF GEBORGEN!",
-    mainText: "„Die echte ISS Ibn Battuta ist frei! Unser Quanten-Logbuch ist online!“",
+    mainText: "„Die echte Ar-Riḥla ist frei! Unser Quanten-Logbuch ist online!“",
     subText: "„Endlich habe ich wieder Zugriff auf meine Labore und die Melange-Vorräte (+50 Melange-Spice, +60 Silizium)! Ich habe meinen Schiffscomputer mit deinen Synapsen gekoppelt – ab sofort steht dir das Direktiven-Logbuch zur Verfügung. Wir wissen noch nicht alles über deine Vergangenheit, Najmafar ... aber jetzt haben wir die Mittel, der Spur von 2035 nachzugehen!“",
     sound: "synapse",
     options: [
@@ -34738,7 +34738,7 @@ class DialogueEngine {
     if (eyebrowEl)
       eyebrowEl.innerText = node.eyebrow || "KOMMUNIKATION";
     if (speakerEl)
-      speakerEl.innerText = `${node.speakerName || "Dr. Jamal"} [${node.speakerTitle || "Telepathie"}]`;
+      speakerEl.innerText = `${node.speakerName || "Dr. Tariq Jamal"} [${node.speakerTitle || "Telepathie"}]`;
     if (mainTextEl)
       mainTextEl.innerText = node.mainText;
     if (subTextEl)
@@ -37327,7 +37327,7 @@ function completeScanning() {
         target.scanned = true;
         if (!STATE.jamalShipLiberated) {
           if (target.isRealShipAtDepot || target.name?.includes("Pier 4")) {
-            addLogEntry("SENSOR", "\uD83D\uDEF0️ SPEKTRAL-SCAN: Die echte ISS Ibn Battuta an Pier 4 lokalisiert! Verankerungsbolzen aktiv.");
+            addLogEntry("SENSOR", "\uD83D\uDEF0️ SPEKTRAL-SCAN: Die echte Ar-Riḥla an Pier 4 lokalisiert! Verankerungsbolzen aktiv.");
             openNpcDialogue("insan_station_bypass_plan");
           } else if (STATE.jamalDecoyRevealed) {
             addLogEntry("SENSOR", "⚠️ SPEKTRAL-SCAN: Holografisches Köder-Signal der Insan-Falle erfasst.");
@@ -37338,7 +37338,7 @@ function completeScanning() {
             triggerJamalShipScannedDialogue();
           }
         } else {
-          addLogEntry("JAMAL", "„Die ISS Ibn Battuta ist sicher geborgen. Alle Sensoren sind online!“");
+          addLogEntry("JAMAL", "„Die Ar-Riḥla ist sicher geborgen. Alle Sensoren sind online!“");
           openNpcDialogue("real_ship_liberated");
         }
         return;
@@ -40928,11 +40928,11 @@ function spawnJamalMissionEntities(targetPlanet, isRealShipAtDepot = false) {
   shuttleController.group.position.copy(shuttlePos);
   shuttleController.group.lookAt(planetPos);
   scene.add(shuttleController.group);
-  let shipName = "Dr. Jamals Forschungsschiff [FALSPARKER-STATUS]";
+  let shipName = "Dr. Tariq Jamals Forschungsschiff [FALSPARKER-STATUS]";
   if (isRealShipAtDepot) {
-    shipName = STATE.jamalShipLiberated ? "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]" : "Echte 'ISS Ibn Battuta' [PIER 4 - BESCHLAGNAHMT]";
+    shipName = STATE.jamalShipLiberated ? "Forschungsschiff 'Ar-Riḥla' [GEBORGEN]" : "Echte 'Ar-Riḥla' [PIER 4 - BESCHLAGNAHMT]";
   } else if (STATE.jamalShipLiberated) {
-    shipName = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
+    shipName = "Forschungsschiff 'Ar-Riḥla' [GEBORGEN]";
   } else if (STATE.jamalDecoyRevealed) {
     shipName = "Köder-Attrappe [HOLOGRAFIE-ATTROPPE ENTLARVT]";
   }
@@ -41969,7 +41969,7 @@ function triggerDecoyTrap() {
   advanceFtueStep(3);
   updateHUDStats();
   addLogEntry("PSIONIK", "⚡ PSIONISCHE RÜCKKOPPLUNG: -25 Mentalkraft erlitten! Die Falle der Insan-Drohne schnappt zu!");
-  addLogEntry("SYSTEM", "\uD83D\uDEA8 HOLOGRAPHISCHE ATTRAPPE ENTLARVT: Die echte ISS Ibn Battuta wurde in die INSAN-Verwahrstelle Zeta-9 abgeschleppt (2 Sprünge entfernt)!");
+  addLogEntry("SYSTEM", "\uD83D\uDEA8 HOLOGRAPHISCHE ATTRAPPE ENTLARVT: Die echte Ar-Riḥla wurde in die INSAN-Verwahrstelle Zeta-9 abgeschleppt (2 Sprünge entfernt)!");
   openNpcDialogue("hologram_trap_revealed");
 }
 function liberateRealShipAtStation() {
@@ -41984,12 +41984,12 @@ function liberateRealShipAtStation() {
   if (STATE.jamalShip) {
     if (STATE.jamalShip.setLiberated)
       STATE.jamalShip.setLiberated(true);
-    STATE.jamalShip.name = "Forschungsschiff 'ISS Ibn Battuta' [GEBORGEN]";
+    STATE.jamalShip.name = "Forschungsschiff 'Ar-Riḥla' [GEBORGEN]";
   }
   QuestManager.completeQuest("prologue_jamal_ship");
   grantJamalRewards();
-  addLogEntry("BERGUNG", "\uD83C\uDF89 ECHTES FORSCHUNGSSCHIFF GEBORGEN: ISS Ibn Battuta befreit! +50 Melange-Spice, +60 Silizium!");
-  addLogEntry("SYSTEM", "\uD83D\uDCDF QUANTEN-LOGBUCH AKTIVIERT: ISS Ibn Battuta gekoppelt! Missions-Direktiven und Galaktische Aufträge online.");
+  addLogEntry("BERGUNG", "\uD83C\uDF89 ECHTES FORSCHUNGSSCHIFF GEBORGEN: Ar-Riḥla befreit! +50 Melange-Spice, +60 Silizium!");
+  addLogEntry("SYSTEM", "\uD83D\uDCDF QUANTEN-LOGBUCH AKTIVIERT: Ar-Riḥla gekoppelt! Missions-Direktiven und Galaktische Aufträge online.");
   addLogEntry("JAMAL", "„Alle Sensoren online! Jetzt können wir die Verlangsamung und das Jahr 2035 aufklären!“");
   advanceFtueStep(5);
   renderDirectives();
@@ -49570,15 +49570,15 @@ Bis eine fremdartige, menschliche Stimme direkt an deinem Wartungsgitter auftauc
       id: "jamal_encounter",
       act: "act_3_jamal",
       stage: "jamal_contact",
-      eyebrow: "👤 WARTUNGSRAMPE B-4 • DR. JAMAL",
-      stepCounter: "Szene 9 / 11 • Akt III: Dr. Jamal",
+      eyebrow: "👤 WARTUNGSRAMPE B-4 • DR. TARIQ JAMAL",
+      stepCounter: "Szene 9 / 11 • Akt III: Dr. Tariq Jamal",
       mainText: "„Ich habe keine Zeit für lange Vorträge. Hör mir gut zu.“",
-      subText: `Direkt vor deinem riesigen, trüben Auge steht ein Mann im abgewetzten Technikeranzug: Dr. Jamal. Auf seiner Brust summt ein modifizierter tragbarer Quantencomputer. Er atmet hastig:
+      subText: `Direkt vor deinem riesigen, trüben Auge steht ein Mann im abgewetzten Technikeranzug: Dr. Tariq Jamal ibn Battūta. Auf seiner Brust summt ein modifizierter tragbarer Quantencomputer. Er atmet hastig:
 
 „Ich habe alte Daten und astronomische Aufzeichnungen von vor 250 Jahren analysiert, um dich zu finden. Ich suche denjenigen, der für das verantwortlich ist, was auf der Erde und an unseren Sternenkolonien passiert! Ich erkläre dir alles später. Aber fürs Erste musst du nur eins wissen: Ich habe dir vorhin das Spice in den Injektor geschmuggelt. Und wenn du tust, was ich sage, bekommst du MEHR SPICE.“`,
       sound: "synapse",
       speakerType: "character",
-      speakerName: "Dr. Jamal",
+      speakerName: "Dr. Tariq Jamal",
       options: [
         {
           label: "Vom Verlangen nach dem Spice erfasst werden...",
@@ -49592,17 +49592,17 @@ Bis eine fremdartige, menschliche Stimme direkt an deinem Wartungsgitter auftauc
       act: "act_3_jamal",
       stage: "jamal_contact",
       eyebrow: "🧬 DER SYMBIOSEN-VORSCHLAG",
-      stepCounter: "Szene 10 / 11 • Akt III: Dr. Jamal",
+      stepCounter: "Szene 10 / 11 • Akt III: Dr. Tariq Jamal",
       mainText: "„Schluck mich. Schleus mich in dein Inneres!“",
-      subText: `Dr. Jamal packt seinen Quantencomputer fester und deutet auf die wabernde, zähflüssige Pore deiner dorsalen Chitin-Membran:
+      subText: `Dr. Tariq Jamal packt seinen Quantencomputer fester und deutet auf die wabernde, zähflüssige Pore deiner dorsalen Chitin-Membran:
 
 „Die Gilde der Psionisch Verschränkten hat an Dock 7 angelegt. Sie wollen dich der Asche-Gilde abkaufen und dein Gehirn als organischen Rechner für ihre Kriegsschiffe sezieren! Ich kann hier draußen nicht überleben, wenn du springst. Du musst mich konsumieren – nimm mich durch deine Außenhaut auf und bette mich in deinen Bio-Kern ein! Manche würden es pervers nennen, aber es ist unsere einzige Chance!“`,
       sound: "sonar",
       speakerType: "character",
-      speakerName: "Dr. Jamal",
+      speakerName: "Dr. Tariq Jamal",
       options: [
         {
-          label: "Die wabernde Hautmembran öffnen & Dr. Jamal einsaugen",
+          label: "Die wabernde Hautmembran öffnen & Dr. Tariq Jamal einsaugen",
           action: "absorption_harmonization",
           keyHint: "1"
         }
@@ -49614,10 +49614,10 @@ Bis eine fremdartige, menschliche Stimme direkt an deinem Wartungsgitter auftauc
       stage: "absorption_sync",
       eyebrow: "🧠 TRAUM-KERN • NEURONALE HARMONISIERUNG",
       stepCounter: "Szene 11 / 11 • Akt IV: Symbiose",
-      mainText: "Jamal gleitet durch dein Fleisch. Seine Gedanken rasen panisch.",
+      mainText: "Tariq gleitet durch dein Fleisch. Seine Gedanken rasen panisch.",
       subText: `Deine zähe, organische Membran umschließt den Physiker. Schichten aus pulsierendem Gewebe und Biolumineszenz schleusen ihn tief in dein Inneres – in den geschützten Traum-Kern. Doch der Druck deines gigantischen Bewusstseins droht ihn zu zerquetschen!
 
-Wenn du seine Gedanken nicht sofort psionisch an deine Resonanzfrequenz anpasst, wird auch Dr. Jamal wie die Touristen auf den Tribünen als sabbernder Lappen enden! Bündle deine Mentalkraft und harmonisiere die Synapsen-Brücke!`,
+Wenn du seine Gedanken nicht sofort psionisch an deine Resonanzfrequenz anpasst, wird auch Dr. Tariq Jamal wie die Touristen auf den Tribünen als sabbernder Lappen enden! Bündle deine Mentalkraft und harmonisiere die Synapsen-Brücke!`,
       sound: "synapse",
       speakerType: "harmonize",
       speakerName: "Psionische Brücke",
@@ -49636,13 +49636,13 @@ Wenn du seine Gedanken nicht sofort psionisch an deine Resonanzfrequenz anpasst,
       eyebrow: "🚨 ROT-ALARM • NOTFALL-EINDÄMMUNGS-KOLLAPS • CERES-9",
       stepCounter: "Szene 11 / 11 • Akt V: Ausbruch",
       mainText: "Die Verbindung steht! Sirenen heulen durch die Station!",
-      subText: `Jamals Stimme erklingt nun glasklar in deinem eigenen Bewusstsein:
+      subText: `Tariqs Stimme erklingt nun glasklar in deinem eigenen Bewusstsein:
 „Harmonisierung stabil! Verdammt, Najmafar, ich spüre deine Kraft... und deinen Durst nach Spice! Die Gilde hat die Schotten durchbrochen – sie fluten den Käfig mit Neurotoxin! FALTE DEN RAUM! SPRING!“
 
 Schwere Verteidigungsgeschütze der Menagerie eröffnen das Feuer auf dein Chitin. Das Melange-Spice brennt wie reines Plasma in deinen Adern. Bündle deine Willenskraft und zerschlage den Plasma-Käfig!`,
       sound: "alarm",
       speakerType: "climax",
-      speakerName: "Dr. Jamal (Telepathisch)",
+      speakerName: "Dr. Tariq Jamal (Telepathisch)",
       options: [
         {
           label: "🌌 EINDÄMMUNG ZERSPRENGEN: RAUMFALTUNGS-SPRUNG [LEERTASTE]",
@@ -49856,12 +49856,12 @@ function triggerWarpBreakout() {
   }, 1100);
 }
 function recruitJamal() {
-  const existing = STATE.crew.find((c) => c.name === "Dr. Jamal" || c.id === 101);
+  const existing = STATE.crew.find((c) => c.name === "Dr. Tariq Jamal" || c.name === "Dr. Jamal" || c.id === 101);
   if (existing)
     return existing;
   const jamal = {
     id: 101,
-    name: "Dr. Jamal",
+    name: "Dr. Tariq Jamal",
     species: "Mensch (Sol-Terraner)",
     speciesArchetypeName: "Mensch (Sol-Terraner)",
     speciesType: "mortal",
@@ -49892,7 +49892,7 @@ function recruitJamal() {
   STATE.crew.unshift(jamal);
   STATE.loneliness = Math.min(STATE.loneliness, 45);
   renderCrewUI();
-  addLogEntry("CREW", "\uD83D\uDC68‍\uD83D\uDE80 Dr. Jamal im Traum-Kern verankert: „Wir haben es geschafft, Najmafar! Meine Scanner sind online.“");
+  addLogEntry("CREW", "\uD83D\uDC68‍\uD83D\uDE80 Dr. Tariq Jamal im Traum-Kern verankert: „Wir haben es geschafft, Najmafar! Meine Scanner sind online.“");
   addLogEntry("SYSTEM", "⚛️ Tiefenscan-Protokolle aktiv: Tech, H₂O, Legierungen & Shuttle-Expeditionen auf Planeten freigeschaltet!");
   return jamal;
 }
