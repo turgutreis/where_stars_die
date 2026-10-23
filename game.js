@@ -34716,6 +34716,14 @@ class DialogueEngine {
     }
     currentNodeId = nodeId;
     isDialogOpen = true;
+    const scannerPanel = document.getElementById("left-deck-panel");
+    if (scannerPanel) {
+      scannerPanel.classList.remove("visible");
+    }
+    const orbitalHud = document.getElementById("planet-orbital-hud");
+    if (orbitalHud) {
+      orbitalHud.style.display = "none";
+    }
     nodeOpenListeners.forEach((fn) => {
       try {
         fn(nodeId);
@@ -37523,7 +37531,7 @@ function updateScannerUI(planet, dist) {
     }
   }
   if (scannerPanel) {
-    if (shouldShow) {
+    if (shouldShow && !isJamalDialogOpen()) {
       scannerPanel.classList.add("visible");
     } else {
       scannerPanel.classList.remove("visible");
@@ -37974,7 +37982,7 @@ function updateOrbitalPlanetHUD(planet, dist, visible, inRange) {
   const orbitalHud = document.getElementById("planet-orbital-hud");
   if (!orbitalHud)
     return;
-  if (!visible || !planet) {
+  if (!visible || !planet || isJamalDialogOpen()) {
     orbitalHud.style.display = "none";
     lastOrbitalHudCacheKey = "";
     return;
@@ -38781,6 +38789,11 @@ function dischargeEmpShockwave() {
   shockwaveTimer = 0.6;
   playCrashSound();
   addLogEntry("SYSTEM", `\uD83D\uDCA5 BIO-ELEKTRISCHE SCHOCKWELLE ENTLADEN! Nahbereich lähmt Schiffe für 5s.`);
+  if (STATE.jamalShip && STATE.jamalShip.isRealShipAtDepot && !STATE.jamalShipLiberated && STATE.jamalShip.position) {
+    if (STATE.playerPosition.distanceTo(STATE.jamalShip.position) <= 28) {
+      liberateRealShipAtStation();
+    }
+  }
 }
 function salvageNearestWreck() {
   const playerPos = STATE.playerPosition;
@@ -42248,7 +42261,6 @@ function liberateVoyagerProbe() {
   updateHUDStats();
   openNpcDialogue("insan_voyager_liberated");
 }
-var executeHackDroneDatabase = triggerDecoyTrap;
 function grantJamalRewards() {
   STATE.loneliness = Math.max(5, (STATE.loneliness || 30) - 20);
   updateHUDStats();
@@ -42273,6 +42285,18 @@ function openJamalIntroDialog() {
   openNpcDialogue("jamal_orbit_intro");
 }
 function triggerJamalShipScannedDialogue() {
+  if (STATE.jamalShip && STATE.jamalShip.isRealShipAtDepot) {
+    if (STATE.jamalShipLiberated) {
+      openNpcDialogue("real_ship_liberated");
+    } else {
+      openNpcDialogue("insan_station_bypass_plan");
+    }
+    return;
+  }
+  if (STATE.jamalDecoyRevealed) {
+    openNpcDialogue("hologram_trap_revealed");
+    return;
+  }
   QuestManager.advanceQuest("prologue_jamal_ship", 1);
   advanceFtueStep(2);
   const hint = document.getElementById("flight-controls-hint");
@@ -42282,9 +42306,6 @@ function triggerJamalShipScannedDialogue() {
 }
 function closeJamalDialog() {
   closeNpcDialogue();
-}
-function liberateJamalShip2() {
-  executeHackDroneDatabase();
 }
 function initJamalDialogListeners() {
   const closeBtn = document.getElementById("close-npc-dialog-btn") || document.getElementById("npc-dialog-close-btn");
@@ -48086,18 +48107,17 @@ function setupControls() {
       return;
     }
     if (key === "f") {
+      if (isJamalDialogOpen())
+        return;
       if (STATE.jamalShip && STATE.jamalShip.position) {
         const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
-        if (jamalDist <= 25) {
+        if (jamalDist <= 28) {
           if (!STATE.jamalShip.scanned) {
             STATE.scanningPlanet = STATE.jamalShip;
             triggerScanStart();
             return;
-          } else if (!STATE.jamalShipLiberated) {
-            triggerJamalShipScannedDialogue();
-            return;
           } else {
-            openNpcDialogue("jamal_orbit_intro");
+            triggerJamalShipScannedDialogue();
             return;
           }
         }
@@ -48174,19 +48194,12 @@ function setupControls() {
       }
     }
     if (key === "e") {
-      if (STATE.jamalShip && !STATE.jamalShipLiberated && STATE.jamalShip.position) {
+      if (isJamalDialogOpen())
+        return;
+      if (STATE.jamalShip && STATE.jamalShip.position) {
         const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
         if (jamalDist <= 28) {
-          if (STATE.jamalShip.isRealShipAtDepot) {
-            const currentStage = QuestManager.getCurrentStage("prologue_jamal_ship")?.stage ?? 0;
-            if (currentStage >= 4) {
-              liberateRealShipAtStation();
-            } else {
-              openInsanAdministrationDialogue();
-            }
-          } else {
-            liberateJamalShip2();
-          }
+          addLogEntry("NAV", "Drücke [F], um das Forschungsschiff zu scannen / zu untersuchen.");
           return;
         }
       }
@@ -48386,17 +48399,15 @@ function setupTargetRaycasting() {
       if (hitJamal && STATE.jamalShip) {
         setLockedTarget(STATE.jamalShip);
         const dist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
-        if (dist <= 25) {
+        if (dist <= 28) {
           if (!STATE.jamalShip.scanned) {
             STATE.scanningPlanet = STATE.jamalShip;
             triggerScanStart();
-          } else if (!STATE.jamalShipLiberated) {
-            triggerJamalShipScannedDialogue();
           } else {
-            openNpcDialogue("jamal_orbit_intro");
+            triggerJamalShipScannedDialogue();
           }
         } else {
-          addLogEntry("JAMAL", `„Da ist mein Schiff! Anvisiert (${dist.toFixed(1)} AE). Fliege heran (< 25 AE) und scanne es mit [F]!“`);
+          addLogEntry("JAMAL", `„Da ist mein Schiff! Anvisiert (${dist.toFixed(1)} AE). Fliege heran (< 28 AE) und scanne es mit [F]!“`);
         }
         return;
       }

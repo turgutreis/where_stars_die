@@ -14,6 +14,7 @@ if (typeof (globalThis as any).localStorage === 'undefined' || !(globalThis as a
 
 if (typeof globalThis.document === 'undefined') {
     function createMockElement() {
+        const classes = new Set<string>();
         const el: any = {
             style: {},
             innerText: '',
@@ -21,7 +22,15 @@ if (typeof globalThis.document === 'undefined') {
             disabled: false,
             children: [],
             _listeners: {},
-            classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => false },
+            classList: {
+                add: (c: string) => classes.add(c),
+                remove: (c: string) => classes.delete(c),
+                contains: (c: string) => classes.has(c),
+                toggle: (c: string) => {
+                    if (classes.has(c)) { classes.delete(c); return false; }
+                    classes.add(c); return true;
+                }
+            },
             setAttribute: (k: string, v: string) => { el[k] = v; },
             removeAttribute: (k: string) => { delete el[k]; },
             appendChild: function(c: any) { (el.children = el.children || []).push(c); return c; },
@@ -4461,6 +4470,60 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         // Station must expand its orbit and NEVER clip into expanded planet or atmosphere
         expect(stationDist).toBeGreaterThan(expandedAtmosphere + 10.0);
         expect(station.mesh.position.distanceTo(mockPlanet.mesh.position)).toBe(stationDist);
+    });
+
+    test("56. Dialogue Window Focus Guarantee: Suppresses Conflicting Left Scanner Card & Resolves F vs E Key Disparity", () => {
+        // 1. When an NPC/Story dialogue opens, the left scanner card must be automatically suppressed
+        const scannerPanel = document.getElementById('left-deck-panel')!;
+        scannerPanel.classList.add('visible');
+        expect(scannerPanel.classList.contains('visible')).toBe(true);
+
+        DialogueEngine.openDialogue('jamal_ship_scanned');
+        expect(DialogueEngine.isDialogOpen()).toBe(true);
+        expect(scannerPanel.classList.contains('visible')).toBe(false);
+
+        // While dialogue is open, updateScannerUI must keep scannerPanel hidden
+        const mockPlanet = { name: "TestWorld", size: 3.0, attributes: {} };
+        updateScannerUI(mockPlanet, 10);
+        expect(scannerPanel.classList.contains('visible')).toBe(false);
+
+        // 2. Closing dialogue restores standard gameplay HUD state
+        DialogueEngine.closeDialogue();
+        expect(DialogueEngine.isDialogOpen()).toBe(false);
+
+        // 3. Contextual dialogue mapping for Jamal's ship
+        STATE.jamalDecoyRevealed = false;
+        STATE.jamalShip = {
+            name: "Dr. Tariq Jamals Forschungsschiff",
+            position: new THREE.Vector3(50, 0, 50),
+            isJamalShip: true,
+            isRealShipAtDepot: false,
+            scanned: true
+        };
+
+        // Scanning/interacting via triggerJamalShipScannedDialogue opens initial choice dialogue
+        triggerJamalShipScannedDialogue();
+        expect(DialogueEngine.isDialogOpen()).toBe(true);
+        expect(DialogueEngine.getCurrentNodeId()).toBe('jamal_ship_scanned');
+        DialogueEngine.closeDialogue();
+
+        // Once decoy trap is revealed, it appropriately opens the decoy reveal node
+        STATE.jamalDecoyRevealed = true;
+        triggerJamalShipScannedDialogue();
+        expect(DialogueEngine.isDialogOpen()).toBe(true);
+        expect(DialogueEngine.getCurrentNodeId()).toBe('hologram_trap_revealed');
+        DialogueEngine.closeDialogue();
+
+        // 4. Bio-EMP Overload near Pier 4 liberates real ship
+        STATE.jamalShip.isRealShipAtDepot = true;
+        STATE.jamalShipLiberated = false;
+        STATE.playerPosition = new THREE.Vector3(55, 0, 55); // Within 28 AE of (50, 0, 50)
+        STATE.bioEnergy = 50;
+        STATE.mentalEnergy = 50;
+        STATE.gameStarted = true;
+        triggerBioDischarge();
+        updateFleet(0.5); // Charge and discharge shockwave
+        expect(STATE.jamalShipLiberated).toBe(true);
     });
 });
 

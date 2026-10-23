@@ -9,7 +9,7 @@ import { createScanVisuals, updateScanVisuals, removeScanVisuals } from '../proc
 import { SpeciesData, PlanetAttributes, FleetShip, SpaceStation, PlanetaryHazards, SurfaceDeposit } from '../types/game';
 import { generateProceduralCandidates } from './crew-generation';
 import { advanceFtueStep, triggerVoyagerSignalDetection } from '../ui/directives';
-import { liberateJamalShip, triggerJamalShipScannedDialogue, openNpcDialogue } from '../ui/jamal-dialog';
+import { liberateJamalShip, triggerJamalShipScannedDialogue, openNpcDialogue, isJamalDialogOpen } from '../ui/jamal-dialog';
 import { abductCrewFromShip } from './abduction';
 import { triggerHarvestStart } from './harvesting';
 import { openShuttleExpeditionModal, hasAwayTeamCrew } from './shuttle-expeditions';
@@ -596,7 +596,7 @@ export function updateScannerUI(planet: any, dist: number) {
     }
 
     if (scannerPanel) {
-        if (shouldShow) {
+        if (shouldShow && !isJamalDialogOpen()) {
             scannerPanel.classList.add('visible');
         } else {
             scannerPanel.classList.remove('visible');
@@ -1088,7 +1088,7 @@ export function updateOrbitalPlanetHUD(planet: any, dist: number, visible: boole
     const orbitalHud = document.getElementById('planet-orbital-hud');
     if (!orbitalHud) return;
 
-    if (!visible || !planet) {
+    if (!visible || !planet || isJamalDialogOpen()) {
         orbitalHud.style.display = 'none';
         lastOrbitalHudCacheKey = '';
         return;

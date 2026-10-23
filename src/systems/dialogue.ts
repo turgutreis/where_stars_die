@@ -86,6 +86,16 @@ export class DialogueEngine {
         currentNodeId = nodeId;
         isDialogOpen = true;
 
+        // Dismiss conflicting scanner & telemetry card so dialogue has exclusive focus
+        const scannerPanel = document.getElementById('left-deck-panel');
+        if (scannerPanel) {
+            scannerPanel.classList.remove('visible');
+        }
+        const orbitalHud = document.getElementById('planet-orbital-hud');
+        if (orbitalHud) {
+            orbitalHud.style.display = 'none';
+        }
+
         nodeOpenListeners.forEach(fn => {
             try { fn(nodeId); } catch (e) { console.error(e); }
         });

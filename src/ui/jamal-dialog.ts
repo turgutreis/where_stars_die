@@ -214,6 +214,18 @@ export function openJamalIntroDialog() {
  * Triggers when player scans Jamal's ship in orbit!
  */
 export function triggerJamalShipScannedDialogue() {
+    if (STATE.jamalShip && STATE.jamalShip.isRealShipAtDepot) {
+        if (STATE.jamalShipLiberated) {
+            openNpcDialogue('real_ship_liberated');
+        } else {
+            openNpcDialogue('insan_station_bypass_plan');
+        }
+        return;
+    }
+    if (STATE.jamalDecoyRevealed) {
+        openNpcDialogue('hologram_trap_revealed');
+        return;
+    }
     QuestManager.advanceQuest('prologue_jamal_ship', 1);
     advanceFtueStep(2);
     const hint = document.getElementById('flight-controls-hint');

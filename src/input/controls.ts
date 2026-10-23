@@ -136,19 +136,18 @@ export function setupControls() {
             return;
         }
         if (key === 'f') {
-            // 0. Proximity interaction with Dr. Tariq Jamal's Research Ship / Towing Drone (< 25 AE)
+            if (isJamalDialogOpen()) return;
+
+            // 0. Proximity interaction with Dr. Tariq Jamal's Research Ship / Towing Drone (< 28 AE)
             if (STATE.jamalShip && STATE.jamalShip.position) {
                 const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
-                if (jamalDist <= 25) {
+                if (jamalDist <= 28) {
                     if (!STATE.jamalShip.scanned) {
                         STATE.scanningPlanet = STATE.jamalShip;
                         triggerScanStart();
                         return;
-                    } else if (!STATE.jamalShipLiberated) {
-                        triggerJamalShipScannedDialogue();
-                        return;
                     } else {
-                        openNpcDialogue('jamal_orbit_intro');
+                        triggerJamalShipScannedDialogue();
                         return;
                     }
                 }
@@ -233,22 +232,17 @@ export function setupControls() {
             }
         }
         if (key === 'e') {
-            if (STATE.jamalShip && !STATE.jamalShipLiberated && STATE.jamalShip.position) {
+            if (isJamalDialogOpen()) return;
+
+            // Non-harvestable research ship proximity guidance
+            if (STATE.jamalShip && STATE.jamalShip.position) {
                 const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
                 if (jamalDist <= 28) {
-                    if (STATE.jamalShip.isRealShipAtDepot) {
-                        const currentStage = QuestManager.getCurrentStage('prologue_jamal_ship')?.stage ?? 0;
-                        if (currentStage >= 4) {
-                            liberateRealShipAtStation();
-                        } else {
-                            openInsanAdministrationDialogue();
-                        }
-                    } else {
-                        liberateJamalShip();
-                    }
+                    addLogEntry("NAV", "Drücke [F], um das Forschungsschiff zu scannen / zu untersuchen.");
                     return;
                 }
             }
+
             const salvaged = salvageNearestWreck();
             if (!salvaged) {
                 triggerHarvestStart();
@@ -462,17 +456,15 @@ export function setupTargetRaycasting() {
             if (hitJamal && STATE.jamalShip) {
                 setLockedTarget(STATE.jamalShip);
                 const dist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
-                if (dist <= 25) {
+                if (dist <= 28) {
                     if (!STATE.jamalShip.scanned) {
                         STATE.scanningPlanet = STATE.jamalShip;
                         triggerScanStart();
-                    } else if (!STATE.jamalShipLiberated) {
-                        triggerJamalShipScannedDialogue();
                     } else {
-                        openNpcDialogue('jamal_orbit_intro');
+                        triggerJamalShipScannedDialogue();
                     }
                 } else {
-                    addLogEntry("JAMAL", `„Da ist mein Schiff! Anvisiert (${dist.toFixed(1)} AE). Fliege heran (< 25 AE) und scanne es mit [F]!“`);
+                    addLogEntry("JAMAL", `„Da ist mein Schiff! Anvisiert (${dist.toFixed(1)} AE). Fliege heran (< 28 AE) und scanne es mit [F]!“`);
                 }
                 return;
             }
