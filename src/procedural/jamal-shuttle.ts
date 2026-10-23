@@ -28,7 +28,7 @@ export interface TowingDroneController {
  * Equipped with high-tech science wings, quantum sensor arrays, and a glowing propulsion core.
  * Features a heavy industrial parking clamp (Parkkralle) locked onto the engines until liberated!
  */
-export function createJamalResearchShuttleMesh(size: number = 2.5): JamalShuttleController {
+export function createJamalResearchShuttleMesh(size: number = 0.65): JamalShuttleController {
     const group = new THREE.Group();
     (group as any).isJamalGroup = true;
 
@@ -132,7 +132,7 @@ export function createJamalResearchShuttleMesh(size: number = 2.5): JamalShuttle
     shuttleMesh.add(sensorDish);
 
     // Science Quantum Core Light
-    const coreLight = new THREE.PointLight(0x38bdf8, 1.8, 35, 1.2);
+    const coreLight = new THREE.PointLight(0x38bdf8, 1.8, 16, 1.2);
     coreLight.position.set(0, 0, -size * 0.9);
     group.add(coreLight);
 
@@ -252,7 +252,7 @@ export function createJamalResearchShuttleMesh(size: number = 2.5): JamalShuttle
  * Creates the rogue AI Parking Enforcement Drone (TX-9 Orbit-Abschleppdienst)
  * Patrols alongside Jamal's ship, locking it with a glowing tractor beam and flashing yellow warning strobes.
  */
-export function createTowingDroneMesh(size: number = 1.6): TowingDroneController {
+export function createTowingDroneMesh(size: number = 0.45): TowingDroneController {
     const group = new THREE.Group();
     (group as any).isTowingDroneGroup = true;
 
@@ -301,7 +301,7 @@ export function createTowingDroneMesh(size: number = 1.6): TowingDroneController
     strobeBeacon.position.set(0, size * 0.65, 0);
     droneBody.add(strobeBeacon);
 
-    const strobeLight = new THREE.PointLight(0xf59e0b, 2.2, 35, 1.5);
+    const strobeLight = new THREE.PointLight(0xf59e0b, 2.2, 16, 1.5);
     strobeLight.position.set(0, size * 0.75, 0);
     group.add(strobeLight);
 

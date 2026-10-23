@@ -115,10 +115,38 @@ export function liberateRealShipAtStation() {
     addLogEntry("SYSTEM", "📟 QUANTEN-LOGBUCH AKTIVIERT: Ar-Riḥla gekoppelt! Missions-Direktiven und Galaktische Aufträge online.");
     addLogEntry("JAMAL", "„Alle Sensoren online! Jetzt können wir die Verlangsamung und das Jahr 2035 aufklären!“");
 
-    advanceFtueStep(5);
+    advanceFtueStep(6);
     renderDirectives();
 
     openNpcDialogue('real_ship_liberated');
+}
+
+/**
+ * Triggers when player encounters the bureaucracy automaton at Schalter 7B or reviews the bypass plan.
+ * Advances the quest from locating the administration to liberating the real ship at Pier 4.
+ */
+export function onInsanBureaucracyEncountered() {
+    if (QuestManager.isQuestActive('prologue_jamal_ship')) {
+        const currentStage = QuestManager.getCurrentStage('prologue_jamal_ship');
+        if (currentStage && currentStage.stage === 3) {
+            QuestManager.advanceQuest('prologue_jamal_ship', 4);
+            advanceFtueStep(5);
+            addLogEntry("JAMAL", "„Alles klar! Fliegen wir rüber zu Pier 4 und überladen die Verankerungsklammern mit einem EMP-Impuls!“");
+            renderDirectives();
+        }
+    }
+}
+
+/**
+ * Opens interaction with the INSAN administration at Schalter 7B.
+ */
+export function openInsanAdministrationDialogue() {
+    if (!STATE.insanArrivalSeen) {
+        STATE.insanArrivalSeen = true;
+        openNpcDialogue('insan_depot_arrival');
+    } else {
+        openNpcDialogue('insan_station_bureaucracy');
+    }
 }
 
 /**
@@ -164,6 +192,12 @@ DialogueEngine.registerAction('hack_drone_database', () => triggerDecoyTrap());
 DialogueEngine.registerAction('liberate_real_ship_at_station', () => liberateRealShipAtStation());
 DialogueEngine.registerAction('liberate_voyager_probe', () => liberateVoyagerProbe());
 
+DialogueEngine.onNodeOpened((nodeId: string) => {
+    if (nodeId === 'insan_station_bureaucracy' || nodeId === 'insan_station_bypass_plan') {
+        onInsanBureaucracyEncountered();
+    }
+});
+
 /**
  * Opens initial telepathic intro brief from Dr. Tariq Jamal in right-docked dialogue panel.
  */
@@ -180,6 +214,18 @@ export function openJamalIntroDialog() {
  * Triggers when player scans Jamal's ship in orbit!
  */
 export function triggerJamalShipScannedDialogue() {
+    if (STATE.jamalShip && STATE.jamalShip.isRealShipAtDepot) {
+        if (STATE.jamalShipLiberated) {
+            openNpcDialogue('real_ship_liberated');
+        } else {
+            openNpcDialogue('insan_station_bypass_plan');
+        }
+        return;
+    }
+    if (STATE.jamalDecoyRevealed) {
+        openNpcDialogue('hologram_trap_revealed');
+        return;
+    }
     QuestManager.advanceQuest('prologue_jamal_ship', 1);
     advanceFtueStep(2);
     const hint = document.getElementById('flight-controls-hint');

@@ -43,26 +43,33 @@ export const FTUE_DIRECTIVES: DirectiveItem[] = [
     {
         id: 4,
         badge: "PROLOG 5",
+        title: "INSAN-Station & Verwaltung orten",
+        instruction: "Fliege zur INSAN-Verwahrstelle Zeta-9 & sprich mit der Verwaltung [F]",
+        hint: "Orte die Hauptstation im Schrottfeld. Schalter 7B verwaltet alle beschlagnahmten Schiffe."
+    },
+    {
+        id: 5,
+        badge: "PROLOG 6",
         title: "Echtes Forschungsschiff bergen",
         instruction: "Befreie die echte Ar-Riḥla an Pier 4 & rette das Voyager-Relikt",
         hint: "Sprenge die Verankerung per EMP – dies koppelt Jamals Schiffsdatenbank & schaltet das Logbuch frei!"
     },
     {
-        id: 5,
+        id: 6,
         badge: "PHASE 1",
         title: "Galaktischer Transit",
         instruction: "Öffne die Sternenkarte [M] – Kurs auf ein bewohntes Sternensystem",
         hint: "Im Startsystem gibt es keine Biosphäre. Finde ein System mit intelligentem Leben!"
     },
     {
-        id: 6,
+        id: 7,
         badge: "PHASE 2",
         title: "Der erste Wirt",
         instruction: "Scanne eine bewohnte Welt & führe eine psionische Aufnahme [F] durch",
         hint: "Nimm ein intelligentes Wesen in deine Kokon-Matrix auf, um Einsamkeit zu lindern."
     },
     {
-        id: 7,
+        id: 8,
         badge: "PHASE 3",
         title: "Traum-Matrix & Organe",
         instruction: "Öffne das Bio-Deck [TAB], weise Besatzung zu & halte [LEERTASTE] zur Stabilisierung",
@@ -202,12 +209,40 @@ export function updateVoyagerHUDTracker() {
     const trackerEl = document.getElementById('voyager-nav-tracker');
     if (!trackerEl) return;
 
-    const titleEl = trackerEl.querySelector('.voyager-tracker-title') as HTMLElement;
+    const titleEl = (document.getElementById('voyager-tracker-title') || trackerEl.querySelector('.voyager-tracker-title')) as HTMLElement;
     const distEl = document.getElementById('voyager-nav-dist');
     const angleEl = document.getElementById('voyager-nav-arrow');
     const playerPos = STATE.playerPosition;
 
-    // 1. Target Jamal's Ship if quest is active and not yet liberated
+    // 1. In Zeta-9 System: Orient & locate INSAN Station / Administration first!
+    const isAtDepot = STATE.jamalShip && STATE.jamalShip.isRealShipAtDepot;
+    const isStageOrientation = (STATE.ftueStep === 4);
+
+    if (isAtDepot && isStageOrientation && !STATE.jamalShipLiberated) {
+        const station = STATE.spaceStations ? STATE.spaceStations.find(s => (s as any).isInsanStation || s.name.includes("INSAN") || s.name.includes("Zeta-9")) : null;
+        const targetPos = station ? (station.mesh ? station.mesh.position : station.position) : (STATE.jamalShip ? STATE.jamalShip.position : null);
+        if (targetPos) {
+            const dx = targetPos.x - playerPos.x;
+            const dz = targetPos.z - playerPos.z;
+            const dist = Math.hypot(dx, dz);
+
+            trackerEl.style.display = 'flex';
+            if (titleEl) {
+                titleEl.innerText = "INSAN-STATION (SCHALTER 7B)";
+            }
+            if (distEl) distEl.innerText = `${dist.toFixed(1)} AE`;
+
+            if (angleEl) {
+                const targetAngle = Math.atan2(dz, dx);
+                const heading = STATE.shipHeading || 0;
+                const relativeAngleDeg = ((targetAngle - heading) * 180 / Math.PI);
+                angleEl.style.transform = `rotate(${relativeAngleDeg}deg)`;
+            }
+            return;
+        }
+    }
+
+    // 2. Target Jamal's Ship if quest is active and not yet liberated
     if (STATE.jamalMissionActive && !STATE.jamalShipLiberated && STATE.jamalShip && STATE.jamalShip.position) {
         const shipPos = STATE.jamalShip.position;
         const dx = shipPos.x - playerPos.x;
@@ -217,7 +252,7 @@ export function updateVoyagerHUDTracker() {
         trackerEl.style.display = 'flex';
         if (titleEl) {
             if (STATE.jamalShip.isRealShipAtDepot) {
-                titleEl.innerText = "ECHTE IBN BATTUTA (PIER 4)";
+                titleEl.innerText = "ECHTE AR-RIḤLA (PIER 4)";
             } else if (STATE.jamalDecoyRevealed) {
                 titleEl.innerText = "KÖDER-ATTRAPPE (ALARM)";
             } else {

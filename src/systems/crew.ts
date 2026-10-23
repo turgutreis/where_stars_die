@@ -911,13 +911,34 @@ export function updateCrewSimulation(dt: number) {
         }
     }
 
-    if (STATE.nearestPlanet && (STATE.nearestPlanet as any).attributes?.radiationLevel) {
-        const radLevel = (STATE.nearestPlanet as any).attributes.radiationLevel;
-        const radBase = radLevel === 'Extreme' ? 0.90 : (radLevel === 'High' ? 0.65 : (radLevel === 'Moderate' ? 0.35 : 0.10));
+    const pObj = STATE.nearestPlanet as any;
+    const isNonPlanetaryNearest = pObj && (
+        pObj.isShip ||
+        pObj.isStation ||
+        pObj.isJamalShip ||
+        pObj.isTowingDrone ||
+        pObj.isVoyager ||
+        pObj.isSpecialEntity ||
+        pObj.stationType ||
+        pObj.shipType ||
+        pObj.type === 'jamal_shuttle' ||
+        pObj.type === 'towing_drone' ||
+        pObj.type === 'voyager_probe' ||
+        pObj.type === 'interceptor' ||
+        pObj.type === 'corvette' ||
+        pObj.type === 'freighter' ||
+        pObj.type === 'heavy_freighter' ||
+        pObj.type === 'citadel' ||
+        pObj.type === 'trade_hub' ||
+        pObj.type === 'mining_relay'
+    );
+
+    if (pObj && !isNonPlanetaryNearest && pObj.attributes?.radiationLevel) {
+        const radLevel = pObj.attributes.radiationLevel;
+        const radBase = radLevel === 'Extreme' ? 0.90 : (radLevel === 'High' ? 0.65 : (radLevel === 'Moderate' ? 0.14 : 0.05));
         
         let planetDist = 0;
         let hasDist = false;
-        const pObj = STATE.nearestPlanet as any;
         const pPos = pObj.mesh ? pObj.mesh.position : pObj.position;
         if (STATE.playerPosition && pPos) {
             planetDist = STATE.playerPosition.distanceTo(pPos);
@@ -941,6 +962,15 @@ export function updateCrewSimulation(dt: number) {
                 ambientRadiation = planetIntensity;
                 radSource = `${pObj.name || 'Planet'} Magnetosphäre`;
             }
+        }
+    }
+
+    // Tariq's research ship Ar-Riḥla has a harmonized sub-quantum field that completely protects the player from radiation while docked/scanning
+    if (STATE.jamalShip && STATE.playerPosition) {
+        const jPos = STATE.jamalShip.mesh ? STATE.jamalShip.mesh.position : STATE.jamalShip.position;
+        if (jPos && STATE.playerPosition.distanceTo(jPos) < 28) {
+            ambientRadiation = 0.0;
+            radSource = '';
         }
     }
 

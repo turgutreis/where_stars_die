@@ -653,8 +653,8 @@ export function getLoreInsanDepotSystem(): any {
     return {
         id: 77,
         name: "INSAN-Verwahrstelle Zeta-9",
-        x: 170.0,
-        z: 30.0,
+        x: 210.0,
+        z: 100.0,
         sectorId: "sector_insan_depot",
         sectorName: "INSAN-Pfand- & Schrottwerft (Verwahrstelle)",
         anomalyType: "subspace_interference",
@@ -690,7 +690,7 @@ export function getLoreInsanDepotSystem(): any {
                 tidalLock: true,
                 magnetosphere: "Hyper-Magnetic",
                 geothermal: "Dormant",
-                radiationLevel: "High",
+                radiationLevel: "Low",
                 entangledTwinId: null,
                 quantumResonance: 0.1
             }
@@ -731,6 +731,12 @@ export function ensureLoreSystems(systems: any[]): void {
 
     const hasInsan = systems.some(s => s.name && s.name.includes("INSAN-Verwahrstelle"));
     if (!hasInsan) {
-        systems.push(getLoreInsanDepotSystem());
+        const depotSys = getLoreInsanDepotSystem();
+        const existingIdIdx = systems.findIndex(s => s.id === depotSys.id);
+        if (existingIdIdx !== -1) {
+            systems[existingIdIdx] = depotSys;
+        } else {
+            systems.push(depotSys);
+        }
     }
 }

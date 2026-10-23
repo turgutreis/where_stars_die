@@ -497,8 +497,20 @@ export function updateMinimap() {
                 const sx = cx + dx * invRangeRadius;
                 const sy = cy + dz * invRangeRadius;
 
-                minimapCtx.fillStyle = st.alertLevel === 'hunt' ? '#ef4444' : '#38bdf8';
-                minimapCtx.strokeStyle = st.alertLevel === 'hunt' ? 'rgba(239, 68, 68, 0.8)' : 'rgba(56, 189, 248, 0.8)';
+                const isInsan = (st as any).isInsanStation || st.name.includes("INSAN");
+                const isQuestTarget = isInsan && !STATE.jamalShipLiberated;
+
+                if (isQuestTarget) {
+                    const pulse = 1 + 0.25 * Math.sin(performance.now() * 0.006);
+                    minimapCtx.strokeStyle = '#f59e0b';
+                    minimapCtx.lineWidth = 1.8;
+                    minimapCtx.beginPath();
+                    minimapCtx.arc(sx, sy, 7.5 * pulse, 0, Math.PI * 2);
+                    minimapCtx.stroke();
+                }
+
+                minimapCtx.fillStyle = isQuestTarget ? '#f59e0b' : (st.alertLevel === 'hunt' ? '#ef4444' : '#38bdf8');
+                minimapCtx.strokeStyle = isQuestTarget ? '#fbbf24' : (st.alertLevel === 'hunt' ? 'rgba(239, 68, 68, 0.8)' : 'rgba(56, 189, 248, 0.8)');
                 minimapCtx.lineWidth = 1.2;
 
                 minimapCtx.beginPath();

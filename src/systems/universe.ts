@@ -36,11 +36,41 @@ export function updateUniverseShaders(dt: number, cam?: THREE.Camera) {
     if (STATE.voyagerProbe && STATE.voyagerProbe.update) {
         STATE.voyagerProbe.update(dt);
     }
-    if (STATE.jamalShip && STATE.jamalShip.update) {
-        STATE.jamalShip.update(dt);
+    if (STATE.jamalShip) {
+        if (STATE.jamalShip.update) {
+            STATE.jamalShip.update(dt);
+        }
+        if (STATE.jamalShip.parentPlanet && STATE.jamalShip.parentPlanet.mesh) {
+            STATE.jamalShip.orbitAngle = (STATE.jamalShip.orbitAngle || 0) + (STATE.jamalShip.orbitSpeed || 0.035) * dt;
+            const pPos = STATE.jamalShip.parentPlanet.mesh.position;
+            const pScale = Math.max(1.0, STATE.jamalShip.parentPlanet.mesh.scale.x || 1.0);
+            const baseR = STATE.jamalShip.orbitRadius || 24.0;
+            const effectiveR = baseR + (pScale - 1.0) * (baseR * 0.45 + 4.0);
+            const jx = pPos.x + Math.cos(STATE.jamalShip.orbitAngle) * effectiveR;
+            const jz = pPos.z + Math.sin(STATE.jamalShip.orbitAngle) * effectiveR;
+            STATE.jamalShip.position.set(jx, 0, jz);
+            if (STATE.jamalShip.mesh) {
+                STATE.jamalShip.mesh.position.set(jx, 0, jz);
+                STATE.jamalShip.mesh.rotation.y = -STATE.jamalShip.orbitAngle + Math.PI / 2;
+            }
+        }
     }
-    if (STATE.towingDrone && STATE.towingDrone.update) {
-        STATE.towingDrone.update(dt);
+    if (STATE.towingDrone) {
+        if (STATE.towingDrone.parentPlanet && STATE.jamalShip && STATE.jamalShip.position) {
+            const shipPos = STATE.jamalShip.position;
+            const offset = STATE.towingDrone.droneOffset || { x: 1.8, y: 0.6, z: 1.8 };
+            const dx = shipPos.x + offset.x;
+            const dy = (shipPos.y || 0) + offset.y;
+            const dz = shipPos.z + offset.z;
+            STATE.towingDrone.position.set(dx, dy, dz);
+            if (STATE.towingDrone.mesh) {
+                STATE.towingDrone.mesh.position.set(dx, dy, dz);
+                STATE.towingDrone.mesh.lookAt(shipPos);
+            }
+        }
+        if (STATE.towingDrone.update) {
+            STATE.towingDrone.update(dt);
+        }
     }
     if (activeSunRays && cam) {
         activeSunRays.update(dt, cam);
@@ -654,7 +684,9 @@ export function spawnPlanetsAndAsteroids() {
                 tidalLock: typeof p.tidalLock === 'boolean' ? p.tidalLock : (generated ? generated.tidalLock : (scaledDist < 160 || (p.type === 'Rocky' && seed % 4 === 0))),
                 magnetosphere: p.magnetosphere || (generated ? generated.magnetosphere : (isGas ? 'Hyper-Magnetic' : (isHab ? 'Strong' : 'Weak'))),
                 geothermal: p.geothermal || (generated ? generated.geothermal : (isGas ? 'Dead' : (isHab ? 'Active Geysers' : 'Dormant'))),
-                radiationLevel: p.radiationLevel || (generated ? generated.radiationLevel : 'Moderate'),
+                radiationLevel: ((STATE.currentSystemId === 1 && idx === 0) || (activeSystem as any).isInsanDepot || activeSystem.id === 77)
+                    ? 'Low'
+                    : (p.radiationLevel || (generated ? generated.radiationLevel : 'Moderate')),
                 entangledTwinId: p.entangledTwinId || (generated ? generated.entangledTwinId : null),
                 quantumResonance: p.quantumResonance || (generated ? generated.quantumResonance : (p.entangledTwinId ? 0.85 : 0.0))
             }
@@ -840,7 +872,8 @@ export function spawnPlanetsAndAsteroids() {
         if (QuestManager.isQuestActive('prologue_jamal_ship')) {
             QuestManager.advanceQuest('prologue_jamal_ship', 3);
             advanceFtueStep(4);
-            openNpcDialogue('insan_depot_arrival');
+            addLogEntry("SENSOR", "⚠️ HYPER-MAGNETISCHE STÖRFELDER: Die INSAN-Verwahrstelle Zeta-9 liegt tief im Schrottgürtel.");
+            addLogEntry("JAMAL", "„Wir haben das Zeta-9-System erreicht! Meine Scanner erfassen die Hauptverwaltung der INSAN-Station. Wir müssen die Station anfliegen und herausfinden, an welchem Pier sie mein Schiff festhalten!“");
         }
     }
 
@@ -860,11 +893,21 @@ export function spawnJamalMissionEntities(targetPlanet?: any, isRealShipAtDepot:
     }
 
     const planetPos = targetPlanet && targetPlanet.group ? targetPlanet.group.position 
-        : (targetPlanet && targetPlanet.position ? targetPlanet.position : new THREE.Vector3(180, 0, 100));
+        : (targetPlanet && targetPlanet.mesh ? targetPlanet.mesh.position
+        : (targetPlanet && targetPlanet.position ? targetPlanet.position : new THREE.Vector3(180, 0, 100)));
 
-    // 1. Jamal's Research Shuttle / Decoy / Real Ship
-    const shuttleController = createJamalResearchShuttleMesh(2.6);
-    const shuttlePos = new THREE.Vector3(planetPos.x + 13.5, 0, planetPos.z + 13.5);
+    // 1. Jamal's Research Shuttle / Decoy / Real Ship (Scaled realistically to ~0.65 for exploration shuttle)
+    const shipSize = 0.65;
+    const droneSize = 0.45;
+    const planetSize = (targetPlanet && targetPlanet.size) || 3.5;
+    const shipOrbitRadius = Math.max(22.0, planetSize * 3.4 + 10.0);
+    const shipOrbitAngle = isRealShipAtDepot ? (Math.PI * 1.15) : (Math.PI * 0.35);
+    const shipOrbitSpeed = 0.035;
+
+    const initX = planetPos.x + Math.cos(shipOrbitAngle) * shipOrbitRadius;
+    const initZ = planetPos.z + Math.sin(shipOrbitAngle) * shipOrbitRadius;
+    const shuttleController = createJamalResearchShuttleMesh(shipSize);
+    const shuttlePos = new THREE.Vector3(initX, 0, initZ);
     shuttleController.group.position.copy(shuttlePos);
     shuttleController.group.lookAt(planetPos);
     scene.add(shuttleController.group);
@@ -884,11 +927,17 @@ export function spawnJamalMissionEntities(targetPlanet?: any, isRealShipAtDepot:
         setLiberated: shuttleController.setLiberated,
         type: 'jamal_shuttle',
         name: shipName,
-        mass: 0.8,
-        radius: 2.6,
-        gravityRange: 14.0,
+        mass: 0.05,
+        radius: shipSize,
+        size: shipSize,
+        gravityRange: 0.0,
         position: shuttleController.group.position,
+        parentPlanet: targetPlanet,
+        orbitRadius: shipOrbitRadius,
+        orbitAngle: shipOrbitAngle,
+        orbitSpeed: shipOrbitSpeed,
         isJamalShip: true,
+        isSpecialEntity: true,
         isRealShipAtDepot: isRealShipAtDepot,
         isDecoy: !isRealShipAtDepot,
         scanned: STATE.jamalShipLiberated
@@ -897,8 +946,9 @@ export function spawnJamalMissionEntities(targetPlanet?: any, isRealShipAtDepot:
     STATE.gravitySources.push(shuttleObj);
 
     // 2. Autonomous Rogue AI Towing Drone / Station Pier Clamp
-    const droneController = createTowingDroneMesh(1.8);
-    const dronePos = new THREE.Vector3(shuttlePos.x + 3.2, 1.2, shuttlePos.z + 3.5);
+    const droneController = createTowingDroneMesh(droneSize);
+    const droneOffset = new THREE.Vector3(1.8, 0.6, 1.8);
+    const dronePos = new THREE.Vector3(shuttlePos.x + droneOffset.x, shuttlePos.y + droneOffset.y, shuttlePos.z + droneOffset.z);
     droneController.group.position.copy(dronePos);
     droneController.group.lookAt(shuttlePos);
     scene.add(droneController.group);
@@ -923,11 +973,15 @@ export function spawnJamalMissionEntities(targetPlanet?: any, isRealShipAtDepot:
         triggerOverload: droneController.triggerOverload,
         type: 'towing_drone',
         name: droneName,
-        mass: 0.5,
-        radius: 1.8,
-        gravityRange: 8.0,
+        mass: 0.02,
+        radius: droneSize,
+        size: droneSize,
+        gravityRange: 0.0,
         position: droneController.group.position,
+        parentPlanet: targetPlanet,
+        droneOffset: droneOffset,
         isTowingDrone: true,
+        isSpecialEntity: true,
         status: droneStatus,
         isHostile: isDroneHostile,
         scanned: STATE.jamalShipLiberated
@@ -960,9 +1014,11 @@ export function spawnVoyagerProbe() {
         name: probeName,
         mass: 0.5,
         radius: 2.2,
+        size: 2.2,
         gravityRange: 10.0,
         position: voyagerController.group.position,
-        isVoyager: true
+        isVoyager: true,
+        isSpecialEntity: true
     };
 
     STATE.voyagerProbe = probeObj;

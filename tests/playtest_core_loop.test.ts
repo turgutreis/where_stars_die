@@ -14,6 +14,7 @@ if (typeof (globalThis as any).localStorage === 'undefined' || !(globalThis as a
 
 if (typeof globalThis.document === 'undefined') {
     function createMockElement() {
+        const classes = new Set<string>();
         const el: any = {
             style: {},
             innerText: '',
@@ -21,7 +22,15 @@ if (typeof globalThis.document === 'undefined') {
             disabled: false,
             children: [],
             _listeners: {},
-            classList: { add: () => {}, remove: () => {}, contains: () => false, toggle: () => false },
+            classList: {
+                add: (c: string) => classes.add(c),
+                remove: (c: string) => classes.delete(c),
+                contains: (c: string) => classes.has(c),
+                toggle: (c: string) => {
+                    if (classes.has(c)) { classes.delete(c); return false; }
+                    classes.add(c); return true;
+                }
+            },
             setAttribute: (k: string, v: string) => { el[k] = v; },
             removeAttribute: (k: string) => { delete el[k]; },
             appendChild: function(c: any) { (el.children = el.children || []).push(c); return c; },
@@ -156,7 +165,7 @@ import { triggerScanStart, updateScanning, completeScanning, generatePlanetAttri
 import { completeAbduction } from '../src/systems/abduction';
 import { getLoreSolSystem, getLoreArrakisSystem, getLoreSolarisSystem, getLoreInsanDepotSystem, ensureLoreSystems } from '../src/procedural/lore-systems';
 import { AUDIO_SETTINGS } from '../src/engine/audio';
-import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets, spawnPlanetsAndAsteroids, clearActiveSystem } from '../src/systems/universe';
+import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets, spawnPlanetsAndAsteroids, clearActiveSystem, updateUniverseShaders } from '../src/systems/universe';
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
 import { updatePhysics } from '../src/engine/physics';
 import { generateProceduralCandidates, getCrewReactiveThought } from '../src/systems/crew-generation';
@@ -679,24 +688,28 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         renderDirectives();
         expect(hudDirectives.style.display).toBe('none'); // Still hidden!
 
-        // 6. Liberate real ship at Pier 4 -> Sets jamalShipLiberated, unlocks Questlog & advances to Step 5
-        liberateRealShipAtStation();
+        // 6. Contact INSAN Administration at Schalter 7B -> advances to Step 5
+        advanceFtueStep(5);
         expect(STATE.ftueStep).toBe(5);
+
+        // 7. Liberate real ship at Pier 4 -> Sets jamalShipLiberated, unlocks Questlog & advances to Step 6
+        liberateRealShipAtStation();
+        expect(STATE.ftueStep).toBe(6);
         expect(STATE.jamalShipLiberated).toBe(true);
         renderDirectives();
         expect(hudDirectives.style.display).not.toBe('none'); // UNLOCKED & VISIBLE!
 
-        // 7. Galactic Transit: Warp jump to inhabited world -> Step 6 (Der erste Wirt)
-        advanceFtueStep(6);
-        expect(STATE.ftueStep).toBe(6);
-
-        // 8. Host abduction completed -> Step 7 (Traum-Matrix & Organe)
+        // 8. Galactic Transit: Warp jump to inhabited world -> Step 7 (Der erste Wirt)
         advanceFtueStep(7);
         expect(STATE.ftueStep).toBe(7);
 
-        // 9. Bio-deck stabilization -> Completes FTUE (Step 8)
+        // 9. Host abduction completed -> Step 8 (Traum-Matrix & Organe)
         advanceFtueStep(8);
         expect(STATE.ftueStep).toBe(8);
+
+        // 10. Bio-deck stabilization -> Completes FTUE (Step 9)
+        advanceFtueStep(9);
+        expect(STATE.ftueStep).toBe(9);
         expect(STATE.ftueCompleted).toBe(true);
     });
 
@@ -3961,13 +3974,14 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         closeJamalDialog();
         expect(isJamalDialogOpen()).toBe(false);
 
-        // 8. Verify INSAN-Verwahrstelle Zeta-9 is exactly 2 jumps away
+        // 8. Verify INSAN-Verwahrstelle Zeta-9 is reachable via 2 safe jumps (or 1 extended jump)
         const insanDepot = getLoreInsanDepotSystem();
         expect(insanDepot).toBeDefined();
         expect(insanDepot.id).toBe(77);
-        // Distance from Perseus Prime (310, 160) to Zeta-9 (170, 30) is ~191 LY (> 180 LY = 2 jumps with 90 LY range)
+        // Distance from Perseus Prime (310, 160) to Zeta-9 (210, 100) is ~116.6 LY (> 90 LY and < 180 LY = 2 jumps with 90 LY range)
         const distToDepot = Math.sqrt(Math.pow(310 - insanDepot.x, 2) + Math.pow(160 - insanDepot.z, 2));
-        expect(distToDepot).toBeGreaterThan(180);
+        expect(distToDepot).toBeGreaterThan(90);
+        expect(distToDepot).toBeLessThan(180);
 
         // 9. Arrive at INSAN Depot Zeta-9
         STATE.currentSystemId = 77;
@@ -3982,6 +3996,10 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.jamalShip.name).toContain("PIER 4 - BESCHLAGNAHMT");
 
         // Open arrival at depot dialogue
+        QuestManager.advanceQuest('prologue_jamal_ship', 3);
+        advanceFtueStep(4);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.stage).toBe(3);
+
         openNpcDialogue('insan_depot_arrival');
         expect(getCurrentDialogueNodeId()).toBe('insan_depot_arrival');
 
@@ -3990,6 +4008,8 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
 
         handleDialogueChoice('insan_station_bypass_plan');
         expect(getCurrentDialogueNodeId()).toBe('insan_station_bypass_plan');
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.stage).toBe(4);
+        expect(STATE.ftueStep).toBe(5);
 
         // 10. Liberate impounded Voyager 2 probe
         handleDialogueChoice('liberate_voyager_probe');
@@ -4033,7 +4053,7 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         const questDef = QuestManager.getQuest('prologue_jamal_ship');
         expect(questDef).toBeDefined();
         expect(questDef!.title).toBe("Jamals Forschungsschiff");
-        expect(questDef!.stages.length).toBe(5);
+        expect(questDef!.stages.length).toBe(6);
 
         // Start quest
         const progress = QuestManager.startQuest('prologue_jamal_ship');
@@ -4052,6 +4072,16 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         QuestManager.advanceQuest('prologue_jamal_ship', 2);
         expect(progress!.currentStage).toBe(2);
         expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.title).toContain("INSAN-Abschleppstation");
+
+        // Advance to stage 3 (arrive at depot, locate INSAN administration station)
+        QuestManager.advanceQuest('prologue_jamal_ship', 3);
+        expect(progress!.currentStage).toBe(3);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.title).toContain("INSAN-Station & Verwaltung orten");
+
+        // Advance to stage 4 (consulted administration at Schalter 7B, proceed to Pier 4)
+        QuestManager.advanceQuest('prologue_jamal_ship', 4);
+        expect(progress!.currentStage).toBe(4);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.title).toContain("Echtes Forschungsschiff bergen");
 
         // Complete quest -> awards rewards from JSON (spice: 50, silicon: 60)
         QuestManager.completeQuest('prologue_jamal_ship');
@@ -4213,6 +4243,287 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(isMainMenuOpen()).toBe(false);
         expect(STATE.prologueActive).toBe(true);
         expect(prologueCompleted).toBe(false);
+    });
+
+    test("53. INSAN Depot Arrival, Orientation & Administration Interaction (QuestMarker, Schalter 7B Bureaucracy & Pier 4 Liberation)", () => {
+        const { QuestManager } = require('../src/systems/quests');
+        const { DialogueEngine } = require('../src/systems/dialogue');
+        const { updateVoyagerHUDTracker, advanceFtueStep, renderDirectives } = require('../src/ui/directives');
+        const { spawnSystemSpaceStations } = require('../src/procedural/space-stations');
+        const { spawnJamalMissionEntities } = require('../src/systems/universe');
+        const { openInsanAdministrationDialogue } = require('../src/ui/jamal-dialog');
+
+        // Reset state
+        STATE.jamalMissionActive = true;
+        STATE.jamalShipLiberated = false;
+        STATE.insanArrivalSeen = false;
+        STATE.playerPosition = new THREE.Vector3(0, 0, 0);
+        STATE.shipHeading = 0;
+        STATE.ftueStep = 3;
+
+        QuestManager.startQuest('prologue_jamal_ship');
+        QuestManager.advanceQuest('prologue_jamal_ship', 2);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.stage).toBe(2);
+
+        // 1. Simulate arrival at INSAN-Verwahrstelle Zeta-9
+        STATE.currentSystemId = 77;
+        const mockDepotPlanet: any = {
+            name: "Zeta-9 Zentral-Depot (Pier 4)",
+            size: 4.2,
+            species: {
+                hasSentient: true,
+                name: "INSAN-Verwaltungskollektiv",
+                population: 500000,
+                techLevel: "Automated Bureaucracy"
+            },
+            mesh: { position: new THREE.Vector3(100, 0, 100) },
+            position: new THREE.Vector3(100, 0, 100)
+        };
+
+        spawnSystemSpaceStations([mockDepotPlanet]);
+        spawnJamalMissionEntities(mockDepotPlanet, true);
+
+        // Verify INSAN Administrative Station spawned in orbit
+        const insanStation = STATE.spaceStations.find(s => (s as any).isInsanStation || s.name.includes("INSAN"));
+        expect(insanStation).toBeDefined();
+        expect(insanStation!.name).toContain("INSAN-Hauptverwaltung Zeta-9 (Schalter 7B)");
+        expect(insanStation!.commanderName).toContain("Verwaltungs-Automaton INSAN-Zeta");
+
+        // System arrival advances quest to stage 3: Orient & locate INSAN administration
+        QuestManager.advanceQuest('prologue_jamal_ship', 3);
+        advanceFtueStep(4);
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.stage).toBe(3);
+        expect(STATE.ftueStep).toBe(4);
+
+        // Verify Nav Tracker targets the INSAN Station (Schalter 7B)
+        const trackerTitleEl = document.getElementById('voyager-tracker-title') as HTMLElement;
+        const trackerDistEl = document.getElementById('voyager-nav-dist') as HTMLElement;
+        updateVoyagerHUDTracker();
+        expect(trackerTitleEl.innerText).toBe("INSAN-STATION (SCHALTER 7B)");
+        expect(parseFloat(trackerDistEl.innerText)).toBeGreaterThan(0);
+
+        // 2. Player approaches station (< 30 AE) and speaks with administration
+        openInsanAdministrationDialogue();
+        expect(getCurrentDialogueNodeId()).toBe('insan_depot_arrival');
+        expect(STATE.insanArrivalSeen).toBe(true);
+
+        // Talk to the bureaucracy automaton at Schalter 7B
+        handleDialogueChoice('insan_station_bureaucracy');
+        expect(getCurrentDialogueNodeId()).toBe('insan_station_bureaucracy');
+
+        // Tariq presents the EMP-Bypass plan -> automatically advances quest to stage 4 (Pier 4)
+        handleDialogueChoice('insan_station_bypass_plan');
+        expect(getCurrentDialogueNodeId()).toBe('insan_station_bypass_plan');
+        expect(QuestManager.getCurrentStage('prologue_jamal_ship')?.stage).toBe(4);
+        expect(STATE.ftueStep).toBe(5);
+
+        // Nav Tracker now switches focus to Pier 4!
+        updateVoyagerHUDTracker();
+        expect(trackerTitleEl.innerText).toBe("ECHTE AR-RIḤLA (PIER 4)");
+
+        // 3. Liberate real ship at Pier 4
+        liberateRealShipAtStation();
+        expect(STATE.jamalShipLiberated).toBe(true);
+        expect(STATE.jamalMissionCompleted).toBe(true);
+        expect(QuestManager.isQuestCompleted('prologue_jamal_ship')).toBe(true);
+        expect(STATE.ftueStep).toBe(6);
+
+        DialogueEngine.closeDialogue();
+    });
+
+    test("54. Quest Star Map Target System Visibility, Jamal Ship Radiation Immunity & Non-Harvestable Vessel Invariants", () => {
+        const { getActiveQuestTargetSystem, findBestRelaySystemForTarget } = require('../src/systems/galaxy-map');
+        const { ensureLoreSystems, getLoreInsanDepotSystem } = require('../src/procedural/lore-systems');
+        const { spawnJamalMissionEntities } = require('../src/systems/universe');
+        const { triggerHarvestStart } = require('../src/systems/harvesting');
+        const { updateScannerUI } = require('../src/systems/scanner');
+        const { updateCrewSimulation } = require('../src/systems/crew');
+        const { QuestManager } = require('../src/systems/quests');
+
+        // 1. Star Map Target System Visibility & Identification (Bug 1 Fix)
+        const mockUniverseSystems = [
+            { id: 1, name: "Perseus-Erwachen Prime (Start)", x: 310, z: 160, planets: [] },
+            { id: 77, name: "Old Procedural System #77", x: 100, z: 100, planets: [] },
+            { id: 88, name: "Relay Star", x: 260, z: 130, planets: [] }
+        ];
+
+        // Ensure lore injection replaces system 77 without creating duplicate IDs
+        ensureLoreSystems(mockUniverseSystems);
+        const depotSys = mockUniverseSystems.find(s => s.id === 77);
+        expect(depotSys).toBeDefined();
+        expect(depotSys!.name).toContain("INSAN-Verwahrstelle Zeta-9");
+        expect(mockUniverseSystems.filter(s => s.id === 77).length).toBe(1);
+
+        // Target system resolution when quest is active
+        STATE.jamalShipLiberated = false;
+        STATE.jamalDecoyRevealed = true;
+        STATE.currentSystemId = 1;
+        QuestManager.startQuest('prologue_jamal_ship');
+        QuestManager.advanceQuest('prologue_jamal_ship', 2);
+
+        const targetSys = getActiveQuestTargetSystem(mockUniverseSystems);
+        expect(targetSys).toBeDefined();
+        expect(targetSys!.id).toBe(77);
+        expect(targetSys!.name).toContain("INSAN-Verwahrstelle Zeta-9");
+
+        // 2-hop intermediate relay identification
+        const relaySys = findBestRelaySystemForTarget(mockUniverseSystems, mockUniverseSystems[0], targetSys!);
+        expect(relaySys).toBeDefined();
+        expect(relaySys!.id).toBe(88);
+
+        // 2. Jamal Ship Zero Radiation & Damage Immunity (Bug 2 Fix)
+        const mockPlanet = {
+            name: "Perseus-Erwachen Prime A",
+            mesh: { position: new THREE.Vector3(180, 0, 100) },
+            position: new THREE.Vector3(180, 0, 100),
+            attributes: { radiationLevel: 'Low' }
+        };
+        activePlanets.length = 0;
+        activePlanets.push(mockPlanet as any);
+        STATE.nearestPlanet = mockPlanet as any;
+
+        spawnJamalMissionEntities(mockPlanet, false);
+        expect(STATE.jamalShip).toBeDefined();
+        expect(STATE.jamalShip.isSpecialEntity).toBe(true);
+        expect(STATE.jamalShip.isJamalShip).toBe(true);
+
+        // Player sits right beside Ar-Riḥla / Jamal shuttle
+        STATE.playerPosition = new THREE.Vector3(STATE.jamalShip.position.x + 2, 0, STATE.jamalShip.position.z + 2);
+        STATE.health = 100;
+        STATE.gameStarted = true;
+
+        updateCrewSimulation(0.1);
+        expect(STATE.effectiveRadiation).toBe(0);
+        expect(STATE.health).toBe(100);
+
+        // 3. Research Ship Is Not Treated as Harvestable Planet (Bug 3 Fix)
+        STATE.lockedTarget = STATE.jamalShip;
+        updateScannerUI(STATE.jamalShip, 2.0);
+
+        // Harvest button and orbital HUD must remain hidden for the ship
+        const harvestBtn = document.getElementById('start-harvest-btn');
+        const orbitalHud = document.getElementById('planet-orbital-hud');
+        if (harvestBtn) expect(harvestBtn.style.display).toBe('none');
+        if (orbitalHud) expect(orbitalHud.style.display).toBe('none');
+
+        // Triggering harvest on the ship must be rejected
+        STATE.bioEnergy = 100;
+        STATE.extractingPlanet = null;
+        triggerHarvestStart();
+        expect(STATE.extractingPlanet).toBeNull();
+        expect(STATE.harvestProgress).toBe(0);
+    });
+
+    test("55. Realistic Research Ship Proportions & Guaranteed Planetary Space Station Clearance without Clipping", () => {
+        // 1. Research Vessel Proportions Verification
+        const mockPlanet: any = {
+            name: "Perseus-Erwachen Prime A",
+            size: 3.5,
+            mesh: { position: new THREE.Vector3(100, 0, 50), scale: { x: 1.0, y: 1.0, z: 1.0 } },
+            position: new THREE.Vector3(100, 0, 50),
+            attributes: { species: { techLevel: 'Automated Bureaucracy', name: 'INSAN' } }
+        };
+        activePlanets.length = 0;
+        activePlanets.push(mockPlanet);
+
+        spawnJamalMissionEntities(mockPlanet, false);
+        expect(STATE.jamalShip).toBeDefined();
+        // Ship radius must be realistic scout/shuttle scale (<= 1.0, size 0.65)
+        expect(STATE.jamalShip.radius).toBeLessThanOrEqual(1.0);
+        expect(STATE.jamalShip.size).toBe(0.65);
+        expect(STATE.towingDrone).toBeDefined();
+        expect(STATE.towingDrone.radius).toBeLessThanOrEqual(0.6);
+
+        // 2. Continuous Orbital Tracking for Research Vessel
+        // Move planet along its orbit
+        mockPlanet.mesh.position.set(120, 0, 60);
+        updateUniverseShaders(1.0);
+        // Ship position must have tracked planet position
+        const distFromPlanet = STATE.jamalShip.position.distanceTo(mockPlanet.mesh.position);
+        expect(distFromPlanet).toBeGreaterThan(15.0);
+        expect(distFromPlanet).toBeLessThan(35.0);
+        // Drone must remain docked close to ship
+        const droneDistToShip = STATE.towingDrone.position.distanceTo(STATE.jamalShip.position);
+        expect(droneDistToShip).toBeLessThan(4.0);
+
+        // 3. Space Station Orbital Clearance (No Clipping into Planet)
+        clearSpaceStations();
+        spawnSystemSpaceStations([mockPlanet]);
+        expect(STATE.spaceStations.length).toBeGreaterThan(0);
+        const station = STATE.spaceStations[0];
+        expect(station.parentPlanet).toBe(mockPlanet);
+
+        // Base Scale clearance: Station distance must exceed planet radius + clearance buffer (min 20)
+        let stationDist = station.position.distanceTo(mockPlanet.mesh.position);
+        expect(stationDist).toBeGreaterThan(mockPlanet.size + 15.0);
+
+        // Planetary approach expansion: Planet swells to 2.85x
+        mockPlanet.mesh.scale.x = 2.85;
+        mockPlanet.mesh.scale.y = 2.85;
+        mockPlanet.mesh.scale.z = 2.85;
+        const expandedRadius = mockPlanet.size * 2.85;
+        const expandedAtmosphere = expandedRadius * 1.35;
+
+        // Run physics/station update
+        updateSpaceStations(0.5);
+        stationDist = station.position.distanceTo(mockPlanet.mesh.position);
+        // Station must expand its orbit and NEVER clip into expanded planet or atmosphere
+        expect(stationDist).toBeGreaterThan(expandedAtmosphere + 10.0);
+        expect(station.mesh.position.distanceTo(mockPlanet.mesh.position)).toBe(stationDist);
+    });
+
+    test("56. Dialogue Window Focus Guarantee: Suppresses Conflicting Left Scanner Card & Resolves F vs E Key Disparity", () => {
+        // 1. When an NPC/Story dialogue opens, the left scanner card must be automatically suppressed
+        const scannerPanel = document.getElementById('left-deck-panel')!;
+        scannerPanel.classList.add('visible');
+        expect(scannerPanel.classList.contains('visible')).toBe(true);
+
+        DialogueEngine.openDialogue('jamal_ship_scanned');
+        expect(DialogueEngine.isDialogOpen()).toBe(true);
+        expect(scannerPanel.classList.contains('visible')).toBe(false);
+
+        // While dialogue is open, updateScannerUI must keep scannerPanel hidden
+        const mockPlanet = { name: "TestWorld", size: 3.0, attributes: {} };
+        updateScannerUI(mockPlanet, 10);
+        expect(scannerPanel.classList.contains('visible')).toBe(false);
+
+        // 2. Closing dialogue restores standard gameplay HUD state
+        DialogueEngine.closeDialogue();
+        expect(DialogueEngine.isDialogOpen()).toBe(false);
+
+        // 3. Contextual dialogue mapping for Jamal's ship
+        STATE.jamalDecoyRevealed = false;
+        STATE.jamalShip = {
+            name: "Dr. Tariq Jamals Forschungsschiff",
+            position: new THREE.Vector3(50, 0, 50),
+            isJamalShip: true,
+            isRealShipAtDepot: false,
+            scanned: true
+        };
+
+        // Scanning/interacting via triggerJamalShipScannedDialogue opens initial choice dialogue
+        triggerJamalShipScannedDialogue();
+        expect(DialogueEngine.isDialogOpen()).toBe(true);
+        expect(DialogueEngine.getCurrentNodeId()).toBe('jamal_ship_scanned');
+        DialogueEngine.closeDialogue();
+
+        // Once decoy trap is revealed, it appropriately opens the decoy reveal node
+        STATE.jamalDecoyRevealed = true;
+        triggerJamalShipScannedDialogue();
+        expect(DialogueEngine.isDialogOpen()).toBe(true);
+        expect(DialogueEngine.getCurrentNodeId()).toBe('hologram_trap_revealed');
+        DialogueEngine.closeDialogue();
+
+        // 4. Bio-EMP Overload near Pier 4 liberates real ship
+        STATE.jamalShip.isRealShipAtDepot = true;
+        STATE.jamalShipLiberated = false;
+        STATE.playerPosition = new THREE.Vector3(55, 0, 55); // Within 28 AE of (50, 0, 50)
+        STATE.bioEnergy = 50;
+        STATE.mentalEnergy = 50;
+        STATE.gameStarted = true;
+        triggerBioDischarge();
+        updateFleet(0.5); // Charge and discharge shockwave
+        expect(STATE.jamalShipLiberated).toBe(true);
     });
 });
 

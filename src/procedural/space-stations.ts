@@ -184,16 +184,17 @@ export function spawnSystemSpaceStations(planetsInput?: PlanetEntry[]) {
         if (!species || !species.techLevel) return;
 
         const tech = species.techLevel;
-        if (tech === 'Spacefaring' || tech === 'Hyper-Advanced') {
+        const isBureaucracy = tech === 'Automated Bureaucracy' || p.name.includes('Zeta-9') || p.name.includes('Pier 4');
+        if (tech === 'Spacefaring' || tech === 'Hyper-Advanced' || isBureaucracy) {
             const isHyper = tech === 'Hyper-Advanced';
-            const stationType = isHyper ? 'citadel' : 'trade_hub';
-            const factionCol = isHyper ? 0xa855f7 : 0x38bdf8;
+            const stationType = isBureaucracy ? 'citadel' : (isHyper ? 'citadel' : 'trade_hub');
+            const factionCol = isBureaucracy ? 0xf59e0b : (isHyper ? 0xa855f7 : 0x38bdf8);
 
             const controller = createSpaceStationMesh(stationType, factionCol);
 
             const pSize = p.size || 5.0;
-            // Place in high stable synchronous orbit around planet
-            const orbitRadius = pSize * 2.5 + 7.5;
+            // Place in high stable synchronous orbit around planet with generous clearance
+            const orbitRadius = Math.max(30.0, pSize * 4.2 + 16.0);
             const orbitAngle = Math.PI * 0.35 + (stationIdCounter * 1.5);
             const orbitSpeed = (0.28 / Math.sqrt(orbitRadius));
 
@@ -208,9 +209,11 @@ export function spawnSystemSpaceStations(planetsInput?: PlanetEntry[]) {
 
             scene.add(controller.group);
 
-            const stName = isHyper
-                ? `Orbital-Zitadelle ${p.name.replace(/ Prime| Major| A| B/g, '')}-Alpha`
-                : `Handelsrelais ${p.name.replace(/ Prime| Major| A| B/g, '')}-Dock`;
+            const stName = isBureaucracy
+                ? "INSAN-Hauptverwaltung Zeta-9 (Schalter 7B)"
+                : (isHyper
+                    ? `Orbital-Zitadelle ${p.name.replace(/ Prime| Major| A| B/g, '')}-Alpha`
+                    : `Handelsrelais ${p.name.replace(/ Prime| Major| A| B/g, '')}-Dock`);
 
             const factionId: FactionId = (species.factionId as FactionId) || 'free_traders';
             const faction = getFaction(factionId);
@@ -219,14 +222,21 @@ export function spawnSystemSpaceStations(planetsInput?: PlanetEntry[]) {
             const stationCrew = generateProceduralCandidates(stationSeed, 3);
             const commander = stationCrew[0];
             if (commander) {
-                commander.thought = isHyper
-                    ? "Überwacht die Quantenschilde der Zitadelle... 'Keine feindlichen Schiffe im Orbit.'"
-                    : "Koordiniert eintreffende Frachter-Konvois... 'Docking-Bucht 3 bereit zum Andocken.'";
+                if (isBureaucracy) {
+                    commander.name = "Verwaltungs-Automaton INSAN-Zeta";
+                    commander.thought = "Verarbeitet Wartenummern... 'Formular 38-Alpha fehlt. Bitte ziehen Sie ein neues Ticket.'";
+                } else {
+                    commander.thought = isHyper
+                        ? "Überwacht die Quantenschilde der Zitadelle... 'Keine feindlichen Schiffe im Orbit.'"
+                        : "Koordiniert eintreffende Frachter-Konvois... 'Docking-Bucht 3 bereit zum Andocken.'";
+                }
             }
             const population = isHyper ? (3200 + (stationSeed % 1400)) : (1150 + (stationSeed % 750));
-            const description = isHyper
-                ? "Schwer befestigte Orbital-Zitadelle zur planetaren Raumraum-Überwachung und Flottenkoordination."
-                : "Zentraler Handels-Hub für interplanetare Frachtrouten, Mineralientausch und Schiffswartung.";
+            const description = isBureaucracy
+                ? "Zentrales Verwaltungszentrum des interstellaren INSAN-Abschleppdienstes. Überwacht beschlagnahmte Schiffe an Pier 4."
+                : (isHyper
+                    ? "Schwer befestigte Orbital-Zitadelle zur planetaren Raumraum-Überwachung und Flottenkoordination."
+                    : "Zentraler Handels-Hub für interplanetare Frachtrouten, Mineralientausch und Schiffswartung.");
 
             const station: SpaceStation = {
                 id: Date.now() + stationIdCounter++,
@@ -254,8 +264,9 @@ export function spawnSystemSpaceStations(planetsInput?: PlanetEntry[]) {
                 commanderName: commander ? `${commander.name} (${commander.roleName || commander.role})` : 'Stations-Kommandant',
                 commanderRole: commander ? commander.role : 'pilot',
                 crewMembers: stationCrew,
-                description
-            };
+                description,
+                isInsanStation: isBureaucracy
+            } as any;
 
             STATE.spaceStations.push(station);
 
@@ -290,8 +301,16 @@ export function updateSpaceStations(dt: number) {
         if (station.parentPlanet && station.parentPlanet.mesh) {
             station.orbitAngle += station.orbitSpeed * dt;
             const parentPos = station.parentPlanet.mesh.position;
-            station.position.x = parentPos.x + Math.cos(station.orbitAngle) * station.orbitRadius;
-            station.position.z = parentPos.z + Math.sin(station.orbitAngle) * station.orbitRadius;
+            const parentScale = Math.max(1.0, station.parentPlanet.mesh.scale.x || 1.0);
+            // Dynamic orbital altitude expansion to maintain glorious orbital vista clearance as planet swells on approach
+            const dynamicOrbitRadius = station.orbitRadius + (parentScale - 1.0) * (station.orbitRadius * 0.45 + 4.0);
+            const sx = parentPos.x + Math.cos(station.orbitAngle) * dynamicOrbitRadius;
+            const sz = parentPos.z + Math.sin(station.orbitAngle) * dynamicOrbitRadius;
+
+            station.position.set(sx, 0, sz);
+            if (station.mesh) {
+                station.mesh.position.set(sx, 0, sz);
+            }
         }
 
         // Alert countdown

@@ -16,6 +16,32 @@ export function triggerHarvestStart() {
 
     if (!STATE.gameStarted || STATE.extractingPlanet || STATE.scanningPlanet || STATE.abductActive || !target || !target.mesh) return;
 
+    // 0. Vessel & Construct Invariant: Only planets and moons can be harvested with Bio-Siphon
+    const isNonPlanetary = Boolean(
+        target.isShip ||
+        target.isStation ||
+        target.isJamalShip ||
+        target.isTowingDrone ||
+        target.isVoyager ||
+        target.isSpecialEntity ||
+        target.stationType ||
+        target.shipType ||
+        target.type === 'jamal_shuttle' ||
+        target.type === 'towing_drone' ||
+        target.type === 'voyager_probe' ||
+        target.type === 'interceptor' ||
+        target.type === 'corvette' ||
+        target.type === 'freighter' ||
+        target.type === 'heavy_freighter' ||
+        target.type === 'citadel' ||
+        target.type === 'trade_hub' ||
+        target.type === 'mining_relay'
+    );
+    if (isNonPlanetary) {
+        addLogEntry("SYSTEM", `${target.name} ist ein Raumfahrzeug/Konstrukt — Bio-Siphon nur auf planetaren Himmelskörpern anwendbar.`);
+        return;
+    }
+
     // 1. Scan-Gating Invariant: Scanning is mandatory prior to resource harvesting
     const isScanned = target.scanned || (STATE.scannedPlanets && STATE.scannedPlanets[target.name]);
     if (!isScanned) {

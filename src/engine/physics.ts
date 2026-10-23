@@ -10,6 +10,7 @@ import { updateScannerUI } from '../systems/scanner';
 import { updateMutationUI } from '../ui/deck';
 import { triggerGameOver } from './game-over';
 import { calculateRelativisticTimeShift, advanceGalacticTime } from '../systems/quantum-ising';
+import { updateSpaceStations } from '../procedural/space-stations';
 
 // Cached vectors for zero GC pressure
 const _predPos = new THREE.Vector3();
@@ -177,6 +178,9 @@ export function updatePhysics(dt: number) {
         }
     });
 
+    // 1.05 Update Space Stations (Synchronous Orbits around Parent Planets)
+    updateSpaceStations(dt);
+
     // 1.1 Asteroids 3D Tumbling Rotation
     STATE.gravitySources.forEach(s => {
         if (s.type === 'asteroid' && s.mesh && s.rotSpeed && !s.isAbsorbed) {
@@ -187,6 +191,18 @@ export function updatePhysics(dt: number) {
     });
 
     // 2. Calculate closest or locked planet/vessel distance
+    let minPlanetDist = Infinity;
+    let closestRealPlanet: any = null;
+    activePlanets.forEach(p => {
+        const dx = STATE.playerPosition.x - p.mesh.position.x;
+        const dz = STATE.playerPosition.z - p.mesh.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < minPlanetDist) {
+            minPlanetDist = dist;
+            closestRealPlanet = p;
+        }
+    });
+
     let targetPlanet: any = null;
     let targetDist = Infinity;
 
@@ -207,21 +223,10 @@ export function updatePhysics(dt: number) {
         const dz = STATE.playerPosition.z - targetPlanet.mesh.position.z;
         targetDist = Math.sqrt(dx * dx + dz * dz);
     } else {
-        let minDist = Infinity;
-        let closestPlanet: any = null;
-        activePlanets.forEach(p => {
-            const dx = STATE.playerPosition.x - p.mesh.position.x;
-            const dz = STATE.playerPosition.z - p.mesh.position.z;
-            const dist = Math.sqrt(dx * dx + dz * dz);
-            if (dist < minDist) {
-                minDist = dist;
-                closestPlanet = p;
-            }
-        });
-        targetPlanet = closestPlanet;
-        targetDist = minDist;
+        targetPlanet = closestRealPlanet;
+        targetDist = minPlanetDist;
 
-        // Proximity detection for nearby Space Station or Fleet Ship (< 18 AE)
+        // Proximity detection for nearby Space Station, Fleet Ship, or Mission Vessel (< 18 AE)
         if (STATE.spaceStations) {
             for (const st of STATE.spaceStations) {
                 const pos = st.mesh ? st.mesh.position : st.position;
@@ -247,10 +252,45 @@ export function updatePhysics(dt: number) {
                 }
             }
         }
+        const specialVessels = [STATE.jamalShip, STATE.towingDrone, STATE.voyagerProbe];
+        for (const sv of specialVessels) {
+            if (!sv) continue;
+            const pos = sv.mesh ? sv.mesh.position : sv.position;
+            if (pos) {
+                const dist = STATE.playerPosition.distanceTo(pos);
+                if (dist < 18 && dist < targetDist) {
+                    targetPlanet = sv;
+                    targetDist = dist;
+                }
+            }
+        }
     }
 
-    if (targetPlanet && !targetPlanet.isStation && !targetPlanet.isShip && !targetPlanet.stationType && !targetPlanet.shipType) {
+    const isNonPlanetaryTarget = targetPlanet && (
+        targetPlanet.isStation ||
+        targetPlanet.isShip ||
+        targetPlanet.isJamalShip ||
+        targetPlanet.isTowingDrone ||
+        targetPlanet.isVoyager ||
+        targetPlanet.isSpecialEntity ||
+        targetPlanet.stationType ||
+        targetPlanet.shipType ||
+        targetPlanet.type === 'jamal_shuttle' ||
+        targetPlanet.type === 'towing_drone' ||
+        targetPlanet.type === 'voyager_probe' ||
+        targetPlanet.type === 'interceptor' ||
+        targetPlanet.type === 'corvette' ||
+        targetPlanet.type === 'freighter' ||
+        targetPlanet.type === 'heavy_freighter' ||
+        targetPlanet.type === 'citadel' ||
+        targetPlanet.type === 'trade_hub' ||
+        targetPlanet.type === 'mining_relay'
+    );
+
+    if (targetPlanet && !isNonPlanetaryTarget) {
         STATE.nearestPlanet = targetPlanet;
+    } else if (closestRealPlanet) {
+        STATE.nearestPlanet = closestRealPlanet;
     }
 
     // 3. Update 3D Target Reticle (Locked target, active orbit, or proximity planet < 28 AE)

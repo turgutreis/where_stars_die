@@ -734,6 +734,7 @@ export interface GameState {
     voyagerLiberated?: boolean;
     jamalIntroModalSeen?: boolean;
     jamalLiberatedModalSeen?: boolean;
+    insanArrivalSeen?: boolean;
     activeQuests?: Record<string, any>;
 
     // Space Stations & Psionic Stealth System

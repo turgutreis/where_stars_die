@@ -9,6 +9,7 @@ import { getFaction } from './factions';
 import { generateProceduralCandidates } from './crew-generation';
 import { collapseQuantumCivilization } from '../procedural/quantum-civ';
 import { getSystemIsingEpoch, collapseSystemQuantumBranch } from './quantum-ising';
+import { liberateRealShipAtStation } from '../ui/jamal-dialog';
 
 let shockwaveMesh: THREE.Mesh | null = null;
 let shockwaveTimer = 0;
@@ -879,6 +880,13 @@ function dischargeEmpShockwave() {
 
     playCrashSound();
     addLogEntry("SYSTEM", `💥 BIO-ELEKTRISCHE SCHOCKWELLE ENTLADEN! Nahbereich lähmt Schiffe für 5s.`);
+
+    // EMP Overload of INSAN clamping brackets at Pier 4
+    if (STATE.jamalShip && STATE.jamalShip.isRealShipAtDepot && !STATE.jamalShipLiberated && STATE.jamalShip.position) {
+        if (STATE.playerPosition.distanceTo(STATE.jamalShip.position) <= 28) {
+            liberateRealShipAtStation();
+        }
+    }
 }
 
 // Salvage disabled or stunned fleet wreck

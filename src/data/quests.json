@@ -37,6 +37,16 @@
       },
       {
         "stage": 3,
+        "title": "INSAN-Station & Verwaltung orten",
+        "instruction": "Fliege zur INSAN-Verwahrstelle Zeta-9 & sprich mit der Verwaltung [F]",
+        "hint": "Orte die Hauptstation im Schrottfeld von Zeta-9. Schalter 7B verwaltet alle beschlagnahmten Schiffe.",
+        "objective": {
+          "type": "dialogue_completed",
+          "nodeId": "insan_station_bureaucracy"
+        }
+      },
+      {
+        "stage": 4,
         "title": "Echtes Forschungsschiff bergen",
         "instruction": "Befreie die echte Ar-Riḥla an Pier 4 & rette die abgeschleppte Voyager-Sonde",
         "hint": "Nutze die Subraum-Interferenzen der Station, um die Verankerung zu sprengen.",
@@ -46,7 +56,7 @@
         }
       },
       {
-        "stage": 4,
+        "stage": 5,
         "title": "Forschungsschiff geborgen",
         "instruction": "Echte \"Ar-Riḥla\" geborgen (+50 Melange) & Sensoren gekoppelt.",
         "hint": "Alle Scanner- und Telemetriedaten von Dr. Tariq Jamal sind online.",
