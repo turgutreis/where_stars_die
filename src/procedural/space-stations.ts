@@ -193,8 +193,8 @@ export function spawnSystemSpaceStations(planetsInput?: PlanetEntry[]) {
             const controller = createSpaceStationMesh(stationType, factionCol);
 
             const pSize = p.size || 5.0;
-            // Place in high stable synchronous orbit around planet
-            const orbitRadius = pSize * 2.5 + 7.5;
+            // Place in high stable synchronous orbit around planet with generous clearance
+            const orbitRadius = Math.max(30.0, pSize * 4.2 + 16.0);
             const orbitAngle = Math.PI * 0.35 + (stationIdCounter * 1.5);
             const orbitSpeed = (0.28 / Math.sqrt(orbitRadius));
 
@@ -301,8 +301,16 @@ export function updateSpaceStations(dt: number) {
         if (station.parentPlanet && station.parentPlanet.mesh) {
             station.orbitAngle += station.orbitSpeed * dt;
             const parentPos = station.parentPlanet.mesh.position;
-            station.position.x = parentPos.x + Math.cos(station.orbitAngle) * station.orbitRadius;
-            station.position.z = parentPos.z + Math.sin(station.orbitAngle) * station.orbitRadius;
+            const parentScale = Math.max(1.0, station.parentPlanet.mesh.scale.x || 1.0);
+            // Dynamic orbital altitude expansion to maintain glorious orbital vista clearance as planet swells on approach
+            const dynamicOrbitRadius = station.orbitRadius + (parentScale - 1.0) * (station.orbitRadius * 0.45 + 4.0);
+            const sx = parentPos.x + Math.cos(station.orbitAngle) * dynamicOrbitRadius;
+            const sz = parentPos.z + Math.sin(station.orbitAngle) * dynamicOrbitRadius;
+
+            station.position.set(sx, 0, sz);
+            if (station.mesh) {
+                station.mesh.position.set(sx, 0, sz);
+            }
         }
 
         // Alert countdown

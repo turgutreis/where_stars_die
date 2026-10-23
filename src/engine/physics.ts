@@ -10,6 +10,7 @@ import { updateScannerUI } from '../systems/scanner';
 import { updateMutationUI } from '../ui/deck';
 import { triggerGameOver } from './game-over';
 import { calculateRelativisticTimeShift, advanceGalacticTime } from '../systems/quantum-ising';
+import { updateSpaceStations } from '../procedural/space-stations';
 
 // Cached vectors for zero GC pressure
 const _predPos = new THREE.Vector3();
@@ -176,6 +177,9 @@ export function updatePhysics(dt: number) {
             }
         }
     });
+
+    // 1.05 Update Space Stations (Synchronous Orbits around Parent Planets)
+    updateSpaceStations(dt);
 
     // 1.1 Asteroids 3D Tumbling Rotation
     STATE.gravitySources.forEach(s => {

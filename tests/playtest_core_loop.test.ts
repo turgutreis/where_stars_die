@@ -156,7 +156,7 @@ import { triggerScanStart, updateScanning, completeScanning, generatePlanetAttri
 import { completeAbduction } from '../src/systems/abduction';
 import { getLoreSolSystem, getLoreArrakisSystem, getLoreSolarisSystem, getLoreInsanDepotSystem, ensureLoreSystems } from '../src/procedural/lore-systems';
 import { AUDIO_SETTINGS } from '../src/engine/audio';
-import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets, spawnPlanetsAndAsteroids, clearActiveSystem } from '../src/systems/universe';
+import { initiateSystemArrival, initiateSystemDeparture, spawnVoyagerProbe, updateActivePlanets, spawnPlanetsAndAsteroids, clearActiveSystem, updateUniverseShaders } from '../src/systems/universe';
 import { clearJumpGates, activeJumpGates } from '../src/procedural/meshes';
 import { updatePhysics } from '../src/engine/physics';
 import { generateProceduralCandidates, getCrewReactiveThought } from '../src/systems/crew-generation';
@@ -4403,6 +4403,64 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         triggerHarvestStart();
         expect(STATE.extractingPlanet).toBeNull();
         expect(STATE.harvestProgress).toBe(0);
+    });
+
+    test("55. Realistic Research Ship Proportions & Guaranteed Planetary Space Station Clearance without Clipping", () => {
+        // 1. Research Vessel Proportions Verification
+        const mockPlanet: any = {
+            name: "Perseus-Erwachen Prime A",
+            size: 3.5,
+            mesh: { position: new THREE.Vector3(100, 0, 50), scale: { x: 1.0, y: 1.0, z: 1.0 } },
+            position: new THREE.Vector3(100, 0, 50),
+            attributes: { species: { techLevel: 'Automated Bureaucracy', name: 'INSAN' } }
+        };
+        activePlanets.length = 0;
+        activePlanets.push(mockPlanet);
+
+        spawnJamalMissionEntities(mockPlanet, false);
+        expect(STATE.jamalShip).toBeDefined();
+        // Ship radius must be realistic scout/shuttle scale (<= 1.0, size 0.65)
+        expect(STATE.jamalShip.radius).toBeLessThanOrEqual(1.0);
+        expect(STATE.jamalShip.size).toBe(0.65);
+        expect(STATE.towingDrone).toBeDefined();
+        expect(STATE.towingDrone.radius).toBeLessThanOrEqual(0.6);
+
+        // 2. Continuous Orbital Tracking for Research Vessel
+        // Move planet along its orbit
+        mockPlanet.mesh.position.set(120, 0, 60);
+        updateUniverseShaders(1.0);
+        // Ship position must have tracked planet position
+        const distFromPlanet = STATE.jamalShip.position.distanceTo(mockPlanet.mesh.position);
+        expect(distFromPlanet).toBeGreaterThan(15.0);
+        expect(distFromPlanet).toBeLessThan(35.0);
+        // Drone must remain docked close to ship
+        const droneDistToShip = STATE.towingDrone.position.distanceTo(STATE.jamalShip.position);
+        expect(droneDistToShip).toBeLessThan(4.0);
+
+        // 3. Space Station Orbital Clearance (No Clipping into Planet)
+        clearSpaceStations();
+        spawnSystemSpaceStations([mockPlanet]);
+        expect(STATE.spaceStations.length).toBeGreaterThan(0);
+        const station = STATE.spaceStations[0];
+        expect(station.parentPlanet).toBe(mockPlanet);
+
+        // Base Scale clearance: Station distance must exceed planet radius + clearance buffer (min 20)
+        let stationDist = station.position.distanceTo(mockPlanet.mesh.position);
+        expect(stationDist).toBeGreaterThan(mockPlanet.size + 15.0);
+
+        // Planetary approach expansion: Planet swells to 2.85x
+        mockPlanet.mesh.scale.x = 2.85;
+        mockPlanet.mesh.scale.y = 2.85;
+        mockPlanet.mesh.scale.z = 2.85;
+        const expandedRadius = mockPlanet.size * 2.85;
+        const expandedAtmosphere = expandedRadius * 1.35;
+
+        // Run physics/station update
+        updateSpaceStations(0.5);
+        stationDist = station.position.distanceTo(mockPlanet.mesh.position);
+        // Station must expand its orbit and NEVER clip into expanded planet or atmosphere
+        expect(stationDist).toBeGreaterThan(expandedAtmosphere + 10.0);
+        expect(station.mesh.position.distanceTo(mockPlanet.mesh.position)).toBe(stationDist);
     });
 });
 

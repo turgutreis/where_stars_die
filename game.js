@@ -34818,7 +34818,7 @@ class DialogueEngine {
 }
 
 // src/procedural/jamal-shuttle.ts
-function createJamalResearchShuttleMesh(size = 2.5) {
+function createJamalResearchShuttleMesh(size = 0.65) {
   const group = new Group;
   group.isJamalGroup = true;
   const shuttleMesh = new Group;
@@ -34894,7 +34894,7 @@ function createJamalResearchShuttleMesh(size = 2.5) {
   sensorDish.position.set(0, size * 0.45, -size * 0.2);
   sensorDish.rotation.x = -Math.PI * 0.35;
   shuttleMesh.add(sensorDish);
-  const coreLight = new PointLight(3718648, 1.8, 35, 1.2);
+  const coreLight = new PointLight(3718648, 1.8, 16, 1.2);
   coreLight.position.set(0, 0, -size * 0.9);
   group.add(coreLight);
   const towClampMesh = new Group;
@@ -34992,7 +34992,7 @@ function createJamalResearchShuttleMesh(size = 2.5) {
     update
   };
 }
-function createTowingDroneMesh(size = 1.6) {
+function createTowingDroneMesh(size = 0.45) {
   const group = new Group;
   group.isTowingDroneGroup = true;
   const droneBody = new Group;
@@ -35031,7 +35031,7 @@ function createTowingDroneMesh(size = 1.6) {
   const strobeBeacon = new Mesh(strobeGeo, strobeMat);
   strobeBeacon.position.set(0, size * 0.65, 0);
   droneBody.add(strobeBeacon);
-  const strobeLight = new PointLight(16096779, 2.2, 35, 1.5);
+  const strobeLight = new PointLight(16096779, 2.2, 16, 1.5);
   strobeLight.position.set(0, size * 0.75, 0);
   group.add(strobeLight);
   const hornGeo = new ConeGeometry(size * 0.12, size * 0.4, 8);
@@ -39024,7 +39024,7 @@ function spawnSystemSpaceStations(planetsInput) {
       const factionCol = isBureaucracy ? 16096779 : isHyper ? 11032055 : 3718648;
       const controller = createSpaceStationMesh(stationType, factionCol);
       const pSize = p.size || 5;
-      const orbitRadius = pSize * 2.5 + 7.5;
+      const orbitRadius = Math.max(30, pSize * 4.2 + 16);
       const orbitAngle = Math.PI * 0.35 + stationIdCounter * 1.5;
       const orbitSpeed = 0.28 / Math.sqrt(orbitRadius);
       const planetX = p.mesh ? p.mesh.position.x : 0;
@@ -39094,6 +39094,29 @@ function spawnSystemSpaceStations(planetsInput) {
   if (STATE.spaceStations.length > 0) {
     addLogEntry("SYSTEM", `\uD83D\uDCE1 ORBITALE RELAIS: ${STATE.spaceStations.length} Raumstation(en) im Sektor erfasst.`);
   }
+}
+function updateSpaceStations(dt) {
+  activeStationControllers.forEach((c) => c.update(dt));
+  STATE.spaceStations.forEach((station) => {
+    if (station.parentPlanet && station.parentPlanet.mesh) {
+      station.orbitAngle += station.orbitSpeed * dt;
+      const parentPos = station.parentPlanet.mesh.position;
+      const parentScale = Math.max(1, station.parentPlanet.mesh.scale.x || 1);
+      const dynamicOrbitRadius = station.orbitRadius + (parentScale - 1) * (station.orbitRadius * 0.45 + 4);
+      const sx = parentPos.x + Math.cos(station.orbitAngle) * dynamicOrbitRadius;
+      const sz = parentPos.z + Math.sin(station.orbitAngle) * dynamicOrbitRadius;
+      station.position.set(sx, 0, sz);
+      if (station.mesh) {
+        station.mesh.position.set(sx, 0, sz);
+      }
+    }
+    if (station.alertTimer > 0) {
+      station.alertTimer = Math.max(0, station.alertTimer - dt);
+      if (station.alertTimer <= 0) {
+        station.alertLevel = "peace";
+      }
+    }
+  });
 }
 function clearSpaceStations() {
   STATE.spaceStations.forEach((st) => {
@@ -40369,11 +40392,41 @@ function updateUniverseShaders(dt, cam) {
   if (STATE.voyagerProbe && STATE.voyagerProbe.update) {
     STATE.voyagerProbe.update(dt);
   }
-  if (STATE.jamalShip && STATE.jamalShip.update) {
-    STATE.jamalShip.update(dt);
+  if (STATE.jamalShip) {
+    if (STATE.jamalShip.update) {
+      STATE.jamalShip.update(dt);
+    }
+    if (STATE.jamalShip.parentPlanet && STATE.jamalShip.parentPlanet.mesh) {
+      STATE.jamalShip.orbitAngle = (STATE.jamalShip.orbitAngle || 0) + (STATE.jamalShip.orbitSpeed || 0.035) * dt;
+      const pPos = STATE.jamalShip.parentPlanet.mesh.position;
+      const pScale = Math.max(1, STATE.jamalShip.parentPlanet.mesh.scale.x || 1);
+      const baseR = STATE.jamalShip.orbitRadius || 24;
+      const effectiveR = baseR + (pScale - 1) * (baseR * 0.45 + 4);
+      const jx = pPos.x + Math.cos(STATE.jamalShip.orbitAngle) * effectiveR;
+      const jz = pPos.z + Math.sin(STATE.jamalShip.orbitAngle) * effectiveR;
+      STATE.jamalShip.position.set(jx, 0, jz);
+      if (STATE.jamalShip.mesh) {
+        STATE.jamalShip.mesh.position.set(jx, 0, jz);
+        STATE.jamalShip.mesh.rotation.y = -STATE.jamalShip.orbitAngle + Math.PI / 2;
+      }
+    }
   }
-  if (STATE.towingDrone && STATE.towingDrone.update) {
-    STATE.towingDrone.update(dt);
+  if (STATE.towingDrone) {
+    if (STATE.towingDrone.parentPlanet && STATE.jamalShip && STATE.jamalShip.position) {
+      const shipPos = STATE.jamalShip.position;
+      const offset = STATE.towingDrone.droneOffset || { x: 1.8, y: 0.6, z: 1.8 };
+      const dx = shipPos.x + offset.x;
+      const dy = (shipPos.y || 0) + offset.y;
+      const dz = shipPos.z + offset.z;
+      STATE.towingDrone.position.set(dx, dy, dz);
+      if (STATE.towingDrone.mesh) {
+        STATE.towingDrone.mesh.position.set(dx, dy, dz);
+        STATE.towingDrone.mesh.lookAt(shipPos);
+      }
+    }
+    if (STATE.towingDrone.update) {
+      STATE.towingDrone.update(dt);
+    }
   }
   if (activeSunRays && cam) {
     activeSunRays.update(dt, cam);
@@ -41067,8 +41120,16 @@ function spawnJamalMissionEntities(targetPlanet, isRealShipAtDepot = false) {
     STATE.towingDrone = null;
   }
   const planetPos = targetPlanet && targetPlanet.group ? targetPlanet.group.position : targetPlanet && targetPlanet.mesh ? targetPlanet.mesh.position : targetPlanet && targetPlanet.position ? targetPlanet.position : new Vector3(180, 0, 100);
-  const shuttleController = createJamalResearchShuttleMesh(2.6);
-  const shuttlePos = new Vector3(planetPos.x + 13.5, 0, planetPos.z + 13.5);
+  const shipSize = 0.65;
+  const droneSize = 0.45;
+  const planetSize = targetPlanet && targetPlanet.size || 3.5;
+  const shipOrbitRadius = Math.max(22, planetSize * 3.4 + 10);
+  const shipOrbitAngle = isRealShipAtDepot ? Math.PI * 1.15 : Math.PI * 0.35;
+  const shipOrbitSpeed = 0.035;
+  const initX = planetPos.x + Math.cos(shipOrbitAngle) * shipOrbitRadius;
+  const initZ = planetPos.z + Math.sin(shipOrbitAngle) * shipOrbitRadius;
+  const shuttleController = createJamalResearchShuttleMesh(shipSize);
+  const shuttlePos = new Vector3(initX, 0, initZ);
   shuttleController.group.position.copy(shuttlePos);
   shuttleController.group.lookAt(planetPos);
   scene.add(shuttleController.group);
@@ -41086,11 +41147,15 @@ function spawnJamalMissionEntities(targetPlanet, isRealShipAtDepot = false) {
     setLiberated: shuttleController.setLiberated,
     type: "jamal_shuttle",
     name: shipName,
-    mass: 0.8,
-    radius: 2.6,
-    size: 2.6,
-    gravityRange: 14,
+    mass: 0.05,
+    radius: shipSize,
+    size: shipSize,
+    gravityRange: 0,
     position: shuttleController.group.position,
+    parentPlanet: targetPlanet,
+    orbitRadius: shipOrbitRadius,
+    orbitAngle: shipOrbitAngle,
+    orbitSpeed: shipOrbitSpeed,
     isJamalShip: true,
     isSpecialEntity: true,
     isRealShipAtDepot,
@@ -41099,8 +41164,9 @@ function spawnJamalMissionEntities(targetPlanet, isRealShipAtDepot = false) {
   };
   STATE.jamalShip = shuttleObj;
   STATE.gravitySources.push(shuttleObj);
-  const droneController = createTowingDroneMesh(1.8);
-  const dronePos = new Vector3(shuttlePos.x + 3.2, 1.2, shuttlePos.z + 3.5);
+  const droneController = createTowingDroneMesh(droneSize);
+  const droneOffset = new Vector3(1.8, 0.6, 1.8);
+  const dronePos = new Vector3(shuttlePos.x + droneOffset.x, shuttlePos.y + droneOffset.y, shuttlePos.z + droneOffset.z);
   droneController.group.position.copy(dronePos);
   droneController.group.lookAt(shuttlePos);
   scene.add(droneController.group);
@@ -41122,11 +41188,13 @@ function spawnJamalMissionEntities(targetPlanet, isRealShipAtDepot = false) {
     triggerOverload: droneController.triggerOverload,
     type: "towing_drone",
     name: droneName,
-    mass: 0.5,
-    radius: 1.8,
-    size: 1.8,
-    gravityRange: 8,
+    mass: 0.02,
+    radius: droneSize,
+    size: droneSize,
+    gravityRange: 0,
     position: droneController.group.position,
+    parentPlanet: targetPlanet,
+    droneOffset,
     isTowingDrone: true,
     isSpecialEntity: true,
     status: droneStatus,
@@ -49007,6 +49075,7 @@ function updatePhysics(dt) {
       }
     }
   });
+  updateSpaceStations(dt);
   STATE.gravitySources.forEach((s) => {
     if (s.type === "asteroid" && s.mesh && s.rotSpeed && !s.isAbsorbed) {
       s.mesh.rotation.x += s.rotSpeed.x * dt;
