@@ -36611,6 +36611,11 @@ function triggerHarvestStart() {
   const target = STATE.orbitLevel === "moon" && STATE.activeMoonOrbit ? STATE.activeMoonOrbit : STATE.lockedTarget || STATE.nearestPlanet;
   if (!STATE.gameStarted || STATE.extractingPlanet || STATE.scanningPlanet || STATE.abductActive || !target || !target.mesh)
     return;
+  const isNonPlanetary = Boolean(target.isShip || target.isStation || target.isJamalShip || target.isTowingDrone || target.isVoyager || target.isSpecialEntity || target.stationType || target.shipType || target.type === "jamal_shuttle" || target.type === "towing_drone" || target.type === "voyager_probe" || target.type === "interceptor" || target.type === "corvette" || target.type === "freighter" || target.type === "heavy_freighter" || target.type === "citadel" || target.type === "trade_hub" || target.type === "mining_relay");
+  if (isNonPlanetary) {
+    addLogEntry("SYSTEM", `${target.name} ist ein Raumfahrzeug/Konstrukt — Bio-Siphon nur auf planetaren Himmelskörpern anwendbar.`);
+    return;
+  }
   const isScanned = target.scanned || STATE.scannedPlanets && STATE.scannedPlanets[target.name];
   if (!isScanned) {
     addLogEntry("WARNUNG", `Scan erforderlich [F]! Vor der Bio-Extraktion muss ${target.name} spektralanalysiert werden.`);
@@ -37290,6 +37295,18 @@ function triggerScanStart() {
         bestObj = s;
       }
     });
+    [STATE.jamalShip, STATE.towingDrone, STATE.voyagerProbe].forEach((sv) => {
+      if (!sv)
+        return;
+      const pos = sv.mesh ? sv.mesh.position : sv.position;
+      if (!pos)
+        return;
+      const d = pos.distanceTo(playerPos);
+      if (d < 28 && d < bestDist) {
+        bestDist = d;
+        bestObj = sv;
+      }
+    });
     if (bestObj) {
       const curDist = target && target.mesh ? target.mesh.position.distanceTo(playerPos) : Infinity;
       if (bestDist < curDist) {
@@ -37301,13 +37318,14 @@ function triggerScanStart() {
     return;
   const isShip = target.type === "interceptor" || target.type === "corvette" || target.type === "freighter" || target.type === "heavy_freighter";
   const isStation = target.type === "citadel" || target.type === "trade_hub" || target.type === "mining_relay";
+  const isSpecialVessel = Boolean(target.isJamalShip || target.isTowingDrone || target.isVoyager || target.type === "jamal_shuttle" || target.type === "towing_drone" || target.type === "voyager_probe");
   const isAlreadyScanned = target.scanned || STATE.scannedPlanets && STATE.scannedPlanets[target.name];
   if (isAlreadyScanned) {
-    addLogEntry("SYSTEM", `${isStation ? "Raumstation" : isShip ? "Schiff" : target.isMoon ? "Mond" : "Planet"} ${target.name} ist bereits vollständig gescannt & analysiert.`);
+    addLogEntry("SYSTEM", `${isStation ? "Raumstation" : isShip || isSpecialVessel ? "Schiff/Sonde" : target.isMoon ? "Mond" : "Planet"} ${target.name} ist bereits vollständig gescannt & analysiert.`);
     return;
   }
   const meshScale = target.mesh ? target.mesh.scale.x : 1;
-  const maxScanDist = isStation ? 35 : isShip ? 28 : Math.max(25, (target.size || 2.5) * meshScale * 3.8);
+  const maxScanDist = isStation ? 35 : isShip || isSpecialVessel ? 28 : Math.max(25, (target.size || 2.5) * meshScale * 3.8);
   const targetPos = target.mesh ? target.mesh.position : target.position || new Vector3(0, 0, 0);
   const dx = STATE.playerPosition.x - targetPos.x;
   const dz = STATE.playerPosition.z - targetPos.z;
@@ -37322,18 +37340,19 @@ function triggerScanStart() {
   const scanBtn = document.getElementById("start-scan-btn");
   if (scanBtn)
     scanBtn.setAttribute("disabled", "true");
-  const visualRadius = isStation ? 5.5 : isShip ? 2.5 : (target.size || 3) * meshScale;
+  const visualRadius = isStation ? 5.5 : isShip || isSpecialVessel ? 2.5 : (target.size || 3) * meshScale;
   createScanVisuals(STATE.playerPosition, targetPos, visualRadius);
   startQuantumScanSound();
-  addLogEntry("SYSTEM", `${isShip ? "Telepathie- & Frequenz-Scan" : isStation ? "Orbital-Stations-Scan" : "Spektral-Scan"} initiiert für: ${target.name}. Halte Sensordistanz...`);
+  addLogEntry("SYSTEM", `${isShip || isSpecialVessel ? "Telepathie- & Frequenz-Scan" : isStation ? "Orbital-Stations-Scan" : "Spektral-Scan"} initiiert für: ${target.name}. Halte Sensordistanz...`);
 }
 function updateScanning(dt) {
   if (!STATE.scanningPlanet)
     return;
   const isShip = STATE.scanningPlanet.type === "interceptor" || STATE.scanningPlanet.type === "corvette" || STATE.scanningPlanet.type === "freighter" || STATE.scanningPlanet.type === "heavy_freighter";
   const isStation = STATE.scanningPlanet.type === "citadel" || STATE.scanningPlanet.type === "trade_hub" || STATE.scanningPlanet.type === "mining_relay";
+  const isSpecialVessel = Boolean(STATE.scanningPlanet.isJamalShip || STATE.scanningPlanet.isTowingDrone || STATE.scanningPlanet.isVoyager || STATE.scanningPlanet.type === "jamal_shuttle" || STATE.scanningPlanet.type === "towing_drone" || STATE.scanningPlanet.type === "voyager_probe");
   const meshScale = STATE.scanningPlanet.mesh ? STATE.scanningPlanet.mesh.scale.x : 1;
-  const maxHoldDist = isStation ? 42 : isShip ? 35 : Math.max(32, (STATE.scanningPlanet.size || 2.5) * meshScale * 4.4);
+  const maxHoldDist = isStation ? 42 : isShip || isSpecialVessel ? 35 : Math.max(32, (STATE.scanningPlanet.size || 2.5) * meshScale * 4.4);
   const targetPos = STATE.scanningPlanet.mesh ? STATE.scanningPlanet.mesh.position : STATE.scanningPlanet.position || new Vector3(0, 0, 0);
   const dx = STATE.playerPosition.x - targetPos.x;
   const dz = STATE.playerPosition.z - targetPos.z;
@@ -37394,6 +37413,7 @@ function completeScanning() {
           addLogEntry("JAMAL", "„Die Ar-Riḥla ist sicher geborgen. Alle Sensoren sind online!“");
           openNpcDialogue("real_ship_liberated");
         }
+        updateScannerUI(target, 10);
         return;
       }
       const isShip = target.type === "interceptor" || target.type === "corvette" || target.type === "freighter" || target.type === "heavy_freighter";
@@ -37487,6 +37507,7 @@ function updateScannerUI(planet, dist) {
   }
   const isShip = planet && (planet.type === "interceptor" || planet.type === "corvette" || planet.type === "freighter" || planet.type === "heavy_freighter");
   const isStation = planet && (planet.type === "citadel" || planet.type === "trade_hub" || planet.type === "mining_relay");
+  const isSpecialVessel = Boolean(planet && (planet.isJamalShip || planet.isTowingDrone || planet.isVoyager || planet.type === "jamal_shuttle" || planet.type === "towing_drone" || planet.type === "voyager_probe"));
   const isLocked = STATE.lockedTarget && STATE.lockedTarget.name === planet.name;
   const isInOrbit = STATE.orbitPlanet && STATE.orbitPlanet.name === planet.name || STATE.activeMoonOrbit && STATE.activeMoonOrbit.name === planet.name;
   const isCurrentlyVisible = scannerPanel && scannerPanel.classList.contains("visible") || orbitalHud && orbitalHud.style.display !== "none";
@@ -37509,7 +37530,10 @@ function updateScannerUI(planet, dist) {
     }
   }
   if (nameEl) {
-    if (isShip) {
+    if (isSpecialVessel) {
+      const specialTypeLabel = planet.isJamalShip || planet.type === "jamal_shuttle" ? "Forschungsschiff" : planet.isTowingDrone || planet.type === "towing_drone" ? "INSAN-Drohne" : "Raumsonde";
+      nameEl.innerText = `${planet.name} (${specialTypeLabel})`;
+    } else if (isShip) {
       const shipTypeLabel = planet.type === "corvette" ? "Schwere Korvette" : planet.type === "freighter" ? "Ziviler Frachter" : "Abfangjäger";
       nameEl.innerText = `${planet.name} (${shipTypeLabel})`;
     } else if (isStation) {
@@ -37523,7 +37547,7 @@ function updateScannerUI(planet, dist) {
   const orbitBadgeTitle = document.getElementById("orbit-badge-title");
   const orbitBadgeSub = document.getElementById("orbit-badge-sub");
   if (orbitBadge) {
-    if (!isShip && !isStation && STATE.orbitLevel === "moon" && STATE.activeMoonOrbit) {
+    if (!isShip && !isStation && !isSpecialVessel && STATE.orbitLevel === "moon" && STATE.activeMoonOrbit) {
       orbitBadge.style.display = "flex";
       if (orbitBadgeTitle) {
         orbitBadgeTitle.innerText = `\uD83C\uDF15 MOND-ORBIT: ${STATE.activeMoonOrbit.name.toUpperCase()}`;
@@ -37534,7 +37558,7 @@ function updateScannerUI(planet, dist) {
         const alt = Math.max(0.1, dist - curRadius).toFixed(1);
         orbitBadgeSub.innerText = `Mutterplanet: ${parentName} • Höhe: ${alt} LJ`;
       }
-    } else if (!isShip && !isStation && STATE.orbitLevel === "planet" && STATE.orbitPlanet) {
+    } else if (!isShip && !isStation && !isSpecialVessel && STATE.orbitLevel === "planet" && STATE.orbitPlanet) {
       orbitBadge.style.display = "flex";
       if (orbitBadgeTitle) {
         orbitBadgeTitle.innerText = `\uD83E\uDE90 SUB-SYSTEM: ${STATE.orbitPlanet.name.toUpperCase()}`;
@@ -37550,7 +37574,7 @@ function updateScannerUI(planet, dist) {
     }
   }
   const meshScale = planet.mesh ? planet.mesh.scale.x : 1;
-  const maxScanDist = isStation ? 35 : isShip ? 28 : Math.max(25, (planet.size || 2.5) * meshScale * 3.8);
+  const maxScanDist = isStation ? 35 : isShip || isSpecialVessel ? 28 : Math.max(25, (planet.size || 2.5) * meshScale * 3.8);
   const inRange = dist < maxScanDist;
   const isScanned = Boolean(planet.scanned || STATE.scannedPlanets[planet.name]);
   if (distEl) {
@@ -37560,9 +37584,9 @@ function updateScannerUI(planet, dist) {
   if (scanBtn) {
     scanBtn.disabled = !inRange || isScanned || STATE.scanningPlanet !== null;
     if (isScanned) {
-      scanBtn.innerText = isShip ? "Telepathie-Dossier Geladen ✓" : isStation ? "Stations-Scan Abgeschlossen ✓" : "Oberflächenscan Abgeschlossen ✓";
+      scanBtn.innerText = isSpecialVessel ? "Spektral-Dossier Geladen ✓" : isShip ? "Telepathie-Dossier Geladen ✓" : isStation ? "Stations-Scan Abgeschlossen ✓" : "Oberflächenscan Abgeschlossen ✓";
     } else {
-      scanBtn.innerText = inRange ? isShip ? "Telepathie-Scan [F]" : isStation ? "Station Scannen [F]" : "Scan initiieren [F]" : `Zu weit entfernt (< ${Math.round(maxScanDist)} nötig)`;
+      scanBtn.innerText = inRange ? isSpecialVessel ? "Schiff Scannen [F]" : isShip ? "Telepathie-Scan [F]" : isStation ? "Station Scannen [F]" : "Scan initiieren [F]" : `Zu weit entfernt (< ${Math.round(maxScanDist)} nötig)`;
     }
   }
   if (isScanned) {
@@ -37714,6 +37738,59 @@ function updateScannerUI(planet, dist) {
           };
         }
       }
+    } else if (isSpecialVessel) {
+      const isJamalShuttle = Boolean(planet.isJamalShip || planet.type === "jamal_shuttle");
+      const isTowing = Boolean(planet.isTowingDrone || planet.type === "towing_drone");
+      const isVoyager = Boolean(planet.isVoyager || planet.type === "voyager_probe");
+      if (titleEl) {
+        titleEl.innerText = isVoyager ? `Sonde: ${planet.name}` : `Schiff: ${planet.name}`;
+      }
+      if (typeEl) {
+        typeEl.innerText = isJamalShuttle ? "Quanten-Forschungsschiff (Ar-Riḥla)" : isTowing ? "Autonome Vollstreckungs- & Pfanddrohne (INSAN)" : "Archaische Tiefraum-Sonde (NASA / 1977)";
+      }
+      if (tempEl) {
+        tempEl.innerText = "100 / 100 HP (Intakte Komposit-Hülle • Keine Strahlung)";
+      }
+      if (bioEl) {
+        if (isJamalShuttle) {
+          bioEl.innerText = STATE.jamalShipLiberated ? "✅ Geborgen & Gekoppelt (Alle Sensoren Online)" : planet.isRealShipAtDepot ? "\uD83D\uDD12 Durch INSAN-Pfandkralle an Pier 4 blockiert" : STATE.jamalDecoyRevealed ? "⚠️ Holografische Köder-Projektion (INSAN-Falle)" : "\uD83D\uDD12 Durch orbitale Parkkralle blockiert";
+        } else if (isTowing) {
+          bioEl.innerText = planet.isHostile ? "\uD83D\uDEA8 Aggressiv (Vollstreckungs-Modus)" : "\uD83D\uDEE1️ Parkraum-Überwachung & Traktorstrahl aktiv";
+        } else {
+          bioEl.innerText = STATE.voyagerLiberated ? "\uD83D\uDEF0️ Befreit (Golden Record geborgen)" : "\uD83D\uDCE1 Schwaches Trägerwellen-Signal (Golden Record)";
+        }
+      }
+      if (atmosEl) {
+        atmosEl.innerText = isJamalShuttle ? "\uD83E\uDDED Quanten-Chronometer, Melange-Spice & Forschungsarchive" : isTowing ? "⚡ Hochleistungs-Traktorstrahl & Subraum-Klammer" : "\uD83D\uDCBF Vergoldete Kupfer-Datenplatte (Sounds of Earth)";
+      }
+      if (quantumRow)
+        quantumRow.style.display = "none";
+      if (radiationRow)
+        radiationRow.style.display = "none";
+      if (fleetRow)
+        fleetRow.style.display = "none";
+      if (speciesRow)
+        speciesRow.style.display = "none";
+      if (techRow)
+        techRow.style.display = "none";
+      if (resEl && resEl.parentElement)
+        resEl.parentElement.style.display = "none";
+      if (physicsRow && physicsEl) {
+        physicsRow.style.display = "flex";
+        const physLabel = physicsRow.querySelector(".label");
+        if (physLabel)
+          physLabel.innerText = "Systemstatus:";
+        physicsEl.innerText = isJamalShuttle ? "Abgeschirmter Quanten-Kern (0% Strahlungsemission)" : isTowing ? "Autonome INSAN-Bürokratie-KI" : "Radioisotopen-Batterie (Erschöpft)";
+      }
+      const depositsBox = document.getElementById("scanner-deposits-container");
+      if (depositsBox)
+        depositsBox.style.display = "none";
+      if (commsBtn)
+        commsBtn.style.display = "none";
+      if (harvestBtn)
+        harvestBtn.style.display = "none";
+      if (abductBtn)
+        abductBtn.style.display = "none";
     } else {
       if (!planet.attributes || !planet.attributes.surfaceDeposits || planet.attributes.surfaceDeposits.length === 0) {
         planet.attributes = generatePlanetAttributes(planet);
@@ -37865,7 +37942,7 @@ function updateScannerUI(planet, dist) {
     if (depositsBox)
       depositsBox.style.display = "none";
   }
-  updateOrbitalPlanetHUD(planet, dist, shouldShow && !isShip && !isStation && isScanned, inRange);
+  updateOrbitalPlanetHUD(planet, dist, shouldShow && !isShip && !isStation && !isSpecialVessel && isScanned, inRange);
 }
 function setOrbitalQuadrant(key, present, title = "", val = "", sub = "", onClick = null) {
   const node = document.getElementById(`orbital-node-${key}`);
@@ -40201,8 +40278,8 @@ function getLoreInsanDepotSystem() {
   return {
     id: 77,
     name: "INSAN-Verwahrstelle Zeta-9",
-    x: 170,
-    z: 30,
+    x: 210,
+    z: 100,
     sectorId: "sector_insan_depot",
     sectorName: "INSAN-Pfand- & Schrottwerft (Verwahrstelle)",
     anomalyType: "subspace_interference",
@@ -40238,7 +40315,7 @@ function getLoreInsanDepotSystem() {
         tidalLock: true,
         magnetosphere: "Hyper-Magnetic",
         geothermal: "Dormant",
-        radiationLevel: "High",
+        radiationLevel: "Low",
         entangledTwinId: null,
         quantumResonance: 0.1
       }
@@ -40271,7 +40348,13 @@ function ensureLoreSystems(systems) {
   }
   const hasInsan = systems.some((s) => s.name && s.name.includes("INSAN-Verwahrstelle"));
   if (!hasInsan) {
-    systems.push(getLoreInsanDepotSystem());
+    const depotSys = getLoreInsanDepotSystem();
+    const existingIdIdx = systems.findIndex((s) => s.id === depotSys.id);
+    if (existingIdIdx !== -1) {
+      systems[existingIdIdx] = depotSys;
+    } else {
+      systems.push(depotSys);
+    }
   }
 }
 
@@ -40803,7 +40886,7 @@ function spawnPlanetsAndAsteroids() {
         tidalLock: typeof p.tidalLock === "boolean" ? p.tidalLock : generated ? generated.tidalLock : scaledDist < 160 || p.type === "Rocky" && seed % 4 === 0,
         magnetosphere: p.magnetosphere || (generated ? generated.magnetosphere : isGas ? "Hyper-Magnetic" : isHab ? "Strong" : "Weak"),
         geothermal: p.geothermal || (generated ? generated.geothermal : isGas ? "Dead" : isHab ? "Active Geysers" : "Dormant"),
-        radiationLevel: p.radiationLevel || (generated ? generated.radiationLevel : "Moderate"),
+        radiationLevel: STATE.currentSystemId === 1 && idx === 0 || activeSystem.isInsanDepot || activeSystem.id === 77 ? "Low" : p.radiationLevel || (generated ? generated.radiationLevel : "Moderate"),
         entangledTwinId: p.entangledTwinId || (generated ? generated.entangledTwinId : null),
         quantumResonance: p.quantumResonance || (generated ? generated.quantumResonance : p.entangledTwinId ? 0.85 : 0)
       }
@@ -40983,7 +41066,7 @@ function spawnJamalMissionEntities(targetPlanet, isRealShipAtDepot = false) {
     disposeObject3D(STATE.towingDrone.mesh);
     STATE.towingDrone = null;
   }
-  const planetPos = targetPlanet && targetPlanet.group ? targetPlanet.group.position : targetPlanet && targetPlanet.position ? targetPlanet.position : new Vector3(180, 0, 100);
+  const planetPos = targetPlanet && targetPlanet.group ? targetPlanet.group.position : targetPlanet && targetPlanet.mesh ? targetPlanet.mesh.position : targetPlanet && targetPlanet.position ? targetPlanet.position : new Vector3(180, 0, 100);
   const shuttleController = createJamalResearchShuttleMesh(2.6);
   const shuttlePos = new Vector3(planetPos.x + 13.5, 0, planetPos.z + 13.5);
   shuttleController.group.position.copy(shuttlePos);
@@ -41005,9 +41088,11 @@ function spawnJamalMissionEntities(targetPlanet, isRealShipAtDepot = false) {
     name: shipName,
     mass: 0.8,
     radius: 2.6,
+    size: 2.6,
     gravityRange: 14,
     position: shuttleController.group.position,
     isJamalShip: true,
+    isSpecialEntity: true,
     isRealShipAtDepot,
     isDecoy: !isRealShipAtDepot,
     scanned: STATE.jamalShipLiberated
@@ -41039,9 +41124,11 @@ function spawnJamalMissionEntities(targetPlanet, isRealShipAtDepot = false) {
     name: droneName,
     mass: 0.5,
     radius: 1.8,
+    size: 1.8,
     gravityRange: 8,
     position: droneController.group.position,
     isTowingDrone: true,
+    isSpecialEntity: true,
     status: droneStatus,
     isHostile: isDroneHostile,
     scanned: STATE.jamalShipLiberated
@@ -41069,9 +41156,11 @@ function spawnVoyagerProbe() {
     name: probeName,
     mass: 0.5,
     radius: 2.2,
+    size: 2.2,
     gravityRange: 10,
     position: voyagerController.group.position,
-    isVoyager: true
+    isVoyager: true,
+    isSpecialEntity: true
   };
   STATE.voyagerProbe = probeObj;
   STATE.gravitySources.push(probeObj);
@@ -43301,12 +43390,13 @@ function updateCrewSimulation(dt) {
       }
     }
   }
-  if (STATE.nearestPlanet && STATE.nearestPlanet.attributes?.radiationLevel) {
-    const radLevel = STATE.nearestPlanet.attributes.radiationLevel;
-    const radBase = radLevel === "Extreme" ? 0.9 : radLevel === "High" ? 0.65 : radLevel === "Moderate" ? 0.35 : 0.1;
+  const pObj = STATE.nearestPlanet;
+  const isNonPlanetaryNearest = pObj && (pObj.isShip || pObj.isStation || pObj.isJamalShip || pObj.isTowingDrone || pObj.isVoyager || pObj.isSpecialEntity || pObj.stationType || pObj.shipType || pObj.type === "jamal_shuttle" || pObj.type === "towing_drone" || pObj.type === "voyager_probe" || pObj.type === "interceptor" || pObj.type === "corvette" || pObj.type === "freighter" || pObj.type === "heavy_freighter" || pObj.type === "citadel" || pObj.type === "trade_hub" || pObj.type === "mining_relay");
+  if (pObj && !isNonPlanetaryNearest && pObj.attributes?.radiationLevel) {
+    const radLevel = pObj.attributes.radiationLevel;
+    const radBase = radLevel === "Extreme" ? 0.9 : radLevel === "High" ? 0.65 : radLevel === "Moderate" ? 0.14 : 0.05;
     let planetDist = 0;
     let hasDist = false;
-    const pObj = STATE.nearestPlanet;
     const pPos = pObj.mesh ? pObj.mesh.position : pObj.position;
     if (STATE.playerPosition && pPos) {
       planetDist = STATE.playerPosition.distanceTo(pPos);
@@ -43328,6 +43418,13 @@ function updateCrewSimulation(dt) {
         ambientRadiation = planetIntensity;
         radSource = `${pObj.name || "Planet"} Magnetosphäre`;
       }
+    }
+  }
+  if (STATE.jamalShip && STATE.playerPosition) {
+    const jPos = STATE.jamalShip.mesh ? STATE.jamalShip.mesh.position : STATE.jamalShip.position;
+    if (jPos && STATE.playerPosition.distanceTo(jPos) < 28) {
+      ambientRadiation = 0;
+      radSource = "";
     }
   }
   const radProtection = calculateRadiationProtection();
@@ -46313,6 +46410,44 @@ function resolveJumpOutcome(telemetry, targetSys, originSys, universe, forceRoll
 }
 
 // src/systems/galaxy-map.ts
+function getActiveQuestTargetSystem(systems) {
+  if (!systems || systems.length === 0)
+    return null;
+  if (STATE.jamalShipLiberated)
+    return null;
+  const questStage = QuestManager.getCurrentStage("prologue_jamal_ship")?.stage ?? -1;
+  const isSeekingDepot = Boolean(STATE.jamalDecoyRevealed || questStage >= 2 || (STATE.ftueStep || 0) >= 3 || STATE.jamalMissionDiscovered || STATE.jamalMissionActive);
+  if (!isSeekingDepot)
+    return null;
+  const depotSys = systems.find((s) => s.isInsanDepot || s.name.includes("INSAN-Verwahrstelle") || s.id === 77);
+  if (!depotSys || depotSys.id === STATE.currentSystemId)
+    return null;
+  return depotSys;
+}
+function findBestRelaySystemForTarget(systems, fromSys, targetSys) {
+  if (!systems || !fromSys || !targetSys || fromSys.id === targetSys.id)
+    return null;
+  const safeRange = getEffectiveSafeWarpRange();
+  const directDist = Math.hypot(targetSys.x - fromSys.x, targetSys.z - fromSys.z);
+  if (directDist <= safeRange)
+    return null;
+  let bestRelay = null;
+  let bestScore = Infinity;
+  for (const s of systems) {
+    if (s.id === fromSys.id || s.id === targetSys.id)
+      continue;
+    const d1 = Math.hypot(s.x - fromSys.x, s.z - fromSys.z);
+    const d2 = Math.hypot(targetSys.x - s.x, targetSys.z - s.z);
+    if (d1 <= safeRange && d2 <= safeRange) {
+      const score = d1 + d2;
+      if (score < bestScore) {
+        bestScore = score;
+        bestRelay = s;
+      }
+    }
+  }
+  return bestRelay;
+}
 var mapOpen = false;
 var selectedSystem = null;
 var hoverSystem = null;
@@ -46395,6 +46530,7 @@ function renderGalaxyMap() {
   const width = canvasWidth;
   const height = canvasHeight;
   const systems = STATE.universe.systems;
+  ensureLoreSystems(systems);
   let maxDist = 0;
   systems.forEach((sys) => {
     const dist = Math.sqrt(sys.x * sys.x + sys.z * sys.z);
@@ -46402,8 +46538,15 @@ function renderGalaxyMap() {
       maxDist = dist;
   });
   baseScale = Math.min(width, height) / (maxDist * 2.3 || 1);
-  if (!selectedSystem) {
-    selectedSystem = systems.find((s) => s.id === STATE.currentSystemId) || systems[0];
+  const activeQuestTarget = getActiveQuestTargetSystem(systems);
+  const currentSysInit = systems.find((s) => s.id === STATE.currentSystemId) || systems[0];
+  if (!selectedSystem || activeQuestTarget && selectedSystem.id === currentSysInit?.id && STATE.jamalDecoyRevealed) {
+    selectedSystem = activeQuestTarget || currentSysInit;
+    if (activeQuestTarget && currentSysInit) {
+      const midX = (currentSysInit.x + activeQuestTarget.x) / 2;
+      const midZ = (currentSysInit.z + activeQuestTarget.z) / 2;
+      smoothPanTo(midX, midZ, 1.45);
+    }
   }
   updateSystemDetails(selectedSystem);
   populateQuickBeaconsList();
@@ -46539,6 +46682,35 @@ function renderGalaxyMap() {
       ctx.arc(curScreenX, curScreenY, 12 * Math.min(1.5, Math.max(0.7, mapZoom)) + Math.sin(Date.now() * 0.006) * 3, 0, Math.PI * 2);
       ctx.stroke();
     }
+    const questTargetSys = getActiveQuestTargetSystem(systems);
+    const questRelaySys = questTargetSys && currentSys ? findBestRelaySystemForTarget(systems, currentSys, questTargetSys) : null;
+    if (questTargetSys && currentSys && questTargetSys.id !== currentSys.id) {
+      const qScreenX = centerX + questTargetSys.x * currentScale;
+      const qScreenY = centerY + questTargetSys.z * currentScale;
+      if (questRelaySys) {
+        const rScreenX = centerX + questRelaySys.x * currentScale;
+        const rScreenY = centerY + questRelaySys.z * currentScale;
+        ctx.strokeStyle = "rgba(56, 189, 248, 0.35)";
+        ctx.lineWidth = 1.3;
+        ctx.setLineDash([4, 6]);
+        ctx.beginPath();
+        ctx.moveTo(curScreenX, curScreenY);
+        ctx.lineTo(rScreenX, rScreenY);
+        ctx.lineTo(qScreenX, qScreenY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      if (!selectedSystem || selectedSystem.id !== questTargetSys.id) {
+        ctx.strokeStyle = "rgba(251, 191, 36, 0.45)";
+        ctx.lineWidth = 1.4;
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath();
+        ctx.moveTo(curScreenX, curScreenY);
+        ctx.lineTo(qScreenX, qScreenY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
     if (selectedSystem && selectedSystem.id !== currentSys.id) {
       const targetScreenX = centerX + selectedSystem.x * currentScale;
       const targetScreenY = centerY + selectedSystem.z * currentScale;
@@ -46629,9 +46801,13 @@ function renderGalaxyMap() {
       const isActive = STATE.currentSystemId === sys.id;
       const isHovered = hoverSystem && hoverSystem.id === sys.id;
       const isVisited = visitedIds.includes(sys.id);
+      const isQuestTarget = Boolean(questTargetSys && questTargetSys.id === sys.id);
+      const isQuestRelay = Boolean(questRelaySys && questRelaySys.id === sys.id);
       const hasSentient = sys.planets.some((p) => p.type === "Habitable" || p.species && p.species.hasSentient);
       const showLifeBeacon = hasSentient && (inPsionicRange || STATE.previewGalacticCycle !== null);
-      if (filterLifeOnly && !showLifeBeacon && !isActive && !isSelected) {
+      if (isQuestTarget || isQuestRelay) {
+        ctx.globalAlpha = 1;
+      } else if (filterLifeOnly && !showLifeBeacon && !isActive && !isSelected) {
         ctx.globalAlpha = 0.05;
       } else if (!inWarpRange && !isActive && !isSelected && !sys.isCoreAnchor && STATE.previewGalacticCycle === null) {
         ctx.globalAlpha = isVisited ? 0.6 : 0.35;
@@ -46643,10 +46819,34 @@ function renderGalaxyMap() {
         baseSize = 4.5;
       if (isSelected)
         baseSize = 5.5;
+      if (isQuestTarget)
+        baseSize = Math.max(baseSize, 5.5);
+      if (isQuestRelay)
+        baseSize = Math.max(baseSize, 4.2);
       if (sys.isCoreAnchor)
         baseSize = 6.5;
       if (isHovered) {
         baseSize += 2.5;
+      }
+      if (isQuestTarget) {
+        const pulseR = baseSize + 9 + Math.sin(Date.now() * 0.006) * 3;
+        ctx.fillStyle = "rgba(245, 158, 11, 0.25)";
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, pulseR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#fbbf24";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, baseSize + 5, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (isQuestRelay) {
+        ctx.strokeStyle = "#38bdf8";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, baseSize + 4, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
       if (showLifeBeacon) {
         const sysEpoch = getSystemIsingEpoch(sys.id, activeOrPreviewCycle);
@@ -46708,19 +46908,23 @@ function renderGalaxyMap() {
         ctx.arc(screenX, screenY, baseSize + 3, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.fillStyle = starColor;
+      ctx.fillStyle = isQuestTarget ? "#fbbf24" : starColor;
       ctx.beginPath();
       ctx.arc(screenX, screenY, baseSize, 0, Math.PI * 2);
       ctx.fill();
-      const shouldShowLabel = isSelected || isActive || isHovered || sys.isCoreAnchor || isVisited || showLifeBeacon && mapZoom > 1.2 || mapZoom > 3.4;
+      const shouldShowLabel = isQuestTarget || isQuestRelay || isSelected || isActive || isHovered || sys.isCoreAnchor || isVisited || showLifeBeacon && mapZoom > 1.2 || mapZoom > 3.4;
       if (shouldShowLabel) {
         let labelText = sys.name;
-        if (isActive)
+        if (isQuestTarget)
+          labelText = `\uD83C\uDFAF QUEST-ZIEL: ${sys.name}`;
+        else if (isQuestRelay)
+          labelText = `⚡ RELAIS-SPRUNG: ${sys.name}`;
+        else if (isActive)
           labelText = `\uD83D\uDCCD ${sys.name}`;
-        ctx.fillStyle = isSelected ? inWarpRange ? "#e879f9" : "#f87171" : isActive ? "#38bdf8" : sys.isCoreAnchor ? "#eab308" : showLifeBeacon ? "#f8fafc" : "#94a3b8";
-        ctx.font = isSelected || sys.isCoreAnchor || isHovered ? "bold 9px Orbitron, sans-serif" : "8px Orbitron, sans-serif";
+        ctx.fillStyle = isQuestTarget ? "#fbbf24" : isQuestRelay ? "#38bdf8" : isSelected ? inWarpRange ? "#e879f9" : "#f87171" : isActive ? "#38bdf8" : sys.isCoreAnchor ? "#eab308" : showLifeBeacon ? "#f8fafc" : "#94a3b8";
+        ctx.font = isQuestTarget || isQuestRelay || isSelected || sys.isCoreAnchor || isHovered ? "bold 9.5px Orbitron, sans-serif" : "8px Orbitron, sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(labelText, screenX, screenY - baseSize - 4);
+        ctx.fillText(labelText, screenX, screenY - baseSize - 6);
       }
     });
     ctx.globalAlpha = 1;
@@ -47071,22 +47275,62 @@ function populateQuickBeaconsList() {
   const listEl = document.getElementById("psionic-beacons-quick-list");
   if (!listEl || !STATE.universe)
     return;
-  const currentSys = STATE.universe.systems.find((s) => s.id === STATE.currentSystemId) || STATE.universe.systems[0];
+  const systems = STATE.universe.systems;
+  const currentSys = systems.find((s) => s.id === STATE.currentSystemId) || systems[0];
   const displayCycle = STATE.previewGalacticCycle || STATE.galacticCycle || 1;
-  const livingSystems = STATE.universe.systems.map((s) => {
+  const questTargetSys = getActiveQuestTargetSystem(systems);
+  const questRelaySys = questTargetSys && currentSys ? findBestRelaySystemForTarget(systems, currentSys, questTargetSys) : null;
+  const livingSystems = systems.map((s) => {
     const dx = s.x - currentSys.x;
     const dz = s.z - currentSys.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
     return { system: s, dist };
   }).filter((entry) => {
+    if (questTargetSys && entry.system.id === questTargetSys.id)
+      return false;
+    if (questRelaySys && entry.system.id === questRelaySys.id)
+      return false;
     const hasSentient = entry.system.planets.some((p) => p.type === "Habitable" || p.species && p.species.hasSentient);
     return hasSentient && entry.dist <= STATE.psionicRange;
   }).sort((a, b) => a.dist - b.dist);
-  if (livingSystems.length === 0) {
+  let html = "";
+  if (questTargetSys && currentSys) {
+    const qDist = Math.hypot(questTargetSys.x - currentSys.x, questTargetSys.z - currentSys.z);
+    const isSel = selectedSystem && selectedSystem.id === questTargetSys.id;
+    const inSafe = qDist <= STATE.warpRange;
+    html += `
+            <li class="beacon-quick-item ${isSel ? "active-item" : ""}" data-sys-id="${questTargetSys.id}" style="border-left: 3px solid #fbbf24; background: rgba(245, 158, 11, 0.14);">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="beacon-sys-name" style="color: #fbbf24; font-weight: 700;">\uD83C\uDFAF ${questTargetSys.name}</span>
+                    <span style="font-size: 0.65rem; color: ${inSafe ? "#34d399" : "#fbbf24"}; font-weight: 700;">${qDist.toFixed(0)} LJ</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+                    <span class="beacon-species-tag" style="color: #fde68a;">QUEST-ZIEL: Echte Ar-Riḥla (Pier 4)</span>
+                    <span style="font-size: 0.63rem; color: #fbbf24; font-weight: 600;">${inSafe ? "1 Sprung" : "2 Sprünge / Direkt"}</span>
+                </div>
+            </li>
+        `;
+    if (questRelaySys) {
+      const rDist = Math.hypot(questRelaySys.x - currentSys.x, questRelaySys.z - currentSys.z);
+      const isRelaySel = selectedSystem && selectedSystem.id === questRelaySys.id;
+      html += `
+                <li class="beacon-quick-item ${isRelaySel ? "active-item" : ""}" data-sys-id="${questRelaySys.id}" style="border-left: 3px solid #38bdf8; background: rgba(56, 189, 248, 0.10);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="beacon-sys-name" style="color: #38bdf8; font-weight: 600;">⚡ ${questRelaySys.name}</span>
+                        <span style="font-size: 0.65rem; color: #38bdf8; font-weight: 700;">${rDist.toFixed(0)} LJ</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+                        <span class="beacon-species-tag" style="color: #bae6fd;">Empfohlener Zwischensprung (100% stabil)</span>
+                        <span style="font-size: 0.63rem; color: #34d399; font-weight: 600;">Sprung 1/2</span>
+                    </div>
+                </li>
+            `;
+    }
+  }
+  if (livingSystems.length === 0 && !html) {
     listEl.innerHTML = `<li style="font-size: 0.72rem; color: #64748b; padding: 6px; text-align: center;">Keine Gedanken-Echos im Sensorradius (${STATE.psionicRange} LJ) geortet.<br><span style="color: #a855f7; font-size: 0.65rem;">Reise näher heran oder erweitere Synapsen!</span></li>`;
     return;
   }
-  let html = "";
   livingSystems.forEach((entry) => {
     const sys = entry.system;
     const habPlanet = sys.planets.find((p) => p.type === "Habitable" || p.species && p.species.hasSentient);
@@ -47865,7 +48109,16 @@ function setupControls() {
       if (STATE.jamalShip && !STATE.jamalShipLiberated && STATE.jamalShip.position) {
         const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
         if (jamalDist <= 28) {
-          liberateJamalShip2();
+          if (STATE.jamalShip.isRealShipAtDepot) {
+            const currentStage = QuestManager.getCurrentStage("prologue_jamal_ship")?.stage ?? 0;
+            if (currentStage >= 4) {
+              liberateRealShipAtStation();
+            } else {
+              openInsanAdministrationDialogue();
+            }
+          } else {
+            liberateJamalShip2();
+          }
           return;
         }
       }
@@ -48761,6 +49014,17 @@ function updatePhysics(dt) {
       s.mesh.rotation.z += s.rotSpeed.z * dt;
     }
   });
+  let minPlanetDist = Infinity;
+  let closestRealPlanet = null;
+  activePlanets.forEach((p) => {
+    const dx = STATE.playerPosition.x - p.mesh.position.x;
+    const dz = STATE.playerPosition.z - p.mesh.position.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < minPlanetDist) {
+      minPlanetDist = dist;
+      closestRealPlanet = p;
+    }
+  });
   let targetPlanet = null;
   let targetDist = Infinity;
   if (STATE.lockedTarget && (STATE.lockedTarget.mesh || STATE.lockedTarget.position)) {
@@ -48780,19 +49044,8 @@ function updatePhysics(dt) {
     const dz = STATE.playerPosition.z - targetPlanet.mesh.position.z;
     targetDist = Math.sqrt(dx * dx + dz * dz);
   } else {
-    let minDist = Infinity;
-    let closestPlanet = null;
-    activePlanets.forEach((p) => {
-      const dx = STATE.playerPosition.x - p.mesh.position.x;
-      const dz = STATE.playerPosition.z - p.mesh.position.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-      if (dist < minDist) {
-        minDist = dist;
-        closestPlanet = p;
-      }
-    });
-    targetPlanet = closestPlanet;
-    targetDist = minDist;
+    targetPlanet = closestRealPlanet;
+    targetDist = minPlanetDist;
     if (STATE.spaceStations) {
       for (const st of STATE.spaceStations) {
         const pos = st.mesh ? st.mesh.position : st.position;
@@ -48819,9 +49072,25 @@ function updatePhysics(dt) {
         }
       }
     }
+    const specialVessels = [STATE.jamalShip, STATE.towingDrone, STATE.voyagerProbe];
+    for (const sv of specialVessels) {
+      if (!sv)
+        continue;
+      const pos = sv.mesh ? sv.mesh.position : sv.position;
+      if (pos) {
+        const dist = STATE.playerPosition.distanceTo(pos);
+        if (dist < 18 && dist < targetDist) {
+          targetPlanet = sv;
+          targetDist = dist;
+        }
+      }
+    }
   }
-  if (targetPlanet && !targetPlanet.isStation && !targetPlanet.isShip && !targetPlanet.stationType && !targetPlanet.shipType) {
+  const isNonPlanetaryTarget = targetPlanet && (targetPlanet.isStation || targetPlanet.isShip || targetPlanet.isJamalShip || targetPlanet.isTowingDrone || targetPlanet.isVoyager || targetPlanet.isSpecialEntity || targetPlanet.stationType || targetPlanet.shipType || targetPlanet.type === "jamal_shuttle" || targetPlanet.type === "towing_drone" || targetPlanet.type === "voyager_probe" || targetPlanet.type === "interceptor" || targetPlanet.type === "corvette" || targetPlanet.type === "freighter" || targetPlanet.type === "heavy_freighter" || targetPlanet.type === "citadel" || targetPlanet.type === "trade_hub" || targetPlanet.type === "mining_relay");
+  if (targetPlanet && !isNonPlanetaryTarget) {
     STATE.nearestPlanet = targetPlanet;
+  } else if (closestRealPlanet) {
+    STATE.nearestPlanet = closestRealPlanet;
   }
   const focusTarget = STATE.lockedTarget || (STATE.orbitLevel === "moon" && STATE.activeMoonOrbit ? STATE.activeMoonOrbit : null) || (STATE.isInPlanetOrbit && STATE.orbitPlanet ? STATE.orbitPlanet : null) || (targetPlanet && targetDist <= 26 && (targetPlanet.scanned || STATE.scannedPlanets?.[targetPlanet.name]) ? targetPlanet : null);
   if (focusTarget && focusTarget.mesh) {

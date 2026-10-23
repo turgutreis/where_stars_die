@@ -16,6 +16,7 @@ import { advanceFtueStep } from '../ui/directives';
 import { openVoyagerDialog, closeVoyagerDialog, isVoyagerDialogOpen } from '../ui/voyager-dialog';
 import { 
     liberateJamalShip, 
+    liberateRealShipAtStation,
     initJamalDialogListeners, 
     openNpcDialogue, 
     triggerJamalShipScannedDialogue, 
@@ -23,6 +24,7 @@ import {
     isJamalDialogOpen, 
     closeJamalDialog 
 } from '../ui/jamal-dialog';
+import { QuestManager } from '../systems/quests';
 import { isSaveModalOpen, closeSaveModal } from '../ui/save-modal';
 import { toggleMainMenu } from '../ui/menu-controller';
 import { toggleStealth } from '../systems/stealth';
@@ -234,7 +236,16 @@ export function setupControls() {
             if (STATE.jamalShip && !STATE.jamalShipLiberated && STATE.jamalShip.position) {
                 const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
                 if (jamalDist <= 28) {
-                    liberateJamalShip();
+                    if (STATE.jamalShip.isRealShipAtDepot) {
+                        const currentStage = QuestManager.getCurrentStage('prologue_jamal_ship')?.stage ?? 0;
+                        if (currentStage >= 4) {
+                            liberateRealShipAtStation();
+                        } else {
+                            openInsanAdministrationDialogue();
+                        }
+                    } else {
+                        liberateJamalShip();
+                    }
                     return;
                 }
             }

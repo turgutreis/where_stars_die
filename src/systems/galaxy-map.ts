@@ -5,6 +5,51 @@ import { addLogEntry } from '../ui/hud';
 import { clearActiveSystem, spawnPlanetsAndAsteroids, initiateSystemArrival, initiateSystemDeparture } from './universe';
 import { calculateJumpPrecision, getEffectiveSafeWarpRange, getEffectiveMaxWarpRange, resolveJumpOutcome } from './warp-calculator';
 import { getSystemIsingEpoch, getCycleTelemetry, getIsingDataset } from './quantum-ising';
+import { ensureLoreSystems } from '../procedural/lore-systems';
+import { QuestManager } from './quests';
+
+export function getActiveQuestTargetSystem(systems: StarSystem[]): StarSystem | null {
+    if (!systems || systems.length === 0) return null;
+    if (STATE.jamalShipLiberated) return null;
+
+    const questStage = QuestManager.getCurrentStage('prologue_jamal_ship')?.stage ?? -1;
+    const isSeekingDepot = Boolean(
+        STATE.jamalDecoyRevealed ||
+        questStage >= 2 ||
+        (STATE.ftueStep || 0) >= 3 ||
+        STATE.jamalMissionDiscovered ||
+        STATE.jamalMissionActive
+    );
+    if (!isSeekingDepot) return null;
+
+    const depotSys = systems.find(s => (s as any).isInsanDepot || s.name.includes("INSAN-Verwahrstelle") || s.id === 77);
+    if (!depotSys || depotSys.id === STATE.currentSystemId) return null;
+    return depotSys;
+}
+
+export function findBestRelaySystemForTarget(systems: StarSystem[], fromSys: StarSystem, targetSys: StarSystem): StarSystem | null {
+    if (!systems || !fromSys || !targetSys || fromSys.id === targetSys.id) return null;
+    const safeRange = getEffectiveSafeWarpRange();
+    const directDist = Math.hypot(targetSys.x - fromSys.x, targetSys.z - fromSys.z);
+    if (directDist <= safeRange) return null;
+
+    let bestRelay: StarSystem | null = null;
+    let bestScore = Infinity;
+
+    for (const s of systems) {
+        if (s.id === fromSys.id || s.id === targetSys.id) continue;
+        const d1 = Math.hypot(s.x - fromSys.x, s.z - fromSys.z);
+        const d2 = Math.hypot(targetSys.x - s.x, targetSys.z - s.z);
+        if (d1 <= safeRange && d2 <= safeRange) {
+            const score = d1 + d2;
+            if (score < bestScore) {
+                bestScore = score;
+                bestRelay = s;
+            }
+        }
+    }
+    return bestRelay;
+}
 
 let mapOpen = false;
 let selectedSystem: StarSystem | null = null;
@@ -104,6 +149,7 @@ export function renderGalaxyMap() {
     const height = canvasHeight;
 
     const systems = STATE.universe.systems;
+    ensureLoreSystems(systems);
     let maxDist = 0;
     systems.forEach(sys => {
         const dist = Math.sqrt(sys.x * sys.x + sys.z * sys.z);
@@ -111,8 +157,15 @@ export function renderGalaxyMap() {
     });
     baseScale = Math.min(width, height) / (maxDist * 2.3 || 1);
 
-    if (!selectedSystem) {
-        selectedSystem = systems.find(s => s.id === STATE.currentSystemId) || systems[0];
+    const activeQuestTarget = getActiveQuestTargetSystem(systems);
+    const currentSysInit = systems.find(s => s.id === STATE.currentSystemId) || systems[0];
+    if (!selectedSystem || (activeQuestTarget && selectedSystem.id === currentSysInit?.id && STATE.jamalDecoyRevealed)) {
+        selectedSystem = activeQuestTarget || currentSysInit;
+        if (activeQuestTarget && currentSysInit) {
+            const midX = (currentSysInit.x + activeQuestTarget.x) / 2;
+            const midZ = (currentSysInit.z + activeQuestTarget.z) / 2;
+            smoothPanTo(midX, midZ, 1.45);
+        }
     }
     updateSystemDetails(selectedSystem);
     populateQuickBeaconsList();
@@ -277,6 +330,42 @@ export function renderGalaxyMap() {
             ctx.stroke();
         }
 
+        const questTargetSys = getActiveQuestTargetSystem(systems);
+        const questRelaySys = (questTargetSys && currentSys) ? findBestRelaySystemForTarget(systems, currentSys, questTargetSys) : null;
+
+        // 3b. Active Quest Target Navigation Guide Line & 2-Hop Relay Route
+        if (questTargetSys && currentSys && questTargetSys.id !== currentSys.id) {
+            const qScreenX = centerX + questTargetSys.x * currentScale;
+            const qScreenY = centerY + questTargetSys.z * currentScale;
+
+            // Optional 2-hop safe relay route line
+            if (questRelaySys) {
+                const rScreenX = centerX + questRelaySys.x * currentScale;
+                const rScreenY = centerY + questRelaySys.z * currentScale;
+                ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+                ctx.lineWidth = 1.3;
+                ctx.setLineDash([4, 6]);
+                ctx.beginPath();
+                ctx.moveTo(curScreenX, curScreenY);
+                ctx.lineTo(rScreenX, rScreenY);
+                ctx.lineTo(qScreenX, qScreenY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Direct gold quest beacon guide line (if not already selected)
+            if (!selectedSystem || selectedSystem.id !== questTargetSys.id) {
+                ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)';
+                ctx.lineWidth = 1.4;
+                ctx.setLineDash([6, 6]);
+                ctx.beginPath();
+                ctx.moveTo(curScreenX, curScreenY);
+                ctx.lineTo(qScreenX, qScreenY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+
         // 4. Animated Flight Trajectory Projection (Current System -> Selected System)
         if (selectedSystem && selectedSystem.id !== currentSys.id) {
             const targetScreenX = centerX + selectedSystem.x * currentScale;
@@ -391,11 +480,15 @@ export function renderGalaxyMap() {
             const isActive = STATE.currentSystemId === sys.id;
             const isHovered = hoverSystem && hoverSystem.id === sys.id;
             const isVisited = visitedIds.includes(sys.id);
+            const isQuestTarget = Boolean(questTargetSys && questTargetSys.id === sys.id);
+            const isQuestRelay = Boolean(questRelaySys && questRelaySys.id === sys.id);
             const hasSentient = sys.planets.some(p => p.type === 'Habitable' || (p.species && p.species.hasSentient));
 
             const showLifeBeacon = hasSentient && (inPsionicRange || STATE.previewGalacticCycle !== null);
 
-            if (filterLifeOnly && !showLifeBeacon && !isActive && !isSelected) {
+            if (isQuestTarget || isQuestRelay) {
+                ctx.globalAlpha = 1.0;
+            } else if (filterLifeOnly && !showLifeBeacon && !isActive && !isSelected) {
                 ctx.globalAlpha = 0.05;
             } else if (!inWarpRange && !isActive && !isSelected && !sys.isCoreAnchor && STATE.previewGalacticCycle === null) {
                 ctx.globalAlpha = isVisited ? 0.6 : 0.35;
@@ -406,10 +499,35 @@ export function renderGalaxyMap() {
             let baseSize = 2.4 * Math.min(1.5, Math.max(0.6, mapZoom));
             if (isActive) baseSize = 4.5;
             if (isSelected) baseSize = 5.5;
+            if (isQuestTarget) baseSize = Math.max(baseSize, 5.5);
+            if (isQuestRelay) baseSize = Math.max(baseSize, 4.2);
             if (sys.isCoreAnchor) baseSize = 6.5;
 
             if (isHovered) {
                 baseSize += 2.5;
+            }
+
+            // Quest Target Beacon & Pulsing Reticle
+            if (isQuestTarget) {
+                const pulseR = baseSize + 9 + Math.sin(Date.now() * 0.006) * 3;
+                ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, pulseR, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = '#fbbf24';
+                ctx.lineWidth = 2.0;
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, baseSize + 5, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (isQuestRelay) {
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, baseSize + 4, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
             }
 
             // Life Beacon & Quantum Ising Epoch Glow
@@ -475,20 +593,29 @@ export function renderGalaxyMap() {
                 ctx.fill();
             }
 
-            ctx.fillStyle = starColor;
+            ctx.fillStyle = isQuestTarget ? '#fbbf24' : starColor;
             ctx.beginPath();
             ctx.arc(screenX, screenY, baseSize, 0, Math.PI * 2);
             ctx.fill();
 
-            // Explorative Label Visibility (Only show labels for Active, Selected, Hovered, Visited, Core, or Life Beacons!)
-            const shouldShowLabel = isSelected || isActive || isHovered || sys.isCoreAnchor || isVisited || (showLifeBeacon && mapZoom > 1.2) || (mapZoom > 3.4);
+            // Explorative Label Visibility (Always show labels for Quest Targets, Relays, Active, Selected, Hovered, Visited, Core, or Life Beacons!)
+            const shouldShowLabel = isQuestTarget || isQuestRelay || isSelected || isActive || isHovered || sys.isCoreAnchor || isVisited || (showLifeBeacon && mapZoom > 1.2) || (mapZoom > 3.4);
             if (shouldShowLabel) {
                 let labelText = sys.name;
-                if (isActive) labelText = `📍 ${sys.name}`;
-                ctx.fillStyle = isSelected ? (inWarpRange ? '#e879f9' : '#f87171') : (isActive ? '#38bdf8' : (sys.isCoreAnchor ? '#eab308' : (showLifeBeacon ? '#f8fafc' : '#94a3b8')));
-                ctx.font = (isSelected || sys.isCoreAnchor || isHovered) ? 'bold 9px Orbitron, sans-serif' : '8px Orbitron, sans-serif';
+                if (isQuestTarget) labelText = `🎯 QUEST-ZIEL: ${sys.name}`;
+                else if (isQuestRelay) labelText = `⚡ RELAIS-SPRUNG: ${sys.name}`;
+                else if (isActive) labelText = `📍 ${sys.name}`;
+
+                ctx.fillStyle = isQuestTarget
+                    ? '#fbbf24'
+                    : (isQuestRelay
+                        ? '#38bdf8'
+                        : (isSelected
+                            ? (inWarpRange ? '#e879f9' : '#f87171')
+                            : (isActive ? '#38bdf8' : (sys.isCoreAnchor ? '#eab308' : (showLifeBeacon ? '#f8fafc' : '#94a3b8')))));
+                ctx.font = (isQuestTarget || isQuestRelay || isSelected || sys.isCoreAnchor || isHovered) ? 'bold 9.5px Orbitron, sans-serif' : '8px Orbitron, sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText(labelText, screenX, screenY - baseSize - 4);
+                ctx.fillText(labelText, screenX, screenY - baseSize - 6);
             }
         });
 
@@ -884,10 +1011,13 @@ export function populateQuickBeaconsList() {
     const listEl = document.getElementById('psionic-beacons-quick-list');
     if (!listEl || !STATE.universe) return;
 
-    const currentSys = STATE.universe.systems.find(s => s.id === STATE.currentSystemId) || STATE.universe.systems[0];
+    const systems = STATE.universe.systems;
+    const currentSys = systems.find(s => s.id === STATE.currentSystemId) || systems[0];
     const displayCycle = STATE.previewGalacticCycle || STATE.galacticCycle || 1;
+    const questTargetSys = getActiveQuestTargetSystem(systems);
+    const questRelaySys = (questTargetSys && currentSys) ? findBestRelaySystemForTarget(systems, currentSys, questTargetSys) : null;
 
-    const livingSystems = STATE.universe.systems
+    const livingSystems = systems
         .map(s => {
             const dx = s.x - currentSys.x;
             const dz = s.z - currentSys.z;
@@ -895,17 +1025,56 @@ export function populateQuickBeaconsList() {
             return { system: s, dist: dist };
         })
         .filter(entry => {
+            if (questTargetSys && entry.system.id === questTargetSys.id) return false;
+            if (questRelaySys && entry.system.id === questRelaySys.id) return false;
             const hasSentient = entry.system.planets.some(p => p.type === 'Habitable' || (p.species && p.species.hasSentient));
             return hasSentient && entry.dist <= STATE.psionicRange;
         })
         .sort((a, b) => a.dist - b.dist);
-    
-    if (livingSystems.length === 0) {
+
+    let html = '';
+
+    // 1. Pin Active Quest Target System at the very top of Quick Beacons
+    if (questTargetSys && currentSys) {
+        const qDist = Math.hypot(questTargetSys.x - currentSys.x, questTargetSys.z - currentSys.z);
+        const isSel = selectedSystem && selectedSystem.id === questTargetSys.id;
+        const inSafe = qDist <= STATE.warpRange;
+        html += `
+            <li class="beacon-quick-item ${isSel ? 'active-item' : ''}" data-sys-id="${questTargetSys.id}" style="border-left: 3px solid #fbbf24; background: rgba(245, 158, 11, 0.14);">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="beacon-sys-name" style="color: #fbbf24; font-weight: 700;">🎯 ${questTargetSys.name}</span>
+                    <span style="font-size: 0.65rem; color: ${inSafe ? '#34d399' : '#fbbf24'}; font-weight: 700;">${qDist.toFixed(0)} LJ</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+                    <span class="beacon-species-tag" style="color: #fde68a;">QUEST-ZIEL: Echte Ar-Riḥla (Pier 4)</span>
+                    <span style="font-size: 0.63rem; color: #fbbf24; font-weight: 600;">${inSafe ? '1 Sprung' : '2 Sprünge / Direkt'}</span>
+                </div>
+            </li>
+        `;
+
+        if (questRelaySys) {
+            const rDist = Math.hypot(questRelaySys.x - currentSys.x, questRelaySys.z - currentSys.z);
+            const isRelaySel = selectedSystem && selectedSystem.id === questRelaySys.id;
+            html += `
+                <li class="beacon-quick-item ${isRelaySel ? 'active-item' : ''}" data-sys-id="${questRelaySys.id}" style="border-left: 3px solid #38bdf8; background: rgba(56, 189, 248, 0.10);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="beacon-sys-name" style="color: #38bdf8; font-weight: 600;">⚡ ${questRelaySys.name}</span>
+                        <span style="font-size: 0.65rem; color: #38bdf8; font-weight: 700;">${rDist.toFixed(0)} LJ</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+                        <span class="beacon-species-tag" style="color: #bae6fd;">Empfohlener Zwischensprung (100% stabil)</span>
+                        <span style="font-size: 0.63rem; color: #34d399; font-weight: 600;">Sprung 1/2</span>
+                    </div>
+                </li>
+            `;
+        }
+    }
+
+    if (livingSystems.length === 0 && !html) {
         listEl.innerHTML = `<li style="font-size: 0.72rem; color: #64748b; padding: 6px; text-align: center;">Keine Gedanken-Echos im Sensorradius (${STATE.psionicRange} LJ) geortet.<br><span style="color: #a855f7; font-size: 0.65rem;">Reise näher heran oder erweitere Synapsen!</span></li>`;
         return;
     }
 
-    let html = '';
     livingSystems.forEach(entry => {
         const sys = entry.system;
         const habPlanet = sys.planets.find(p => p.type === 'Habitable' || (p.species && p.species.hasSentient));

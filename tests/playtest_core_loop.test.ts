@@ -3965,13 +3965,14 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         closeJamalDialog();
         expect(isJamalDialogOpen()).toBe(false);
 
-        // 8. Verify INSAN-Verwahrstelle Zeta-9 is exactly 2 jumps away
+        // 8. Verify INSAN-Verwahrstelle Zeta-9 is reachable via 2 safe jumps (or 1 extended jump)
         const insanDepot = getLoreInsanDepotSystem();
         expect(insanDepot).toBeDefined();
         expect(insanDepot.id).toBe(77);
-        // Distance from Perseus Prime (310, 160) to Zeta-9 (170, 30) is ~191 LY (> 180 LY = 2 jumps with 90 LY range)
+        // Distance from Perseus Prime (310, 160) to Zeta-9 (210, 100) is ~116.6 LY (> 90 LY and < 180 LY = 2 jumps with 90 LY range)
         const distToDepot = Math.sqrt(Math.pow(310 - insanDepot.x, 2) + Math.pow(160 - insanDepot.z, 2));
-        expect(distToDepot).toBeGreaterThan(180);
+        expect(distToDepot).toBeGreaterThan(90);
+        expect(distToDepot).toBeLessThan(180);
 
         // 9. Arrive at INSAN Depot Zeta-9
         STATE.currentSystemId = 77;
@@ -4319,6 +4320,89 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.ftueStep).toBe(6);
 
         DialogueEngine.closeDialogue();
+    });
+
+    test("54. Quest Star Map Target System Visibility, Jamal Ship Radiation Immunity & Non-Harvestable Vessel Invariants", () => {
+        const { getActiveQuestTargetSystem, findBestRelaySystemForTarget } = require('../src/systems/galaxy-map');
+        const { ensureLoreSystems, getLoreInsanDepotSystem } = require('../src/procedural/lore-systems');
+        const { spawnJamalMissionEntities } = require('../src/systems/universe');
+        const { triggerHarvestStart } = require('../src/systems/harvesting');
+        const { updateScannerUI } = require('../src/systems/scanner');
+        const { updateCrewSimulation } = require('../src/systems/crew');
+        const { QuestManager } = require('../src/systems/quests');
+
+        // 1. Star Map Target System Visibility & Identification (Bug 1 Fix)
+        const mockUniverseSystems = [
+            { id: 1, name: "Perseus-Erwachen Prime (Start)", x: 310, z: 160, planets: [] },
+            { id: 77, name: "Old Procedural System #77", x: 100, z: 100, planets: [] },
+            { id: 88, name: "Relay Star", x: 260, z: 130, planets: [] }
+        ];
+
+        // Ensure lore injection replaces system 77 without creating duplicate IDs
+        ensureLoreSystems(mockUniverseSystems);
+        const depotSys = mockUniverseSystems.find(s => s.id === 77);
+        expect(depotSys).toBeDefined();
+        expect(depotSys!.name).toContain("INSAN-Verwahrstelle Zeta-9");
+        expect(mockUniverseSystems.filter(s => s.id === 77).length).toBe(1);
+
+        // Target system resolution when quest is active
+        STATE.jamalShipLiberated = false;
+        STATE.jamalDecoyRevealed = true;
+        STATE.currentSystemId = 1;
+        QuestManager.startQuest('prologue_jamal_ship');
+        QuestManager.advanceQuest('prologue_jamal_ship', 2);
+
+        const targetSys = getActiveQuestTargetSystem(mockUniverseSystems);
+        expect(targetSys).toBeDefined();
+        expect(targetSys!.id).toBe(77);
+        expect(targetSys!.name).toContain("INSAN-Verwahrstelle Zeta-9");
+
+        // 2-hop intermediate relay identification
+        const relaySys = findBestRelaySystemForTarget(mockUniverseSystems, mockUniverseSystems[0], targetSys!);
+        expect(relaySys).toBeDefined();
+        expect(relaySys!.id).toBe(88);
+
+        // 2. Jamal Ship Zero Radiation & Damage Immunity (Bug 2 Fix)
+        const mockPlanet = {
+            name: "Perseus-Erwachen Prime A",
+            mesh: { position: new THREE.Vector3(180, 0, 100) },
+            position: new THREE.Vector3(180, 0, 100),
+            attributes: { radiationLevel: 'Low' }
+        };
+        activePlanets.length = 0;
+        activePlanets.push(mockPlanet as any);
+        STATE.nearestPlanet = mockPlanet as any;
+
+        spawnJamalMissionEntities(mockPlanet, false);
+        expect(STATE.jamalShip).toBeDefined();
+        expect(STATE.jamalShip.isSpecialEntity).toBe(true);
+        expect(STATE.jamalShip.isJamalShip).toBe(true);
+
+        // Player sits right beside Ar-Riḥla / Jamal shuttle
+        STATE.playerPosition = new THREE.Vector3(STATE.jamalShip.position.x + 2, 0, STATE.jamalShip.position.z + 2);
+        STATE.health = 100;
+        STATE.gameStarted = true;
+
+        updateCrewSimulation(0.1);
+        expect(STATE.effectiveRadiation).toBe(0);
+        expect(STATE.health).toBe(100);
+
+        // 3. Research Ship Is Not Treated as Harvestable Planet (Bug 3 Fix)
+        STATE.lockedTarget = STATE.jamalShip;
+        updateScannerUI(STATE.jamalShip, 2.0);
+
+        // Harvest button and orbital HUD must remain hidden for the ship
+        const harvestBtn = document.getElementById('start-harvest-btn');
+        const orbitalHud = document.getElementById('planet-orbital-hud');
+        if (harvestBtn) expect(harvestBtn.style.display).toBe('none');
+        if (orbitalHud) expect(orbitalHud.style.display).toBe('none');
+
+        // Triggering harvest on the ship must be rejected
+        STATE.bioEnergy = 100;
+        STATE.extractingPlanet = null;
+        triggerHarvestStart();
+        expect(STATE.extractingPlanet).toBeNull();
+        expect(STATE.harvestProgress).toBe(0);
     });
 });
 

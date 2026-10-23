@@ -654,7 +654,9 @@ export function spawnPlanetsAndAsteroids() {
                 tidalLock: typeof p.tidalLock === 'boolean' ? p.tidalLock : (generated ? generated.tidalLock : (scaledDist < 160 || (p.type === 'Rocky' && seed % 4 === 0))),
                 magnetosphere: p.magnetosphere || (generated ? generated.magnetosphere : (isGas ? 'Hyper-Magnetic' : (isHab ? 'Strong' : 'Weak'))),
                 geothermal: p.geothermal || (generated ? generated.geothermal : (isGas ? 'Dead' : (isHab ? 'Active Geysers' : 'Dormant'))),
-                radiationLevel: p.radiationLevel || (generated ? generated.radiationLevel : 'Moderate'),
+                radiationLevel: ((STATE.currentSystemId === 1 && idx === 0) || (activeSystem as any).isInsanDepot || activeSystem.id === 77)
+                    ? 'Low'
+                    : (p.radiationLevel || (generated ? generated.radiationLevel : 'Moderate')),
                 entangledTwinId: p.entangledTwinId || (generated ? generated.entangledTwinId : null),
                 quantumResonance: p.quantumResonance || (generated ? generated.quantumResonance : (p.entangledTwinId ? 0.85 : 0.0))
             }
@@ -861,7 +863,8 @@ export function spawnJamalMissionEntities(targetPlanet?: any, isRealShipAtDepot:
     }
 
     const planetPos = targetPlanet && targetPlanet.group ? targetPlanet.group.position 
-        : (targetPlanet && targetPlanet.position ? targetPlanet.position : new THREE.Vector3(180, 0, 100));
+        : (targetPlanet && targetPlanet.mesh ? targetPlanet.mesh.position
+        : (targetPlanet && targetPlanet.position ? targetPlanet.position : new THREE.Vector3(180, 0, 100)));
 
     // 1. Jamal's Research Shuttle / Decoy / Real Ship
     const shuttleController = createJamalResearchShuttleMesh(2.6);
@@ -887,9 +890,11 @@ export function spawnJamalMissionEntities(targetPlanet?: any, isRealShipAtDepot:
         name: shipName,
         mass: 0.8,
         radius: 2.6,
+        size: 2.6,
         gravityRange: 14.0,
         position: shuttleController.group.position,
         isJamalShip: true,
+        isSpecialEntity: true,
         isRealShipAtDepot: isRealShipAtDepot,
         isDecoy: !isRealShipAtDepot,
         scanned: STATE.jamalShipLiberated
@@ -926,9 +931,11 @@ export function spawnJamalMissionEntities(targetPlanet?: any, isRealShipAtDepot:
         name: droneName,
         mass: 0.5,
         radius: 1.8,
+        size: 1.8,
         gravityRange: 8.0,
         position: droneController.group.position,
         isTowingDrone: true,
+        isSpecialEntity: true,
         status: droneStatus,
         isHostile: isDroneHostile,
         scanned: STATE.jamalShipLiberated
@@ -961,9 +968,11 @@ export function spawnVoyagerProbe() {
         name: probeName,
         mass: 0.5,
         radius: 2.2,
+        size: 2.2,
         gravityRange: 10.0,
         position: voyagerController.group.position,
-        isVoyager: true
+        isVoyager: true,
+        isSpecialEntity: true
     };
 
     STATE.voyagerProbe = probeObj;
