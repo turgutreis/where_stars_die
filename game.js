@@ -54,6 +54,8 @@ var ACESFilmicToneMapping = 4;
 var CustomToneMapping = 5;
 var AgXToneMapping = 6;
 var NeutralToneMapping = 7;
+var AttachedBindMode = "attached";
+var DetachedBindMode = "detached";
 var UVMapping = 300;
 var CubeReflectionMapping = 301;
 var CubeRefractionMapping = 302;
@@ -135,6 +137,10 @@ var InterpolateBezier = 2303;
 var ZeroCurvatureEnding = 2400;
 var ZeroSlopeEnding = 2401;
 var WrapAroundEnding = 2402;
+var NormalAnimationBlendMode = 2500;
+var TrianglesDrawMode = 0;
+var TriangleStripDrawMode = 1;
+var TriangleFanDrawMode = 2;
 var BasicDepthPacking = 3200;
 var TangentSpaceNormalMap = 0;
 var ObjectSpaceNormalMap = 1;
@@ -6437,6 +6443,283 @@ class BufferGeometry extends EventDispatcher {
     this.dispatchEvent({ type: "dispose" });
   }
 }
+
+class InterleavedBuffer {
+  constructor(array, stride) {
+    this.isInterleavedBuffer = true;
+    this.array = array;
+    this.stride = stride;
+    this.count = array !== undefined ? array.length / stride : 0;
+    this.usage = StaticDrawUsage;
+    this.updateRanges = [];
+    this.version = 0;
+    this.uuid = generateUUID();
+  }
+  onUploadCallback() {}
+  set needsUpdate(value) {
+    if (value === true)
+      this.version++;
+  }
+  setUsage(value) {
+    this.usage = value;
+    return this;
+  }
+  addUpdateRange(start, count) {
+    this.updateRanges.push({ start, count });
+  }
+  clearUpdateRanges() {
+    this.updateRanges.length = 0;
+  }
+  copy(source) {
+    this.array = new source.array.constructor(source.array);
+    this.count = source.count;
+    this.stride = source.stride;
+    this.usage = source.usage;
+    return this;
+  }
+  copyAt(index1, interleavedBuffer, index2) {
+    index1 *= this.stride;
+    index2 *= interleavedBuffer.stride;
+    for (let i = 0, l = this.stride;i < l; i++) {
+      this.array[index1 + i] = interleavedBuffer.array[index2 + i];
+    }
+    return this;
+  }
+  set(value, offset = 0) {
+    this.array.set(value, offset);
+    return this;
+  }
+  clone(data) {
+    if (data.arrayBuffers === undefined) {
+      data.arrayBuffers = {};
+    }
+    if (this.array.buffer._uuid === undefined) {
+      this.array.buffer._uuid = generateUUID();
+    }
+    if (data.arrayBuffers[this.array.buffer._uuid] === undefined) {
+      data.arrayBuffers[this.array.buffer._uuid] = this.array.slice(0).buffer;
+    }
+    const array = new this.array.constructor(data.arrayBuffers[this.array.buffer._uuid]);
+    const ib = new this.constructor(array, this.stride);
+    ib.setUsage(this.usage);
+    return ib;
+  }
+  onUpload(callback) {
+    this.onUploadCallback = callback;
+    return this;
+  }
+  toJSON(data) {
+    if (data.arrayBuffers === undefined) {
+      data.arrayBuffers = {};
+    }
+    if (this.array.buffer._uuid === undefined) {
+      this.array.buffer._uuid = generateUUID();
+    }
+    if (data.arrayBuffers[this.array.buffer._uuid] === undefined) {
+      data.arrayBuffers[this.array.buffer._uuid] = Array.from(new Uint32Array(this.array.buffer));
+    }
+    return {
+      uuid: this.uuid,
+      buffer: this.array.buffer._uuid,
+      type: this.array.constructor.name,
+      stride: this.stride
+    };
+  }
+}
+var _vector$8 = /* @__PURE__ */ new Vector3;
+
+class InterleavedBufferAttribute {
+  constructor(interleavedBuffer, itemSize, offset, normalized = false) {
+    this.isInterleavedBufferAttribute = true;
+    this.name = "";
+    this.data = interleavedBuffer;
+    this.itemSize = itemSize;
+    this.offset = offset;
+    this.normalized = normalized;
+  }
+  get count() {
+    return this.data.count;
+  }
+  get array() {
+    return this.data.array;
+  }
+  set needsUpdate(value) {
+    this.data.needsUpdate = value;
+  }
+  applyMatrix4(m) {
+    for (let i = 0, l = this.data.count;i < l; i++) {
+      _vector$8.fromBufferAttribute(this, i);
+      _vector$8.applyMatrix4(m);
+      this.setXYZ(i, _vector$8.x, _vector$8.y, _vector$8.z);
+    }
+    return this;
+  }
+  applyNormalMatrix(m) {
+    for (let i = 0, l = this.count;i < l; i++) {
+      _vector$8.fromBufferAttribute(this, i);
+      _vector$8.applyNormalMatrix(m);
+      this.setXYZ(i, _vector$8.x, _vector$8.y, _vector$8.z);
+    }
+    return this;
+  }
+  transformDirection(m) {
+    for (let i = 0, l = this.count;i < l; i++) {
+      _vector$8.fromBufferAttribute(this, i);
+      _vector$8.transformDirection(m);
+      this.setXYZ(i, _vector$8.x, _vector$8.y, _vector$8.z);
+    }
+    return this;
+  }
+  getComponent(index, component) {
+    let value = this.array[index * this.data.stride + this.offset + component];
+    if (this.normalized)
+      value = denormalize(value, this.array);
+    return value;
+  }
+  setComponent(index, component, value) {
+    if (this.normalized)
+      value = normalize(value, this.array);
+    this.data.array[index * this.data.stride + this.offset + component] = value;
+    return this;
+  }
+  setX(index, x) {
+    if (this.normalized)
+      x = normalize(x, this.array);
+    this.data.array[index * this.data.stride + this.offset] = x;
+    return this;
+  }
+  setY(index, y) {
+    if (this.normalized)
+      y = normalize(y, this.array);
+    this.data.array[index * this.data.stride + this.offset + 1] = y;
+    return this;
+  }
+  setZ(index, z) {
+    if (this.normalized)
+      z = normalize(z, this.array);
+    this.data.array[index * this.data.stride + this.offset + 2] = z;
+    return this;
+  }
+  setW(index, w) {
+    if (this.normalized)
+      w = normalize(w, this.array);
+    this.data.array[index * this.data.stride + this.offset + 3] = w;
+    return this;
+  }
+  getX(index) {
+    let x = this.data.array[index * this.data.stride + this.offset];
+    if (this.normalized)
+      x = denormalize(x, this.array);
+    return x;
+  }
+  getY(index) {
+    let y = this.data.array[index * this.data.stride + this.offset + 1];
+    if (this.normalized)
+      y = denormalize(y, this.array);
+    return y;
+  }
+  getZ(index) {
+    let z = this.data.array[index * this.data.stride + this.offset + 2];
+    if (this.normalized)
+      z = denormalize(z, this.array);
+    return z;
+  }
+  getW(index) {
+    let w = this.data.array[index * this.data.stride + this.offset + 3];
+    if (this.normalized)
+      w = denormalize(w, this.array);
+    return w;
+  }
+  setXY(index, x, y) {
+    index = index * this.data.stride + this.offset;
+    if (this.normalized) {
+      x = normalize(x, this.array);
+      y = normalize(y, this.array);
+    }
+    this.data.array[index + 0] = x;
+    this.data.array[index + 1] = y;
+    return this;
+  }
+  setXYZ(index, x, y, z) {
+    index = index * this.data.stride + this.offset;
+    if (this.normalized) {
+      x = normalize(x, this.array);
+      y = normalize(y, this.array);
+      z = normalize(z, this.array);
+    }
+    this.data.array[index + 0] = x;
+    this.data.array[index + 1] = y;
+    this.data.array[index + 2] = z;
+    return this;
+  }
+  setXYZW(index, x, y, z, w) {
+    index = index * this.data.stride + this.offset;
+    if (this.normalized) {
+      x = normalize(x, this.array);
+      y = normalize(y, this.array);
+      z = normalize(z, this.array);
+      w = normalize(w, this.array);
+    }
+    this.data.array[index + 0] = x;
+    this.data.array[index + 1] = y;
+    this.data.array[index + 2] = z;
+    this.data.array[index + 3] = w;
+    return this;
+  }
+  clone(data) {
+    if (data === undefined) {
+      log("InterleavedBufferAttribute.clone(): Cloning an interleaved buffer attribute will de-interleave buffer data.");
+      const array = [];
+      for (let i = 0;i < this.count; i++) {
+        const index = i * this.data.stride + this.offset;
+        for (let j = 0;j < this.itemSize; j++) {
+          array.push(this.data.array[index + j]);
+        }
+      }
+      return new BufferAttribute(new this.array.constructor(array), this.itemSize, this.normalized);
+    } else {
+      if (data.interleavedBuffers === undefined) {
+        data.interleavedBuffers = {};
+      }
+      if (data.interleavedBuffers[this.data.uuid] === undefined) {
+        data.interleavedBuffers[this.data.uuid] = this.data.clone(data);
+      }
+      return new InterleavedBufferAttribute(data.interleavedBuffers[this.data.uuid], this.itemSize, this.offset, this.normalized);
+    }
+  }
+  toJSON(data) {
+    if (data === undefined) {
+      log("InterleavedBufferAttribute.toJSON(): Serializing an interleaved buffer attribute will de-interleave buffer data.");
+      const array = [];
+      for (let i = 0;i < this.count; i++) {
+        const index = i * this.data.stride + this.offset;
+        for (let j = 0;j < this.itemSize; j++) {
+          array.push(this.data.array[index + j]);
+        }
+      }
+      return {
+        itemSize: this.itemSize,
+        type: this.array.constructor.name,
+        array,
+        normalized: this.normalized
+      };
+    } else {
+      if (data.interleavedBuffers === undefined) {
+        data.interleavedBuffers = {};
+      }
+      if (data.interleavedBuffers[this.data.uuid] === undefined) {
+        data.interleavedBuffers[this.data.uuid] = this.data.toJSON(data);
+      }
+      return {
+        isInterleavedBufferAttribute: true,
+        itemSize: this.itemSize,
+        data: this.data.uuid,
+        offset: this.offset,
+        normalized: this.normalized
+      };
+    }
+  }
+}
 var _materialId = 0;
 
 class Material extends EventDispatcher {
@@ -7656,6 +7939,160 @@ function checkGeometryIntersection(object, material, raycaster, ray, uv, uv1, no
   }
   return intersection;
 }
+var _baseVector = /* @__PURE__ */ new Vector4;
+var _skinIndex = /* @__PURE__ */ new Vector4;
+var _skinWeight = /* @__PURE__ */ new Vector4;
+var _vector4 = /* @__PURE__ */ new Vector4;
+var _matrix4 = /* @__PURE__ */ new Matrix4;
+var _vertex = /* @__PURE__ */ new Vector3;
+var _sphere$5 = /* @__PURE__ */ new Sphere;
+var _inverseMatrix$2 = /* @__PURE__ */ new Matrix4;
+var _ray$2 = /* @__PURE__ */ new Ray;
+
+class SkinnedMesh extends Mesh {
+  constructor(geometry, material) {
+    super(geometry, material);
+    this.isSkinnedMesh = true;
+    this.type = "SkinnedMesh";
+    this.bindMode = AttachedBindMode;
+    this.bindMatrix = new Matrix4;
+    this.bindMatrixInverse = new Matrix4;
+    this.boundingBox = null;
+    this.boundingSphere = null;
+  }
+  computeBoundingBox() {
+    const geometry = this.geometry;
+    if (this.boundingBox === null) {
+      this.boundingBox = new Box3;
+    }
+    this.boundingBox.makeEmpty();
+    const positionAttribute = geometry.getAttribute("position");
+    for (let i = 0;i < positionAttribute.count; i++) {
+      this.getVertexPosition(i, _vertex);
+      this.boundingBox.expandByPoint(_vertex);
+    }
+  }
+  computeBoundingSphere() {
+    const geometry = this.geometry;
+    if (this.boundingSphere === null) {
+      this.boundingSphere = new Sphere;
+    }
+    this.boundingSphere.makeEmpty();
+    const positionAttribute = geometry.getAttribute("position");
+    for (let i = 0;i < positionAttribute.count; i++) {
+      this.getVertexPosition(i, _vertex);
+      this.boundingSphere.expandByPoint(_vertex);
+    }
+  }
+  copy(source, recursive) {
+    super.copy(source, recursive);
+    this.bindMode = source.bindMode;
+    this.bindMatrix.copy(source.bindMatrix);
+    this.bindMatrixInverse.copy(source.bindMatrixInverse);
+    this.skeleton = source.skeleton;
+    if (source.boundingBox !== null)
+      this.boundingBox = source.boundingBox.clone();
+    if (source.boundingSphere !== null)
+      this.boundingSphere = source.boundingSphere.clone();
+    return this;
+  }
+  raycast(raycaster, intersects) {
+    const material = this.material;
+    const matrixWorld = this.matrixWorld;
+    if (material === undefined)
+      return;
+    if (this.boundingSphere === null)
+      this.computeBoundingSphere();
+    _sphere$5.copy(this.boundingSphere);
+    _sphere$5.applyMatrix4(matrixWorld);
+    if (raycaster.ray.intersectsSphere(_sphere$5) === false)
+      return;
+    _inverseMatrix$2.copy(matrixWorld).invert();
+    _ray$2.copy(raycaster.ray).applyMatrix4(_inverseMatrix$2);
+    if (this.boundingBox !== null) {
+      if (_ray$2.intersectsBox(this.boundingBox) === false)
+        return;
+    }
+    this._computeIntersections(raycaster, intersects, _ray$2);
+  }
+  getVertexPosition(index, target) {
+    super.getVertexPosition(index, target);
+    this.applyBoneTransform(index, target);
+    return target;
+  }
+  bind(skeleton, bindMatrix) {
+    this.skeleton = skeleton;
+    if (bindMatrix === undefined) {
+      this.updateMatrixWorld(true);
+      this.skeleton.calculateInverses();
+      bindMatrix = this.matrixWorld;
+    }
+    this.bindMatrix.copy(bindMatrix);
+    this.bindMatrixInverse.copy(bindMatrix).invert();
+  }
+  pose() {
+    this.skeleton.pose();
+  }
+  normalizeSkinWeights() {
+    const vector = new Vector4;
+    const skinWeight = this.geometry.attributes.skinWeight;
+    for (let i = 0, l = skinWeight.count;i < l; i++) {
+      vector.fromBufferAttribute(skinWeight, i);
+      const scale = 1 / vector.manhattanLength();
+      if (scale !== Infinity) {
+        vector.multiplyScalar(scale);
+      } else {
+        vector.set(1, 0, 0, 0);
+      }
+      skinWeight.setXYZW(i, vector.x, vector.y, vector.z, vector.w);
+    }
+  }
+  updateMatrixWorld(force) {
+    super.updateMatrixWorld(force);
+    if (this.bindMode === AttachedBindMode) {
+      this.bindMatrixInverse.copy(this.matrixWorld).invert();
+    } else if (this.bindMode === DetachedBindMode) {
+      this.bindMatrixInverse.copy(this.bindMatrix).invert();
+    } else {
+      warn("SkinnedMesh: Unrecognized bindMode: " + this.bindMode);
+    }
+  }
+  applyBoneTransform(index, target) {
+    const skeleton = this.skeleton;
+    const geometry = this.geometry;
+    _skinIndex.fromBufferAttribute(geometry.attributes.skinIndex, index);
+    _skinWeight.fromBufferAttribute(geometry.attributes.skinWeight, index);
+    if (target.isVector4) {
+      _baseVector.copy(target);
+      target.set(0, 0, 0, 0);
+    } else {
+      _baseVector.set(...target, 1);
+      target.set(0, 0, 0);
+    }
+    _baseVector.applyMatrix4(this.bindMatrix);
+    for (let i = 0;i < 4; i++) {
+      const weight = _skinWeight.getComponent(i);
+      if (weight !== 0) {
+        const boneIndex = _skinIndex.getComponent(i);
+        _matrix4.multiplyMatrices(skeleton.bones[boneIndex].matrixWorld, skeleton.boneInverses[boneIndex]);
+        target.addScaledVector(_vector4.copy(_baseVector).applyMatrix4(_matrix4), weight);
+      }
+    }
+    if (target.isVector4) {
+      target.w = _baseVector.w;
+    }
+    return target.applyMatrix4(this.bindMatrixInverse);
+  }
+}
+
+class Bone extends Object3D {
+  constructor() {
+    super();
+    this.isBone = true;
+    this.type = "Bone";
+  }
+}
+
 class DataTexture extends Texture {
   constructor(data = null, width = 1, height = 1, format, type, mapping, wrapS, wrapT, magFilter = NearestFilter, minFilter = NearestFilter, anisotropy, colorSpace) {
     super(null, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy, colorSpace);
@@ -7664,6 +8101,315 @@ class DataTexture extends Texture {
     this.generateMipmaps = false;
     this.flipY = false;
     this.unpackAlignment = 1;
+  }
+}
+var _offsetMatrix = /* @__PURE__ */ new Matrix4;
+var _identityMatrix = /* @__PURE__ */ new Matrix4;
+
+class Skeleton {
+  constructor(bones = [], boneInverses = []) {
+    this.uuid = generateUUID();
+    this.bones = bones.slice(0);
+    this.boneInverses = boneInverses;
+    this.boneMatrices = null;
+    this.boneTexture = null;
+    this.init();
+  }
+  init() {
+    const bones = this.bones;
+    const boneInverses = this.boneInverses;
+    this.boneMatrices = new Float32Array(bones.length * 16);
+    if (boneInverses.length === 0) {
+      this.calculateInverses();
+    } else {
+      if (bones.length !== boneInverses.length) {
+        warn("Skeleton: Number of inverse bone matrices does not match amount of bones.");
+        this.boneInverses = [];
+        for (let i = 0, il = this.bones.length;i < il; i++) {
+          this.boneInverses.push(new Matrix4);
+        }
+      }
+    }
+  }
+  calculateInverses() {
+    this.boneInverses.length = 0;
+    for (let i = 0, il = this.bones.length;i < il; i++) {
+      const inverse = new Matrix4;
+      if (this.bones[i]) {
+        inverse.copy(this.bones[i].matrixWorld).invert();
+      }
+      this.boneInverses.push(inverse);
+    }
+  }
+  pose() {
+    for (let i = 0, il = this.bones.length;i < il; i++) {
+      const bone = this.bones[i];
+      if (bone) {
+        bone.matrixWorld.copy(this.boneInverses[i]).invert();
+      }
+    }
+    for (let i = 0, il = this.bones.length;i < il; i++) {
+      const bone = this.bones[i];
+      if (bone) {
+        if (bone.parent && bone.parent.isBone) {
+          bone.matrix.copy(bone.parent.matrixWorld).invert();
+          bone.matrix.multiply(bone.matrixWorld);
+        } else {
+          bone.matrix.copy(bone.matrixWorld);
+        }
+        bone.matrix.decompose(bone.position, bone.quaternion, bone.scale);
+      }
+    }
+  }
+  update() {
+    const bones = this.bones;
+    const boneInverses = this.boneInverses;
+    const boneMatrices = this.boneMatrices;
+    const boneTexture = this.boneTexture;
+    for (let i = 0, il = bones.length;i < il; i++) {
+      const matrix = bones[i] ? bones[i].matrixWorld : _identityMatrix;
+      _offsetMatrix.multiplyMatrices(matrix, boneInverses[i]);
+      _offsetMatrix.toArray(boneMatrices, i * 16);
+    }
+    if (boneTexture !== null) {
+      boneTexture.needsUpdate = true;
+    }
+  }
+  clone() {
+    return new Skeleton(this.bones, this.boneInverses);
+  }
+  computeBoneTexture() {
+    let size = Math.sqrt(this.bones.length * 4);
+    size = Math.ceil(size / 4) * 4;
+    size = Math.max(size, 4);
+    const boneMatrices = new Float32Array(size * size * 4);
+    boneMatrices.set(this.boneMatrices);
+    const boneTexture = new DataTexture(boneMatrices, size, size, RGBAFormat, FloatType);
+    boneTexture.needsUpdate = true;
+    this.boneMatrices = boneMatrices;
+    this.boneTexture = boneTexture;
+    return this;
+  }
+  getBoneByName(name) {
+    for (let i = 0, il = this.bones.length;i < il; i++) {
+      const bone = this.bones[i];
+      if (bone.name === name) {
+        return bone;
+      }
+    }
+    return;
+  }
+  dispose() {
+    if (this.boneTexture !== null) {
+      this.boneTexture.dispose();
+      this.boneTexture = null;
+    }
+  }
+  fromJSON(json, bones) {
+    this.uuid = json.uuid;
+    for (let i = 0, l = json.bones.length;i < l; i++) {
+      const uuid = json.bones[i];
+      let bone = bones[uuid];
+      if (bone === undefined) {
+        warn("Skeleton: No bone found with UUID:", uuid);
+        bone = new Bone;
+      }
+      this.bones.push(bone);
+      this.boneInverses.push(new Matrix4().fromArray(json.boneInverses[i]));
+    }
+    this.init();
+    return this;
+  }
+  toJSON() {
+    const data = {
+      metadata: {
+        version: 4.7,
+        type: "Skeleton",
+        generator: "Skeleton.toJSON"
+      },
+      bones: [],
+      boneInverses: []
+    };
+    data.uuid = this.uuid;
+    const bones = this.bones;
+    const boneInverses = this.boneInverses;
+    for (let i = 0, l = bones.length;i < l; i++) {
+      const bone = bones[i];
+      data.bones.push(bone.uuid);
+      const boneInverse = boneInverses[i];
+      data.boneInverses.push(boneInverse.toArray());
+    }
+    return data;
+  }
+}
+
+class InstancedBufferAttribute extends BufferAttribute {
+  constructor(array, itemSize, normalized, meshPerAttribute = 1) {
+    super(array, itemSize, normalized);
+    this.isInstancedBufferAttribute = true;
+    this.meshPerAttribute = meshPerAttribute;
+  }
+  copy(source) {
+    super.copy(source);
+    this.meshPerAttribute = source.meshPerAttribute;
+    return this;
+  }
+  toJSON() {
+    const data = super.toJSON();
+    data.meshPerAttribute = this.meshPerAttribute;
+    data.isInstancedBufferAttribute = true;
+    return data;
+  }
+}
+var _instanceLocalMatrix = /* @__PURE__ */ new Matrix4;
+var _instanceWorldMatrix = /* @__PURE__ */ new Matrix4;
+var _instanceIntersects = [];
+var _box3 = /* @__PURE__ */ new Box3;
+var _identity = /* @__PURE__ */ new Matrix4;
+var _mesh$1 = /* @__PURE__ */ new Mesh;
+var _sphere$4 = /* @__PURE__ */ new Sphere;
+
+class InstancedMesh extends Mesh {
+  constructor(geometry, material, count) {
+    super(geometry, material);
+    this.isInstancedMesh = true;
+    this.instanceMatrix = new InstancedBufferAttribute(new Float32Array(count * 16), 16);
+    this.instanceColor = null;
+    this.morphTexture = null;
+    this.count = count;
+    this.boundingBox = null;
+    this.boundingSphere = null;
+    for (let i = 0;i < count; i++) {
+      this.setMatrixAt(i, _identity);
+    }
+  }
+  computeBoundingBox() {
+    const geometry = this.geometry;
+    const count = this.count;
+    if (this.boundingBox === null) {
+      this.boundingBox = new Box3;
+    }
+    if (geometry.boundingBox === null) {
+      geometry.computeBoundingBox();
+    }
+    this.boundingBox.makeEmpty();
+    for (let i = 0;i < count; i++) {
+      this.getMatrixAt(i, _instanceLocalMatrix);
+      _box3.copy(geometry.boundingBox).applyMatrix4(_instanceLocalMatrix);
+      this.boundingBox.union(_box3);
+    }
+  }
+  computeBoundingSphere() {
+    const geometry = this.geometry;
+    const count = this.count;
+    if (this.boundingSphere === null) {
+      this.boundingSphere = new Sphere;
+    }
+    if (geometry.boundingSphere === null) {
+      geometry.computeBoundingSphere();
+    }
+    this.boundingSphere.makeEmpty();
+    for (let i = 0;i < count; i++) {
+      this.getMatrixAt(i, _instanceLocalMatrix);
+      _sphere$4.copy(geometry.boundingSphere).applyMatrix4(_instanceLocalMatrix);
+      this.boundingSphere.union(_sphere$4);
+    }
+  }
+  copy(source, recursive) {
+    super.copy(source, recursive);
+    this.instanceMatrix.copy(source.instanceMatrix);
+    if (source.morphTexture !== null)
+      this.morphTexture = source.morphTexture.clone();
+    if (source.instanceColor !== null)
+      this.instanceColor = source.instanceColor.clone();
+    this.count = source.count;
+    if (source.boundingBox !== null)
+      this.boundingBox = source.boundingBox.clone();
+    if (source.boundingSphere !== null)
+      this.boundingSphere = source.boundingSphere.clone();
+    return this;
+  }
+  getColorAt(index, color) {
+    if (this.instanceColor === null) {
+      return color.setRGB(1, 1, 1);
+    } else {
+      return color.fromArray(this.instanceColor.array, index * 3);
+    }
+  }
+  getMatrixAt(index, matrix) {
+    return matrix.fromArray(this.instanceMatrix.array, index * 16);
+  }
+  getMorphAt(index, object) {
+    const objectInfluences = object.morphTargetInfluences;
+    const array = this.morphTexture.source.data.data;
+    const len = objectInfluences.length + 1;
+    const dataIndex = index * len + 1;
+    for (let i = 0;i < objectInfluences.length; i++) {
+      objectInfluences[i] = array[dataIndex + i];
+    }
+  }
+  raycast(raycaster, intersects) {
+    const matrixWorld = this.matrixWorld;
+    const raycastTimes = this.count;
+    _mesh$1.geometry = this.geometry;
+    _mesh$1.material = this.material;
+    if (_mesh$1.material === undefined)
+      return;
+    if (this.boundingSphere === null)
+      this.computeBoundingSphere();
+    _sphere$4.copy(this.boundingSphere);
+    _sphere$4.applyMatrix4(matrixWorld);
+    if (raycaster.ray.intersectsSphere(_sphere$4) === false)
+      return;
+    for (let instanceId = 0;instanceId < raycastTimes; instanceId++) {
+      this.getMatrixAt(instanceId, _instanceLocalMatrix);
+      _instanceWorldMatrix.multiplyMatrices(matrixWorld, _instanceLocalMatrix);
+      _mesh$1.matrixWorld = _instanceWorldMatrix;
+      _mesh$1.raycast(raycaster, _instanceIntersects);
+      for (let i = 0, l = _instanceIntersects.length;i < l; i++) {
+        const intersect = _instanceIntersects[i];
+        intersect.instanceId = instanceId;
+        intersect.object = this;
+        intersects.push(intersect);
+      }
+      _instanceIntersects.length = 0;
+    }
+  }
+  setColorAt(index, color) {
+    if (this.instanceColor === null) {
+      this.instanceColor = new InstancedBufferAttribute(new Float32Array(this.instanceMatrix.count * 3).fill(1), 3);
+    }
+    color.toArray(this.instanceColor.array, index * 3);
+    return this;
+  }
+  setMatrixAt(index, matrix) {
+    matrix.toArray(this.instanceMatrix.array, index * 16);
+    return this;
+  }
+  setMorphAt(index, object) {
+    const objectInfluences = object.morphTargetInfluences;
+    const len = objectInfluences.length + 1;
+    if (this.morphTexture === null) {
+      this.morphTexture = new DataTexture(new Float32Array(len * this.count), len, this.count, RedFormat, FloatType);
+    }
+    const array = this.morphTexture.source.data.data;
+    let morphInfluencesSum = 0;
+    for (let i = 0;i < objectInfluences.length; i++) {
+      morphInfluencesSum += objectInfluences[i];
+    }
+    const morphBaseInfluence = this.geometry.morphTargetsRelative ? 1 : 1 - morphInfluencesSum;
+    const dataIndex = len * index;
+    array[dataIndex] = morphBaseInfluence;
+    array.set(objectInfluences, dataIndex + 1);
+    return this;
+  }
+  updateMorphTargets() {}
+  dispose() {
+    this.dispatchEvent({ type: "dispose" });
+    if (this.morphTexture !== null) {
+      this.morphTexture.dispose();
+      this.morphTexture = null;
+    }
   }
 }
 var _vector1 = /* @__PURE__ */ new Vector3;
@@ -8065,6 +8811,15 @@ class LineSegments extends Line {
     return this;
   }
 }
+
+class LineLoop extends Line {
+  constructor(geometry, material) {
+    super(geometry, material);
+    this.isLineLoop = true;
+    this.type = "LineLoop";
+  }
+}
+
 class PointsMaterial extends Material {
   constructor(parameters) {
     super();
@@ -11740,6 +12495,67 @@ function convertArray(array, type) {
   }
   return Array.prototype.slice.call(array);
 }
+function getKeyframeOrder(times) {
+  function compareTime(i, j) {
+    return times[i] - times[j];
+  }
+  const n = times.length;
+  const result = new Array(n);
+  for (let i = 0;i !== n; ++i)
+    result[i] = i;
+  result.sort(compareTime);
+  return result;
+}
+function sortedArray(values, stride, order) {
+  const nValues = values.length;
+  const result = new values.constructor(nValues);
+  for (let i = 0, dstOffset = 0;dstOffset !== nValues; ++i) {
+    const srcOffset = order[i] * stride;
+    for (let j = 0;j !== stride; ++j) {
+      result[dstOffset++] = values[srcOffset + j];
+    }
+  }
+  return result;
+}
+function flattenJSON(jsonKeys, times, values, valuePropertyName) {
+  let i = 1, key = jsonKeys[0];
+  while (key !== undefined && key[valuePropertyName] === undefined) {
+    key = jsonKeys[i++];
+  }
+  if (key === undefined)
+    return;
+  let value = key[valuePropertyName];
+  if (value === undefined)
+    return;
+  if (Array.isArray(value)) {
+    do {
+      value = key[valuePropertyName];
+      if (value !== undefined) {
+        times.push(key.time);
+        values.push(...value);
+      }
+      key = jsonKeys[i++];
+    } while (key !== undefined);
+  } else if (value.toArray !== undefined) {
+    do {
+      value = key[valuePropertyName];
+      if (value !== undefined) {
+        times.push(key.time);
+        value.toArray(values, values.length);
+      }
+      key = jsonKeys[i++];
+    } while (key !== undefined);
+  } else {
+    do {
+      value = key[valuePropertyName];
+      if (value !== undefined) {
+        times.push(key.time);
+        values.push(value);
+      }
+      key = jsonKeys[i++];
+    } while (key !== undefined);
+  }
+}
 class Interpolant {
   constructor(parameterPositions, sampleValues, sampleSize, resultBuffer) {
     this.parameterPositions = parameterPositions;
@@ -12284,6 +13100,181 @@ class VectorKeyframeTrack extends KeyframeTrack {
   }
 }
 VectorKeyframeTrack.prototype.ValueTypeName = "vector";
+
+class AnimationClip {
+  constructor(name = "", duration = -1, tracks = [], blendMode = NormalAnimationBlendMode) {
+    this.name = name;
+    this.tracks = tracks;
+    this.duration = duration;
+    this.blendMode = blendMode;
+    this.uuid = generateUUID();
+    this.userData = {};
+    if (this.duration < 0) {
+      this.resetDuration();
+    }
+  }
+  static parse(json) {
+    const tracks = [], jsonTracks = json.tracks, frameTime = 1 / (json.fps || 1);
+    for (let i = 0, n = jsonTracks.length;i !== n; ++i) {
+      tracks.push(parseKeyframeTrack(jsonTracks[i]).scale(frameTime));
+    }
+    const clip = new this(json.name, json.duration, tracks, json.blendMode);
+    clip.uuid = json.uuid;
+    clip.userData = JSON.parse(json.userData || "{}");
+    return clip;
+  }
+  static toJSON(clip) {
+    const tracks = [], clipTracks = clip.tracks;
+    const json = {
+      name: clip.name,
+      duration: clip.duration,
+      tracks,
+      uuid: clip.uuid,
+      blendMode: clip.blendMode,
+      userData: JSON.stringify(clip.userData)
+    };
+    for (let i = 0, n = clipTracks.length;i !== n; ++i) {
+      tracks.push(KeyframeTrack.toJSON(clipTracks[i]));
+    }
+    return json;
+  }
+  static CreateFromMorphTargetSequence(name, morphTargetSequence, fps, noLoop) {
+    const numMorphTargets = morphTargetSequence.length;
+    const tracks = [];
+    for (let i = 0;i < numMorphTargets; i++) {
+      let times = [];
+      let values = [];
+      times.push((i + numMorphTargets - 1) % numMorphTargets, i, (i + 1) % numMorphTargets);
+      values.push(0, 1, 0);
+      const order = getKeyframeOrder(times);
+      times = sortedArray(times, 1, order);
+      values = sortedArray(values, 1, order);
+      if (!noLoop && times[0] === 0) {
+        times.push(numMorphTargets);
+        values.push(values[0]);
+      }
+      tracks.push(new NumberKeyframeTrack(".morphTargetInfluences[" + morphTargetSequence[i].name + "]", times, values).scale(1 / fps));
+    }
+    return new this(name, -1, tracks);
+  }
+  static findByName(objectOrClipArray, name) {
+    let clipArray = objectOrClipArray;
+    if (!Array.isArray(objectOrClipArray)) {
+      const o = objectOrClipArray;
+      clipArray = o.geometry && o.geometry.animations || o.animations;
+    }
+    for (let i = 0;i < clipArray.length; i++) {
+      if (clipArray[i].name === name) {
+        return clipArray[i];
+      }
+    }
+    return null;
+  }
+  static CreateClipsFromMorphTargetSequences(morphTargets, fps, noLoop) {
+    const animationToMorphTargets = {};
+    const pattern = /^([\w-]*?)([\d]+)$/;
+    for (let i = 0, il = morphTargets.length;i < il; i++) {
+      const morphTarget = morphTargets[i];
+      const parts = morphTarget.name.match(pattern);
+      if (parts && parts.length > 1) {
+        const name = parts[1];
+        let animationMorphTargets = animationToMorphTargets[name];
+        if (!animationMorphTargets) {
+          animationToMorphTargets[name] = animationMorphTargets = [];
+        }
+        animationMorphTargets.push(morphTarget);
+      }
+    }
+    const clips = [];
+    for (const name in animationToMorphTargets) {
+      clips.push(this.CreateFromMorphTargetSequence(name, animationToMorphTargets[name], fps, noLoop));
+    }
+    return clips;
+  }
+  resetDuration() {
+    const tracks = this.tracks;
+    let duration = 0;
+    for (let i = 0, n = tracks.length;i !== n; ++i) {
+      const track = this.tracks[i];
+      duration = Math.max(duration, track.times[track.times.length - 1]);
+    }
+    this.duration = duration;
+    return this;
+  }
+  trim() {
+    for (let i = 0;i < this.tracks.length; i++) {
+      this.tracks[i].trim(0, this.duration);
+    }
+    return this;
+  }
+  validate() {
+    let valid = true;
+    for (let i = 0;i < this.tracks.length; i++) {
+      valid = valid && this.tracks[i].validate();
+    }
+    return valid;
+  }
+  optimize() {
+    for (let i = 0;i < this.tracks.length; i++) {
+      this.tracks[i].optimize();
+    }
+    return this;
+  }
+  clone() {
+    const tracks = [];
+    for (let i = 0;i < this.tracks.length; i++) {
+      tracks.push(this.tracks[i].clone());
+    }
+    const clip = new this.constructor(this.name, this.duration, tracks, this.blendMode);
+    clip.userData = JSON.parse(JSON.stringify(this.userData));
+    return clip;
+  }
+  toJSON() {
+    return this.constructor.toJSON(this);
+  }
+}
+function getTrackTypeForValueTypeName(typeName) {
+  switch (typeName.toLowerCase()) {
+    case "scalar":
+    case "double":
+    case "float":
+    case "number":
+    case "integer":
+      return NumberKeyframeTrack;
+    case "vector":
+    case "vector2":
+    case "vector3":
+    case "vector4":
+      return VectorKeyframeTrack;
+    case "color":
+      return ColorKeyframeTrack;
+    case "quaternion":
+      return QuaternionKeyframeTrack;
+    case "bool":
+    case "boolean":
+      return BooleanKeyframeTrack;
+    case "string":
+      return StringKeyframeTrack;
+  }
+  throw new Error("THREE.KeyframeTrack: Unsupported typeName: " + typeName);
+}
+function parseKeyframeTrack(json) {
+  if (json.type === undefined) {
+    throw new Error("THREE.KeyframeTrack: track type undefined, can not parse");
+  }
+  const trackType = getTrackTypeForValueTypeName(json.type);
+  if (json.times === undefined) {
+    const times = [], values = [];
+    flattenJSON(json.keys, times, values, "value");
+    json.times = times;
+    json.values = values;
+  }
+  if (trackType.parse !== undefined) {
+    return trackType.parse(json);
+  } else {
+    return new trackType(json.name, json.times, json.values, json.interpolation);
+  }
+}
 var Cache = {
   enabled: false,
   files: {},
@@ -13002,6 +13993,84 @@ class PerspectiveCamera extends Camera {
     return data;
   }
 }
+
+class SpotLightShadow extends LightShadow {
+  constructor() {
+    super(new PerspectiveCamera(50, 1, 0.5, 500));
+    this.isSpotLightShadow = true;
+    this.focus = 1;
+    this.aspect = 1;
+  }
+  updateMatrices(light) {
+    const camera = this.camera;
+    const fov = RAD2DEG * 2 * light.angle * this.focus;
+    const aspect = this.mapSize.width / this.mapSize.height * this.aspect;
+    const far = light.distance || camera.far;
+    if (fov !== camera.fov || aspect !== camera.aspect || far !== camera.far) {
+      camera.fov = fov;
+      camera.aspect = aspect;
+      camera.far = far;
+      camera.updateProjectionMatrix();
+    }
+    super.updateMatrices(light);
+  }
+  copy(source) {
+    super.copy(source);
+    this.focus = source.focus;
+    return this;
+  }
+}
+
+class SpotLight extends Light {
+  constructor(color, intensity, distance = 0, angle = Math.PI / 3, penumbra = 0, decay = 2) {
+    super(color, intensity);
+    this.isSpotLight = true;
+    this.type = "SpotLight";
+    this.position.copy(Object3D.DEFAULT_UP);
+    this.updateMatrix();
+    this.target = new Object3D;
+    this.distance = distance;
+    this.angle = angle;
+    this.penumbra = penumbra;
+    this.decay = decay;
+    this.map = null;
+    this.shadow = new SpotLightShadow;
+  }
+  get power() {
+    return this.intensity * Math.PI;
+  }
+  set power(power) {
+    this.intensity = power / Math.PI;
+  }
+  dispose() {
+    super.dispose();
+    this.shadow.dispose();
+  }
+  copy(source, recursive) {
+    super.copy(source, recursive);
+    this.distance = source.distance;
+    this.angle = source.angle;
+    this.penumbra = source.penumbra;
+    this.decay = source.decay;
+    this.target = source.target.clone();
+    this.map = source.map;
+    this.shadow = source.shadow.clone();
+    return this;
+  }
+  toJSON(meta) {
+    const data = super.toJSON(meta);
+    data.object.distance = this.distance;
+    data.object.angle = this.angle;
+    data.object.decay = this.decay;
+    data.object.penumbra = this.penumbra;
+    data.object.target = this.target.uuid;
+    if (this.map && this.map.isTexture)
+      data.object.map = this.map.toJSON(meta).uuid;
+    data.object.shadow = this.shadow.toJSON();
+    return data;
+  }
+}
+
 class PointLightShadow extends LightShadow {
   constructor() {
     super(new PerspectiveCamera(90, 1, 0.5, 500));
@@ -13132,6 +14201,42 @@ class OrthographicCamera extends Camera {
     return data;
   }
 }
+
+class DirectionalLightShadow extends LightShadow {
+  constructor() {
+    super(new OrthographicCamera(-5, 5, 5, -5, 0.5, 500));
+    this.isDirectionalLightShadow = true;
+  }
+}
+
+class DirectionalLight extends Light {
+  constructor(color, intensity) {
+    super(color, intensity);
+    this.isDirectionalLight = true;
+    this.type = "DirectionalLight";
+    this.position.copy(Object3D.DEFAULT_UP);
+    this.updateMatrix();
+    this.target = new Object3D;
+    this.shadow = new DirectionalLightShadow;
+  }
+  dispose() {
+    super.dispose();
+    this.shadow.dispose();
+  }
+  copy(source) {
+    super.copy(source);
+    this.target = source.target.clone();
+    this.shadow = source.shadow.clone();
+    return this;
+  }
+  toJSON(meta) {
+    const data = super.toJSON(meta);
+    data.object.shadow = this.shadow.toJSON();
+    data.object.target = this.target.uuid;
+    return data;
+  }
+}
+
 class AmbientLight extends Light {
   constructor(color, intensity) {
     super(color, intensity);
@@ -13139,7 +14244,109 @@ class AmbientLight extends Light {
     this.type = "AmbientLight";
   }
 }
+class LoaderUtils {
+  static extractUrlBase(url) {
+    const index = url.lastIndexOf("/");
+    if (index === -1)
+      return "./";
+    return url.slice(0, index + 1);
+  }
+  static resolveURL(url, path) {
+    if (typeof url !== "string" || url === "")
+      return "";
+    if (/^https?:\/\//i.test(path) && /^\//.test(url)) {
+      path = path.replace(/(^https?:\/\/[^\/]+).*/i, "$1");
+    }
+    if (/^(https?:)?\/\//i.test(url))
+      return url;
+    if (/^data:.*,.*$/i.test(url))
+      return url;
+    if (/^blob:.*$/i.test(url))
+      return url;
+    return path + url;
+  }
+}
 var _errorMap = new WeakMap;
+
+class ImageBitmapLoader extends Loader {
+  constructor(manager) {
+    super(manager);
+    this.isImageBitmapLoader = true;
+    if (typeof createImageBitmap === "undefined") {
+      warn("ImageBitmapLoader: createImageBitmap() not supported.");
+    }
+    if (typeof fetch === "undefined") {
+      warn("ImageBitmapLoader: fetch() not supported.");
+    }
+    this.options = { premultiplyAlpha: "none" };
+    this._abortController = new AbortController;
+  }
+  setOptions(options) {
+    this.options = options;
+    return this;
+  }
+  load(url, onLoad, onProgress, onError) {
+    if (url === undefined)
+      url = "";
+    if (this.path !== undefined)
+      url = this.path + url;
+    url = this.manager.resolveURL(url);
+    const scope = this;
+    const cached = Cache.get(`image-bitmap:${url}`);
+    if (cached !== undefined) {
+      scope.manager.itemStart(url);
+      if (cached.then) {
+        cached.then((imageBitmap) => {
+          if (_errorMap.has(cached) === true) {
+            if (onError)
+              onError(_errorMap.get(cached));
+            scope.manager.itemError(url);
+            scope.manager.itemEnd(url);
+          } else {
+            if (onLoad)
+              onLoad(imageBitmap);
+            scope.manager.itemEnd(url);
+          }
+        });
+        return;
+      }
+      setTimeout(function() {
+        if (onLoad)
+          onLoad(cached);
+        scope.manager.itemEnd(url);
+      }, 0);
+      return;
+    }
+    const fetchOptions = {};
+    fetchOptions.credentials = this.crossOrigin === "anonymous" ? "same-origin" : "include";
+    fetchOptions.headers = this.requestHeader;
+    fetchOptions.signal = typeof AbortSignal.any === "function" ? AbortSignal.any([this._abortController.signal, this.manager.abortController.signal]) : this._abortController.signal;
+    const promise = fetch(url, fetchOptions).then(function(res) {
+      return res.blob();
+    }).then(function(blob) {
+      return createImageBitmap(blob, Object.assign(scope.options, { colorSpaceConversion: "none" }));
+    }).then(function(imageBitmap) {
+      Cache.add(`image-bitmap:${url}`, imageBitmap);
+      if (onLoad)
+        onLoad(imageBitmap);
+      scope.manager.itemEnd(url);
+    }).catch(function(e) {
+      if (onError)
+        onError(e);
+      _errorMap.set(promise, e);
+      Cache.remove(`image-bitmap:${url}`);
+      scope.manager.itemError(url);
+      scope.manager.itemEnd(url);
+    });
+    Cache.add(`image-bitmap:${url}`, promise);
+    scope.manager.itemStart(url);
+  }
+  abort() {
+    this._abortController.abort();
+    this._abortController = new AbortController;
+    return this;
+  }
+}
 var _context;
 
 class AudioContext {
@@ -14245,6 +15452,30 @@ class Matrix2 {
     te[3] = n22;
     return this;
   }
+}
+class Controls extends EventDispatcher {
+  constructor(object, domElement = null) {
+    super();
+    this.object = object;
+    this.domElement = domElement;
+    this.enabled = true;
+    this.state = -1;
+    this.keys = {};
+    this.mouseButtons = { LEFT: null, MIDDLE: null, RIGHT: null };
+    this.touches = { ONE: null, TWO: null };
+  }
+  connect(element) {
+    if (element === undefined) {
+      warn("Controls: connect() now requires an element.");
+      return;
+    }
+    if (this.domElement !== null)
+      this.disconnect();
+    this.domElement = element;
+  }
+  disconnect() {}
+  dispose() {}
+  update() {}
 }
 function getByteLength(width, height, format, type) {
   const typeByteLength = getTextureTypeByteLength(type);
@@ -27959,7 +29190,7 @@ class WebGLRenderer {
     let _localClippingEnabled = false;
     const _projScreenMatrix3 = new Matrix4;
     const _vector3 = new Vector3;
-    const _vector4 = new Vector4;
+    const _vector42 = new Vector4;
     const _emptyScene = { background: null, fog: null, environment: null, overrideMaterial: null, isScene: true };
     let _renderBackground = false;
     function getTargetPixelRatio() {
@@ -28621,12 +29852,12 @@ class WebGLRenderer {
         } else if (object.isSprite) {
           if (!object.frustumCulled || _frustum.intersectsSprite(object)) {
             if (sortObjects) {
-              _vector4.setFromMatrixPosition(object.matrixWorld).applyMatrix4(_projScreenMatrix3);
+              _vector42.setFromMatrixPosition(object.matrixWorld).applyMatrix4(_projScreenMatrix3);
             }
             const geometry = objects.update(object);
             const material = object.material;
             if (material.visible) {
-              currentRenderList.push(object, geometry, material, groupOrder, _vector4.z, null);
+              currentRenderList.push(object, geometry, material, groupOrder, _vector42.z, null);
             }
           }
         } else if (object.isMesh || object.isLine || object.isPoints) {
@@ -28637,13 +29868,13 @@ class WebGLRenderer {
               if (object.boundingSphere !== undefined) {
                 if (object.boundingSphere === null)
                   object.computeBoundingSphere();
-                _vector4.copy(object.boundingSphere.center);
+                _vector42.copy(object.boundingSphere.center);
               } else {
                 if (geometry.boundingSphere === null)
                   geometry.computeBoundingSphere();
-                _vector4.copy(geometry.boundingSphere.center);
+                _vector42.copy(geometry.boundingSphere.center);
               }
-              _vector4.applyMatrix4(object.matrixWorld).applyMatrix4(_projScreenMatrix3);
+              _vector42.applyMatrix4(object.matrixWorld).applyMatrix4(_projScreenMatrix3);
             }
             if (Array.isArray(material)) {
               const groups = geometry.groups;
@@ -28651,11 +29882,11 @@ class WebGLRenderer {
                 const group = groups[i];
                 const groupMaterial = material[group.materialIndex];
                 if (groupMaterial && groupMaterial.visible) {
-                  currentRenderList.push(object, geometry, groupMaterial, groupOrder, _vector4.z, group);
+                  currentRenderList.push(object, geometry, groupMaterial, groupOrder, _vector42.z, group);
                 }
               }
             } else if (material.visible) {
-              currentRenderList.push(object, geometry, material, groupOrder, _vector4.z, null);
+              currentRenderList.push(object, geometry, material, groupOrder, _vector42.z, null);
             }
           }
         }
@@ -29733,7 +30964,11 @@ var STATE = {
   prologueCompleted: false,
   prologueActive: false,
   prologueStage: "office_dream",
-  prologueStep: 0
+  prologueStep: 0,
+  editorActive: false,
+  editorTimeScale: 0,
+  editorSelectedEntity: null,
+  editorEntities: []
 };
 var activePlanets = [];
 
@@ -40394,6 +41629,5149 @@ function ensureLoreSystems(systems) {
   }
 }
 
+// node_modules/three/examples/jsm/controls/TransformControls.js
+var _raycaster = new Raycaster;
+var _tempVector = new Vector3;
+var _tempVector2 = new Vector3;
+var _tempQuaternion = new Quaternion;
+var _unit = {
+  X: new Vector3(1, 0, 0),
+  Y: new Vector3(0, 1, 0),
+  Z: new Vector3(0, 0, 1)
+};
+var _changeEvent = { type: "change" };
+var _mouseDownEvent = { type: "mouseDown", mode: null };
+var _mouseUpEvent = { type: "mouseUp", mode: null };
+var _objectChangeEvent = { type: "objectChange" };
+
+class TransformControls extends Controls {
+  constructor(camera2, domElement = null) {
+    super(undefined, domElement);
+    const root = new TransformControlsRoot(this);
+    this._root = root;
+    const gizmo = new TransformControlsGizmo;
+    this._gizmo = gizmo;
+    root.add(gizmo);
+    const plane = new TransformControlsPlane;
+    this._plane = plane;
+    root.add(plane);
+    const scope = this;
+    function defineProperty(propName, defaultValue) {
+      let propValue = defaultValue;
+      Object.defineProperty(scope, propName, {
+        get: function() {
+          return propValue !== undefined ? propValue : defaultValue;
+        },
+        set: function(value) {
+          if (propValue !== value) {
+            propValue = value;
+            plane[propName] = value;
+            gizmo[propName] = value;
+            scope.dispatchEvent({ type: propName + "-changed", value });
+            scope.dispatchEvent(_changeEvent);
+          }
+        }
+      });
+      scope[propName] = defaultValue;
+      plane[propName] = defaultValue;
+      gizmo[propName] = defaultValue;
+    }
+    defineProperty("camera", camera2);
+    defineProperty("object", undefined);
+    defineProperty("enabled", true);
+    defineProperty("axis", null);
+    defineProperty("mode", "translate");
+    defineProperty("translationSnap", null);
+    defineProperty("rotationSnap", null);
+    defineProperty("scaleSnap", null);
+    defineProperty("space", "world");
+    defineProperty("size", 1);
+    this.viewport = null;
+    defineProperty("dragging", false);
+    defineProperty("showX", true);
+    defineProperty("showY", true);
+    defineProperty("showZ", true);
+    defineProperty("showXY", true);
+    defineProperty("showYZ", true);
+    defineProperty("showXZ", true);
+    defineProperty("showXYZE", true);
+    defineProperty("showE", true);
+    defineProperty("minX", -Infinity);
+    defineProperty("maxX", Infinity);
+    defineProperty("minY", -Infinity);
+    defineProperty("maxY", Infinity);
+    defineProperty("minZ", -Infinity);
+    defineProperty("maxZ", Infinity);
+    const worldPosition = new Vector3;
+    const worldPositionStart = new Vector3;
+    const worldQuaternion = new Quaternion;
+    const worldQuaternionStart = new Quaternion;
+    const cameraPosition = new Vector3;
+    const cameraQuaternion = new Quaternion;
+    const pointStart = new Vector3;
+    const pointEnd = new Vector3;
+    const rotationAxis = new Vector3;
+    const rotationAngle = 0;
+    const eye = new Vector3;
+    defineProperty("worldPosition", worldPosition);
+    defineProperty("worldPositionStart", worldPositionStart);
+    defineProperty("worldQuaternion", worldQuaternion);
+    defineProperty("worldQuaternionStart", worldQuaternionStart);
+    defineProperty("cameraPosition", cameraPosition);
+    defineProperty("cameraQuaternion", cameraQuaternion);
+    defineProperty("pointStart", pointStart);
+    defineProperty("pointEnd", pointEnd);
+    defineProperty("rotationAxis", rotationAxis);
+    defineProperty("rotationAngle", rotationAngle);
+    defineProperty("eye", eye);
+    this._offset = new Vector3;
+    this._startNorm = new Vector3;
+    this._endNorm = new Vector3;
+    this._cameraScale = new Vector3;
+    this._parentPosition = new Vector3;
+    this._parentQuaternion = new Quaternion;
+    this._parentQuaternionInv = new Quaternion;
+    this._parentScale = new Vector3;
+    this._worldScaleStart = new Vector3;
+    this._worldQuaternionInv = new Quaternion;
+    this._worldScale = new Vector3;
+    this._positionStart = new Vector3;
+    this._quaternionStart = new Quaternion;
+    this._scaleStart = new Vector3;
+    this._getPointer = getPointer.bind(this);
+    this._onPointerDown = onPointerDown.bind(this);
+    this._onPointerHover = onPointerHover.bind(this);
+    this._onPointerMove = onPointerMove.bind(this);
+    this._onPointerUp = onPointerUp.bind(this);
+    if (domElement !== null) {
+      this.connect(domElement);
+    }
+  }
+  connect(element) {
+    super.connect(element);
+    this.domElement.addEventListener("pointerdown", this._onPointerDown);
+    this.domElement.addEventListener("pointermove", this._onPointerHover);
+    this.domElement.addEventListener("pointerup", this._onPointerUp);
+    this.domElement.style.touchAction = "none";
+  }
+  disconnect() {
+    this.domElement.removeEventListener("pointerdown", this._onPointerDown);
+    this.domElement.removeEventListener("pointermove", this._onPointerHover);
+    this.domElement.removeEventListener("pointermove", this._onPointerMove);
+    this.domElement.removeEventListener("pointerup", this._onPointerUp);
+    this.domElement.style.touchAction = "";
+  }
+  getHelper() {
+    return this._root;
+  }
+  pointerHover(pointer) {
+    if (this.object === undefined || this.dragging === true)
+      return;
+    if (pointer !== null)
+      _raycaster.setFromCamera(pointer, this.camera);
+    const intersect2 = intersectObjectWithRay(this._gizmo.picker[this.mode], _raycaster);
+    if (intersect2) {
+      this.axis = intersect2.object.name;
+    } else {
+      this.axis = null;
+    }
+  }
+  pointerDown(pointer) {
+    if (this.object === undefined || this.dragging === true || pointer != null && pointer.button !== 0)
+      return;
+    if (this.axis !== null) {
+      if (pointer !== null)
+        _raycaster.setFromCamera(pointer, this.camera);
+      const planeIntersect = intersectObjectWithRay(this._plane, _raycaster, true);
+      if (planeIntersect) {
+        this.object.updateMatrixWorld();
+        this.object.parent.updateMatrixWorld();
+        this._positionStart.copy(this.object.position);
+        this._quaternionStart.copy(this.object.quaternion);
+        this._scaleStart.copy(this.object.scale);
+        this.object.matrixWorld.decompose(this.worldPositionStart, this.worldQuaternionStart, this._worldScaleStart);
+        this.pointStart.copy(planeIntersect.point).sub(this.worldPositionStart);
+      }
+      this.dragging = true;
+      _mouseDownEvent.mode = this.mode;
+      this.dispatchEvent(_mouseDownEvent);
+    }
+  }
+  pointerMove(pointer) {
+    const axis = this.axis;
+    const mode = this.mode;
+    const object = this.object;
+    let space = this.space;
+    if (mode === "scale") {
+      space = "local";
+    } else if (axis === "E" || axis === "XYZE" || axis === "XYZ") {
+      space = "world";
+    }
+    if (object === undefined || axis === null || this.dragging === false || pointer !== null && pointer.button !== -1)
+      return;
+    if (pointer !== null)
+      _raycaster.setFromCamera(pointer, this.camera);
+    const planeIntersect = intersectObjectWithRay(this._plane, _raycaster, true);
+    if (!planeIntersect)
+      return;
+    this.pointEnd.copy(planeIntersect.point).sub(this.worldPositionStart);
+    if (mode === "translate") {
+      this._offset.copy(this.pointEnd).sub(this.pointStart);
+      if (space === "local" && axis !== "XYZ") {
+        this._offset.applyQuaternion(this._worldQuaternionInv);
+      }
+      if (axis.indexOf("X") === -1)
+        this._offset.x = 0;
+      if (axis.indexOf("Y") === -1)
+        this._offset.y = 0;
+      if (axis.indexOf("Z") === -1)
+        this._offset.z = 0;
+      if (space === "local" && axis !== "XYZ") {
+        this._offset.applyQuaternion(this._quaternionStart).divide(this._parentScale);
+      } else {
+        this._offset.applyQuaternion(this._parentQuaternionInv).divide(this._parentScale);
+      }
+      object.position.copy(this._offset).add(this._positionStart);
+      if (this.translationSnap) {
+        if (space === "local") {
+          object.position.applyQuaternion(_tempQuaternion.copy(this._quaternionStart).invert());
+          if (axis.search("X") !== -1) {
+            object.position.x = Math.round(object.position.x / this.translationSnap) * this.translationSnap;
+          }
+          if (axis.search("Y") !== -1) {
+            object.position.y = Math.round(object.position.y / this.translationSnap) * this.translationSnap;
+          }
+          if (axis.search("Z") !== -1) {
+            object.position.z = Math.round(object.position.z / this.translationSnap) * this.translationSnap;
+          }
+          object.position.applyQuaternion(this._quaternionStart);
+        }
+        if (space === "world") {
+          object.getWorldPosition(_tempVector);
+          if (axis.search("X") !== -1) {
+            _tempVector.x = Math.round(_tempVector.x / this.translationSnap) * this.translationSnap;
+          }
+          if (axis.search("Y") !== -1) {
+            _tempVector.y = Math.round(_tempVector.y / this.translationSnap) * this.translationSnap;
+          }
+          if (axis.search("Z") !== -1) {
+            _tempVector.z = Math.round(_tempVector.z / this.translationSnap) * this.translationSnap;
+          }
+          object.position.copy(object.parent.worldToLocal(_tempVector));
+        }
+      }
+      object.position.x = Math.max(this.minX, Math.min(this.maxX, object.position.x));
+      object.position.y = Math.max(this.minY, Math.min(this.maxY, object.position.y));
+      object.position.z = Math.max(this.minZ, Math.min(this.maxZ, object.position.z));
+    } else if (mode === "scale") {
+      if (axis.search("XYZ") !== -1) {
+        let d = this.pointEnd.length() / this.pointStart.length();
+        if (this.pointEnd.dot(this.pointStart) < 0)
+          d *= -1;
+        _tempVector2.set(d, d, d);
+      } else {
+        _tempVector.copy(this.pointStart);
+        _tempVector2.copy(this.pointEnd);
+        _tempVector.applyQuaternion(this._worldQuaternionInv);
+        _tempVector2.applyQuaternion(this._worldQuaternionInv);
+        _tempVector2.divide(_tempVector);
+        if (axis.search("X") === -1) {
+          _tempVector2.x = 1;
+        }
+        if (axis.search("Y") === -1) {
+          _tempVector2.y = 1;
+        }
+        if (axis.search("Z") === -1) {
+          _tempVector2.z = 1;
+        }
+      }
+      object.scale.copy(this._scaleStart).multiply(_tempVector2);
+      if (this.scaleSnap) {
+        if (axis.search("X") !== -1) {
+          object.scale.x = Math.round(object.scale.x / this.scaleSnap) * this.scaleSnap || this.scaleSnap;
+        }
+        if (axis.search("Y") !== -1) {
+          object.scale.y = Math.round(object.scale.y / this.scaleSnap) * this.scaleSnap || this.scaleSnap;
+        }
+        if (axis.search("Z") !== -1) {
+          object.scale.z = Math.round(object.scale.z / this.scaleSnap) * this.scaleSnap || this.scaleSnap;
+        }
+      }
+    } else if (mode === "rotate") {
+      this._offset.copy(this.pointEnd).sub(this.pointStart);
+      const ROTATION_SPEED = 20 / this.worldPosition.distanceTo(_tempVector.setFromMatrixPosition(this.camera.matrixWorld));
+      let _inPlaneRotation = false;
+      if (axis === "XYZE") {
+        this.rotationAxis.copy(this._offset).cross(this.eye).normalize();
+        this.rotationAngle = this._offset.dot(_tempVector.copy(this.rotationAxis).cross(this.eye)) * ROTATION_SPEED;
+      } else if (axis === "X" || axis === "Y" || axis === "Z") {
+        this.rotationAxis.copy(_unit[axis]);
+        _tempVector.copy(_unit[axis]);
+        if (space === "local") {
+          _tempVector.applyQuaternion(this.worldQuaternion);
+        }
+        _tempVector.cross(this.eye);
+        if (_tempVector.length() === 0) {
+          _inPlaneRotation = true;
+        } else {
+          this.rotationAngle = this._offset.dot(_tempVector.normalize()) * ROTATION_SPEED;
+        }
+      }
+      if (axis === "E" || _inPlaneRotation) {
+        this.rotationAxis.copy(this.eye);
+        this.rotationAngle = this.pointEnd.angleTo(this.pointStart);
+        this._startNorm.copy(this.pointStart).normalize();
+        this._endNorm.copy(this.pointEnd).normalize();
+        this.rotationAngle *= this._endNorm.cross(this._startNorm).dot(this.eye) < 0 ? 1 : -1;
+      }
+      if (this.rotationSnap)
+        this.rotationAngle = Math.round(this.rotationAngle / this.rotationSnap) * this.rotationSnap;
+      if (space === "local" && axis !== "E" && axis !== "XYZE") {
+        object.quaternion.copy(this._quaternionStart);
+        object.quaternion.multiply(_tempQuaternion.setFromAxisAngle(this.rotationAxis, this.rotationAngle)).normalize();
+      } else {
+        this.rotationAxis.applyQuaternion(this._parentQuaternionInv);
+        object.quaternion.copy(_tempQuaternion.setFromAxisAngle(this.rotationAxis, this.rotationAngle));
+        object.quaternion.multiply(this._quaternionStart).normalize();
+      }
+    }
+    this.dispatchEvent(_changeEvent);
+    this.dispatchEvent(_objectChangeEvent);
+  }
+  pointerUp(pointer) {
+    if (pointer !== null && pointer.button !== 0)
+      return;
+    if (this.dragging && this.axis !== null) {
+      _mouseUpEvent.mode = this.mode;
+      this.dispatchEvent(_mouseUpEvent);
+    }
+    this.dragging = false;
+    this.axis = null;
+  }
+  dispose() {
+    this.disconnect();
+    this._root.dispose();
+  }
+  attach(object) {
+    this.object = object;
+    this._root.visible = true;
+    return this;
+  }
+  detach() {
+    this.object = undefined;
+    this.axis = null;
+    this._root.visible = false;
+    return this;
+  }
+  reset() {
+    if (!this.enabled)
+      return;
+    if (this.dragging) {
+      this.object.position.copy(this._positionStart);
+      this.object.quaternion.copy(this._quaternionStart);
+      this.object.scale.copy(this._scaleStart);
+      this.dispatchEvent(_changeEvent);
+      this.dispatchEvent(_objectChangeEvent);
+      this.pointStart.copy(this.pointEnd);
+    }
+  }
+  getRaycaster() {
+    return _raycaster;
+  }
+  getMode() {
+    return this.mode;
+  }
+  setMode(mode) {
+    this.mode = mode;
+  }
+  setTranslationSnap(translationSnap) {
+    this.translationSnap = translationSnap;
+  }
+  setRotationSnap(rotationSnap) {
+    this.rotationSnap = rotationSnap;
+  }
+  setScaleSnap(scaleSnap) {
+    this.scaleSnap = scaleSnap;
+  }
+  setSize(size) {
+    this.size = size;
+  }
+  setSpace(space) {
+    this.space = space;
+  }
+  setColors(xAxis, yAxis, zAxis, active) {
+    const materialLib = this._gizmo.materialLib;
+    materialLib.xAxis.color.set(xAxis);
+    materialLib.yAxis.color.set(yAxis);
+    materialLib.zAxis.color.set(zAxis);
+    materialLib.active.color.set(active);
+    materialLib.xAxisTransparent.color.set(xAxis);
+    materialLib.yAxisTransparent.color.set(yAxis);
+    materialLib.zAxisTransparent.color.set(zAxis);
+    materialLib.activeTransparent.color.set(active);
+    if (materialLib.xAxis._color)
+      materialLib.xAxis._color.set(xAxis);
+    if (materialLib.yAxis._color)
+      materialLib.yAxis._color.set(yAxis);
+    if (materialLib.zAxis._color)
+      materialLib.zAxis._color.set(zAxis);
+    if (materialLib.active._color)
+      materialLib.active._color.set(active);
+    if (materialLib.xAxisTransparent._color)
+      materialLib.xAxisTransparent._color.set(xAxis);
+    if (materialLib.yAxisTransparent._color)
+      materialLib.yAxisTransparent._color.set(yAxis);
+    if (materialLib.zAxisTransparent._color)
+      materialLib.zAxisTransparent._color.set(zAxis);
+    if (materialLib.activeTransparent._color)
+      materialLib.activeTransparent._color.set(active);
+  }
+}
+function getPointer(event) {
+  if (this.domElement.ownerDocument.pointerLockElement) {
+    return {
+      x: 0,
+      y: 0,
+      button: event.button
+    };
+  } else {
+    const rect = this.domElement.getBoundingClientRect();
+    const viewport = this.viewport;
+    let originX, originY, regionWidth, regionHeight;
+    if (viewport !== null) {
+      originX = viewport.x;
+      originY = rect.height - viewport.y - viewport.w;
+      regionWidth = viewport.z;
+      regionHeight = viewport.w;
+    } else {
+      originX = 0;
+      originY = 0;
+      regionWidth = rect.width;
+      regionHeight = rect.height;
+    }
+    return {
+      x: (event.clientX - rect.left - originX) / regionWidth * 2 - 1,
+      y: -(event.clientY - rect.top - originY) / regionHeight * 2 + 1,
+      button: event.button
+    };
+  }
+}
+function onPointerHover(event) {
+  if (!this.enabled)
+    return;
+  switch (event.pointerType) {
+    case "mouse":
+    case "pen":
+      this.pointerHover(this._getPointer(event));
+      break;
+  }
+}
+function onPointerDown(event) {
+  if (!this.enabled)
+    return;
+  if (!document.pointerLockElement) {
+    this.domElement.setPointerCapture(event.pointerId);
+  }
+  this.domElement.addEventListener("pointermove", this._onPointerMove);
+  this.pointerHover(this._getPointer(event));
+  this.pointerDown(this._getPointer(event));
+}
+function onPointerMove(event) {
+  if (!this.enabled)
+    return;
+  this.pointerMove(this._getPointer(event));
+}
+function onPointerUp(event) {
+  if (!this.enabled)
+    return;
+  this.domElement.releasePointerCapture(event.pointerId);
+  this.domElement.removeEventListener("pointermove", this._onPointerMove);
+  this.pointerUp(this._getPointer(event));
+}
+function intersectObjectWithRay(object, raycaster, includeInvisible) {
+  const allIntersections = raycaster.intersectObject(object, true);
+  for (let i = 0;i < allIntersections.length; i++) {
+    if (allIntersections[i].object.visible || includeInvisible) {
+      return allIntersections[i];
+    }
+  }
+  return false;
+}
+var _tempEuler = new Euler;
+var _alignVector = new Vector3(0, 1, 0);
+var _zeroVector = new Vector3(0, 0, 0);
+var _lookAtMatrix = new Matrix4;
+var _tempQuaternion2 = new Quaternion;
+var _identityQuaternion = new Quaternion;
+var _dirVector = new Vector3;
+var _tempMatrix = new Matrix4;
+var _unitX = new Vector3(1, 0, 0);
+var _unitY = new Vector3(0, 1, 0);
+var _unitZ = new Vector3(0, 0, 1);
+var _v1 = new Vector3;
+var _v2 = new Vector3;
+var _v3 = new Vector3;
+
+class TransformControlsRoot extends Object3D {
+  constructor(controls) {
+    super();
+    this.isTransformControlsRoot = true;
+    this.controls = controls;
+    this.visible = false;
+  }
+  updateMatrixWorld(force) {
+    const controls = this.controls;
+    if (controls.object !== undefined) {
+      controls.object.updateMatrixWorld();
+      if (controls.object.parent === null) {
+        console.error("TransformControls: The attached 3D object must be a part of the scene graph.");
+      } else {
+        controls.object.parent.matrixWorld.decompose(controls._parentPosition, controls._parentQuaternion, controls._parentScale);
+      }
+      controls.object.matrixWorld.decompose(controls.worldPosition, controls.worldQuaternion, controls._worldScale);
+      controls._parentQuaternionInv.copy(controls._parentQuaternion).invert();
+      controls._worldQuaternionInv.copy(controls.worldQuaternion).invert();
+    }
+    controls.camera.updateMatrixWorld();
+    controls.camera.matrixWorld.decompose(controls.cameraPosition, controls.cameraQuaternion, controls._cameraScale);
+    if (controls.camera.isOrthographicCamera) {
+      controls.camera.getWorldDirection(controls.eye).negate();
+    } else {
+      controls.eye.copy(controls.cameraPosition).sub(controls.worldPosition).normalize();
+    }
+    if (this.parent) {
+      _tempMatrix.copy(this.parent.matrixWorld).invert();
+      _tempMatrix.decompose(this.position, this.quaternion, this.scale);
+    }
+    super.updateMatrixWorld(force);
+  }
+  dispose() {
+    this.traverse(function(child) {
+      if (child.geometry)
+        child.geometry.dispose();
+      if (child.material)
+        child.material.dispose();
+    });
+  }
+}
+
+class TransformControlsGizmo extends Object3D {
+  constructor() {
+    super();
+    this.isTransformControlsGizmo = true;
+    this.type = "TransformControlsGizmo";
+    const gizmoMaterial = new MeshBasicMaterial({
+      depthTest: false,
+      depthWrite: false,
+      fog: false,
+      toneMapped: false,
+      transparent: true
+    });
+    const gizmoLineMaterial = new LineBasicMaterial({
+      depthTest: false,
+      depthWrite: false,
+      fog: false,
+      toneMapped: false,
+      transparent: true
+    });
+    const matInvisible = gizmoMaterial.clone();
+    matInvisible.opacity = 0.15;
+    const matHelper = gizmoLineMaterial.clone();
+    matHelper.opacity = 0.5;
+    const matRed = gizmoMaterial.clone();
+    matRed.color.setHex(16711680);
+    const matGreen = gizmoMaterial.clone();
+    matGreen.color.setHex(65280);
+    const matBlue = gizmoMaterial.clone();
+    matBlue.color.setHex(255);
+    const matRedTransparent = gizmoMaterial.clone();
+    matRedTransparent.color.setHex(16711680);
+    matRedTransparent.opacity = 0.5;
+    const matGreenTransparent = gizmoMaterial.clone();
+    matGreenTransparent.color.setHex(65280);
+    matGreenTransparent.opacity = 0.5;
+    const matBlueTransparent = gizmoMaterial.clone();
+    matBlueTransparent.color.setHex(255);
+    matBlueTransparent.opacity = 0.5;
+    const matWhiteTransparent = gizmoMaterial.clone();
+    matWhiteTransparent.opacity = 0.25;
+    const matYellowTransparent = gizmoMaterial.clone();
+    matYellowTransparent.color.setHex(16776960);
+    matYellowTransparent.opacity = 0.25;
+    const matYellow = gizmoMaterial.clone();
+    matYellow.color.setHex(16776960);
+    const matGray = gizmoMaterial.clone();
+    matGray.color.setHex(7895160);
+    this.materialLib = {
+      xAxis: matRed,
+      yAxis: matGreen,
+      zAxis: matBlue,
+      active: matYellow,
+      xAxisTransparent: matRedTransparent,
+      yAxisTransparent: matGreenTransparent,
+      zAxisTransparent: matBlueTransparent,
+      activeTransparent: matYellowTransparent
+    };
+    const arrowGeometry = new CylinderGeometry(0, 0.04, 0.1, 12);
+    arrowGeometry.translate(0, 0.05, 0);
+    const scaleHandleGeometry = new BoxGeometry(0.08, 0.08, 0.08);
+    scaleHandleGeometry.translate(0, 0.04, 0);
+    const lineGeometry = new BufferGeometry;
+    lineGeometry.setAttribute("position", new Float32BufferAttribute([0, 0, 0, 1, 0, 0], 3));
+    const lineGeometry2 = new CylinderGeometry(0.0075, 0.0075, 0.5, 3);
+    lineGeometry2.translate(0, 0.25, 0);
+    function CircleGeometry2(radius, arc) {
+      const geometry = new TorusGeometry(radius, 0.0075, 3, 64, arc * Math.PI * 2);
+      geometry.rotateY(Math.PI / 2);
+      geometry.rotateX(Math.PI / 2);
+      return geometry;
+    }
+    function TranslateHelperGeometry() {
+      const geometry = new BufferGeometry;
+      geometry.setAttribute("position", new Float32BufferAttribute([0, 0, 0, 1, 1, 1], 3));
+      return geometry;
+    }
+    const gizmoTranslate = {
+      X: [
+        [new Mesh(arrowGeometry, matRed), [0.5, 0, 0], [0, 0, -Math.PI / 2]],
+        [new Mesh(arrowGeometry, matRed), [-0.5, 0, 0], [0, 0, Math.PI / 2]],
+        [new Mesh(lineGeometry2, matRed), [0, 0, 0], [0, 0, -Math.PI / 2]]
+      ],
+      Y: [
+        [new Mesh(arrowGeometry, matGreen), [0, 0.5, 0]],
+        [new Mesh(arrowGeometry, matGreen), [0, -0.5, 0], [Math.PI, 0, 0]],
+        [new Mesh(lineGeometry2, matGreen)]
+      ],
+      Z: [
+        [new Mesh(arrowGeometry, matBlue), [0, 0, 0.5], [Math.PI / 2, 0, 0]],
+        [new Mesh(arrowGeometry, matBlue), [0, 0, -0.5], [-Math.PI / 2, 0, 0]],
+        [new Mesh(lineGeometry2, matBlue), null, [Math.PI / 2, 0, 0]]
+      ],
+      XYZ: [
+        [new Mesh(new OctahedronGeometry(0.1, 0), matWhiteTransparent), [0, 0, 0]]
+      ],
+      XY: [
+        [new Mesh(new BoxGeometry(0.15, 0.15, 0.01), matBlueTransparent), [0.15, 0.15, 0]]
+      ],
+      YZ: [
+        [new Mesh(new BoxGeometry(0.15, 0.15, 0.01), matRedTransparent), [0, 0.15, 0.15], [0, Math.PI / 2, 0]]
+      ],
+      XZ: [
+        [new Mesh(new BoxGeometry(0.15, 0.15, 0.01), matGreenTransparent), [0.15, 0, 0.15], [-Math.PI / 2, 0, 0]]
+      ]
+    };
+    const pickerTranslate = {
+      X: [
+        [new Mesh(new CylinderGeometry(0.2, 0, 0.6, 4), matInvisible), [0.3, 0, 0], [0, 0, -Math.PI / 2]],
+        [new Mesh(new CylinderGeometry(0.2, 0, 0.6, 4), matInvisible), [-0.3, 0, 0], [0, 0, Math.PI / 2]]
+      ],
+      Y: [
+        [new Mesh(new CylinderGeometry(0.2, 0, 0.6, 4), matInvisible), [0, 0.3, 0]],
+        [new Mesh(new CylinderGeometry(0.2, 0, 0.6, 4), matInvisible), [0, -0.3, 0], [0, 0, Math.PI]]
+      ],
+      Z: [
+        [new Mesh(new CylinderGeometry(0.2, 0, 0.6, 4), matInvisible), [0, 0, 0.3], [Math.PI / 2, 0, 0]],
+        [new Mesh(new CylinderGeometry(0.2, 0, 0.6, 4), matInvisible), [0, 0, -0.3], [-Math.PI / 2, 0, 0]]
+      ],
+      XYZ: [
+        [new Mesh(new OctahedronGeometry(0.2, 0), matInvisible)]
+      ],
+      XY: [
+        [new Mesh(new BoxGeometry(0.2, 0.2, 0.01), matInvisible), [0.15, 0.15, 0]]
+      ],
+      YZ: [
+        [new Mesh(new BoxGeometry(0.2, 0.2, 0.01), matInvisible), [0, 0.15, 0.15], [0, Math.PI / 2, 0]]
+      ],
+      XZ: [
+        [new Mesh(new BoxGeometry(0.2, 0.2, 0.01), matInvisible), [0.15, 0, 0.15], [-Math.PI / 2, 0, 0]]
+      ]
+    };
+    const helperTranslate = {
+      START: [
+        [new Mesh(new OctahedronGeometry(0.01, 2), matHelper), null, null, null, "helper"]
+      ],
+      END: [
+        [new Mesh(new OctahedronGeometry(0.01, 2), matHelper), null, null, null, "helper"]
+      ],
+      DELTA: [
+        [new Line(TranslateHelperGeometry(), matHelper), null, null, null, "helper"]
+      ],
+      X: [
+        [new Line(lineGeometry, matHelper), [-1000, 0, 0], null, [1e6, 1, 1], "helper"]
+      ],
+      Y: [
+        [new Line(lineGeometry, matHelper), [0, -1000, 0], [0, 0, Math.PI / 2], [1e6, 1, 1], "helper"]
+      ],
+      Z: [
+        [new Line(lineGeometry, matHelper), [0, 0, -1000], [0, -Math.PI / 2, 0], [1e6, 1, 1], "helper"]
+      ]
+    };
+    const gizmoRotate = {
+      XYZE: [
+        [new Mesh(CircleGeometry2(0.5, 1), matGray), null, [0, Math.PI / 2, 0]]
+      ],
+      X: [
+        [new Mesh(CircleGeometry2(0.5, 0.5), matRed)]
+      ],
+      Y: [
+        [new Mesh(CircleGeometry2(0.5, 0.5), matGreen), null, [0, 0, -Math.PI / 2]]
+      ],
+      Z: [
+        [new Mesh(CircleGeometry2(0.5, 0.5), matBlue), null, [0, Math.PI / 2, 0]]
+      ],
+      E: [
+        [new Mesh(CircleGeometry2(0.75, 1), matYellowTransparent), null, [0, Math.PI / 2, 0]]
+      ]
+    };
+    const helperRotate = {
+      AXIS: [
+        [new Line(lineGeometry, matHelper), [-1000, 0, 0], null, [1e6, 1, 1], "helper"]
+      ]
+    };
+    const pickerRotate = {
+      XYZE: [
+        [new Mesh(new SphereGeometry(0.25, 10, 8), matInvisible)]
+      ],
+      X: [
+        [new Mesh(new TorusGeometry(0.5, 0.1, 4, 24), matInvisible), [0, 0, 0], [0, -Math.PI / 2, -Math.PI / 2]]
+      ],
+      Y: [
+        [new Mesh(new TorusGeometry(0.5, 0.1, 4, 24), matInvisible), [0, 0, 0], [Math.PI / 2, 0, 0]]
+      ],
+      Z: [
+        [new Mesh(new TorusGeometry(0.5, 0.1, 4, 24), matInvisible), [0, 0, 0], [0, 0, -Math.PI / 2]]
+      ],
+      E: [
+        [new Mesh(new TorusGeometry(0.75, 0.1, 2, 24), matInvisible)]
+      ]
+    };
+    const gizmoScale = {
+      X: [
+        [new Mesh(scaleHandleGeometry, matRed), [0.5, 0, 0], [0, 0, -Math.PI / 2]],
+        [new Mesh(lineGeometry2, matRed), [0, 0, 0], [0, 0, -Math.PI / 2]],
+        [new Mesh(scaleHandleGeometry, matRed), [-0.5, 0, 0], [0, 0, Math.PI / 2]]
+      ],
+      Y: [
+        [new Mesh(scaleHandleGeometry, matGreen), [0, 0.5, 0]],
+        [new Mesh(lineGeometry2, matGreen)],
+        [new Mesh(scaleHandleGeometry, matGreen), [0, -0.5, 0], [0, 0, Math.PI]]
+      ],
+      Z: [
+        [new Mesh(scaleHandleGeometry, matBlue), [0, 0, 0.5], [Math.PI / 2, 0, 0]],
+        [new Mesh(lineGeometry2, matBlue), [0, 0, 0], [Math.PI / 2, 0, 0]],
+        [new Mesh(scaleHandleGeometry, matBlue), [0, 0, -0.5], [-Math.PI / 2, 0, 0]]
+      ],
+      XY: [
+        [new Mesh(new BoxGeometry(0.15, 0.15, 0.01), matBlueTransparent), [0.15, 0.15, 0]]
+      ],
+      YZ: [
+        [new Mesh(new BoxGeometry(0.15, 0.15, 0.01), matRedTransparent), [0, 0.15, 0.15], [0, Math.PI / 2, 0]]
+      ],
+      XZ: [
+        [new Mesh(new BoxGeometry(0.15, 0.15, 0.01), matGreenTransparent), [0.15, 0, 0.15], [-Math.PI / 2, 0, 0]]
+      ],
+      XYZ: [
+        [new Mesh(new BoxGeometry(0.1, 0.1, 0.1), matWhiteTransparent)]
+      ]
+    };
+    const pickerScale = {
+      X: [
+        [new Mesh(new CylinderGeometry(0.2, 0, 0.6, 4), matInvisible), [0.3, 0, 0], [0, 0, -Math.PI / 2]],
+        [new Mesh(new CylinderGeometry(0.2, 0, 0.6, 4), matInvisible), [-0.3, 0, 0], [0, 0, Math.PI / 2]]
+      ],
+      Y: [
+        [new Mesh(new CylinderGeometry(0.2, 0, 0.6, 4), matInvisible), [0, 0.3, 0]],
+        [new Mesh(new CylinderGeometry(0.2, 0, 0.6, 4), matInvisible), [0, -0.3, 0], [0, 0, Math.PI]]
+      ],
+      Z: [
+        [new Mesh(new CylinderGeometry(0.2, 0, 0.6, 4), matInvisible), [0, 0, 0.3], [Math.PI / 2, 0, 0]],
+        [new Mesh(new CylinderGeometry(0.2, 0, 0.6, 4), matInvisible), [0, 0, -0.3], [-Math.PI / 2, 0, 0]]
+      ],
+      XY: [
+        [new Mesh(new BoxGeometry(0.2, 0.2, 0.01), matInvisible), [0.15, 0.15, 0]]
+      ],
+      YZ: [
+        [new Mesh(new BoxGeometry(0.2, 0.2, 0.01), matInvisible), [0, 0.15, 0.15], [0, Math.PI / 2, 0]]
+      ],
+      XZ: [
+        [new Mesh(new BoxGeometry(0.2, 0.2, 0.01), matInvisible), [0.15, 0, 0.15], [-Math.PI / 2, 0, 0]]
+      ],
+      XYZ: [
+        [new Mesh(new BoxGeometry(0.2, 0.2, 0.2), matInvisible), [0, 0, 0]]
+      ]
+    };
+    const helperScale = {
+      X: [
+        [new Line(lineGeometry, matHelper), [-1000, 0, 0], null, [1e6, 1, 1], "helper"]
+      ],
+      Y: [
+        [new Line(lineGeometry, matHelper), [0, -1000, 0], [0, 0, Math.PI / 2], [1e6, 1, 1], "helper"]
+      ],
+      Z: [
+        [new Line(lineGeometry, matHelper), [0, 0, -1000], [0, -Math.PI / 2, 0], [1e6, 1, 1], "helper"]
+      ]
+    };
+    function setupGizmo(gizmoMap) {
+      const gizmo = new Object3D;
+      for (const name in gizmoMap) {
+        for (let i = gizmoMap[name].length;i--; ) {
+          const object = gizmoMap[name][i][0].clone();
+          const position = gizmoMap[name][i][1];
+          const rotation = gizmoMap[name][i][2];
+          const scale = gizmoMap[name][i][3];
+          const tag = gizmoMap[name][i][4];
+          object.name = name;
+          object.tag = tag;
+          if (position) {
+            object.position.set(position[0], position[1], position[2]);
+          }
+          if (rotation) {
+            object.rotation.set(rotation[0], rotation[1], rotation[2]);
+          }
+          if (scale) {
+            object.scale.set(scale[0], scale[1], scale[2]);
+          }
+          object.updateMatrix();
+          const tempGeometry = object.geometry.clone();
+          tempGeometry.applyMatrix4(object.matrix);
+          object.geometry = tempGeometry;
+          object.renderOrder = Infinity;
+          object.position.set(0, 0, 0);
+          object.rotation.set(0, 0, 0);
+          object.scale.set(1, 1, 1);
+          gizmo.add(object);
+        }
+      }
+      return gizmo;
+    }
+    this.gizmo = {};
+    this.picker = {};
+    this.helper = {};
+    this.add(this.gizmo["translate"] = setupGizmo(gizmoTranslate));
+    this.add(this.gizmo["rotate"] = setupGizmo(gizmoRotate));
+    this.add(this.gizmo["scale"] = setupGizmo(gizmoScale));
+    this.add(this.picker["translate"] = setupGizmo(pickerTranslate));
+    this.add(this.picker["rotate"] = setupGizmo(pickerRotate));
+    this.add(this.picker["scale"] = setupGizmo(pickerScale));
+    this.add(this.helper["translate"] = setupGizmo(helperTranslate));
+    this.add(this.helper["rotate"] = setupGizmo(helperRotate));
+    this.add(this.helper["scale"] = setupGizmo(helperScale));
+    this.picker["translate"].visible = false;
+    this.picker["rotate"].visible = false;
+    this.picker["scale"].visible = false;
+  }
+  updateMatrixWorld(force) {
+    const space = this.mode === "scale" ? "local" : this.space;
+    const quaternion = space === "local" ? this.worldQuaternion : _identityQuaternion;
+    this.gizmo["translate"].visible = this.mode === "translate";
+    this.gizmo["rotate"].visible = this.mode === "rotate";
+    this.gizmo["scale"].visible = this.mode === "scale";
+    this.helper["translate"].visible = this.mode === "translate";
+    this.helper["rotate"].visible = this.mode === "rotate";
+    this.helper["scale"].visible = this.mode === "scale";
+    let handles = [];
+    handles = handles.concat(this.picker[this.mode].children);
+    handles = handles.concat(this.gizmo[this.mode].children);
+    handles = handles.concat(this.helper[this.mode].children);
+    for (let i = 0;i < handles.length; i++) {
+      const handle = handles[i];
+      handle.visible = true;
+      handle.rotation.set(0, 0, 0);
+      handle.position.copy(this.worldPosition);
+      let factor;
+      if (this.camera.isOrthographicCamera) {
+        factor = (this.camera.top - this.camera.bottom) / this.camera.zoom;
+      } else {
+        factor = this.worldPosition.distanceTo(this.cameraPosition) * Math.min(1.9 * Math.tan(Math.PI * this.camera.fov / 360) / this.camera.zoom, 7);
+      }
+      handle.scale.set(1, 1, 1).multiplyScalar(factor * this.size / 4);
+      if (handle.tag === "helper") {
+        handle.visible = false;
+        if (handle.name === "AXIS") {
+          handle.visible = !!this.axis;
+          if (this.axis === "X") {
+            _tempQuaternion.setFromEuler(_tempEuler.set(0, 0, 0));
+            handle.quaternion.copy(quaternion).multiply(_tempQuaternion);
+            if (Math.abs(_alignVector.copy(_unitX).applyQuaternion(quaternion).dot(this.eye)) > 0.9) {
+              handle.visible = false;
+            }
+          }
+          if (this.axis === "Y") {
+            _tempQuaternion.setFromEuler(_tempEuler.set(0, 0, Math.PI / 2));
+            handle.quaternion.copy(quaternion).multiply(_tempQuaternion);
+            if (Math.abs(_alignVector.copy(_unitY).applyQuaternion(quaternion).dot(this.eye)) > 0.9) {
+              handle.visible = false;
+            }
+          }
+          if (this.axis === "Z") {
+            _tempQuaternion.setFromEuler(_tempEuler.set(0, Math.PI / 2, 0));
+            handle.quaternion.copy(quaternion).multiply(_tempQuaternion);
+            if (Math.abs(_alignVector.copy(_unitZ).applyQuaternion(quaternion).dot(this.eye)) > 0.9) {
+              handle.visible = false;
+            }
+          }
+          if (this.axis === "XYZE") {
+            _tempQuaternion.setFromEuler(_tempEuler.set(0, Math.PI / 2, 0));
+            _alignVector.copy(this.rotationAxis);
+            handle.quaternion.setFromRotationMatrix(_lookAtMatrix.lookAt(_zeroVector, _alignVector, _unitY));
+            handle.quaternion.multiply(_tempQuaternion);
+            handle.visible = this.dragging;
+          }
+          if (this.axis === "E") {
+            handle.visible = false;
+          }
+        } else if (handle.name === "START") {
+          handle.position.copy(this.worldPositionStart);
+          handle.visible = this.dragging;
+        } else if (handle.name === "END") {
+          handle.position.copy(this.worldPosition);
+          handle.visible = this.dragging;
+        } else if (handle.name === "DELTA") {
+          handle.position.copy(this.worldPositionStart);
+          handle.quaternion.copy(this.worldQuaternionStart);
+          _tempVector.set(0.0000000001, 0.0000000001, 0.0000000001).add(this.worldPositionStart).sub(this.worldPosition).multiplyScalar(-1);
+          _tempVector.applyQuaternion(this.worldQuaternionStart.clone().invert());
+          handle.scale.copy(_tempVector);
+          handle.visible = this.dragging;
+        } else {
+          handle.quaternion.copy(quaternion);
+          if (this.dragging) {
+            handle.position.copy(this.worldPositionStart);
+          } else {
+            handle.position.copy(this.worldPosition);
+          }
+          if (this.axis) {
+            handle.visible = this.axis.search(handle.name) !== -1;
+          }
+        }
+        continue;
+      }
+      handle.quaternion.copy(quaternion);
+      if (this.mode === "translate" || this.mode === "scale") {
+        const AXIS_HIDE_THRESHOLD = 0.99;
+        const PLANE_HIDE_THRESHOLD = 0.2;
+        if (handle.name === "X") {
+          if (Math.abs(_alignVector.copy(_unitX).applyQuaternion(quaternion).dot(this.eye)) > AXIS_HIDE_THRESHOLD) {
+            handle.scale.set(0.0000000001, 0.0000000001, 0.0000000001);
+            handle.visible = false;
+          }
+        }
+        if (handle.name === "Y") {
+          if (Math.abs(_alignVector.copy(_unitY).applyQuaternion(quaternion).dot(this.eye)) > AXIS_HIDE_THRESHOLD) {
+            handle.scale.set(0.0000000001, 0.0000000001, 0.0000000001);
+            handle.visible = false;
+          }
+        }
+        if (handle.name === "Z") {
+          if (Math.abs(_alignVector.copy(_unitZ).applyQuaternion(quaternion).dot(this.eye)) > AXIS_HIDE_THRESHOLD) {
+            handle.scale.set(0.0000000001, 0.0000000001, 0.0000000001);
+            handle.visible = false;
+          }
+        }
+        if (handle.name === "XY") {
+          if (Math.abs(_alignVector.copy(_unitZ).applyQuaternion(quaternion).dot(this.eye)) < PLANE_HIDE_THRESHOLD) {
+            handle.scale.set(0.0000000001, 0.0000000001, 0.0000000001);
+            handle.visible = false;
+          }
+        }
+        if (handle.name === "YZ") {
+          if (Math.abs(_alignVector.copy(_unitX).applyQuaternion(quaternion).dot(this.eye)) < PLANE_HIDE_THRESHOLD) {
+            handle.scale.set(0.0000000001, 0.0000000001, 0.0000000001);
+            handle.visible = false;
+          }
+        }
+        if (handle.name === "XZ") {
+          if (Math.abs(_alignVector.copy(_unitY).applyQuaternion(quaternion).dot(this.eye)) < PLANE_HIDE_THRESHOLD) {
+            handle.scale.set(0.0000000001, 0.0000000001, 0.0000000001);
+            handle.visible = false;
+          }
+        }
+      } else if (this.mode === "rotate") {
+        _tempQuaternion2.copy(quaternion);
+        _alignVector.copy(this.eye).applyQuaternion(_tempQuaternion.copy(quaternion).invert());
+        if (handle.name.search("E") !== -1) {
+          handle.quaternion.setFromRotationMatrix(_lookAtMatrix.lookAt(this.eye, _zeroVector, _unitY));
+        }
+        if (handle.name === "X") {
+          _tempQuaternion.setFromAxisAngle(_unitX, Math.atan2(-_alignVector.y, _alignVector.z));
+          _tempQuaternion.multiplyQuaternions(_tempQuaternion2, _tempQuaternion);
+          handle.quaternion.copy(_tempQuaternion);
+        }
+        if (handle.name === "Y") {
+          _tempQuaternion.setFromAxisAngle(_unitY, Math.atan2(_alignVector.x, _alignVector.z));
+          _tempQuaternion.multiplyQuaternions(_tempQuaternion2, _tempQuaternion);
+          handle.quaternion.copy(_tempQuaternion);
+        }
+        if (handle.name === "Z") {
+          _tempQuaternion.setFromAxisAngle(_unitZ, Math.atan2(_alignVector.y, _alignVector.x));
+          _tempQuaternion.multiplyQuaternions(_tempQuaternion2, _tempQuaternion);
+          handle.quaternion.copy(_tempQuaternion);
+        }
+      }
+      handle.visible = handle.visible && (handle.name.indexOf("X") === -1 || this.showX);
+      handle.visible = handle.visible && (handle.name.indexOf("Y") === -1 || this.showY);
+      handle.visible = handle.visible && (handle.name.indexOf("Z") === -1 || this.showZ);
+      handle.visible = handle.visible && (handle.name.indexOf("E") === -1 || this.showX && this.showY && this.showZ);
+      handle.visible = handle.visible && (handle.name.indexOf("XY") === -1 || this.showXY);
+      handle.visible = handle.visible && (handle.name.indexOf("YZ") === -1 || this.showYZ);
+      handle.visible = handle.visible && (handle.name.indexOf("XZ") === -1 || this.showXZ);
+      handle.visible = handle.visible && (handle.name !== "E" || this.showE);
+      handle.visible = handle.visible && (handle.name !== "XYZE" || this.showXYZE);
+      handle.material._color = handle.material._color || handle.material.color.clone();
+      handle.material._opacity = handle.material._opacity || handle.material.opacity;
+      handle.material.color.copy(handle.material._color);
+      handle.material.opacity = handle.material._opacity;
+      if (this.enabled && this.axis) {
+        if (handle.name === this.axis) {
+          handle.material.color.copy(this.materialLib.active.color);
+          handle.material.opacity = 1;
+        } else if (this.axis.split("").some(function(a) {
+          return handle.name === a;
+        })) {
+          handle.material.color.copy(this.materialLib.active.color);
+          handle.material.opacity = 1;
+        }
+      }
+    }
+    super.updateMatrixWorld(force);
+  }
+}
+
+class TransformControlsPlane extends Mesh {
+  constructor() {
+    super(new PlaneGeometry(1e5, 1e5, 2, 2), new MeshBasicMaterial({ visible: false, wireframe: true, side: DoubleSide, transparent: true, opacity: 0.1, toneMapped: false }));
+    this.isTransformControlsPlane = true;
+    this.type = "TransformControlsPlane";
+  }
+  updateMatrixWorld(force) {
+    let space = this.space;
+    this.position.copy(this.worldPosition);
+    if (this.mode === "scale")
+      space = "local";
+    _v1.copy(_unitX).applyQuaternion(space === "local" ? this.worldQuaternion : _identityQuaternion);
+    _v2.copy(_unitY).applyQuaternion(space === "local" ? this.worldQuaternion : _identityQuaternion);
+    _v3.copy(_unitZ).applyQuaternion(space === "local" ? this.worldQuaternion : _identityQuaternion);
+    _alignVector.copy(_v2);
+    switch (this.mode) {
+      case "translate":
+      case "scale":
+        switch (this.axis) {
+          case "X":
+            _alignVector.copy(this.eye).cross(_v1);
+            _dirVector.copy(_v1).cross(_alignVector);
+            break;
+          case "Y":
+            _alignVector.copy(this.eye).cross(_v2);
+            _dirVector.copy(_v2).cross(_alignVector);
+            break;
+          case "Z":
+            _alignVector.copy(this.eye).cross(_v3);
+            _dirVector.copy(_v3).cross(_alignVector);
+            break;
+          case "XY":
+            _dirVector.copy(_v3);
+            break;
+          case "YZ":
+            _dirVector.copy(_v1);
+            break;
+          case "XZ":
+            _alignVector.copy(_v3);
+            _dirVector.copy(_v2);
+            break;
+          case "XYZ":
+          case "E":
+            _dirVector.set(0, 0, 0);
+            break;
+        }
+        break;
+      case "rotate":
+      default:
+        _dirVector.set(0, 0, 0);
+    }
+    if (_dirVector.length() === 0) {
+      this.quaternion.copy(this.cameraQuaternion);
+    } else {
+      _tempMatrix.lookAt(_tempVector.set(0, 0, 0), _dirVector, _alignVector);
+      this.quaternion.setFromRotationMatrix(_tempMatrix);
+    }
+    super.updateMatrixWorld(force);
+  }
+}
+
+// node_modules/three/examples/jsm/utils/BufferGeometryUtils.js
+function toTrianglesDrawMode(geometry, drawMode) {
+  if (drawMode === TrianglesDrawMode) {
+    console.warn("THREE.BufferGeometryUtils.toTrianglesDrawMode(): Geometry already defined as triangles.");
+    return geometry;
+  }
+  if (drawMode === TriangleFanDrawMode || drawMode === TriangleStripDrawMode) {
+    let index = geometry.getIndex();
+    if (index === null) {
+      const indices = [];
+      const position = geometry.getAttribute("position");
+      if (position !== undefined) {
+        for (let i = 0;i < position.count; i++) {
+          indices.push(i);
+        }
+        geometry.setIndex(indices);
+        index = geometry.getIndex();
+      } else {
+        console.error("THREE.BufferGeometryUtils.toTrianglesDrawMode(): Undefined position attribute. Processing not possible.");
+        return geometry;
+      }
+    }
+    const numberOfTriangles = index.count - 2;
+    const newIndices = [];
+    if (drawMode === TriangleFanDrawMode) {
+      for (let i = 1;i <= numberOfTriangles; i++) {
+        newIndices.push(index.getX(0));
+        newIndices.push(index.getX(i));
+        newIndices.push(index.getX(i + 1));
+      }
+    } else {
+      for (let i = 0;i < numberOfTriangles; i++) {
+        if (i % 2 === 0) {
+          newIndices.push(index.getX(i));
+          newIndices.push(index.getX(i + 1));
+          newIndices.push(index.getX(i + 2));
+        } else {
+          newIndices.push(index.getX(i + 2));
+          newIndices.push(index.getX(i + 1));
+          newIndices.push(index.getX(i));
+        }
+      }
+    }
+    if (newIndices.length / 3 !== numberOfTriangles) {
+      console.error("THREE.BufferGeometryUtils.toTrianglesDrawMode(): Unable to generate correct amount of triangles.");
+    }
+    const newGeometry = geometry.clone();
+    newGeometry.setIndex(newIndices);
+    newGeometry.clearGroups();
+    return newGeometry;
+  } else {
+    console.error("THREE.BufferGeometryUtils.toTrianglesDrawMode(): Unknown draw mode:", drawMode);
+    return geometry;
+  }
+}
+
+// node_modules/three/examples/jsm/utils/SkeletonUtils.js
+function clone(source) {
+  const sourceLookup = new Map;
+  const cloneLookup = new Map;
+  const clone2 = source.clone();
+  parallelTraverse(source, clone2, function(sourceNode, clonedNode) {
+    sourceLookup.set(clonedNode, sourceNode);
+    cloneLookup.set(sourceNode, clonedNode);
+  });
+  clone2.traverse(function(node) {
+    if (!node.isSkinnedMesh)
+      return;
+    const clonedMesh = node;
+    const sourceMesh = sourceLookup.get(node);
+    const sourceBones = sourceMesh.skeleton.bones;
+    clonedMesh.skeleton = sourceMesh.skeleton.clone();
+    clonedMesh.bindMatrix.copy(sourceMesh.bindMatrix);
+    clonedMesh.skeleton.bones = sourceBones.map(function(bone) {
+      return cloneLookup.get(bone);
+    });
+    clonedMesh.bind(clonedMesh.skeleton, clonedMesh.bindMatrix);
+  });
+  return clone2;
+}
+function parallelTraverse(a, b, callback) {
+  callback(a, b);
+  for (let i = 0;i < a.children.length; i++) {
+    parallelTraverse(a.children[i], b.children[i], callback);
+  }
+}
+
+// node_modules/three/examples/jsm/loaders/GLTFLoader.js
+class GLTFLoader extends Loader {
+  constructor(manager) {
+    super(manager);
+    this.dracoLoader = null;
+    this.ktx2Loader = null;
+    this.meshoptDecoder = null;
+    this.pluginCallbacks = [];
+    this.register(function(parser) {
+      return new GLTFMaterialsClearcoatExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsDispersionExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFTextureBasisUExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFTextureWebPExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFTextureAVIFExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsSheenExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsTransmissionExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsVolumeExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsIorExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsEmissiveStrengthExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsSpecularExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsIridescenceExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsAnisotropyExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMaterialsBumpExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFLightsExtension(parser);
+    });
+    this.register(function(parser) {
+      return new GLTFMeshoptCompression(parser, EXTENSIONS.EXT_MESHOPT_COMPRESSION);
+    });
+    this.register(function(parser) {
+      return new GLTFMeshoptCompression(parser, EXTENSIONS.KHR_MESHOPT_COMPRESSION);
+    });
+    this.register(function(parser) {
+      return new GLTFMeshGpuInstancing(parser);
+    });
+  }
+  load(url, onLoad, onProgress, onError) {
+    const scope = this;
+    let resourcePath;
+    if (this.resourcePath !== "") {
+      resourcePath = this.resourcePath;
+    } else if (this.path !== "") {
+      const relativeUrl = LoaderUtils.extractUrlBase(url);
+      resourcePath = LoaderUtils.resolveURL(relativeUrl, this.path);
+    } else {
+      resourcePath = LoaderUtils.extractUrlBase(url);
+    }
+    this.manager.itemStart(url);
+    const _onError = function(e) {
+      if (onError) {
+        onError(e);
+      } else {
+        console.error(e);
+      }
+      scope.manager.itemError(url);
+      scope.manager.itemEnd(url);
+    };
+    const loader = new FileLoader(this.manager);
+    loader.setPath(this.path);
+    loader.setResponseType("arraybuffer");
+    loader.setRequestHeader(this.requestHeader);
+    loader.setWithCredentials(this.withCredentials);
+    loader.load(url, function(data) {
+      try {
+        scope.parse(data, resourcePath, function(gltf) {
+          onLoad(gltf);
+          scope.manager.itemEnd(url);
+        }, _onError);
+      } catch (e) {
+        _onError(e);
+      }
+    }, onProgress, _onError);
+  }
+  setDRACOLoader(dracoLoader) {
+    this.dracoLoader = dracoLoader;
+    return this;
+  }
+  setKTX2Loader(ktx2Loader) {
+    this.ktx2Loader = ktx2Loader;
+    return this;
+  }
+  setMeshoptDecoder(meshoptDecoder) {
+    this.meshoptDecoder = meshoptDecoder;
+    return this;
+  }
+  register(callback) {
+    if (this.pluginCallbacks.indexOf(callback) === -1) {
+      this.pluginCallbacks.push(callback);
+    }
+    return this;
+  }
+  unregister(callback) {
+    if (this.pluginCallbacks.indexOf(callback) !== -1) {
+      this.pluginCallbacks.splice(this.pluginCallbacks.indexOf(callback), 1);
+    }
+    return this;
+  }
+  parse(data, path, onLoad, onError) {
+    let json;
+    const extensions = {};
+    const plugins = {};
+    const textDecoder = new TextDecoder;
+    if (typeof data === "string") {
+      json = JSON.parse(data);
+    } else if (data instanceof ArrayBuffer) {
+      const magic = textDecoder.decode(new Uint8Array(data, 0, 4));
+      if (magic === BINARY_EXTENSION_HEADER_MAGIC) {
+        try {
+          extensions[EXTENSIONS.KHR_BINARY_GLTF] = new GLTFBinaryExtension(data);
+        } catch (error2) {
+          if (onError)
+            onError(error2);
+          return;
+        }
+        json = JSON.parse(extensions[EXTENSIONS.KHR_BINARY_GLTF].content);
+      } else {
+        json = JSON.parse(textDecoder.decode(data));
+      }
+    } else {
+      json = data;
+    }
+    if (json.asset === undefined || json.asset.version[0] < 2) {
+      if (onError)
+        onError(new Error("THREE.GLTFLoader: Unsupported asset. glTF versions >=2.0 are supported."));
+      return;
+    }
+    const parser = new GLTFParser(json, {
+      path: path || this.resourcePath || "",
+      crossOrigin: this.crossOrigin,
+      requestHeader: this.requestHeader,
+      manager: this.manager,
+      ktx2Loader: this.ktx2Loader,
+      meshoptDecoder: this.meshoptDecoder
+    });
+    parser.fileLoader.setRequestHeader(this.requestHeader);
+    for (let i = 0;i < this.pluginCallbacks.length; i++) {
+      const plugin = this.pluginCallbacks[i](parser);
+      if (!plugin.name)
+        console.error("THREE.GLTFLoader: Invalid plugin found: missing name");
+      plugins[plugin.name] = plugin;
+      extensions[plugin.name] = true;
+    }
+    if (json.extensionsUsed) {
+      for (let i = 0;i < json.extensionsUsed.length; ++i) {
+        const extensionName = json.extensionsUsed[i];
+        const extensionsRequired = json.extensionsRequired || [];
+        switch (extensionName) {
+          case EXTENSIONS.KHR_MATERIALS_UNLIT:
+            extensions[extensionName] = new GLTFMaterialsUnlitExtension;
+            break;
+          case EXTENSIONS.KHR_DRACO_MESH_COMPRESSION:
+            extensions[extensionName] = new GLTFDracoMeshCompressionExtension(json, this.dracoLoader);
+            break;
+          case EXTENSIONS.KHR_TEXTURE_TRANSFORM:
+            extensions[extensionName] = new GLTFTextureTransformExtension;
+            break;
+          case EXTENSIONS.KHR_MESH_QUANTIZATION:
+            extensions[extensionName] = new GLTFMeshQuantizationExtension;
+            break;
+          default:
+            if (extensionsRequired.indexOf(extensionName) >= 0 && plugins[extensionName] === undefined) {
+              console.warn('THREE.GLTFLoader: Unknown extension "' + extensionName + '".');
+            }
+        }
+      }
+    }
+    parser.setExtensions(extensions);
+    parser.setPlugins(plugins);
+    parser.parse(onLoad, onError);
+  }
+  parseAsync(data, path) {
+    const scope = this;
+    return new Promise(function(resolve, reject) {
+      scope.parse(data, path, resolve, reject);
+    });
+  }
+}
+function GLTFRegistry() {
+  let objects = {};
+  return {
+    get: function(key) {
+      return objects[key];
+    },
+    add: function(key, object) {
+      objects[key] = object;
+    },
+    remove: function(key) {
+      delete objects[key];
+    },
+    removeAll: function() {
+      objects = {};
+    }
+  };
+}
+function getMaterialExtension(parser, materialIndex, extensionName) {
+  const materialDef = parser.json.materials[materialIndex];
+  if (materialDef.extensions && materialDef.extensions[extensionName]) {
+    return materialDef.extensions[extensionName];
+  }
+  return null;
+}
+var EXTENSIONS = {
+  KHR_BINARY_GLTF: "KHR_binary_glTF",
+  KHR_DRACO_MESH_COMPRESSION: "KHR_draco_mesh_compression",
+  KHR_LIGHTS_PUNCTUAL: "KHR_lights_punctual",
+  KHR_MATERIALS_CLEARCOAT: "KHR_materials_clearcoat",
+  KHR_MATERIALS_DISPERSION: "KHR_materials_dispersion",
+  KHR_MATERIALS_IOR: "KHR_materials_ior",
+  KHR_MATERIALS_SHEEN: "KHR_materials_sheen",
+  KHR_MATERIALS_SPECULAR: "KHR_materials_specular",
+  KHR_MATERIALS_TRANSMISSION: "KHR_materials_transmission",
+  KHR_MATERIALS_IRIDESCENCE: "KHR_materials_iridescence",
+  KHR_MATERIALS_ANISOTROPY: "KHR_materials_anisotropy",
+  KHR_MATERIALS_UNLIT: "KHR_materials_unlit",
+  KHR_MATERIALS_VOLUME: "KHR_materials_volume",
+  KHR_TEXTURE_BASISU: "KHR_texture_basisu",
+  KHR_TEXTURE_TRANSFORM: "KHR_texture_transform",
+  KHR_MESH_QUANTIZATION: "KHR_mesh_quantization",
+  KHR_MATERIALS_EMISSIVE_STRENGTH: "KHR_materials_emissive_strength",
+  EXT_MATERIALS_BUMP: "EXT_materials_bump",
+  EXT_TEXTURE_WEBP: "EXT_texture_webp",
+  EXT_TEXTURE_AVIF: "EXT_texture_avif",
+  EXT_MESHOPT_COMPRESSION: "EXT_meshopt_compression",
+  KHR_MESHOPT_COMPRESSION: "KHR_meshopt_compression",
+  EXT_MESH_GPU_INSTANCING: "EXT_mesh_gpu_instancing"
+};
+
+class GLTFLightsExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_LIGHTS_PUNCTUAL;
+    this.cache = { refs: {}, uses: {} };
+  }
+  _markDefs() {
+    const parser = this.parser;
+    const nodeDefs = this.parser.json.nodes || [];
+    for (let nodeIndex = 0, nodeLength = nodeDefs.length;nodeIndex < nodeLength; nodeIndex++) {
+      const nodeDef = nodeDefs[nodeIndex];
+      if (nodeDef.extensions && nodeDef.extensions[this.name] && nodeDef.extensions[this.name].light !== undefined) {
+        parser._addNodeRef(this.cache, nodeDef.extensions[this.name].light);
+      }
+    }
+  }
+  _loadLight(lightIndex) {
+    const parser = this.parser;
+    const cacheKey = "light:" + lightIndex;
+    let dependency = parser.cache.get(cacheKey);
+    if (dependency)
+      return dependency;
+    const json = parser.json;
+    const extensions = json.extensions && json.extensions[this.name] || {};
+    const lightDefs = extensions.lights || [];
+    const lightDef = lightDefs[lightIndex];
+    let lightNode;
+    const color = new Color(16777215);
+    if (lightDef.color !== undefined)
+      color.setRGB(lightDef.color[0], lightDef.color[1], lightDef.color[2], LinearSRGBColorSpace);
+    const range = lightDef.range !== undefined ? lightDef.range : 0;
+    switch (lightDef.type) {
+      case "directional":
+        lightNode = new DirectionalLight(color);
+        lightNode.target.position.set(0, 0, -1);
+        lightNode.add(lightNode.target);
+        break;
+      case "point":
+        lightNode = new PointLight(color);
+        lightNode.distance = range;
+        break;
+      case "spot":
+        lightNode = new SpotLight(color);
+        lightNode.distance = range;
+        lightDef.spot = lightDef.spot || {};
+        lightDef.spot.innerConeAngle = lightDef.spot.innerConeAngle !== undefined ? lightDef.spot.innerConeAngle : 0;
+        lightDef.spot.outerConeAngle = lightDef.spot.outerConeAngle !== undefined ? lightDef.spot.outerConeAngle : Math.PI / 4;
+        lightNode.angle = lightDef.spot.outerConeAngle;
+        lightNode.penumbra = 1 - lightDef.spot.innerConeAngle / lightDef.spot.outerConeAngle;
+        lightNode.target.position.set(0, 0, -1);
+        lightNode.add(lightNode.target);
+        break;
+      default:
+        throw new Error("THREE.GLTFLoader: Unexpected light type: " + lightDef.type);
+    }
+    lightNode.position.set(0, 0, 0);
+    assignExtrasToUserData(lightNode, lightDef);
+    if (lightDef.intensity !== undefined)
+      lightNode.intensity = lightDef.intensity;
+    lightNode.name = parser.createUniqueName(lightDef.name || "light_" + lightIndex);
+    dependency = Promise.resolve(lightNode);
+    parser.cache.add(cacheKey, dependency);
+    return dependency;
+  }
+  getDependency(type, index) {
+    if (type !== "light")
+      return;
+    return this._loadLight(index);
+  }
+  createNodeAttachment(nodeIndex) {
+    const self2 = this;
+    const parser = this.parser;
+    const json = parser.json;
+    const nodeDef = json.nodes[nodeIndex];
+    const lightDef = nodeDef.extensions && nodeDef.extensions[this.name] || {};
+    const lightIndex = lightDef.light;
+    if (lightIndex === undefined)
+      return null;
+    return this._loadLight(lightIndex).then(function(light) {
+      return parser._getNodeRef(self2.cache, lightIndex, light);
+    });
+  }
+}
+
+class GLTFMaterialsUnlitExtension {
+  constructor() {
+    this.name = EXTENSIONS.KHR_MATERIALS_UNLIT;
+  }
+  getMaterialType() {
+    return MeshBasicMaterial;
+  }
+  extendParams(materialParams, materialDef, parser) {
+    const pending = [];
+    materialParams.color = new Color(1, 1, 1);
+    materialParams.opacity = 1;
+    const metallicRoughness = materialDef.pbrMetallicRoughness;
+    if (metallicRoughness) {
+      if (Array.isArray(metallicRoughness.baseColorFactor)) {
+        const array = metallicRoughness.baseColorFactor;
+        materialParams.color.setRGB(array[0], array[1], array[2], LinearSRGBColorSpace);
+        materialParams.opacity = array[3];
+      }
+      if (metallicRoughness.baseColorTexture !== undefined) {
+        pending.push(parser.assignTexture(materialParams, "map", metallicRoughness.baseColorTexture, SRGBColorSpace));
+      }
+    }
+    return Promise.all(pending);
+  }
+}
+
+class GLTFMaterialsEmissiveStrengthExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_EMISSIVE_STRENGTH;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    if (extension === null)
+      return Promise.resolve();
+    if (extension.emissiveStrength !== undefined) {
+      materialParams.emissiveIntensity = extension.emissiveStrength;
+    }
+    return Promise.resolve();
+  }
+}
+
+class GLTFMaterialsClearcoatExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_CLEARCOAT;
+  }
+  getMaterialType(materialIndex) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    return extension !== null ? MeshPhysicalMaterial : null;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    if (extension === null)
+      return Promise.resolve();
+    const pending = [];
+    if (extension.clearcoatFactor !== undefined) {
+      materialParams.clearcoat = extension.clearcoatFactor;
+    }
+    if (extension.clearcoatTexture !== undefined) {
+      pending.push(this.parser.assignTexture(materialParams, "clearcoatMap", extension.clearcoatTexture));
+    }
+    if (extension.clearcoatRoughnessFactor !== undefined) {
+      materialParams.clearcoatRoughness = extension.clearcoatRoughnessFactor;
+    }
+    if (extension.clearcoatRoughnessTexture !== undefined) {
+      pending.push(this.parser.assignTexture(materialParams, "clearcoatRoughnessMap", extension.clearcoatRoughnessTexture));
+    }
+    if (extension.clearcoatNormalTexture !== undefined) {
+      pending.push(this.parser.assignTexture(materialParams, "clearcoatNormalMap", extension.clearcoatNormalTexture));
+      if (extension.clearcoatNormalTexture.scale !== undefined) {
+        const scale = extension.clearcoatNormalTexture.scale;
+        materialParams.clearcoatNormalScale = new Vector2(scale, scale);
+      }
+    }
+    return Promise.all(pending);
+  }
+}
+
+class GLTFMaterialsDispersionExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_DISPERSION;
+  }
+  getMaterialType(materialIndex) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    return extension !== null ? MeshPhysicalMaterial : null;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    if (extension === null)
+      return Promise.resolve();
+    materialParams.dispersion = extension.dispersion !== undefined ? extension.dispersion : 0;
+    return Promise.resolve();
+  }
+}
+
+class GLTFMaterialsIridescenceExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_IRIDESCENCE;
+  }
+  getMaterialType(materialIndex) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    return extension !== null ? MeshPhysicalMaterial : null;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    if (extension === null)
+      return Promise.resolve();
+    const pending = [];
+    if (extension.iridescenceFactor !== undefined) {
+      materialParams.iridescence = extension.iridescenceFactor;
+    }
+    if (extension.iridescenceTexture !== undefined) {
+      pending.push(this.parser.assignTexture(materialParams, "iridescenceMap", extension.iridescenceTexture));
+    }
+    if (extension.iridescenceIor !== undefined) {
+      materialParams.iridescenceIOR = extension.iridescenceIor;
+    }
+    if (materialParams.iridescenceThicknessRange === undefined) {
+      materialParams.iridescenceThicknessRange = [100, 400];
+    }
+    if (extension.iridescenceThicknessMinimum !== undefined) {
+      materialParams.iridescenceThicknessRange[0] = extension.iridescenceThicknessMinimum;
+    }
+    if (extension.iridescenceThicknessMaximum !== undefined) {
+      materialParams.iridescenceThicknessRange[1] = extension.iridescenceThicknessMaximum;
+    }
+    if (extension.iridescenceThicknessTexture !== undefined) {
+      pending.push(this.parser.assignTexture(materialParams, "iridescenceThicknessMap", extension.iridescenceThicknessTexture));
+    }
+    return Promise.all(pending);
+  }
+}
+
+class GLTFMaterialsSheenExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_SHEEN;
+  }
+  getMaterialType(materialIndex) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    return extension !== null ? MeshPhysicalMaterial : null;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    if (extension === null)
+      return Promise.resolve();
+    const pending = [];
+    materialParams.sheenColor = new Color(0, 0, 0);
+    materialParams.sheenRoughness = 0;
+    materialParams.sheen = 1;
+    if (extension.sheenColorFactor !== undefined) {
+      const colorFactor = extension.sheenColorFactor;
+      materialParams.sheenColor.setRGB(colorFactor[0], colorFactor[1], colorFactor[2], LinearSRGBColorSpace);
+    }
+    if (extension.sheenRoughnessFactor !== undefined) {
+      materialParams.sheenRoughness = extension.sheenRoughnessFactor;
+    }
+    if (extension.sheenColorTexture !== undefined) {
+      pending.push(this.parser.assignTexture(materialParams, "sheenColorMap", extension.sheenColorTexture, SRGBColorSpace));
+    }
+    if (extension.sheenRoughnessTexture !== undefined) {
+      pending.push(this.parser.assignTexture(materialParams, "sheenRoughnessMap", extension.sheenRoughnessTexture));
+    }
+    return Promise.all(pending);
+  }
+}
+
+class GLTFMaterialsTransmissionExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_TRANSMISSION;
+  }
+  getMaterialType(materialIndex) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    return extension !== null ? MeshPhysicalMaterial : null;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    if (extension === null)
+      return Promise.resolve();
+    const pending = [];
+    if (extension.transmissionFactor !== undefined) {
+      materialParams.transmission = extension.transmissionFactor;
+    }
+    if (extension.transmissionTexture !== undefined) {
+      pending.push(this.parser.assignTexture(materialParams, "transmissionMap", extension.transmissionTexture));
+    }
+    return Promise.all(pending);
+  }
+}
+
+class GLTFMaterialsVolumeExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_VOLUME;
+  }
+  getMaterialType(materialIndex) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    return extension !== null ? MeshPhysicalMaterial : null;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    if (extension === null)
+      return Promise.resolve();
+    const pending = [];
+    materialParams.thickness = extension.thicknessFactor !== undefined ? extension.thicknessFactor : 0;
+    if (extension.thicknessTexture !== undefined) {
+      pending.push(this.parser.assignTexture(materialParams, "thicknessMap", extension.thicknessTexture));
+    }
+    materialParams.attenuationDistance = extension.attenuationDistance || Infinity;
+    const colorArray = extension.attenuationColor || [1, 1, 1];
+    materialParams.attenuationColor = new Color().setRGB(colorArray[0], colorArray[1], colorArray[2], LinearSRGBColorSpace);
+    return Promise.all(pending);
+  }
+}
+
+class GLTFMaterialsIorExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_IOR;
+  }
+  getMaterialType(materialIndex) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    return extension !== null ? MeshPhysicalMaterial : null;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    if (extension === null)
+      return Promise.resolve();
+    materialParams.ior = extension.ior !== undefined ? extension.ior : 1.5;
+    if (materialParams.ior === 0)
+      materialParams.ior = 1000;
+    return Promise.resolve();
+  }
+}
+
+class GLTFMaterialsSpecularExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_SPECULAR;
+  }
+  getMaterialType(materialIndex) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    return extension !== null ? MeshPhysicalMaterial : null;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    if (extension === null)
+      return Promise.resolve();
+    const pending = [];
+    materialParams.specularIntensity = extension.specularFactor !== undefined ? extension.specularFactor : 1;
+    if (extension.specularTexture !== undefined) {
+      pending.push(this.parser.assignTexture(materialParams, "specularIntensityMap", extension.specularTexture));
+    }
+    const colorArray = extension.specularColorFactor || [1, 1, 1];
+    materialParams.specularColor = new Color().setRGB(colorArray[0], colorArray[1], colorArray[2], LinearSRGBColorSpace);
+    if (extension.specularColorTexture !== undefined) {
+      pending.push(this.parser.assignTexture(materialParams, "specularColorMap", extension.specularColorTexture, SRGBColorSpace));
+    }
+    return Promise.all(pending);
+  }
+}
+
+class GLTFMaterialsBumpExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.EXT_MATERIALS_BUMP;
+  }
+  getMaterialType(materialIndex) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    return extension !== null ? MeshPhysicalMaterial : null;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    if (extension === null)
+      return Promise.resolve();
+    const pending = [];
+    materialParams.bumpScale = extension.bumpFactor !== undefined ? extension.bumpFactor : 1;
+    if (extension.bumpTexture !== undefined) {
+      pending.push(this.parser.assignTexture(materialParams, "bumpMap", extension.bumpTexture));
+    }
+    return Promise.all(pending);
+  }
+}
+
+class GLTFMaterialsAnisotropyExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_MATERIALS_ANISOTROPY;
+  }
+  getMaterialType(materialIndex) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    return extension !== null ? MeshPhysicalMaterial : null;
+  }
+  extendMaterialParams(materialIndex, materialParams) {
+    const extension = getMaterialExtension(this.parser, materialIndex, this.name);
+    if (extension === null)
+      return Promise.resolve();
+    const pending = [];
+    if (extension.anisotropyStrength !== undefined) {
+      materialParams.anisotropy = extension.anisotropyStrength;
+    }
+    if (extension.anisotropyRotation !== undefined) {
+      materialParams.anisotropyRotation = extension.anisotropyRotation;
+    }
+    if (extension.anisotropyTexture !== undefined) {
+      pending.push(this.parser.assignTexture(materialParams, "anisotropyMap", extension.anisotropyTexture));
+    }
+    return Promise.all(pending);
+  }
+}
+
+class GLTFTextureBasisUExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.KHR_TEXTURE_BASISU;
+  }
+  loadTexture(textureIndex) {
+    const parser = this.parser;
+    const json = parser.json;
+    const textureDef = json.textures[textureIndex];
+    if (!textureDef.extensions || !textureDef.extensions[this.name]) {
+      return null;
+    }
+    const extension = textureDef.extensions[this.name];
+    const loader = parser.options.ktx2Loader;
+    if (!loader) {
+      if (json.extensionsRequired && json.extensionsRequired.indexOf(this.name) >= 0) {
+        throw new Error("THREE.GLTFLoader: setKTX2Loader must be called before loading KTX2 textures");
+      } else {
+        return null;
+      }
+    }
+    return parser.loadTextureImage(textureIndex, extension.source, loader);
+  }
+}
+
+class GLTFTextureWebPExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.EXT_TEXTURE_WEBP;
+  }
+  loadTexture(textureIndex) {
+    const name = this.name;
+    const parser = this.parser;
+    const json = parser.json;
+    const textureDef = json.textures[textureIndex];
+    if (!textureDef.extensions || !textureDef.extensions[name]) {
+      return null;
+    }
+    const extension = textureDef.extensions[name];
+    const source = json.images[extension.source];
+    let loader = parser.textureLoader;
+    if (source.uri) {
+      const handler = parser.options.manager.getHandler(source.uri);
+      if (handler !== null)
+        loader = handler;
+    }
+    return parser.loadTextureImage(textureIndex, extension.source, loader);
+  }
+}
+
+class GLTFTextureAVIFExtension {
+  constructor(parser) {
+    this.parser = parser;
+    this.name = EXTENSIONS.EXT_TEXTURE_AVIF;
+  }
+  loadTexture(textureIndex) {
+    const name = this.name;
+    const parser = this.parser;
+    const json = parser.json;
+    const textureDef = json.textures[textureIndex];
+    if (!textureDef.extensions || !textureDef.extensions[name]) {
+      return null;
+    }
+    const extension = textureDef.extensions[name];
+    const source = json.images[extension.source];
+    let loader = parser.textureLoader;
+    if (source.uri) {
+      const handler = parser.options.manager.getHandler(source.uri);
+      if (handler !== null)
+        loader = handler;
+    }
+    return parser.loadTextureImage(textureIndex, extension.source, loader);
+  }
+}
+
+class GLTFMeshoptCompression {
+  constructor(parser, name) {
+    this.name = name;
+    this.parser = parser;
+  }
+  loadBufferView(index) {
+    const json = this.parser.json;
+    const bufferView = json.bufferViews[index];
+    if (bufferView.extensions && bufferView.extensions[this.name]) {
+      const extensionDef = bufferView.extensions[this.name];
+      const buffer = this.parser.getDependency("buffer", extensionDef.buffer);
+      const decoder = this.parser.options.meshoptDecoder;
+      if (!decoder || !decoder.supported) {
+        if (json.extensionsRequired && json.extensionsRequired.indexOf(this.name) >= 0) {
+          throw new Error("THREE.GLTFLoader: setMeshoptDecoder must be called before loading compressed files");
+        } else {
+          return null;
+        }
+      }
+      return buffer.then(function(res) {
+        const byteOffset = extensionDef.byteOffset || 0;
+        const byteLength = extensionDef.byteLength || 0;
+        const count = extensionDef.count;
+        const stride = extensionDef.byteStride;
+        const source = new Uint8Array(res, byteOffset, byteLength);
+        if (decoder.decodeGltfBufferAsync) {
+          return decoder.decodeGltfBufferAsync(count, stride, source, extensionDef.mode, extensionDef.filter).then(function(res2) {
+            return res2.buffer;
+          });
+        } else {
+          return decoder.ready.then(function() {
+            const result = new ArrayBuffer(count * stride);
+            decoder.decodeGltfBuffer(new Uint8Array(result), count, stride, source, extensionDef.mode, extensionDef.filter);
+            return result;
+          });
+        }
+      });
+    } else {
+      return null;
+    }
+  }
+}
+
+class GLTFMeshGpuInstancing {
+  constructor(parser) {
+    this.name = EXTENSIONS.EXT_MESH_GPU_INSTANCING;
+    this.parser = parser;
+  }
+  createNodeMesh(nodeIndex) {
+    const json = this.parser.json;
+    const nodeDef = json.nodes[nodeIndex];
+    if (!nodeDef.extensions || !nodeDef.extensions[this.name] || nodeDef.mesh === undefined) {
+      return null;
+    }
+    const meshDef = json.meshes[nodeDef.mesh];
+    for (const primitive of meshDef.primitives) {
+      if (primitive.mode !== WEBGL_CONSTANTS.TRIANGLES && primitive.mode !== WEBGL_CONSTANTS.TRIANGLE_STRIP && primitive.mode !== WEBGL_CONSTANTS.TRIANGLE_FAN && primitive.mode !== undefined) {
+        return null;
+      }
+    }
+    const extensionDef = nodeDef.extensions[this.name];
+    const attributesDef = extensionDef.attributes;
+    const pending = [];
+    const attributes = {};
+    for (const key in attributesDef) {
+      pending.push(this.parser.getDependency("accessor", attributesDef[key]).then((accessor) => {
+        attributes[key] = accessor;
+        return attributes[key];
+      }));
+    }
+    if (pending.length < 1) {
+      return null;
+    }
+    pending.push(this.parser.createNodeMesh(nodeIndex));
+    return Promise.all(pending).then((results) => {
+      const nodeObject = results.pop();
+      const meshes = nodeObject.isGroup ? nodeObject.children : [nodeObject];
+      const count = results[0].count;
+      const instancedMeshes = [];
+      for (const mesh of meshes) {
+        const m = new Matrix4;
+        const p = new Vector3;
+        const q = new Quaternion;
+        const s = new Vector3(1, 1, 1);
+        const instancedMesh = new InstancedMesh(mesh.geometry, mesh.material, count);
+        for (let i = 0;i < count; i++) {
+          if (attributes.TRANSLATION) {
+            p.fromBufferAttribute(attributes.TRANSLATION, i);
+          }
+          if (attributes.ROTATION) {
+            q.fromBufferAttribute(attributes.ROTATION, i);
+          }
+          if (attributes.SCALE) {
+            s.fromBufferAttribute(attributes.SCALE, i);
+          }
+          instancedMesh.setMatrixAt(i, m.compose(p, q, s));
+        }
+        for (const attributeName in attributes) {
+          if (attributeName === "_COLOR_0") {
+            const attr = attributes[attributeName];
+            instancedMesh.instanceColor = new InstancedBufferAttribute(attr.array, attr.itemSize, attr.normalized);
+          } else if (attributeName !== "TRANSLATION" && attributeName !== "ROTATION" && attributeName !== "SCALE") {
+            mesh.geometry.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+        Object3D.prototype.copy.call(instancedMesh, mesh);
+        this.parser.assignFinalMaterial(instancedMesh);
+        instancedMeshes.push(instancedMesh);
+      }
+      if (nodeObject.isGroup) {
+        nodeObject.clear();
+        nodeObject.add(...instancedMeshes);
+        return nodeObject;
+      }
+      return instancedMeshes[0];
+    });
+  }
+}
+var BINARY_EXTENSION_HEADER_MAGIC = "glTF";
+var BINARY_EXTENSION_HEADER_LENGTH = 12;
+var BINARY_EXTENSION_CHUNK_TYPES = { JSON: 1313821514, BIN: 5130562 };
+
+class GLTFBinaryExtension {
+  constructor(data) {
+    this.name = EXTENSIONS.KHR_BINARY_GLTF;
+    this.content = null;
+    this.body = null;
+    const headerView = new DataView(data, 0, BINARY_EXTENSION_HEADER_LENGTH);
+    const textDecoder = new TextDecoder;
+    this.header = {
+      magic: textDecoder.decode(new Uint8Array(data.slice(0, 4))),
+      version: headerView.getUint32(4, true),
+      length: headerView.getUint32(8, true)
+    };
+    if (this.header.magic !== BINARY_EXTENSION_HEADER_MAGIC) {
+      throw new Error("THREE.GLTFLoader: Unsupported glTF-Binary header.");
+    } else if (this.header.version < 2) {
+      throw new Error("THREE.GLTFLoader: Legacy binary file detected.");
+    }
+    const chunkContentsLength = this.header.length - BINARY_EXTENSION_HEADER_LENGTH;
+    const chunkView = new DataView(data, BINARY_EXTENSION_HEADER_LENGTH);
+    let chunkIndex = 0;
+    while (chunkIndex < chunkContentsLength) {
+      const chunkLength = chunkView.getUint32(chunkIndex, true);
+      chunkIndex += 4;
+      const chunkType = chunkView.getUint32(chunkIndex, true);
+      chunkIndex += 4;
+      if (chunkType === BINARY_EXTENSION_CHUNK_TYPES.JSON) {
+        const contentArray = new Uint8Array(data, BINARY_EXTENSION_HEADER_LENGTH + chunkIndex, chunkLength);
+        this.content = textDecoder.decode(contentArray);
+      } else if (chunkType === BINARY_EXTENSION_CHUNK_TYPES.BIN) {
+        const byteOffset = BINARY_EXTENSION_HEADER_LENGTH + chunkIndex;
+        this.body = data.slice(byteOffset, byteOffset + chunkLength);
+      }
+      chunkIndex += chunkLength;
+    }
+    if (this.content === null) {
+      throw new Error("THREE.GLTFLoader: JSON content not found.");
+    }
+  }
+}
+
+class GLTFDracoMeshCompressionExtension {
+  constructor(json, dracoLoader) {
+    if (!dracoLoader) {
+      throw new Error("THREE.GLTFLoader: No DRACOLoader instance provided.");
+    }
+    this.name = EXTENSIONS.KHR_DRACO_MESH_COMPRESSION;
+    this.json = json;
+    this.dracoLoader = dracoLoader;
+    this.dracoLoader.preload();
+  }
+  decodePrimitive(primitive, parser) {
+    const json = this.json;
+    const dracoLoader = this.dracoLoader;
+    const bufferViewIndex = primitive.extensions[this.name].bufferView;
+    const gltfAttributeMap = primitive.extensions[this.name].attributes;
+    const threeAttributeMap = {};
+    const attributeNormalizedMap = {};
+    const attributeTypeMap = {};
+    for (const attributeName in gltfAttributeMap) {
+      const threeAttributeName = ATTRIBUTES[attributeName] || attributeName.toLowerCase();
+      threeAttributeMap[threeAttributeName] = gltfAttributeMap[attributeName];
+    }
+    for (const attributeName in primitive.attributes) {
+      const threeAttributeName = ATTRIBUTES[attributeName] || attributeName.toLowerCase();
+      if (gltfAttributeMap[attributeName] !== undefined) {
+        const accessorDef = json.accessors[primitive.attributes[attributeName]];
+        const componentType = WEBGL_COMPONENT_TYPES[accessorDef.componentType];
+        attributeTypeMap[threeAttributeName] = componentType.name;
+        attributeNormalizedMap[threeAttributeName] = accessorDef.normalized === true;
+      }
+    }
+    return parser.getDependency("bufferView", bufferViewIndex).then(function(bufferView) {
+      return new Promise(function(resolve, reject) {
+        dracoLoader.decodeDracoFile(bufferView, function(geometry) {
+          for (const attributeName in geometry.attributes) {
+            const attribute = geometry.attributes[attributeName];
+            const normalized = attributeNormalizedMap[attributeName];
+            if (normalized !== undefined)
+              attribute.normalized = normalized;
+          }
+          resolve(geometry);
+        }, threeAttributeMap, attributeTypeMap, LinearSRGBColorSpace, reject);
+      });
+    });
+  }
+}
+
+class GLTFTextureTransformExtension {
+  constructor() {
+    this.name = EXTENSIONS.KHR_TEXTURE_TRANSFORM;
+  }
+  extendTexture(texture, transform) {
+    if ((transform.texCoord === undefined || transform.texCoord === texture.channel) && transform.offset === undefined && transform.rotation === undefined && transform.scale === undefined) {
+      return texture;
+    }
+    texture = texture.clone();
+    if (transform.texCoord !== undefined) {
+      texture.channel = transform.texCoord;
+    }
+    if (transform.offset !== undefined) {
+      texture.offset.fromArray(transform.offset);
+    }
+    if (transform.rotation !== undefined) {
+      texture.rotation = transform.rotation;
+    }
+    if (transform.scale !== undefined) {
+      texture.repeat.fromArray(transform.scale);
+    }
+    texture.needsUpdate = true;
+    return texture;
+  }
+}
+
+class GLTFMeshQuantizationExtension {
+  constructor() {
+    this.name = EXTENSIONS.KHR_MESH_QUANTIZATION;
+  }
+}
+
+class GLTFCubicSplineInterpolant extends Interpolant {
+  constructor(parameterPositions, sampleValues, sampleSize, resultBuffer) {
+    super(parameterPositions, sampleValues, sampleSize, resultBuffer);
+  }
+  copySampleValue_(index) {
+    const result = this.resultBuffer, values = this.sampleValues, valueSize = this.valueSize, offset = index * valueSize * 3 + valueSize;
+    for (let i = 0;i !== valueSize; i++) {
+      result[i] = values[offset + i];
+    }
+    return result;
+  }
+  interpolate_(i1, t0, t, t1) {
+    const result = this.resultBuffer;
+    const values = this.sampleValues;
+    const stride = this.valueSize;
+    const stride2 = stride * 2;
+    const stride3 = stride * 3;
+    const td = t1 - t0;
+    const p = (t - t0) / td;
+    const pp = p * p;
+    const ppp = pp * p;
+    const offset1 = i1 * stride3;
+    const offset0 = offset1 - stride3;
+    const s2 = -2 * ppp + 3 * pp;
+    const s3 = ppp - pp;
+    const s0 = 1 - s2;
+    const s1 = s3 - pp + p;
+    for (let i = 0;i !== stride; i++) {
+      const p0 = values[offset0 + i + stride];
+      const m0 = values[offset0 + i + stride2] * td;
+      const p1 = values[offset1 + i + stride];
+      const m1 = values[offset1 + i] * td;
+      result[i] = s0 * p0 + s1 * m0 + s2 * p1 + s3 * m1;
+    }
+    return result;
+  }
+}
+var _quaternion2 = new Quaternion;
+
+class GLTFCubicSplineQuaternionInterpolant extends GLTFCubicSplineInterpolant {
+  interpolate_(i1, t0, t, t1) {
+    const result = super.interpolate_(i1, t0, t, t1);
+    _quaternion2.fromArray(result).normalize().toArray(result);
+    return result;
+  }
+}
+var WEBGL_CONSTANTS = {
+  FLOAT: 5126,
+  FLOAT_MAT3: 35675,
+  FLOAT_MAT4: 35676,
+  FLOAT_VEC2: 35664,
+  FLOAT_VEC3: 35665,
+  FLOAT_VEC4: 35666,
+  LINEAR: 9729,
+  REPEAT: 10497,
+  SAMPLER_2D: 35678,
+  POINTS: 0,
+  LINES: 1,
+  LINE_LOOP: 2,
+  LINE_STRIP: 3,
+  TRIANGLES: 4,
+  TRIANGLE_STRIP: 5,
+  TRIANGLE_FAN: 6,
+  UNSIGNED_BYTE: 5121,
+  UNSIGNED_SHORT: 5123
+};
+var WEBGL_COMPONENT_TYPES = {
+  5120: Int8Array,
+  5121: Uint8Array,
+  5122: Int16Array,
+  5123: Uint16Array,
+  5125: Uint32Array,
+  5126: Float32Array
+};
+var WEBGL_FILTERS = {
+  9728: NearestFilter,
+  9729: LinearFilter,
+  9984: NearestMipmapNearestFilter,
+  9985: LinearMipmapNearestFilter,
+  9986: NearestMipmapLinearFilter,
+  9987: LinearMipmapLinearFilter
+};
+var WEBGL_WRAPPINGS = {
+  33071: ClampToEdgeWrapping,
+  33648: MirroredRepeatWrapping,
+  10497: RepeatWrapping
+};
+var WEBGL_TYPE_SIZES = {
+  SCALAR: 1,
+  VEC2: 2,
+  VEC3: 3,
+  VEC4: 4,
+  MAT2: 4,
+  MAT3: 9,
+  MAT4: 16
+};
+var ATTRIBUTES = {
+  POSITION: "position",
+  NORMAL: "normal",
+  TANGENT: "tangent",
+  TEXCOORD_0: "uv",
+  TEXCOORD_1: "uv1",
+  TEXCOORD_2: "uv2",
+  TEXCOORD_3: "uv3",
+  COLOR_0: "color",
+  WEIGHTS_0: "skinWeight",
+  JOINTS_0: "skinIndex"
+};
+var PATH_PROPERTIES = {
+  scale: "scale",
+  translation: "position",
+  rotation: "quaternion",
+  weights: "morphTargetInfluences"
+};
+var INTERPOLATION = {
+  CUBICSPLINE: undefined,
+  LINEAR: InterpolateLinear,
+  STEP: InterpolateDiscrete
+};
+var ALPHA_MODES = {
+  OPAQUE: "OPAQUE",
+  MASK: "MASK",
+  BLEND: "BLEND"
+};
+function createDefaultMaterial(cache) {
+  if (cache["DefaultMaterial"] === undefined) {
+    cache["DefaultMaterial"] = new MeshStandardMaterial({
+      color: 16777215,
+      emissive: 0,
+      metalness: 1,
+      roughness: 1,
+      transparent: false,
+      depthTest: true,
+      side: FrontSide
+    });
+  }
+  return cache["DefaultMaterial"];
+}
+function addUnknownExtensionsToUserData(knownExtensions, object, objectDef) {
+  for (const name in objectDef.extensions) {
+    if (knownExtensions[name] === undefined) {
+      object.userData.gltfExtensions = object.userData.gltfExtensions || {};
+      object.userData.gltfExtensions[name] = objectDef.extensions[name];
+    }
+  }
+}
+function assignExtrasToUserData(object, gltfDef) {
+  if (gltfDef.extras !== undefined) {
+    if (typeof gltfDef.extras === "object") {
+      Object.assign(object.userData, gltfDef.extras);
+    } else {
+      console.warn("THREE.GLTFLoader: Ignoring primitive type .extras, " + gltfDef.extras);
+    }
+  }
+}
+function addMorphTargets(geometry, targets, parser) {
+  let hasMorphPosition = false;
+  let hasMorphNormal = false;
+  let hasMorphColor = false;
+  for (let i = 0, il = targets.length;i < il; i++) {
+    const target = targets[i];
+    if (target.POSITION !== undefined)
+      hasMorphPosition = true;
+    if (target.NORMAL !== undefined)
+      hasMorphNormal = true;
+    if (target.COLOR_0 !== undefined)
+      hasMorphColor = true;
+    if (hasMorphPosition && hasMorphNormal && hasMorphColor)
+      break;
+  }
+  if (!hasMorphPosition && !hasMorphNormal && !hasMorphColor)
+    return Promise.resolve(geometry);
+  const pendingPositionAccessors = [];
+  const pendingNormalAccessors = [];
+  const pendingColorAccessors = [];
+  for (let i = 0, il = targets.length;i < il; i++) {
+    const target = targets[i];
+    if (hasMorphPosition) {
+      const pendingAccessor = target.POSITION !== undefined ? parser.getDependency("accessor", target.POSITION) : geometry.attributes.position;
+      pendingPositionAccessors.push(pendingAccessor);
+    }
+    if (hasMorphNormal) {
+      const pendingAccessor = target.NORMAL !== undefined ? parser.getDependency("accessor", target.NORMAL) : geometry.attributes.normal;
+      pendingNormalAccessors.push(pendingAccessor);
+    }
+    if (hasMorphColor) {
+      const pendingAccessor = target.COLOR_0 !== undefined ? parser.getDependency("accessor", target.COLOR_0) : geometry.attributes.color;
+      pendingColorAccessors.push(pendingAccessor);
+    }
+  }
+  return Promise.all([
+    Promise.all(pendingPositionAccessors),
+    Promise.all(pendingNormalAccessors),
+    Promise.all(pendingColorAccessors)
+  ]).then(function(accessors) {
+    const morphPositions = accessors[0];
+    const morphNormals = accessors[1];
+    const morphColors = accessors[2];
+    if (hasMorphPosition)
+      geometry.morphAttributes.position = morphPositions;
+    if (hasMorphNormal)
+      geometry.morphAttributes.normal = morphNormals;
+    if (hasMorphColor)
+      geometry.morphAttributes.color = morphColors;
+    geometry.morphTargetsRelative = true;
+    return geometry;
+  });
+}
+function updateMorphTargets(mesh, meshDef) {
+  mesh.updateMorphTargets();
+  if (meshDef.weights !== undefined) {
+    for (let i = 0, il = meshDef.weights.length;i < il; i++) {
+      mesh.morphTargetInfluences[i] = meshDef.weights[i];
+    }
+  }
+  if (meshDef.extras && Array.isArray(meshDef.extras.targetNames)) {
+    const targetNames = meshDef.extras.targetNames;
+    if (mesh.morphTargetInfluences.length === targetNames.length) {
+      mesh.morphTargetDictionary = {};
+      for (let i = 0, il = targetNames.length;i < il; i++) {
+        mesh.morphTargetDictionary[targetNames[i]] = i;
+      }
+    } else {
+      console.warn("THREE.GLTFLoader: Invalid extras.targetNames length. Ignoring names.");
+    }
+  }
+}
+function createPrimitiveKey(primitiveDef) {
+  let geometryKey;
+  const dracoExtension = primitiveDef.extensions && primitiveDef.extensions[EXTENSIONS.KHR_DRACO_MESH_COMPRESSION];
+  if (dracoExtension) {
+    geometryKey = "draco:" + dracoExtension.bufferView + ":" + dracoExtension.indices + ":" + createAttributesKey(dracoExtension.attributes);
+  } else {
+    geometryKey = primitiveDef.indices + ":" + createAttributesKey(primitiveDef.attributes) + ":" + primitiveDef.mode;
+  }
+  if (primitiveDef.targets !== undefined) {
+    for (let i = 0, il = primitiveDef.targets.length;i < il; i++) {
+      geometryKey += ":" + createAttributesKey(primitiveDef.targets[i]);
+    }
+  }
+  return geometryKey;
+}
+function createAttributesKey(attributes) {
+  let attributesKey = "";
+  const keys = Object.keys(attributes).sort();
+  for (let i = 0, il = keys.length;i < il; i++) {
+    attributesKey += keys[i] + ":" + attributes[keys[i]] + ";";
+  }
+  return attributesKey;
+}
+function getNormalizedComponentScale(constructor) {
+  switch (constructor) {
+    case Int8Array:
+      return 1 / 127;
+    case Uint8Array:
+      return 1 / 255;
+    case Int16Array:
+      return 1 / 32767;
+    case Uint16Array:
+      return 1 / 65535;
+    default:
+      throw new Error("THREE.GLTFLoader: Unsupported normalized accessor component type.");
+  }
+}
+function getImageURIMimeType(uri) {
+  if (uri.search(/\.jpe?g($|\?)/i) > 0 || uri.search(/^data\:image\/jpeg/) === 0)
+    return "image/jpeg";
+  if (uri.search(/\.webp($|\?)/i) > 0 || uri.search(/^data\:image\/webp/) === 0)
+    return "image/webp";
+  if (uri.search(/\.ktx2($|\?)/i) > 0 || uri.search(/^data\:image\/ktx2/) === 0)
+    return "image/ktx2";
+  return "image/png";
+}
+var _identityMatrix2 = new Matrix4;
+
+class GLTFParser {
+  constructor(json = {}, options = {}) {
+    this.json = json;
+    this.extensions = {};
+    this.plugins = {};
+    this.options = options;
+    this.cache = new GLTFRegistry;
+    this.associations = new Map;
+    this.primitiveCache = {};
+    this.nodeCache = {};
+    this.meshCache = { refs: {}, uses: {} };
+    this.cameraCache = { refs: {}, uses: {} };
+    this.lightCache = { refs: {}, uses: {} };
+    this.sourceCache = {};
+    this.textureCache = {};
+    this.nodeNamesUsed = {};
+    let isSafari = false;
+    let safariVersion = -1;
+    let isFirefox = false;
+    let firefoxVersion = -1;
+    if (typeof navigator !== "undefined" && typeof navigator.userAgent !== "undefined") {
+      const userAgent = navigator.userAgent;
+      isSafari = /^((?!chrome|android).)*safari/i.test(userAgent) === true;
+      const safariMatch = userAgent.match(/Version\/(\d+)/);
+      safariVersion = isSafari && safariMatch ? parseInt(safariMatch[1], 10) : -1;
+      isFirefox = userAgent.indexOf("Firefox") > -1;
+      firefoxVersion = isFirefox ? userAgent.match(/Firefox\/([0-9]+)\./)[1] : -1;
+    }
+    if (typeof createImageBitmap === "undefined" || isSafari && safariVersion < 17 || isFirefox && firefoxVersion < 98) {
+      this.textureLoader = new TextureLoader(this.options.manager);
+    } else {
+      this.textureLoader = new ImageBitmapLoader(this.options.manager);
+    }
+    this.textureLoader.setCrossOrigin(this.options.crossOrigin);
+    this.textureLoader.setRequestHeader(this.options.requestHeader);
+    this.fileLoader = new FileLoader(this.options.manager);
+    this.fileLoader.setResponseType("arraybuffer");
+    if (this.options.crossOrigin === "use-credentials") {
+      this.fileLoader.setWithCredentials(true);
+    }
+  }
+  setExtensions(extensions) {
+    this.extensions = extensions;
+  }
+  setPlugins(plugins) {
+    this.plugins = plugins;
+  }
+  parse(onLoad, onError) {
+    const parser = this;
+    const json = this.json;
+    const extensions = this.extensions;
+    this.cache.removeAll();
+    this.nodeCache = {};
+    this._invokeAll(function(ext) {
+      return ext._markDefs && ext._markDefs();
+    });
+    Promise.all(this._invokeAll(function(ext) {
+      return ext.beforeRoot && ext.beforeRoot();
+    })).then(function() {
+      return Promise.all([
+        parser.getDependencies("scene"),
+        parser.getDependencies("animation"),
+        parser.getDependencies("camera")
+      ]);
+    }).then(function(dependencies) {
+      const result = {
+        scene: dependencies[0][json.scene || 0],
+        scenes: dependencies[0],
+        animations: dependencies[1],
+        cameras: dependencies[2],
+        asset: json.asset,
+        parser,
+        userData: {}
+      };
+      addUnknownExtensionsToUserData(extensions, result, json);
+      assignExtrasToUserData(result, json);
+      return Promise.all(parser._invokeAll(function(ext) {
+        return ext.afterRoot && ext.afterRoot(result);
+      })).then(function() {
+        for (const scene2 of result.scenes) {
+          scene2.updateMatrixWorld();
+        }
+        onLoad(result);
+      });
+    }).catch(onError);
+  }
+  _markDefs() {
+    const nodeDefs = this.json.nodes || [];
+    const skinDefs = this.json.skins || [];
+    const meshDefs = this.json.meshes || [];
+    for (let skinIndex = 0, skinLength = skinDefs.length;skinIndex < skinLength; skinIndex++) {
+      const joints = skinDefs[skinIndex].joints;
+      for (let i = 0, il = joints.length;i < il; i++) {
+        nodeDefs[joints[i]].isBone = true;
+      }
+    }
+    for (let nodeIndex = 0, nodeLength = nodeDefs.length;nodeIndex < nodeLength; nodeIndex++) {
+      const nodeDef = nodeDefs[nodeIndex];
+      if (nodeDef.mesh !== undefined) {
+        this._addNodeRef(this.meshCache, nodeDef.mesh);
+        if (nodeDef.skin !== undefined) {
+          meshDefs[nodeDef.mesh].isSkinnedMesh = true;
+        }
+      }
+      if (nodeDef.camera !== undefined) {
+        this._addNodeRef(this.cameraCache, nodeDef.camera);
+      }
+    }
+  }
+  _addNodeRef(cache, index) {
+    if (index === undefined)
+      return;
+    if (cache.refs[index] === undefined) {
+      cache.refs[index] = cache.uses[index] = 0;
+    }
+    cache.refs[index]++;
+  }
+  _getNodeRef(cache, index, object) {
+    if (cache.refs[index] <= 1)
+      return object;
+    const ref = object.clone();
+    const updateMappings = (original, clone2) => {
+      const mappings = this.associations.get(original);
+      if (mappings != null) {
+        this.associations.set(clone2, mappings);
+      }
+      for (const [i, child] of original.children.entries()) {
+        updateMappings(child, clone2.children[i]);
+      }
+    };
+    updateMappings(object, ref);
+    ref.name += "_instance_" + cache.uses[index]++;
+    return ref;
+  }
+  _invokeOne(func) {
+    const extensions = Object.values(this.plugins);
+    extensions.push(this);
+    for (let i = 0;i < extensions.length; i++) {
+      const result = func(extensions[i]);
+      if (result)
+        return result;
+    }
+    return null;
+  }
+  _invokeAll(func) {
+    const extensions = Object.values(this.plugins);
+    extensions.unshift(this);
+    const pending = [];
+    for (let i = 0;i < extensions.length; i++) {
+      const result = func(extensions[i]);
+      if (result)
+        pending.push(result);
+    }
+    return pending;
+  }
+  getDependency(type, index) {
+    const cacheKey = type + ":" + index;
+    let dependency = this.cache.get(cacheKey);
+    if (!dependency) {
+      switch (type) {
+        case "scene":
+          dependency = this.loadScene(index);
+          break;
+        case "node":
+          dependency = this._invokeOne(function(ext) {
+            return ext.loadNode && ext.loadNode(index);
+          });
+          break;
+        case "mesh":
+          dependency = this._invokeOne(function(ext) {
+            return ext.loadMesh && ext.loadMesh(index);
+          });
+          break;
+        case "accessor":
+          dependency = this.loadAccessor(index);
+          break;
+        case "bufferView":
+          dependency = this._invokeOne(function(ext) {
+            return ext.loadBufferView && ext.loadBufferView(index);
+          });
+          break;
+        case "buffer":
+          dependency = this.loadBuffer(index);
+          break;
+        case "material":
+          dependency = this._invokeOne(function(ext) {
+            return ext.loadMaterial && ext.loadMaterial(index);
+          });
+          break;
+        case "texture":
+          dependency = this._invokeOne(function(ext) {
+            return ext.loadTexture && ext.loadTexture(index);
+          });
+          break;
+        case "skin":
+          dependency = this.loadSkin(index);
+          break;
+        case "animation":
+          dependency = this._invokeOne(function(ext) {
+            return ext.loadAnimation && ext.loadAnimation(index);
+          });
+          break;
+        case "camera":
+          dependency = this.loadCamera(index);
+          break;
+        default:
+          dependency = this._invokeOne(function(ext) {
+            return ext != this && ext.getDependency && ext.getDependency(type, index);
+          });
+          if (!dependency) {
+            throw new Error("Unknown type: " + type);
+          }
+          break;
+      }
+      this.cache.add(cacheKey, dependency);
+    }
+    return dependency;
+  }
+  getDependencies(type) {
+    let dependencies = this.cache.get(type);
+    if (!dependencies) {
+      const parser = this;
+      const defs = this.json[type + (type === "mesh" ? "es" : "s")] || [];
+      dependencies = Promise.all(defs.map(function(def, index) {
+        return parser.getDependency(type, index);
+      }));
+      this.cache.add(type, dependencies);
+    }
+    return dependencies;
+  }
+  loadBuffer(bufferIndex) {
+    const bufferDef = this.json.buffers[bufferIndex];
+    const loader = this.fileLoader;
+    if (bufferDef.type && bufferDef.type !== "arraybuffer") {
+      throw new Error("THREE.GLTFLoader: " + bufferDef.type + " buffer type is not supported.");
+    }
+    if (bufferDef.uri === undefined && bufferIndex === 0) {
+      return Promise.resolve(this.extensions[EXTENSIONS.KHR_BINARY_GLTF].body);
+    }
+    const options = this.options;
+    return new Promise(function(resolve, reject) {
+      loader.load(LoaderUtils.resolveURL(bufferDef.uri, options.path), resolve, undefined, function() {
+        reject(new Error('THREE.GLTFLoader: Failed to load buffer "' + bufferDef.uri + '".'));
+      });
+    });
+  }
+  loadBufferView(bufferViewIndex) {
+    const bufferViewDef = this.json.bufferViews[bufferViewIndex];
+    return this.getDependency("buffer", bufferViewDef.buffer).then(function(buffer) {
+      const byteLength = bufferViewDef.byteLength || 0;
+      const byteOffset = bufferViewDef.byteOffset || 0;
+      return buffer.slice(byteOffset, byteOffset + byteLength);
+    });
+  }
+  loadAccessor(accessorIndex) {
+    const parser = this;
+    const json = this.json;
+    const accessorDef = this.json.accessors[accessorIndex];
+    if (accessorDef.bufferView === undefined && accessorDef.sparse === undefined) {
+      const itemSize = WEBGL_TYPE_SIZES[accessorDef.type];
+      const TypedArray = WEBGL_COMPONENT_TYPES[accessorDef.componentType];
+      const normalized = accessorDef.normalized === true;
+      const array = new TypedArray(accessorDef.count * itemSize);
+      return Promise.resolve(new BufferAttribute(array, itemSize, normalized));
+    }
+    const pendingBufferViews = [];
+    if (accessorDef.bufferView !== undefined) {
+      pendingBufferViews.push(this.getDependency("bufferView", accessorDef.bufferView));
+    } else {
+      pendingBufferViews.push(null);
+    }
+    if (accessorDef.sparse !== undefined) {
+      pendingBufferViews.push(this.getDependency("bufferView", accessorDef.sparse.indices.bufferView));
+      pendingBufferViews.push(this.getDependency("bufferView", accessorDef.sparse.values.bufferView));
+    }
+    return Promise.all(pendingBufferViews).then(function(bufferViews) {
+      const bufferView = bufferViews[0];
+      const itemSize = WEBGL_TYPE_SIZES[accessorDef.type];
+      const TypedArray = WEBGL_COMPONENT_TYPES[accessorDef.componentType];
+      const elementBytes = TypedArray.BYTES_PER_ELEMENT;
+      const itemBytes = elementBytes * itemSize;
+      const byteOffset = accessorDef.byteOffset || 0;
+      const byteStride = accessorDef.bufferView !== undefined ? json.bufferViews[accessorDef.bufferView].byteStride : undefined;
+      const normalized = accessorDef.normalized === true;
+      let array, bufferAttribute;
+      if (byteStride && byteStride !== itemBytes) {
+        const ibSlice = Math.floor(byteOffset / byteStride);
+        const ibCacheKey = "InterleavedBuffer:" + accessorDef.bufferView + ":" + accessorDef.componentType + ":" + ibSlice + ":" + accessorDef.count;
+        let ib = parser.cache.get(ibCacheKey);
+        if (!ib) {
+          array = new TypedArray(bufferView, ibSlice * byteStride, accessorDef.count * byteStride / elementBytes);
+          ib = new InterleavedBuffer(array, byteStride / elementBytes);
+          parser.cache.add(ibCacheKey, ib);
+        }
+        bufferAttribute = new InterleavedBufferAttribute(ib, itemSize, byteOffset % byteStride / elementBytes, normalized);
+      } else {
+        if (bufferView === null) {
+          array = new TypedArray(accessorDef.count * itemSize);
+        } else {
+          array = new TypedArray(bufferView, byteOffset, accessorDef.count * itemSize);
+        }
+        bufferAttribute = new BufferAttribute(array, itemSize, normalized);
+      }
+      if (accessorDef.sparse !== undefined) {
+        const itemSizeIndices = WEBGL_TYPE_SIZES.SCALAR;
+        const TypedArrayIndices = WEBGL_COMPONENT_TYPES[accessorDef.sparse.indices.componentType];
+        const byteOffsetIndices = accessorDef.sparse.indices.byteOffset || 0;
+        const byteOffsetValues = accessorDef.sparse.values.byteOffset || 0;
+        const sparseIndices = new TypedArrayIndices(bufferViews[1], byteOffsetIndices, accessorDef.sparse.count * itemSizeIndices);
+        const sparseValues = new TypedArray(bufferViews[2], byteOffsetValues, accessorDef.sparse.count * itemSize);
+        if (bufferView !== null) {
+          bufferAttribute = new BufferAttribute(bufferAttribute.array.slice(), bufferAttribute.itemSize, bufferAttribute.normalized);
+        }
+        bufferAttribute.normalized = false;
+        for (let i = 0, il = sparseIndices.length;i < il; i++) {
+          const index = sparseIndices[i];
+          bufferAttribute.setX(index, sparseValues[i * itemSize]);
+          if (itemSize >= 2)
+            bufferAttribute.setY(index, sparseValues[i * itemSize + 1]);
+          if (itemSize >= 3)
+            bufferAttribute.setZ(index, sparseValues[i * itemSize + 2]);
+          if (itemSize >= 4)
+            bufferAttribute.setW(index, sparseValues[i * itemSize + 3]);
+          if (itemSize >= 5)
+            throw new Error("THREE.GLTFLoader: Unsupported itemSize in sparse BufferAttribute.");
+        }
+        bufferAttribute.normalized = normalized;
+      }
+      return bufferAttribute;
+    });
+  }
+  loadTexture(textureIndex) {
+    const json = this.json;
+    const options = this.options;
+    const textureDef = json.textures[textureIndex];
+    const sourceIndex = textureDef.source;
+    const sourceDef = json.images[sourceIndex];
+    let loader = this.textureLoader;
+    if (sourceDef.uri) {
+      const handler = options.manager.getHandler(sourceDef.uri);
+      if (handler !== null)
+        loader = handler;
+    }
+    return this.loadTextureImage(textureIndex, sourceIndex, loader);
+  }
+  loadTextureImage(textureIndex, sourceIndex, loader) {
+    const parser = this;
+    const json = this.json;
+    const textureDef = json.textures[textureIndex];
+    const sourceDef = json.images[sourceIndex];
+    const cacheKey = (sourceDef.uri || sourceDef.bufferView) + ":" + textureDef.sampler;
+    if (this.textureCache[cacheKey]) {
+      return this.textureCache[cacheKey];
+    }
+    const promise = this.loadImageSource(sourceIndex, loader).then(function(texture) {
+      texture.flipY = false;
+      texture.name = textureDef.name || sourceDef.name || "";
+      if (texture.name === "" && typeof sourceDef.uri === "string" && sourceDef.uri.startsWith("data:image/") === false) {
+        texture.name = sourceDef.uri;
+      }
+      const samplers = json.samplers || {};
+      const sampler = samplers[textureDef.sampler] || {};
+      texture.magFilter = WEBGL_FILTERS[sampler.magFilter] || LinearFilter;
+      texture.minFilter = WEBGL_FILTERS[sampler.minFilter] || LinearMipmapLinearFilter;
+      texture.wrapS = WEBGL_WRAPPINGS[sampler.wrapS] || RepeatWrapping;
+      texture.wrapT = WEBGL_WRAPPINGS[sampler.wrapT] || RepeatWrapping;
+      texture.generateMipmaps = !texture.isCompressedTexture && texture.minFilter !== NearestFilter && texture.minFilter !== LinearFilter;
+      parser.associations.set(texture, { textures: textureIndex });
+      return texture;
+    }).catch(function() {
+      return null;
+    });
+    this.textureCache[cacheKey] = promise;
+    return promise;
+  }
+  loadImageSource(sourceIndex, loader) {
+    const parser = this;
+    const json = this.json;
+    const options = this.options;
+    if (this.sourceCache[sourceIndex] !== undefined) {
+      return this.sourceCache[sourceIndex].then((texture) => texture.clone());
+    }
+    const sourceDef = json.images[sourceIndex];
+    const URL2 = self.URL || self.webkitURL;
+    let sourceURI = sourceDef.uri || "";
+    let isObjectURL = false;
+    if (sourceDef.bufferView !== undefined) {
+      sourceURI = parser.getDependency("bufferView", sourceDef.bufferView).then(function(bufferView) {
+        isObjectURL = true;
+        const blob = new Blob([bufferView], { type: sourceDef.mimeType });
+        sourceURI = URL2.createObjectURL(blob);
+        return sourceURI;
+      });
+    } else if (sourceDef.uri === undefined) {
+      throw new Error("THREE.GLTFLoader: Image " + sourceIndex + " is missing URI and bufferView");
+    }
+    const promise = Promise.resolve(sourceURI).then(function(sourceURI2) {
+      return new Promise(function(resolve, reject) {
+        let onLoad = resolve;
+        if (loader.isImageBitmapLoader === true) {
+          onLoad = function(imageBitmap) {
+            const texture = new Texture(imageBitmap);
+            texture.needsUpdate = true;
+            resolve(texture);
+          };
+        }
+        loader.load(LoaderUtils.resolveURL(sourceURI2, options.path), onLoad, undefined, reject);
+      });
+    }).then(function(texture) {
+      if (isObjectURL === true) {
+        URL2.revokeObjectURL(sourceURI);
+      }
+      assignExtrasToUserData(texture, sourceDef);
+      texture.userData.mimeType = sourceDef.mimeType || getImageURIMimeType(sourceDef.uri);
+      return texture;
+    }).catch(function(error2) {
+      console.error("THREE.GLTFLoader: Couldn't load texture", sourceURI);
+      throw error2;
+    });
+    this.sourceCache[sourceIndex] = promise;
+    return promise;
+  }
+  assignTexture(materialParams, mapName, mapDef, colorSpace) {
+    const parser = this;
+    return this.getDependency("texture", mapDef.index).then(function(texture) {
+      if (!texture)
+        return null;
+      if (mapDef.texCoord !== undefined && mapDef.texCoord > 0) {
+        texture = texture.clone();
+        texture.channel = mapDef.texCoord;
+      }
+      if (parser.extensions[EXTENSIONS.KHR_TEXTURE_TRANSFORM]) {
+        const transform = mapDef.extensions !== undefined ? mapDef.extensions[EXTENSIONS.KHR_TEXTURE_TRANSFORM] : undefined;
+        if (transform) {
+          const gltfReference = parser.associations.get(texture);
+          texture = parser.extensions[EXTENSIONS.KHR_TEXTURE_TRANSFORM].extendTexture(texture, transform);
+          parser.associations.set(texture, gltfReference);
+        }
+      }
+      if (colorSpace !== undefined) {
+        texture.colorSpace = colorSpace;
+      }
+      materialParams[mapName] = texture;
+      return texture;
+    });
+  }
+  assignFinalMaterial(mesh) {
+    const geometry = mesh.geometry;
+    let material = mesh.material;
+    const useDerivativeTangents = geometry.attributes.tangent === undefined;
+    const useVertexColors = geometry.attributes.color !== undefined;
+    const useFlatShading = geometry.attributes.normal === undefined;
+    if (mesh.isPoints) {
+      const cacheKey = "PointsMaterial:" + material.uuid;
+      let pointsMaterial = this.cache.get(cacheKey);
+      if (!pointsMaterial) {
+        pointsMaterial = new PointsMaterial;
+        Material.prototype.copy.call(pointsMaterial, material);
+        pointsMaterial.color.copy(material.color);
+        pointsMaterial.map = material.map;
+        pointsMaterial.sizeAttenuation = false;
+        this.cache.add(cacheKey, pointsMaterial);
+      }
+      material = pointsMaterial;
+    } else if (mesh.isLine) {
+      const cacheKey = "LineBasicMaterial:" + material.uuid;
+      let lineMaterial = this.cache.get(cacheKey);
+      if (!lineMaterial) {
+        lineMaterial = new LineBasicMaterial;
+        Material.prototype.copy.call(lineMaterial, material);
+        lineMaterial.color.copy(material.color);
+        lineMaterial.map = material.map;
+        this.cache.add(cacheKey, lineMaterial);
+      }
+      material = lineMaterial;
+    }
+    if (useDerivativeTangents || useVertexColors || useFlatShading) {
+      let cacheKey = "ClonedMaterial:" + material.uuid + ":";
+      if (useDerivativeTangents)
+        cacheKey += "derivative-tangents:";
+      if (useVertexColors)
+        cacheKey += "vertex-colors:";
+      if (useFlatShading)
+        cacheKey += "flat-shading:";
+      let cachedMaterial = this.cache.get(cacheKey);
+      if (!cachedMaterial) {
+        cachedMaterial = material.clone();
+        if (useVertexColors)
+          cachedMaterial.vertexColors = true;
+        if (useFlatShading)
+          cachedMaterial.flatShading = true;
+        if (useDerivativeTangents) {
+          if (cachedMaterial.normalScale)
+            cachedMaterial.normalScale.y *= -1;
+          if (cachedMaterial.clearcoatNormalScale)
+            cachedMaterial.clearcoatNormalScale.y *= -1;
+        }
+        this.cache.add(cacheKey, cachedMaterial);
+        this.associations.set(cachedMaterial, this.associations.get(material));
+      }
+      material = cachedMaterial;
+    }
+    mesh.material = material;
+  }
+  getMaterialType() {
+    return MeshStandardMaterial;
+  }
+  loadMaterial(materialIndex) {
+    const parser = this;
+    const json = this.json;
+    const extensions = this.extensions;
+    const materialDef = json.materials[materialIndex];
+    let materialType;
+    const materialParams = {};
+    const materialExtensions = materialDef.extensions || {};
+    const pending = [];
+    if (materialExtensions[EXTENSIONS.KHR_MATERIALS_UNLIT]) {
+      const kmuExtension = extensions[EXTENSIONS.KHR_MATERIALS_UNLIT];
+      materialType = kmuExtension.getMaterialType();
+      pending.push(kmuExtension.extendParams(materialParams, materialDef, parser));
+    } else {
+      const metallicRoughness = materialDef.pbrMetallicRoughness || {};
+      materialParams.color = new Color(1, 1, 1);
+      materialParams.opacity = 1;
+      if (Array.isArray(metallicRoughness.baseColorFactor)) {
+        const array = metallicRoughness.baseColorFactor;
+        materialParams.color.setRGB(array[0], array[1], array[2], LinearSRGBColorSpace);
+        materialParams.opacity = array[3];
+      }
+      if (metallicRoughness.baseColorTexture !== undefined) {
+        pending.push(parser.assignTexture(materialParams, "map", metallicRoughness.baseColorTexture, SRGBColorSpace));
+      }
+      materialParams.metalness = metallicRoughness.metallicFactor !== undefined ? metallicRoughness.metallicFactor : 1;
+      materialParams.roughness = metallicRoughness.roughnessFactor !== undefined ? metallicRoughness.roughnessFactor : 1;
+      if (metallicRoughness.metallicRoughnessTexture !== undefined) {
+        pending.push(parser.assignTexture(materialParams, "metalnessMap", metallicRoughness.metallicRoughnessTexture));
+        pending.push(parser.assignTexture(materialParams, "roughnessMap", metallicRoughness.metallicRoughnessTexture));
+      }
+      materialType = this._invokeOne(function(ext) {
+        return ext.getMaterialType && ext.getMaterialType(materialIndex);
+      });
+      pending.push(Promise.all(this._invokeAll(function(ext) {
+        return ext.extendMaterialParams && ext.extendMaterialParams(materialIndex, materialParams);
+      })));
+    }
+    if (materialDef.doubleSided === true) {
+      materialParams.side = DoubleSide;
+    }
+    const alphaMode = materialDef.alphaMode || ALPHA_MODES.OPAQUE;
+    if (alphaMode === ALPHA_MODES.BLEND) {
+      materialParams.transparent = true;
+      materialParams.depthWrite = false;
+    } else {
+      materialParams.transparent = false;
+      if (alphaMode === ALPHA_MODES.MASK) {
+        materialParams.alphaTest = materialDef.alphaCutoff !== undefined ? materialDef.alphaCutoff : 0.5;
+      }
+    }
+    if (materialDef.normalTexture !== undefined && materialType !== MeshBasicMaterial) {
+      pending.push(parser.assignTexture(materialParams, "normalMap", materialDef.normalTexture));
+      materialParams.normalScale = new Vector2(1, 1);
+      if (materialDef.normalTexture.scale !== undefined) {
+        const scale = materialDef.normalTexture.scale;
+        materialParams.normalScale.set(scale, scale);
+      }
+    }
+    if (materialDef.occlusionTexture !== undefined && materialType !== MeshBasicMaterial) {
+      pending.push(parser.assignTexture(materialParams, "aoMap", materialDef.occlusionTexture));
+      if (materialDef.occlusionTexture.strength !== undefined) {
+        materialParams.aoMapIntensity = materialDef.occlusionTexture.strength;
+      }
+    }
+    if (materialDef.emissiveFactor !== undefined && materialType !== MeshBasicMaterial) {
+      const emissiveFactor = materialDef.emissiveFactor;
+      materialParams.emissive = new Color().setRGB(emissiveFactor[0], emissiveFactor[1], emissiveFactor[2], LinearSRGBColorSpace);
+    }
+    if (materialDef.emissiveTexture !== undefined && materialType !== MeshBasicMaterial) {
+      pending.push(parser.assignTexture(materialParams, "emissiveMap", materialDef.emissiveTexture, SRGBColorSpace));
+    }
+    return Promise.all(pending).then(function() {
+      const material = new materialType(materialParams);
+      if (materialDef.name)
+        material.name = materialDef.name;
+      assignExtrasToUserData(material, materialDef);
+      parser.associations.set(material, { materials: materialIndex });
+      if (materialDef.extensions)
+        addUnknownExtensionsToUserData(extensions, material, materialDef);
+      return material;
+    });
+  }
+  createUniqueName(originalName) {
+    const sanitizedName = PropertyBinding.sanitizeNodeName(originalName || "");
+    if (sanitizedName in this.nodeNamesUsed) {
+      return sanitizedName + "_" + ++this.nodeNamesUsed[sanitizedName];
+    } else {
+      this.nodeNamesUsed[sanitizedName] = 0;
+      return sanitizedName;
+    }
+  }
+  loadGeometries(primitives) {
+    const parser = this;
+    const extensions = this.extensions;
+    const cache = this.primitiveCache;
+    function createDracoPrimitive(primitive) {
+      return extensions[EXTENSIONS.KHR_DRACO_MESH_COMPRESSION].decodePrimitive(primitive, parser).then(function(geometry) {
+        return addPrimitiveAttributes(geometry, primitive, parser);
+      });
+    }
+    const pending = [];
+    for (let i = 0, il = primitives.length;i < il; i++) {
+      const primitive = primitives[i];
+      const cacheKey = createPrimitiveKey(primitive);
+      const cached = cache[cacheKey];
+      if (cached) {
+        pending.push(cached.promise);
+      } else {
+        let geometryPromise;
+        if (primitive.extensions && primitive.extensions[EXTENSIONS.KHR_DRACO_MESH_COMPRESSION]) {
+          geometryPromise = createDracoPrimitive(primitive);
+        } else {
+          geometryPromise = addPrimitiveAttributes(new BufferGeometry, primitive, parser);
+        }
+        cache[cacheKey] = { primitive, promise: geometryPromise };
+        pending.push(geometryPromise);
+      }
+    }
+    return Promise.all(pending);
+  }
+  loadMesh(meshIndex) {
+    const parser = this;
+    const json = this.json;
+    const extensions = this.extensions;
+    const meshDef = json.meshes[meshIndex];
+    const primitives = meshDef.primitives;
+    const pending = [];
+    for (let i = 0, il = primitives.length;i < il; i++) {
+      const material = primitives[i].material === undefined ? createDefaultMaterial(this.cache) : this.getDependency("material", primitives[i].material);
+      pending.push(material);
+    }
+    pending.push(parser.loadGeometries(primitives));
+    return Promise.all(pending).then(function(results) {
+      const materials = results.slice(0, results.length - 1);
+      const geometries = results[results.length - 1];
+      const meshes = [];
+      for (let i = 0, il = geometries.length;i < il; i++) {
+        const geometry = geometries[i];
+        const primitive = primitives[i];
+        let mesh;
+        const material = materials[i];
+        if (primitive.mode === WEBGL_CONSTANTS.TRIANGLES || primitive.mode === WEBGL_CONSTANTS.TRIANGLE_STRIP || primitive.mode === WEBGL_CONSTANTS.TRIANGLE_FAN || primitive.mode === undefined) {
+          mesh = meshDef.isSkinnedMesh === true ? new SkinnedMesh(geometry, material) : new Mesh(geometry, material);
+          if (mesh.isSkinnedMesh === true) {
+            mesh.normalizeSkinWeights();
+          }
+          if (primitive.mode === WEBGL_CONSTANTS.TRIANGLE_STRIP) {
+            mesh.geometry = toTrianglesDrawMode(mesh.geometry, TriangleStripDrawMode);
+          } else if (primitive.mode === WEBGL_CONSTANTS.TRIANGLE_FAN) {
+            mesh.geometry = toTrianglesDrawMode(mesh.geometry, TriangleFanDrawMode);
+          }
+        } else if (primitive.mode === WEBGL_CONSTANTS.LINES) {
+          mesh = new LineSegments(geometry, material);
+        } else if (primitive.mode === WEBGL_CONSTANTS.LINE_STRIP) {
+          mesh = new Line(geometry, material);
+        } else if (primitive.mode === WEBGL_CONSTANTS.LINE_LOOP) {
+          mesh = new LineLoop(geometry, material);
+        } else if (primitive.mode === WEBGL_CONSTANTS.POINTS) {
+          mesh = new Points(geometry, material);
+        } else {
+          throw new Error("THREE.GLTFLoader: Primitive mode unsupported: " + primitive.mode);
+        }
+        if (Object.keys(mesh.geometry.morphAttributes).length > 0) {
+          updateMorphTargets(mesh, meshDef);
+        }
+        mesh.name = parser.createUniqueName(meshDef.name || "mesh_" + meshIndex);
+        assignExtrasToUserData(mesh, meshDef);
+        if (primitive.extensions)
+          addUnknownExtensionsToUserData(extensions, mesh, primitive);
+        parser.assignFinalMaterial(mesh);
+        meshes.push(mesh);
+      }
+      for (let i = 0, il = meshes.length;i < il; i++) {
+        parser.associations.set(meshes[i], {
+          meshes: meshIndex,
+          primitives: i
+        });
+      }
+      if (meshes.length === 1) {
+        if (meshDef.extensions)
+          addUnknownExtensionsToUserData(extensions, meshes[0], meshDef);
+        return meshes[0];
+      }
+      const group = new Group;
+      if (meshDef.extensions)
+        addUnknownExtensionsToUserData(extensions, group, meshDef);
+      parser.associations.set(group, { meshes: meshIndex });
+      for (let i = 0, il = meshes.length;i < il; i++) {
+        group.add(meshes[i]);
+      }
+      return group;
+    });
+  }
+  loadCamera(cameraIndex) {
+    let camera2;
+    const cameraDef = this.json.cameras[cameraIndex];
+    const params = cameraDef[cameraDef.type];
+    if (!params) {
+      console.warn("THREE.GLTFLoader: Missing camera parameters.");
+      return;
+    }
+    if (cameraDef.type === "perspective") {
+      camera2 = new PerspectiveCamera(MathUtils.radToDeg(params.yfov), params.aspectRatio || 1, params.znear || 1, params.zfar || 2000000);
+    } else if (cameraDef.type === "orthographic") {
+      camera2 = new OrthographicCamera(-params.xmag, params.xmag, params.ymag, -params.ymag, params.znear, params.zfar);
+    }
+    if (cameraDef.name)
+      camera2.name = this.createUniqueName(cameraDef.name);
+    assignExtrasToUserData(camera2, cameraDef);
+    return Promise.resolve(camera2);
+  }
+  loadSkin(skinIndex) {
+    const skinDef = this.json.skins[skinIndex];
+    const pending = [];
+    for (let i = 0, il = skinDef.joints.length;i < il; i++) {
+      pending.push(this._loadNodeShallow(skinDef.joints[i]));
+    }
+    if (skinDef.inverseBindMatrices !== undefined) {
+      pending.push(this.getDependency("accessor", skinDef.inverseBindMatrices));
+    } else {
+      pending.push(null);
+    }
+    return Promise.all(pending).then(function(results) {
+      const inverseBindMatrices = results.pop();
+      const jointNodes = results;
+      const bones = [];
+      const boneInverses = [];
+      for (let i = 0, il = jointNodes.length;i < il; i++) {
+        const jointNode = jointNodes[i];
+        if (jointNode) {
+          bones.push(jointNode);
+          const mat = new Matrix4;
+          if (inverseBindMatrices !== null) {
+            mat.fromArray(inverseBindMatrices.array, i * 16);
+          }
+          boneInverses.push(mat);
+        } else {
+          console.warn('THREE.GLTFLoader: Joint "%s" could not be found.', skinDef.joints[i]);
+        }
+      }
+      return new Skeleton(bones, boneInverses);
+    });
+  }
+  loadAnimation(animationIndex) {
+    const json = this.json;
+    const parser = this;
+    const animationDef = json.animations[animationIndex];
+    const animationName = animationDef.name ? animationDef.name : "animation_" + animationIndex;
+    const pendingNodes = [];
+    const pendingInputAccessors = [];
+    const pendingOutputAccessors = [];
+    const pendingSamplers = [];
+    const pendingTargets = [];
+    for (let i = 0, il = animationDef.channels.length;i < il; i++) {
+      const channel = animationDef.channels[i];
+      const sampler = animationDef.samplers[channel.sampler];
+      const target = channel.target;
+      const name = target.node;
+      const input = animationDef.parameters !== undefined ? animationDef.parameters[sampler.input] : sampler.input;
+      const output = animationDef.parameters !== undefined ? animationDef.parameters[sampler.output] : sampler.output;
+      if (target.node === undefined)
+        continue;
+      pendingNodes.push(this.getDependency("node", name));
+      pendingInputAccessors.push(this.getDependency("accessor", input));
+      pendingOutputAccessors.push(this.getDependency("accessor", output));
+      pendingSamplers.push(sampler);
+      pendingTargets.push(target);
+    }
+    return Promise.all([
+      Promise.all(pendingNodes),
+      Promise.all(pendingInputAccessors),
+      Promise.all(pendingOutputAccessors),
+      Promise.all(pendingSamplers),
+      Promise.all(pendingTargets)
+    ]).then(function(dependencies) {
+      const nodes = dependencies[0];
+      const inputAccessors = dependencies[1];
+      const outputAccessors = dependencies[2];
+      const samplers = dependencies[3];
+      const targets = dependencies[4];
+      const tracks = [];
+      for (let i = 0, il = nodes.length;i < il; i++) {
+        const node = nodes[i];
+        const inputAccessor = inputAccessors[i];
+        const outputAccessor = outputAccessors[i];
+        const sampler = samplers[i];
+        const target = targets[i];
+        if (node === undefined)
+          continue;
+        if (node.updateMatrix) {
+          node.updateMatrix();
+        }
+        const createdTracks = parser._createAnimationTracks(node, inputAccessor, outputAccessor, sampler, target);
+        if (createdTracks) {
+          for (let k = 0;k < createdTracks.length; k++) {
+            tracks.push(createdTracks[k]);
+          }
+        }
+      }
+      const animation = new AnimationClip(animationName, undefined, tracks);
+      assignExtrasToUserData(animation, animationDef);
+      return animation;
+    });
+  }
+  createNodeMesh(nodeIndex) {
+    const json = this.json;
+    const parser = this;
+    const nodeDef = json.nodes[nodeIndex];
+    if (nodeDef.mesh === undefined)
+      return null;
+    return parser.getDependency("mesh", nodeDef.mesh).then(function(mesh) {
+      const node = parser._getNodeRef(parser.meshCache, nodeDef.mesh, mesh);
+      if (nodeDef.weights !== undefined) {
+        node.traverse(function(o) {
+          if (!o.isMesh)
+            return;
+          for (let i = 0, il = nodeDef.weights.length;i < il; i++) {
+            o.morphTargetInfluences[i] = nodeDef.weights[i];
+          }
+        });
+      }
+      return node;
+    });
+  }
+  loadNode(nodeIndex) {
+    const json = this.json;
+    const parser = this;
+    const nodeDef = json.nodes[nodeIndex];
+    const nodePending = parser._loadNodeShallow(nodeIndex);
+    const childPending = [];
+    const childrenDef = nodeDef.children || [];
+    for (let i = 0, il = childrenDef.length;i < il; i++) {
+      childPending.push(parser.getDependency("node", childrenDef[i]));
+    }
+    const skeletonPending = nodeDef.skin === undefined ? Promise.resolve(null) : parser.getDependency("skin", nodeDef.skin);
+    return Promise.all([
+      nodePending,
+      Promise.all(childPending),
+      skeletonPending
+    ]).then(function(results) {
+      const node = results[0];
+      const children = results[1];
+      const skeleton = results[2];
+      if (skeleton !== null) {
+        node.traverse(function(mesh) {
+          if (!mesh.isSkinnedMesh)
+            return;
+          mesh.bind(skeleton, _identityMatrix2);
+        });
+      }
+      for (let i = 0, il = children.length;i < il; i++) {
+        node.add(children[i]);
+      }
+      if (node.userData.pivot !== undefined && children.length > 0) {
+        const pivot = node.userData.pivot;
+        const pivotChild = children[0];
+        node.pivot = new Vector3().fromArray(pivot);
+        node.position.x -= pivot[0];
+        node.position.y -= pivot[1];
+        node.position.z -= pivot[2];
+        pivotChild.position.set(0, 0, 0);
+        delete node.userData.pivot;
+      }
+      return node;
+    });
+  }
+  _loadNodeShallow(nodeIndex) {
+    const json = this.json;
+    const extensions = this.extensions;
+    const parser = this;
+    if (this.nodeCache[nodeIndex] !== undefined) {
+      return this.nodeCache[nodeIndex];
+    }
+    const nodeDef = json.nodes[nodeIndex];
+    const nodeName = nodeDef.name ? parser.createUniqueName(nodeDef.name) : "";
+    const pending = [];
+    const meshPromise = parser._invokeOne(function(ext) {
+      return ext.createNodeMesh && ext.createNodeMesh(nodeIndex);
+    });
+    if (meshPromise) {
+      pending.push(meshPromise);
+    }
+    if (nodeDef.camera !== undefined) {
+      pending.push(parser.getDependency("camera", nodeDef.camera).then(function(camera2) {
+        return parser._getNodeRef(parser.cameraCache, nodeDef.camera, camera2);
+      }));
+    }
+    parser._invokeAll(function(ext) {
+      return ext.createNodeAttachment && ext.createNodeAttachment(nodeIndex);
+    }).forEach(function(promise) {
+      pending.push(promise);
+    });
+    this.nodeCache[nodeIndex] = Promise.all(pending).then(function(objects) {
+      let node;
+      if (nodeDef.isBone === true) {
+        node = new Bone;
+      } else if (objects.length > 1) {
+        node = new Group;
+      } else if (objects.length === 1) {
+        node = objects[0];
+      } else {
+        node = new Object3D;
+      }
+      if (node !== objects[0]) {
+        for (let i = 0, il = objects.length;i < il; i++) {
+          node.add(objects[i]);
+        }
+      }
+      if (nodeDef.name) {
+        node.userData.name = nodeDef.name;
+        node.name = nodeName;
+      }
+      assignExtrasToUserData(node, nodeDef);
+      if (nodeDef.extensions)
+        addUnknownExtensionsToUserData(extensions, node, nodeDef);
+      if (nodeDef.matrix !== undefined) {
+        const matrix = new Matrix4;
+        matrix.fromArray(nodeDef.matrix);
+        node.applyMatrix4(matrix);
+      } else {
+        if (nodeDef.translation !== undefined) {
+          node.position.fromArray(nodeDef.translation);
+        }
+        if (nodeDef.rotation !== undefined) {
+          node.quaternion.fromArray(nodeDef.rotation);
+        }
+        if (nodeDef.scale !== undefined) {
+          node.scale.fromArray(nodeDef.scale);
+        }
+      }
+      if (!parser.associations.has(node)) {
+        parser.associations.set(node, {});
+      } else if (nodeDef.mesh !== undefined && parser.meshCache.refs[nodeDef.mesh] > 1) {
+        const mapping = parser.associations.get(node);
+        parser.associations.set(node, { ...mapping });
+      }
+      parser.associations.get(node).nodes = nodeIndex;
+      return node;
+    });
+    return this.nodeCache[nodeIndex];
+  }
+  loadScene(sceneIndex) {
+    const extensions = this.extensions;
+    const sceneDef = this.json.scenes[sceneIndex];
+    const parser = this;
+    const scene2 = new Group;
+    if (sceneDef.name)
+      scene2.name = parser.createUniqueName(sceneDef.name);
+    assignExtrasToUserData(scene2, sceneDef);
+    if (sceneDef.extensions)
+      addUnknownExtensionsToUserData(extensions, scene2, sceneDef);
+    const nodeIds = sceneDef.nodes || [];
+    const pending = [];
+    for (let i = 0, il = nodeIds.length;i < il; i++) {
+      pending.push(parser.getDependency("node", nodeIds[i]));
+    }
+    return Promise.all(pending).then(function(nodes) {
+      for (let i = 0, il = nodes.length;i < il; i++) {
+        const node = nodes[i];
+        if (node.parent !== null) {
+          scene2.add(clone(node));
+        } else {
+          scene2.add(node);
+        }
+      }
+      const reduceAssociations = (node) => {
+        const reducedAssociations = new Map;
+        for (const [key, value] of parser.associations) {
+          if (key instanceof Material || key instanceof Texture) {
+            reducedAssociations.set(key, value);
+          }
+        }
+        node.traverse((node2) => {
+          const mappings = parser.associations.get(node2);
+          if (mappings != null) {
+            reducedAssociations.set(node2, mappings);
+          }
+        });
+        return reducedAssociations;
+      };
+      parser.associations = reduceAssociations(scene2);
+      return scene2;
+    });
+  }
+  _createAnimationTracks(node, inputAccessor, outputAccessor, sampler, target) {
+    const tracks = [];
+    const targetName = node.name ? node.name : node.uuid;
+    const targetNames = [];
+    function collectMorphTargets(object) {
+      if (object.morphTargetInfluences) {
+        targetNames.push(object.name ? object.name : object.uuid);
+      }
+    }
+    if (PATH_PROPERTIES[target.path] === PATH_PROPERTIES.weights) {
+      collectMorphTargets(node);
+      if (node.isGroup) {
+        node.children.forEach(collectMorphTargets);
+      }
+    } else {
+      targetNames.push(targetName);
+    }
+    let TypedKeyframeTrack;
+    switch (PATH_PROPERTIES[target.path]) {
+      case PATH_PROPERTIES.weights:
+        TypedKeyframeTrack = NumberKeyframeTrack;
+        break;
+      case PATH_PROPERTIES.rotation:
+        TypedKeyframeTrack = QuaternionKeyframeTrack;
+        break;
+      case PATH_PROPERTIES.translation:
+      case PATH_PROPERTIES.scale:
+        TypedKeyframeTrack = VectorKeyframeTrack;
+        break;
+      default:
+        switch (outputAccessor.itemSize) {
+          case 1:
+            TypedKeyframeTrack = NumberKeyframeTrack;
+            break;
+          case 2:
+          case 3:
+          default:
+            TypedKeyframeTrack = VectorKeyframeTrack;
+            break;
+        }
+        break;
+    }
+    const interpolation = sampler.interpolation !== undefined ? INTERPOLATION[sampler.interpolation] : InterpolateLinear;
+    const outputArray = this._getArrayFromAccessor(outputAccessor);
+    for (let j = 0, jl = targetNames.length;j < jl; j++) {
+      const track = new TypedKeyframeTrack(targetNames[j] + "." + PATH_PROPERTIES[target.path], inputAccessor.array, outputArray, interpolation);
+      if (sampler.interpolation === "CUBICSPLINE") {
+        this._createCubicSplineTrackInterpolant(track);
+      }
+      tracks.push(track);
+    }
+    return tracks;
+  }
+  _getArrayFromAccessor(accessor) {
+    let outputArray = accessor.array;
+    if (accessor.normalized) {
+      const scale = getNormalizedComponentScale(outputArray.constructor);
+      const scaled = new Float32Array(outputArray.length);
+      for (let j = 0, jl = outputArray.length;j < jl; j++) {
+        scaled[j] = outputArray[j] * scale;
+      }
+      outputArray = scaled;
+    }
+    return outputArray;
+  }
+  _createCubicSplineTrackInterpolant(track) {
+    track.createInterpolant = function InterpolantFactoryMethodGLTFCubicSpline(result) {
+      const interpolantType = this instanceof QuaternionKeyframeTrack ? GLTFCubicSplineQuaternionInterpolant : GLTFCubicSplineInterpolant;
+      return new interpolantType(this.times, this.values, this.getValueSize() / 3, result);
+    };
+    track.createInterpolant.isInterpolantFactoryMethodGLTFCubicSpline = true;
+  }
+}
+function computeBounds(geometry, primitiveDef, parser) {
+  const attributes = primitiveDef.attributes;
+  const box = new Box3;
+  if (attributes.POSITION !== undefined) {
+    const accessor = parser.json.accessors[attributes.POSITION];
+    const min = accessor.min;
+    const max = accessor.max;
+    if (min !== undefined && max !== undefined) {
+      box.set(new Vector3(min[0], min[1], min[2]), new Vector3(max[0], max[1], max[2]));
+      if (accessor.normalized) {
+        const boxScale = getNormalizedComponentScale(WEBGL_COMPONENT_TYPES[accessor.componentType]);
+        box.min.multiplyScalar(boxScale);
+        box.max.multiplyScalar(boxScale);
+      }
+    } else {
+      console.warn("THREE.GLTFLoader: Missing min/max properties for accessor POSITION.");
+      return;
+    }
+  } else {
+    return;
+  }
+  const targets = primitiveDef.targets;
+  if (targets !== undefined) {
+    const maxDisplacement = new Vector3;
+    const vector = new Vector3;
+    for (let i = 0, il = targets.length;i < il; i++) {
+      const target = targets[i];
+      if (target.POSITION !== undefined) {
+        const accessor = parser.json.accessors[target.POSITION];
+        const min = accessor.min;
+        const max = accessor.max;
+        if (min !== undefined && max !== undefined) {
+          vector.setX(Math.max(Math.abs(min[0]), Math.abs(max[0])));
+          vector.setY(Math.max(Math.abs(min[1]), Math.abs(max[1])));
+          vector.setZ(Math.max(Math.abs(min[2]), Math.abs(max[2])));
+          if (accessor.normalized) {
+            const boxScale = getNormalizedComponentScale(WEBGL_COMPONENT_TYPES[accessor.componentType]);
+            vector.multiplyScalar(boxScale);
+          }
+          maxDisplacement.max(vector);
+        } else {
+          console.warn("THREE.GLTFLoader: Missing min/max properties for accessor POSITION.");
+        }
+      }
+    }
+    box.expandByVector(maxDisplacement);
+  }
+  geometry.boundingBox = box;
+  const sphere = new Sphere;
+  box.getCenter(sphere.center);
+  sphere.radius = box.min.distanceTo(box.max) / 2;
+  geometry.boundingSphere = sphere;
+}
+function addPrimitiveAttributes(geometry, primitiveDef, parser) {
+  const attributes = primitiveDef.attributes;
+  const pending = [];
+  function assignAttributeAccessor(accessorIndex, attributeName) {
+    return parser.getDependency("accessor", accessorIndex).then(function(accessor) {
+      geometry.setAttribute(attributeName, accessor);
+    });
+  }
+  for (const gltfAttributeName in attributes) {
+    const threeAttributeName = ATTRIBUTES[gltfAttributeName] || gltfAttributeName.toLowerCase();
+    if (threeAttributeName in geometry.attributes)
+      continue;
+    pending.push(assignAttributeAccessor(attributes[gltfAttributeName], threeAttributeName));
+  }
+  if (primitiveDef.indices !== undefined && !geometry.index) {
+    const accessor = parser.getDependency("accessor", primitiveDef.indices).then(function(accessor2) {
+      geometry.setIndex(accessor2);
+    });
+    pending.push(accessor);
+  }
+  if (ColorManagement.workingColorSpace !== LinearSRGBColorSpace && "COLOR_0" in attributes) {
+    console.warn(`THREE.GLTFLoader: Converting vertex colors from "srgb-linear" to "${ColorManagement.workingColorSpace}" not supported.`);
+  }
+  assignExtrasToUserData(geometry, primitiveDef);
+  computeBounds(geometry, primitiveDef, parser);
+  return Promise.all(pending).then(function() {
+    return primitiveDef.targets !== undefined ? addMorphTargets(geometry, primitiveDef.targets, parser) : geometry;
+  });
+}
+
+// src/editor/world-editor.ts
+var transformControls = null;
+var transformHelper = null;
+var orbitGuideGroup = null;
+var dangerRingMesh = null;
+var currentOrbitRingMesh = null;
+var tetherLineMesh = null;
+var selectionRingMesh = null;
+var editorCamPos = new Vector3(0, 95, 140);
+var editorCamTarget = new Vector3(0, 0, 80);
+var editorYaw = 0;
+var editorPitch = -0.72;
+var isRightMouseDragging = false;
+var lastMouseX = 0;
+var lastMouseY = 0;
+var editorKeys = {};
+var editorInitialized = false;
+var entityCounter = 1;
+var savedCameraPos = new Vector3;
+var savedCameraUp = new Vector3;
+var savedCameraFov = 60;
+function getPlanetMinSafeOrbitRadius(planet) {
+  if (!planet)
+    return 22;
+  const pSize = planet.size || 3.5;
+  return Math.ceil((pSize * 2.85 * 1.35 + 6) * 10) / 10;
+}
+function isEntityOrbitSafe(entity) {
+  if (!entity || !entity.parentPlanet) {
+    return { safe: true, minSafeRadius: 0, currentRadius: 0 };
+  }
+  const minSafeRadius = getPlanetMinSafeOrbitRadius(entity.parentPlanet);
+  const currentRadius = Number(entity.orbitRadius ?? 0);
+  return {
+    safe: currentRadius >= minSafeRadius,
+    minSafeRadius,
+    currentRadius
+  };
+}
+function createDerelictWreckMesh(size = 1) {
+  const group = new Group;
+  const hullMat = new MeshStandardMaterial({
+    color: 4674921,
+    metalness: 0.8,
+    roughness: 0.65,
+    emissive: 988970,
+    emissiveIntensity: 0.15
+  });
+  const scorchMat = new MeshStandardMaterial({
+    color: 1976635,
+    metalness: 0.5,
+    roughness: 0.9
+  });
+  const bodyGeo = new CylinderGeometry(size * 0.4, size * 0.65, size * 2.4, 7);
+  bodyGeo.rotateZ(Math.PI * 0.42);
+  bodyGeo.rotateX(0.3);
+  const body = new Mesh(bodyGeo, hullMat);
+  group.add(body);
+  const wingGeo = new BoxGeometry(size * 1.8, size * 0.1, size * 0.7);
+  const wing = new Mesh(wingGeo, scorchMat);
+  wing.rotation.set(0.25, 0.4, -0.35);
+  group.add(wing);
+  const beaconGeo = new SphereGeometry(size * 0.16, 10, 10);
+  const beaconMat = new MeshBasicMaterial({ color: 16347926 });
+  const beacon = new Mesh(beaconGeo, beaconMat);
+  beacon.position.set(0, size * 0.55, 0);
+  group.add(beacon);
+  const sparkLight = new PointLight(16347926, 1.5, 14, 1.4);
+  sparkLight.position.set(0, size * 0.65, 0);
+  group.add(sparkLight);
+  let t = 0;
+  const update = (dt) => {
+    t += dt;
+    group.rotation.y += dt * 0.12;
+    const pulse = Math.sin(t * 7) > 0.2 ? 1.8 : 0.2;
+    sparkLight.intensity = pulse;
+  };
+  return { group, update };
+}
+function createPsionicAnomalyMesh(size = 1.2) {
+  const group = new Group;
+  const coreGeo = new OctahedronGeometry(size * 0.85, 1);
+  const coreMat = new MeshStandardMaterial({
+    color: 11032055,
+    emissive: 9647082,
+    emissiveIntensity: 0.85,
+    metalness: 0.9,
+    roughness: 0.1,
+    wireframe: false
+  });
+  const core = new Mesh(coreGeo, coreMat);
+  group.add(core);
+  const ringGeo = new TorusGeometry(size * 1.45, size * 0.06, 10, 36);
+  const ringMat = new MeshBasicMaterial({
+    color: 3718648,
+    transparent: true,
+    opacity: 0.75
+  });
+  const ring = new Mesh(ringGeo, ringMat);
+  ring.rotation.x = Math.PI / 2;
+  group.add(ring);
+  const auraLight = new PointLight(11032055, 2.2, 20, 1.2);
+  group.add(auraLight);
+  let t = 0;
+  const update = (dt) => {
+    t += dt;
+    core.rotation.y += dt * 0.8;
+    core.rotation.x += dt * 0.45;
+    ring.rotation.z -= dt * 0.6;
+    const s = 1 + Math.sin(t * 3.2) * 0.12;
+    core.scale.set(s, s, s);
+  };
+  return { group, update };
+}
+function createCircleLineLoop(radius, colorHex, segments = 64) {
+  const pts = [];
+  for (let i = 0;i < segments; i++) {
+    const a = i / segments * Math.PI * 2;
+    pts.push(new Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius));
+  }
+  const geo = new BufferGeometry().setFromPoints(pts);
+  const mat = new LineBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.78
+  });
+  return new LineLoop(geo, mat);
+}
+function ensureOrbitGuideGroup() {
+  if (orbitGuideGroup)
+    return;
+  orbitGuideGroup = new Group;
+  orbitGuideGroup.name = "EditorOrbitGuideGroup";
+  orbitGuideGroup.visible = false;
+  dangerRingMesh = createCircleLineLoop(1, 15680580, 72);
+  currentOrbitRingMesh = createCircleLineLoop(1, 1096065, 72);
+  selectionRingMesh = createCircleLineLoop(1, 3718648, 48);
+  const tetherGeo = new BufferGeometry().setFromPoints([
+    new Vector3(0, 0, 0),
+    new Vector3(1, 0, 0)
+  ]);
+  const tetherMat = new LineBasicMaterial({ color: 16096779, transparent: true, opacity: 0.65 });
+  tetherLineMesh = new Line(tetherGeo, tetherMat);
+  orbitGuideGroup.add(dangerRingMesh);
+  orbitGuideGroup.add(currentOrbitRingMesh);
+  orbitGuideGroup.add(selectionRingMesh);
+  orbitGuideGroup.add(tetherLineMesh);
+  if (scene) {
+    scene.add(orbitGuideGroup);
+  }
+}
+function updateEditorVisualGuides() {
+  ensureOrbitGuideGroup();
+  if (!orbitGuideGroup)
+    return;
+  const sel = STATE.editorSelectedEntity;
+  if (!STATE.editorActive || !sel || !sel.mesh) {
+    orbitGuideGroup.visible = false;
+    return;
+  }
+  orbitGuideGroup.visible = true;
+  const entityPos = sel.mesh.position;
+  if (selectionRingMesh) {
+    const selRadius = Math.max(2.2, (sel.size || sel.radius || 1.5) * (sel.mesh.scale?.x || 1) * 1.45);
+    selectionRingMesh.position.set(entityPos.x, 0.1, entityPos.z);
+    selectionRingMesh.scale.set(selRadius, 1, selRadius);
+    selectionRingMesh.visible = true;
+  }
+  const targetPlanet = sel.parentPlanet || (sel.isMoon === false && sel.distance !== undefined ? sel : null);
+  if (targetPlanet && targetPlanet.mesh) {
+    const pPos = targetPlanet.mesh.position;
+    const minSafe = getPlanetMinSafeOrbitRadius(targetPlanet);
+    if (dangerRingMesh) {
+      dangerRingMesh.position.set(pPos.x, 0.05, pPos.z);
+      dangerRingMesh.scale.set(minSafe, 1, minSafe);
+      dangerRingMesh.visible = true;
+    }
+    if (sel.parentPlanet && currentOrbitRingMesh && tetherLineMesh) {
+      const curR = Math.max(0.5, Number(sel.orbitRadius || entityPos.distanceTo(pPos)));
+      const isSafe = curR >= minSafe;
+      currentOrbitRingMesh.position.set(pPos.x, 0.08, pPos.z);
+      currentOrbitRingMesh.scale.set(curR, 1, curR);
+      currentOrbitRingMesh.material.color.setHex(isSafe ? 1096065 : 15680580);
+      currentOrbitRingMesh.visible = true;
+      const positions = new Float32Array([pPos.x, 0.1, pPos.z, entityPos.x, 0.1, entityPos.z]);
+      tetherLineMesh.geometry.setAttribute("position", new BufferAttribute(positions, 3));
+      tetherLineMesh.geometry.attributes.position.needsUpdate = true;
+      tetherLineMesh.visible = true;
+    } else {
+      if (currentOrbitRingMesh)
+        currentOrbitRingMesh.visible = false;
+      if (tetherLineMesh)
+        tetherLineMesh.visible = false;
+    }
+  } else {
+    if (dangerRingMesh)
+      dangerRingMesh.visible = false;
+    if (currentOrbitRingMesh)
+      currentOrbitRingMesh.visible = false;
+    if (tetherLineMesh)
+      tetherLineMesh.visible = false;
+  }
+}
+function getSystemEditableEntities() {
+  const list = [];
+  if (STATE.jamalShip) {
+    STATE.jamalShip.category = STATE.jamalShip.category || "jamal_shuttle";
+    STATE.jamalShip.builtInKey = "jamalShip";
+    STATE.jamalShip.isBuiltIn = true;
+    list.push(STATE.jamalShip);
+  }
+  if (STATE.towingDrone) {
+    STATE.towingDrone.category = STATE.towingDrone.category || "towing_drone";
+    STATE.towingDrone.builtInKey = "towingDrone";
+    STATE.towingDrone.isBuiltIn = true;
+    list.push(STATE.towingDrone);
+  }
+  if (STATE.spaceStations && STATE.spaceStations.length > 0) {
+    STATE.spaceStations.forEach((st) => {
+      st.category = st.category || "space_station";
+      st.builtInKey = "spaceStation";
+      st.isBuiltIn = true;
+      list.push(st);
+    });
+  }
+  if (STATE.voyagerProbe) {
+    STATE.voyagerProbe.category = STATE.voyagerProbe.category || "voyager_probe";
+    STATE.voyagerProbe.builtInKey = "voyagerProbe";
+    STATE.voyagerProbe.isBuiltIn = true;
+    list.push(STATE.voyagerProbe);
+  }
+  if (STATE.editorEntities && STATE.editorEntities.length > 0) {
+    STATE.editorEntities.forEach((ent) => {
+      if (!list.includes(ent)) {
+        list.push(ent);
+      }
+    });
+  }
+  return list;
+}
+function syncEntityOrbitFromWorldPosition(entity) {
+  if (!entity || !entity.mesh)
+    return;
+  entity.mesh.position.y = 0;
+  if (entity.position && entity.position !== entity.mesh.position) {
+    entity.position.copy(entity.mesh.position);
+  }
+  if (entity.parentPlanet && entity.parentPlanet.mesh) {
+    const pPos = entity.parentPlanet.mesh.position;
+    const dx = entity.mesh.position.x - pPos.x;
+    const dz = entity.mesh.position.z - pPos.z;
+    entity.orbitRadius = Math.round(Math.hypot(dx, dz) * 100) / 100;
+    let angle = Math.atan2(dz, dx);
+    if (angle < 0)
+      angle += Math.PI * 2;
+    entity.orbitAngle = Math.round(angle * 1000) / 1000;
+  }
+  if (entity.mesh.scale) {
+    entity.scale = Math.round(entity.mesh.scale.x * 100) / 100;
+  }
+  entity.rotationY = Math.round(entity.mesh.rotation.y * 180 / Math.PI * 10) / 10;
+  updateEditorVisualGuides();
+  refreshInspectorValuesLive();
+}
+function applyEntityTransformToMesh(entity) {
+  if (!entity || !entity.mesh)
+    return;
+  if (entity.scale !== undefined && entity.scale > 0) {
+    entity.mesh.scale.set(entity.scale, entity.scale, entity.scale);
+  }
+  if (entity.rotationY !== undefined) {
+    entity.mesh.rotation.y = entity.rotationY * Math.PI / 180;
+  }
+  if (entity.parentPlanet && entity.parentPlanet.mesh) {
+    const pPos = entity.parentPlanet.mesh.position;
+    const pScale = Math.max(1, entity.parentPlanet.mesh.scale?.x || 1);
+    const baseR = Number(entity.orbitRadius ?? 28);
+    const effectiveR = baseR + (pScale - 1) * (baseR * 0.45 + 4);
+    const angle = Number(entity.orbitAngle ?? 0);
+    const nx = pPos.x + Math.cos(angle) * effectiveR;
+    const nz = pPos.z + Math.sin(angle) * effectiveR;
+    entity.mesh.position.set(nx, 0, nz);
+    if (entity.position) {
+      entity.position.set(nx, 0, nz);
+    }
+  } else if (entity.position) {
+    entity.mesh.position.set(entity.position.x || 0, entity.position.y || 0, entity.position.z || 0);
+  }
+  updateEditorVisualGuides();
+}
+function spawnEditorAsset(category, options = {}) {
+  if (!STATE.editorEntities) {
+    STATE.editorEntities = [];
+  }
+  const id = options.id || `editor_${category}_${Date.now()}_${entityCounter++}`;
+  let parentPlanet = null;
+  if (options.parentPlanet !== undefined) {
+    parentPlanet = options.parentPlanet;
+  } else if (options.parentPlanetName) {
+    parentPlanet = activePlanets.find((p) => p.name === options.parentPlanetName) || null;
+  } else if (STATE.editorSelectedEntity) {
+    if (STATE.editorSelectedEntity.isMoon === false && STATE.editorSelectedEntity.distance !== undefined) {
+      parentPlanet = STATE.editorSelectedEntity;
+    } else if (STATE.editorSelectedEntity.parentPlanet) {
+      parentPlanet = STATE.editorSelectedEntity.parentPlanet;
+    }
+  } else if (activePlanets.length > 0 && category !== "voyager_probe") {
+    parentPlanet = activePlanets.find((p) => !p.isMoon) || activePlanets[0];
+  }
+  const minSafe = parentPlanet ? getPlanetMinSafeOrbitRadius(parentPlanet) : 0;
+  const defaultOrbitRadius = parentPlanet ? Math.max(minSafe + 6, (parentPlanet.size || 3.5) * 4.2 + 16) : 0;
+  const orbitRadius = options.orbitRadius !== undefined ? options.orbitRadius : defaultOrbitRadius;
+  const orbitAngle = options.orbitAngle !== undefined ? options.orbitAngle : Math.round(Math.random() * Math.PI * 2 * 100) / 100;
+  const orbitSpeed = options.orbitSpeed !== undefined ? options.orbitSpeed : parentPlanet ? 0.035 : 0;
+  let meshGroup;
+  let updateFn;
+  let defaultName = "Neues Objekt";
+  let baseRadius = 1;
+  switch (category) {
+    case "jamal_shuttle": {
+      const ctrl = createJamalResearchShuttleMesh(0.65);
+      meshGroup = ctrl.group;
+      updateFn = ctrl.update;
+      defaultName = "Forschungsschiff 'Ar-Riḥla'";
+      baseRadius = 0.65;
+      break;
+    }
+    case "towing_drone": {
+      const ctrl = createTowingDroneMesh(0.45);
+      meshGroup = ctrl.group;
+      updateFn = (dt) => ctrl.update(dt);
+      defaultName = "INSAN-Abschleppdrohne TX-9";
+      baseRadius = 0.45;
+      break;
+    }
+    case "space_station": {
+      const ctrl = createSpaceStationMesh("citadel", 16096779);
+      meshGroup = ctrl.group;
+      updateFn = ctrl.update;
+      defaultName = "INSAN-Verwaltungsstation";
+      baseRadius = 4.2;
+      break;
+    }
+    case "trade_hub": {
+      const ctrl = createSpaceStationMesh("trade_hub", 3718648);
+      meshGroup = ctrl.group;
+      updateFn = ctrl.update;
+      defaultName = "Freies Handels-Relais";
+      baseRadius = 3.6;
+      break;
+    }
+    case "voyager_probe": {
+      const ctrl = createVoyagerProbeMesh(1.4);
+      meshGroup = ctrl.group;
+      updateFn = ctrl.update;
+      defaultName = "Archaische Raumsonde";
+      baseRadius = 1.4;
+      break;
+    }
+    case "derelict_wreck": {
+      const ctrl = createDerelictWreckMesh(1.1);
+      meshGroup = ctrl.group;
+      updateFn = ctrl.update;
+      defaultName = "Schiffswrack (Bergungsgut)";
+      baseRadius = 1.1;
+      break;
+    }
+    case "psionic_anomaly":
+    default: {
+      const ctrl = createPsionicAnomalyMesh(1.2);
+      meshGroup = ctrl.group;
+      updateFn = ctrl.update;
+      defaultName = "Psionische Subraum-Anomalie";
+      baseRadius = 1.2;
+      break;
+    }
+  }
+  const scale = options.scale !== undefined ? options.scale : 1;
+  const rotationY = options.rotationY !== undefined ? options.rotationY : 0;
+  meshGroup.scale.set(scale, scale, scale);
+  meshGroup.rotation.y = rotationY * Math.PI / 180;
+  if (parentPlanet && parentPlanet.mesh) {
+    const pPos = parentPlanet.mesh.position;
+    const initX = pPos.x + Math.cos(orbitAngle) * orbitRadius;
+    const initZ = pPos.z + Math.sin(orbitAngle) * orbitRadius;
+    meshGroup.position.set(initX, 0, initZ);
+  } else if (options.position) {
+    meshGroup.position.set(options.position.x, options.position.y || 0, options.position.z);
+  } else {
+    meshGroup.position.set(editorCamTarget.x, 0, editorCamTarget.z);
+  }
+  if (scene) {
+    scene.add(meshGroup);
+  }
+  const entityObj = {
+    id,
+    name: options.name || defaultName,
+    category,
+    type: category,
+    mesh: meshGroup,
+    update: updateFn,
+    position: meshGroup.position,
+    scale,
+    rotationY,
+    radius: baseRadius * scale,
+    size: baseRadius * scale,
+    mass: 0.05,
+    gravityRange: 0,
+    parentPlanet,
+    parentPlanetName: parentPlanet ? parentPlanet.name : null,
+    orbitRadius,
+    orbitAngle,
+    orbitSpeed,
+    questId: options.questId || "",
+    dialogNodeId: options.dialogNodeId || "",
+    modelSource: options.modelSource || "procedural",
+    customModelName: options.customModelName || "",
+    isEditorEntity: true,
+    isSpecialEntity: true,
+    scanned: false
+  };
+  STATE.editorEntities.push(entityObj);
+  STATE.gravitySources.push(entityObj);
+  if (STATE.editorActive) {
+    selectEditorEntity(entityObj);
+    renderEditorOutliner();
+    renderEditorInspector();
+  }
+  return entityObj;
+}
+function updateSelectedEntityProperties(patch) {
+  const sel = STATE.editorSelectedEntity;
+  if (!sel)
+    return null;
+  if (patch.name !== undefined) {
+    sel.name = patch.name;
+  }
+  if (patch.scale !== undefined && patch.scale > 0) {
+    sel.scale = Number(patch.scale);
+    if (sel.mesh) {
+      sel.mesh.scale.set(sel.scale, sel.scale, sel.scale);
+    }
+  }
+  if (patch.rotationY !== undefined) {
+    sel.rotationY = Number(patch.rotationY);
+    if (sel.mesh) {
+      sel.mesh.rotation.y = sel.rotationY * Math.PI / 180;
+    }
+  }
+  if (patch.parentPlanetName !== undefined) {
+    if (!patch.parentPlanetName || patch.parentPlanetName === "__deep_space__") {
+      sel.parentPlanet = null;
+      sel.parentPlanetName = null;
+    } else {
+      const foundPlanet = activePlanets.find((p) => p.name === patch.parentPlanetName);
+      if (foundPlanet) {
+        sel.parentPlanet = foundPlanet;
+        sel.parentPlanetName = foundPlanet.name;
+        const minSafe = getPlanetMinSafeOrbitRadius(foundPlanet);
+        if (!sel.orbitRadius || sel.orbitRadius < minSafe) {
+          sel.orbitRadius = Math.max(minSafe + 4, (foundPlanet.size || 3.5) * 4.2 + 16);
+        }
+      }
+    }
+  }
+  if (patch.orbitRadius !== undefined) {
+    sel.orbitRadius = Math.max(1, Number(patch.orbitRadius));
+  }
+  if (patch.orbitAngle !== undefined) {
+    sel.orbitAngle = Number(patch.orbitAngle);
+  }
+  if (patch.orbitSpeed !== undefined) {
+    sel.orbitSpeed = Number(patch.orbitSpeed);
+  }
+  if (patch.position !== undefined && !sel.parentPlanet) {
+    if (sel.mesh) {
+      sel.mesh.position.set(patch.position.x, patch.position.y || 0, patch.position.z);
+    }
+    if (sel.position) {
+      sel.position.set(patch.position.x, patch.position.y || 0, patch.position.z);
+    }
+  }
+  if (patch.questId !== undefined) {
+    sel.questId = patch.questId;
+  }
+  if (patch.dialogNodeId !== undefined) {
+    sel.dialogNodeId = patch.dialogNodeId;
+  }
+  applyEntityTransformToMesh(sel);
+  renderEditorOutliner();
+  renderEditorInspector();
+  return sel;
+}
+function snapSelectedEntityToSafeOrbit() {
+  const sel = STATE.editorSelectedEntity;
+  if (!sel || !sel.parentPlanet)
+    return null;
+  const minSafe = getPlanetMinSafeOrbitRadius(sel.parentPlanet);
+  const recommended = Math.round((minSafe + 8) * 10) / 10;
+  return updateSelectedEntityProperties({ orbitRadius: recommended });
+}
+function deleteEditorEntity(entity) {
+  const target = entity || STATE.editorSelectedEntity;
+  if (!target)
+    return false;
+  if (target.mesh && scene) {
+    scene.remove(target.mesh);
+  }
+  if (STATE.editorEntities) {
+    const idx = STATE.editorEntities.indexOf(target);
+    if (idx !== -1)
+      STATE.editorEntities.splice(idx, 1);
+  }
+  const gIdx = STATE.gravitySources.indexOf(target);
+  if (gIdx !== -1)
+    STATE.gravitySources.splice(gIdx, 1);
+  if (STATE.editorSelectedEntity === target) {
+    STATE.editorSelectedEntity = null;
+    if (transformControls)
+      transformControls.detach();
+  }
+  updateEditorVisualGuides();
+  renderEditorOutliner();
+  renderEditorInspector();
+  return true;
+}
+function selectEditorEntity(entity) {
+  STATE.editorSelectedEntity = entity;
+  if (transformControls) {
+    if (entity && entity.mesh && STATE.editorActive) {
+      transformControls.attach(entity.mesh);
+    } else {
+      transformControls.detach();
+    }
+  }
+  updateEditorVisualGuides();
+  renderEditorOutliner();
+  renderEditorInspector();
+}
+function focusEditorCameraOn(entity) {
+  if (!entity)
+    return;
+  const pos = entity.mesh ? entity.mesh.position : entity.position;
+  if (!pos)
+    return;
+  editorCamTarget.set(pos.x, pos.y || 0, pos.z);
+  const distOffset = Math.max(24, (entity.size || entity.radius || 3) * 5.5);
+  editorCamPos.set(pos.x, distOffset * 0.9, pos.z + distOffset);
+  editorYaw = 0;
+  editorPitch = -0.68;
+  if (camera && STATE.editorActive) {
+    camera.position.copy(editorCamPos);
+    camera.up.set(0, 1, 0);
+    camera.lookAt(editorCamTarget);
+  }
+}
+function teleportPlayerToSelectedEntity() {
+  const sel = STATE.editorSelectedEntity;
+  if (!sel)
+    return false;
+  const pos = sel.mesh ? sel.mesh.position : sel.position;
+  if (!pos)
+    return false;
+  const standoff = Math.max(8, (sel.size || sel.radius || 1.5) * 2.5 + 6);
+  STATE.playerPosition.set(pos.x, 0, pos.z + standoff);
+  STATE.playerVelocity.set(0, 0, 0);
+  if (STATE.playerGroup) {
+    STATE.playerGroup.position.copy(STATE.playerPosition);
+  }
+  addLogEntry("SYSTEM", `\uD83D\uDE80 EDITOR-TELEPORT: Najmafar zu '${sel.name}' verlegt (${standoff.toFixed(1)} AE Abstand).`);
+  return true;
+}
+async function loadCustomGlbForEntity(entity, fileOrUrl) {
+  if (!entity || !entity.mesh)
+    return false;
+  const loader = new GLTFLoader;
+  let url = "";
+  let modelName = "";
+  let revokeAfter = false;
+  if (typeof fileOrUrl === "string") {
+    url = fileOrUrl;
+    modelName = fileOrUrl.split("/").pop() || "custom_model.glb";
+  } else {
+    url = URL.createObjectURL(fileOrUrl);
+    modelName = fileOrUrl.name;
+    revokeAfter = true;
+  }
+  return new Promise((resolve) => {
+    loader.load(url, (gltf) => {
+      if (revokeAfter)
+        URL.revokeObjectURL(url);
+      while (entity.mesh.children.length > 0) {
+        entity.mesh.remove(entity.mesh.children[0]);
+      }
+      const box = new Box3().setFromObject(gltf.scene);
+      const sizeVec = new Vector3;
+      box.getSize(sizeVec);
+      const maxDim = Math.max(sizeVec.x, sizeVec.y, sizeVec.z, 0.001);
+      const normScale = 2 / maxDim;
+      gltf.scene.scale.set(normScale, normScale, normScale);
+      entity.mesh.add(gltf.scene);
+      entity.modelSource = "custom_glb";
+      entity.customModelName = modelName;
+      addLogEntry("SYSTEM", `\uD83D\uDCE6 3D-MODELL GELADEN: '${modelName}' erfolgreich auf '${entity.name}' angewendet!`);
+      renderEditorInspector();
+      resolve(true);
+    }, undefined, (err) => {
+      if (revokeAfter)
+        URL.revokeObjectURL(url);
+      console.error("[WorldEditor] GLTFLoader error:", err);
+      addLogEntry("SYSTEM", `⚠️ Fehler beim Laden des 3D-Modells '${modelName}'.`);
+      resolve(false);
+    });
+  });
+}
+function updateCustomEditorEntities(dt) {
+  if (!STATE.editorEntities || STATE.editorEntities.length === 0)
+    return;
+  STATE.editorEntities.forEach((ent) => {
+    if (ent.update && dt > 0) {
+      ent.update(dt);
+    }
+    if (transformControls && transformControls.dragging && STATE.editorSelectedEntity === ent) {
+      return;
+    }
+    if (ent.parentPlanet && ent.parentPlanet.mesh) {
+      if (dt > 0) {
+        ent.orbitAngle = (ent.orbitAngle || 0) + (ent.orbitSpeed || 0) * dt;
+      }
+      const pPos = ent.parentPlanet.mesh.position;
+      const pScale = Math.max(1, ent.parentPlanet.mesh.scale?.x || 1);
+      const baseR = Number(ent.orbitRadius || 28);
+      const effectiveR = baseR + (pScale - 1) * (baseR * 0.45 + 4);
+      const ex = pPos.x + Math.cos(ent.orbitAngle) * effectiveR;
+      const ez = pPos.z + Math.sin(ent.orbitAngle) * effectiveR;
+      ent.position.set(ex, 0, ez);
+      if (ent.mesh) {
+        ent.mesh.position.set(ex, 0, ez);
+      }
+    }
+  });
+}
+function triggerNearestEditorEntityInteraction() {
+  const allEntities = getSystemEditableEntities();
+  for (const ent of allEntities) {
+    if (!ent.dialogNodeId)
+      continue;
+    const pos = ent.mesh ? ent.mesh.position : ent.position;
+    if (!pos)
+      continue;
+    const dist = STATE.playerPosition.distanceTo(pos);
+    if (dist <= 28) {
+      openNpcDialogue(ent.dialogNodeId);
+      return true;
+    }
+  }
+  return false;
+}
+function exportSystemEditorConfig() {
+  const sysId = STATE.currentSystemId || 0;
+  const activeSys = STATE.universe?.systems?.find((s) => s.id === sysId) || { name: `System #${sysId}` };
+  const entities = getSystemEditableEntities();
+  const serialized = entities.map((ent, idx) => {
+    const pos = ent.mesh ? ent.mesh.position : ent.position || { x: 0, y: 0, z: 0 };
+    const parentName = ent.parentPlanet ? ent.parentPlanet.name : ent.parentPlanetName || null;
+    return {
+      id: ent.id || `entity_${idx + 1}`,
+      name: ent.name || "Objekt",
+      category: ent.category || "jamal_shuttle",
+      isBuiltIn: Boolean(ent.isBuiltIn),
+      builtInKey: ent.builtInKey,
+      scale: Number(ent.scale ?? ent.mesh?.scale?.x ?? 1),
+      rotationY: Number(ent.rotationY ?? Math.round((ent.mesh?.rotation?.y || 0) * 180 / Math.PI)),
+      parentPlanetName: parentName,
+      orbitRadius: Number(Math.round((ent.orbitRadius ?? 0) * 100) / 100),
+      orbitAngle: Number(Math.round((ent.orbitAngle ?? 0) * 1000) / 1000),
+      orbitSpeed: Number(ent.orbitSpeed ?? 0.035),
+      position: {
+        x: Math.round((pos.x || 0) * 100) / 100,
+        y: Math.round((pos.y || 0) * 100) / 100,
+        z: Math.round((pos.z || 0) * 100) / 100
+      },
+      questId: ent.questId || "",
+      dialogNodeId: ent.dialogNodeId || "",
+      modelSource: ent.modelSource || "procedural",
+      customModelName: ent.customModelName || ""
+    };
+  });
+  const tsLines = serialized.map((s) => {
+    if (s.parentPlanetName) {
+      return `// ${s.name} (${s.category}) -> Orbit um '${s.parentPlanetName}'
+` + `spawnEditorAsset('${s.category}', {
+` + `    name: ${JSON.stringify(s.name)},
+` + `    parentPlanetName: ${JSON.stringify(s.parentPlanetName)},
+` + `    orbitRadius: ${s.orbitRadius},
+` + `    orbitAngle: ${s.orbitAngle},
+` + `    orbitSpeed: ${s.orbitSpeed},
+` + `    scale: ${s.scale},${s.dialogNodeId ? `
+    dialogNodeId: ${JSON.stringify(s.dialogNodeId)},` : ""}
+` + `});`;
+    } else {
+      return `// ${s.name} (${s.category}) -> Deep Space
+` + `spawnEditorAsset('${s.category}', {
+` + `    name: ${JSON.stringify(s.name)},
+` + `    position: { x: ${s.position.x}, y: ${s.position.y}, z: ${s.position.z} },
+` + `    scale: ${s.scale},${s.dialogNodeId ? `
+    dialogNodeId: ${JSON.stringify(s.dialogNodeId)},` : ""}
+` + `});`;
+    }
+  });
+  return {
+    systemId: sysId,
+    systemName: activeSys.name,
+    timestamp: new Date().toISOString(),
+    entities: serialized,
+    typescriptSnippet: tsLines.join(`
+
+`)
+  };
+}
+function saveSystemEditorToStorage(systemId) {
+  try {
+    const sysId = systemId !== undefined ? systemId : STATE.currentSystemId || 0;
+    const exported = exportSystemEditorConfig();
+    localStorage.setItem(`najmafar_editor_sys_${sysId}`, JSON.stringify(exported));
+    addLogEntry("SYSTEM", `\uD83D\uDCBE EDITOR: ${exported.entities.length} Objekt(e) für ${exported.systemName} lokal gespeichert.`);
+    return true;
+  } catch (e) {
+    console.error("[WorldEditor] Failed to save to localStorage:", e);
+    return false;
+  }
+}
+function loadSystemEditorFromStorage(systemId) {
+  try {
+    const sysId = systemId !== undefined ? systemId : STATE.currentSystemId || 0;
+    const raw = localStorage.getItem(`najmafar_editor_sys_${sysId}`);
+    if (!raw)
+      return false;
+    const data = JSON.parse(raw);
+    if (!data || !Array.isArray(data.entities))
+      return false;
+    data.entities.forEach((saved) => {
+      if (saved.isBuiltIn) {
+        let target = null;
+        if (saved.builtInKey === "jamalShip")
+          target = STATE.jamalShip;
+        else if (saved.builtInKey === "towingDrone")
+          target = STATE.towingDrone;
+        else if (saved.builtInKey === "voyagerProbe")
+          target = STATE.voyagerProbe;
+        else if (saved.builtInKey === "spaceStation" && STATE.spaceStations) {
+          target = STATE.spaceStations.find((s) => s.name === saved.name) || STATE.spaceStations[0];
+        }
+        if (target) {
+          target.name = saved.name;
+          target.scale = saved.scale;
+          target.rotationY = saved.rotationY;
+          target.orbitRadius = saved.orbitRadius;
+          target.orbitAngle = saved.orbitAngle;
+          target.orbitSpeed = saved.orbitSpeed;
+          target.questId = saved.questId;
+          target.dialogNodeId = saved.dialogNodeId;
+          if (saved.parentPlanetName) {
+            const p = activePlanets.find((pl) => pl.name === saved.parentPlanetName);
+            if (p)
+              target.parentPlanet = p;
+          } else {
+            target.parentPlanet = null;
+            if (target.position && saved.position) {
+              target.position.set(saved.position.x, saved.position.y || 0, saved.position.z);
+            }
+          }
+          applyEntityTransformToMesh(target);
+        }
+      } else {
+        const existing = (STATE.editorEntities || []).find((e) => e.id === saved.id);
+        if (!existing) {
+          spawnEditorAsset(saved.category, {
+            id: saved.id,
+            name: saved.name,
+            scale: saved.scale,
+            rotationY: saved.rotationY,
+            parentPlanetName: saved.parentPlanetName,
+            orbitRadius: saved.orbitRadius,
+            orbitAngle: saved.orbitAngle,
+            orbitSpeed: saved.orbitSpeed,
+            position: saved.position,
+            questId: saved.questId,
+            dialogNodeId: saved.dialogNodeId
+          });
+        }
+      }
+    });
+    return true;
+  } catch (e) {
+    console.error("[WorldEditor] Failed to load from localStorage:", e);
+    return false;
+  }
+}
+function clearCustomEditorEntities() {
+  if (STATE.editorEntities) {
+    STATE.editorEntities.forEach((ent) => {
+      if (ent.mesh && scene) {
+        scene.remove(ent.mesh);
+      }
+      const gIdx = STATE.gravitySources.indexOf(ent);
+      if (gIdx !== -1)
+        STATE.gravitySources.splice(gIdx, 1);
+    });
+  }
+  STATE.editorEntities = [];
+  STATE.editorSelectedEntity = null;
+  if (transformControls) {
+    transformControls.detach();
+  }
+}
+function setEditorTimeScale(scale) {
+  STATE.editorTimeScale = Math.max(0, scale);
+  const btns = document.querySelectorAll(".editor-speed-btn");
+  btns.forEach((b) => {
+    const s = Number(b.dataset.speed ?? -1);
+    b.classList.toggle("active", s === STATE.editorTimeScale);
+  });
+}
+function setEditorGizmoMode(mode) {
+  if (transformControls) {
+    transformControls.mode = mode;
+  }
+  const btns = document.querySelectorAll(".editor-gizmo-btn");
+  btns.forEach((b) => {
+    const m = b.dataset.mode;
+    b.classList.toggle("active", m === mode);
+  });
+}
+function toggleWorldEditor(forceState) {
+  if (!editorInitialized) {
+    initWorldEditor();
+  }
+  const nextState = typeof forceState === "boolean" ? forceState : !STATE.editorActive;
+  STATE.editorActive = nextState;
+  const overlay = document.getElementById("world-editor-overlay");
+  const hudContainer = document.getElementById("hud-container");
+  const leftScanner = document.getElementById("left-deck-panel");
+  if (nextState) {
+    STATE.editorTimeScale = 0;
+    if (camera) {
+      savedCameraPos.copy(camera.position);
+      savedCameraUp.copy(camera.up);
+      savedCameraFov = camera.fov;
+      editorCamTarget.copy(STATE.playerPosition);
+      editorCamPos.set(STATE.playerPosition.x, 85, STATE.playerPosition.z + 75);
+      editorYaw = 0;
+      editorPitch = -0.82;
+      camera.position.copy(editorCamPos);
+      camera.up.set(0, 1, 0);
+      camera.lookAt(editorCamTarget);
+    }
+    if (overlay)
+      overlay.classList.remove("hidden");
+    if (hudContainer)
+      hudContainer.style.opacity = "0.15";
+    if (leftScanner)
+      leftScanner.classList.remove("visible");
+    if (!STATE.editorSelectedEntity) {
+      const editables = getSystemEditableEntities();
+      if (editables.length > 0) {
+        selectEditorEntity(editables[0]);
+        focusEditorCameraOn(editables[0]);
+      } else if (activePlanets.length > 0) {
+        selectEditorEntity(activePlanets[0]);
+        focusEditorCameraOn(activePlanets[0]);
+      }
+    } else {
+      selectEditorEntity(STATE.editorSelectedEntity);
+    }
+    setEditorTimeScale(0);
+    renderEditorOutliner();
+    renderEditorInspector();
+    updateEditorVisualGuides();
+  } else {
+    if (transformControls) {
+      transformControls.detach();
+    }
+    if (orbitGuideGroup) {
+      orbitGuideGroup.visible = false;
+    }
+    if (overlay)
+      overlay.classList.add("hidden");
+    if (hudContainer)
+      hudContainer.style.opacity = "1";
+    if (camera) {
+      camera.up.copy(savedCameraUp);
+      camera.fov = savedCameraFov;
+      camera.updateProjectionMatrix();
+    }
+  }
+  return STATE.editorActive;
+}
+function isWorldEditorOpen() {
+  return Boolean(STATE.editorActive);
+}
+function updateWorldEditor(dt) {
+  if (!STATE.editorActive)
+    return;
+  const speed = (editorKeys["shift"] ? 140 : 58) * dt;
+  const forward = new Vector3(Math.sin(editorYaw), 0, -Math.cos(editorYaw));
+  const right = new Vector3(Math.cos(editorYaw), 0, Math.sin(editorYaw));
+  if (editorKeys["w"] || editorKeys["arrowup"]) {
+    editorCamPos.addScaledVector(forward, speed);
+  }
+  if (editorKeys["s"] || editorKeys["arrowdown"]) {
+    editorCamPos.addScaledVector(forward, -speed);
+  }
+  if (editorKeys["a"] || editorKeys["arrowleft"]) {
+    editorCamPos.addScaledVector(right, -speed);
+  }
+  if (editorKeys["d"] || editorKeys["arrowright"]) {
+    editorCamPos.addScaledVector(right, speed);
+  }
+  if (editorKeys["q"]) {
+    editorCamPos.y = Math.max(8, editorCamPos.y - speed * 0.8);
+  }
+  if (editorKeys["e"]) {
+    editorCamPos.y = Math.min(480, editorCamPos.y + speed * 0.8);
+  }
+  if (camera) {
+    camera.position.copy(editorCamPos);
+    camera.up.set(0, 1, 0);
+    const lookDir = new Vector3(Math.sin(editorYaw) * Math.cos(editorPitch), Math.sin(editorPitch), -Math.cos(editorYaw) * Math.cos(editorPitch));
+    editorCamTarget.copy(editorCamPos).addScaledVector(lookDir, 60);
+    camera.lookAt(editorCamTarget);
+  }
+  updateEditorVisualGuides();
+}
+function refreshInspectorValuesLive() {
+  const sel = STATE.editorSelectedEntity;
+  if (!sel)
+    return;
+  const rSlider = document.getElementById("ed-prop-orbit-radius");
+  const rNum = document.getElementById("ed-prop-orbit-radius-num");
+  const aSlider = document.getElementById("ed-prop-orbit-angle");
+  const aNum = document.getElementById("ed-prop-orbit-angle-num");
+  const safetyBadge = document.getElementById("ed-orbit-safety-badge");
+  if (rSlider && rNum && sel.orbitRadius !== undefined) {
+    rSlider.value = String(sel.orbitRadius);
+    rNum.value = String(sel.orbitRadius);
+  }
+  if (aSlider && aNum && sel.orbitAngle !== undefined) {
+    const deg = Math.round(sel.orbitAngle * 180 / Math.PI);
+    aSlider.value = String(deg);
+    aNum.value = String(deg);
+  }
+  if (safetyBadge && sel.parentPlanet) {
+    const safety = isEntityOrbitSafe(sel);
+    safetyBadge.innerHTML = safety.safe ? `<span style="color:#10b981;">\uD83D\uDFE2 Sicherer Orbit (Min: ${safety.minSafeRadius} AE)</span>` : `<span style="color:#ef4444;font-weight:700;">\uD83D\uDD34 KOLLISION bei 2.85x Zoom! (Min: ${safety.minSafeRadius} AE)</span>`;
+  }
+  const posX = document.getElementById("ed-prop-pos-x");
+  const posZ = document.getElementById("ed-prop-pos-z");
+  if (posX && sel.mesh)
+    posX.value = String(Math.round(sel.mesh.position.x * 10) / 10);
+  if (posZ && sel.mesh)
+    posZ.value = String(Math.round(sel.mesh.position.z * 10) / 10);
+}
+function renderEditorOutliner() {
+  const listEl = document.getElementById("editor-outliner-list");
+  if (!listEl)
+    return;
+  const sysId = STATE.currentSystemId || 0;
+  const activeSys = STATE.universe?.systems?.find((s) => s.id === sysId) || { name: `Sektor #${sysId}` };
+  const sysTitleEl = document.getElementById("editor-system-title");
+  if (sysTitleEl) {
+    sysTitleEl.innerText = `${activeSys.name} (ID: ${sysId})`;
+  }
+  const editables = getSystemEditableEntities();
+  const planets = activePlanets.filter((p) => !p.isMoon);
+  const moons = activePlanets.filter((p) => p.isMoon);
+  let html = "";
+  planets.forEach((p, idx) => {
+    const isPlanetSel = STATE.editorSelectedEntity === p;
+    html += `
+            <div class="editor-tree-item planet-item ${isPlanetSel ? "selected" : ""}" data-planet-idx="${idx}">
+                <span class="tree-icon">\uD83E\uDE90</span>
+                <span class="tree-label">${p.name} <small style="opacity:0.6;">(r=${p.size})</small></span>
+                <button class="tree-focus-btn" data-focus-planet="${idx}" title="Kamera fokussieren">\uD83C\uDFAF</button>
+            </div>
+        `;
+    const childMoons = moons.filter((m) => m.parentPlanet === p);
+    childMoons.forEach((m) => {
+      const mIdx = activePlanets.indexOf(m);
+      const isMSel = STATE.editorSelectedEntity === m;
+      html += `
+                <div class="editor-tree-item child-item ${isMSel ? "selected" : ""}" data-planet-idx="${mIdx}">
+                    <span class="tree-icon">\uD83C\uDF11</span>
+                    <span class="tree-label">${m.name}</span>
+                    <button class="tree-focus-btn" data-focus-planet="${mIdx}" title="Kamera fokussieren">\uD83C\uDFAF</button>
+                </div>
+            `;
+    });
+    const orbitalEntities = editables.filter((e) => e.parentPlanet === p);
+    orbitalEntities.forEach((ent) => {
+      const eIdx = editables.indexOf(ent);
+      const isESel = STATE.editorSelectedEntity === ent;
+      const icon = ent.category === "space_station" || ent.category === "trade_hub" ? "\uD83D\uDEF0️" : ent.category === "towing_drone" ? "\uD83E\uDD16" : ent.category === "derelict_wreck" ? "\uD83D\uDCA5" : ent.category === "psionic_anomaly" ? "\uD83C\uDF0C" : "\uD83D\uDE80";
+      const safety = isEntityOrbitSafe(ent);
+      const warnBadge = !safety.safe ? `<span title="Kollisionsgefahr!" style="color:#ef4444;margin-left:4px;">⚠️</span>` : "";
+      html += `
+                <div class="editor-tree-item child-item ${isESel ? "selected" : ""}" data-entity-idx="${eIdx}">
+                    <span class="tree-icon">${icon}</span>
+                    <span class="tree-label">${ent.name}${warnBadge}</span>
+                    <button class="tree-focus-btn" data-focus-entity="${eIdx}" title="Kamera fokussieren">\uD83C\uDFAF</button>
+                </div>
+            `;
+    });
+  });
+  const deepSpaceEntities = editables.filter((e) => !e.parentPlanet);
+  if (deepSpaceEntities.length > 0) {
+    html += `<div class="editor-tree-section">\uD83C\uDF0C TIEFRAUM (DEEP SPACE)</div>`;
+    deepSpaceEntities.forEach((ent) => {
+      const eIdx = editables.indexOf(ent);
+      const isESel = STATE.editorSelectedEntity === ent;
+      const icon = ent.category === "voyager_probe" ? "\uD83D\uDEF0️" : ent.category === "derelict_wreck" ? "\uD83D\uDCA5" : ent.category === "psionic_anomaly" ? "\uD83C\uDF0C" : "\uD83D\uDE80";
+      html += `
+                <div class="editor-tree-item ${isESel ? "selected" : ""}" data-entity-idx="${eIdx}">
+                    <span class="tree-icon">${icon}</span>
+                    <span class="tree-label">${ent.name}</span>
+                    <button class="tree-focus-btn" data-focus-entity="${eIdx}" title="Kamera fokussieren">\uD83C\uDFAF</button>
+                </div>
+            `;
+    });
+  }
+  listEl.innerHTML = html;
+  listEl.querySelectorAll("[data-entity-idx]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      if (e.target.classList.contains("tree-focus-btn"))
+        return;
+      const idx = Number(el.dataset.entityIdx);
+      if (editables[idx])
+        selectEditorEntity(editables[idx]);
+    });
+  });
+  listEl.querySelectorAll("[data-planet-idx]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      if (e.target.classList.contains("tree-focus-btn"))
+        return;
+      const idx = Number(el.dataset.planetIdx);
+      if (activePlanets[idx])
+        selectEditorEntity(activePlanets[idx]);
+    });
+  });
+  listEl.querySelectorAll("[data-focus-entity]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const idx = Number(btn.dataset.focusEntity);
+      if (editables[idx]) {
+        selectEditorEntity(editables[idx]);
+        focusEditorCameraOn(editables[idx]);
+      }
+    });
+  });
+  listEl.querySelectorAll("[data-focus-planet]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const idx = Number(btn.dataset.focusPlanet);
+      if (activePlanets[idx]) {
+        selectEditorEntity(activePlanets[idx]);
+        focusEditorCameraOn(activePlanets[idx]);
+      }
+    });
+  });
+}
+function renderEditorInspector() {
+  const bodyEl = document.getElementById("editor-inspector-body");
+  if (!bodyEl)
+    return;
+  const sel = STATE.editorSelectedEntity;
+  if (!sel) {
+    bodyEl.innerHTML = `<div style="color:#64748b;font-size:0.82rem;padding:16px;text-align:center;">Wähle links im Szenen-Baum oder im 3D-Viewport ein Objekt aus, oder spawne unten ein neues Asset.</div>`;
+    return;
+  }
+  const isPlanet = Boolean(sel.distance !== undefined && sel.source !== undefined);
+  const pos = sel.mesh ? sel.mesh.position : sel.position || { x: 0, y: 0, z: 0 };
+  const curScale = Number(sel.scale ?? sel.mesh?.scale?.x ?? 1);
+  const curRotDeg = Math.round(sel.rotationY ?? (sel.mesh?.rotation?.y || 0) * 180 / Math.PI);
+  if (isPlanet) {
+    const minSafe = getPlanetMinSafeOrbitRadius(sel);
+    bodyEl.innerHTML = `
+            <div class="ed-field-group">
+                <label class="ed-label">Himmelskörper</label>
+                <div style="font-weight:700;color:#f8fafc;font-size:0.95rem;">\uD83E\uDE90 ${sel.name}</div>
+                <div style="color:#94a3b8;font-size:0.76rem;margin-top:4px;">Typ: ${sel.type} • Basis-Radius: ${sel.size} AE</div>
+                <div style="color:#10b981;font-size:0.76rem;margin-top:4px;">\uD83D\uDFE2 Min. sicherer Stations-Orbit: <b>${minSafe} AE</b></div>
+            </div>
+            <div class="ed-field-group">
+                <button id="ed-spawn-on-planet-btn" class="ed-action-btn primary" style="width:100%;">+ Objekt in sicheren Orbit setzen</button>
+                <button id="ed-teleport-player-btn" class="ed-action-btn" style="width:100%;margin-top:6px;">\uD83D\uDE80 Spielerschiff hierhin teleportieren</button>
+            </div>
+        `;
+    document.getElementById("ed-spawn-on-planet-btn")?.addEventListener("click", () => {
+      spawnEditorAsset("space_station", { parentPlanet: sel });
+    });
+    document.getElementById("ed-teleport-player-btn")?.addEventListener("click", () => {
+      teleportPlayerToSelectedEntity();
+    });
+    return;
+  }
+  const planets = activePlanets.filter((p) => !p.isMoon);
+  const parentName = sel.parentPlanet ? sel.parentPlanet.name : "__deep_space__";
+  const orbitRadius = Math.round((sel.orbitRadius ?? 28) * 10) / 10;
+  const orbitAngleDeg = Math.round((sel.orbitAngle ?? 0) * 180 / Math.PI);
+  const orbitSpeed = Number(sel.orbitSpeed ?? 0.035);
+  const safety = isEntityOrbitSafe(sel);
+  const dialogueKeys = Object.keys(DIALOGUE_NODES || {});
+  const dialogueOptionsHtml = [
+    `<option value="">-- Kein Dialog verknüpft --</option>`,
+    ...dialogueKeys.map((k) => `<option value="${k}" ${sel.dialogNodeId === k ? "selected" : ""}>${k} (${DIALOGUE_NODES[k]?.speakerName || "NPC"})</option>`)
+  ].join("");
+  const planetOptionsHtml = [
+    `<option value="__deep_space__" ${parentName === "__deep_space__" ? "selected" : ""}>\uD83C\uDF0C Frei im System (Deep Space)</option>`,
+    ...planets.map((p) => `<option value="${p.name}" ${parentName === p.name ? "selected" : ""}>\uD83E\uDE90 Orbit: ${p.name}</option>`)
+  ].join("");
+  bodyEl.innerHTML = `
+        <div class="ed-field-group">
+            <label class="ed-label">Bezeichnung / Name</label>
+            <input id="ed-prop-name" class="ed-input" type="text" value="${(sel.name || "").replace(/"/g, "&quot;")}" />
+        </div>
+
+        <div class="ed-field-group">
+            <label class="ed-label">Größe / Skalierung (Scale: <span id="ed-scale-val">${curScale.toFixed(2)}x</span>)</label>
+            <div class="ed-slider-row">
+                <input id="ed-prop-scale" type="range" min="0.1" max="6.0" step="0.05" value="${curScale}" />
+                <input id="ed-prop-scale-num" class="ed-num-input" type="number" step="0.05" min="0.1" max="10" value="${curScale}" />
+            </div>
+        </div>
+
+        <div class="ed-field-group">
+            <label class="ed-label">Rotation Y (${curRotDeg}°)</label>
+            <div class="ed-slider-row">
+                <input id="ed-prop-rot" type="range" min="-180" max="180" step="1" value="${curRotDeg}" />
+                <input id="ed-prop-rot-num" class="ed-num-input" type="number" step="5" value="${curRotDeg}" />
+            </div>
+        </div>
+
+        <div class="ed-field-group">
+            <label class="ed-label">Orbit-Bindung (Parent)</label>
+            <select id="ed-prop-parent" class="ed-select">${planetOptionsHtml}</select>
+        </div>
+
+        ${sel.parentPlanet ? `
+            <div class="ed-field-group" style="background:rgba(15,23,42,0.65);padding:8px;border-radius:6px;border:1px solid rgba(56,189,248,0.2);">
+                <label class="ed-label">Orbit-Radius (AE)</label>
+                <div class="ed-slider-row">
+                    <input id="ed-prop-orbit-radius" type="range" min="5" max="140" step="0.5" value="${orbitRadius}" />
+                    <input id="ed-prop-orbit-radius-num" class="ed-num-input" type="number" step="0.5" value="${orbitRadius}" />
+                </div>
+                <div id="ed-orbit-safety-badge" style="font-size:0.74rem;margin-top:4px;">
+                    ${safety.safe ? `<span style="color:#10b981;">\uD83D\uDFE2 Sicherer Orbit (Min: ${safety.minSafeRadius} AE)</span>` : `<span style="color:#ef4444;font-weight:700;">\uD83D\uDD34 KOLLISION bei 2.85x Zoom! (Min: ${safety.minSafeRadius} AE)</span>`}
+                </div>
+                ${!safety.safe ? `<button id="ed-snap-safe-btn" class="ed-action-btn primary" style="width:100%;margin-top:6px;">⚡ Auf sicheren Orbit setzen (${(safety.minSafeRadius + 8).toFixed(1)} AE)</button>` : ""}
+
+                <label class="ed-label" style="margin-top:8px;">Orbit-Winkel (0°–360°)</label>
+                <div class="ed-slider-row">
+                    <input id="ed-prop-orbit-angle" type="range" min="0" max="360" step="1" value="${orbitAngleDeg}" />
+                    <input id="ed-prop-orbit-angle-num" class="ed-num-input" type="number" step="5" value="${orbitAngleDeg}" />
+                </div>
+
+                <label class="ed-label" style="margin-top:8px;">Umlauf-Speed (rad/s)</label>
+                <input id="ed-prop-orbit-speed" class="ed-input" type="number" step="0.005" value="${orbitSpeed}" />
+            </div>
+        ` : `
+            <div class="ed-field-group">
+                <label class="ed-label">Tiefraum-Koordinaten (X / Z in AE)</label>
+                <div style="display:flex;gap:6px;">
+                    <input id="ed-prop-pos-x" class="ed-input" type="number" step="1" value="${Math.round(pos.x * 10) / 10}" placeholder="X" />
+                    <input id="ed-prop-pos-z" class="ed-input" type="number" step="1" value="${Math.round(pos.z * 10) / 10}" placeholder="Z" />
+                </div>
+            </div>
+        `}
+
+        <div class="ed-field-group">
+            <label class="ed-label">Dialog bei Interaktion [F]</label>
+            <select id="ed-prop-dialog" class="ed-select">${dialogueOptionsHtml}</select>
+        </div>
+
+        <div class="ed-field-group" style="border-top:1px solid rgba(148,163,184,0.15);padding-top:8px;">
+            <label class="ed-label">3D-Modell Quelle (${sel.modelSource === "custom_glb" ? `GLB: ${sel.customModelName}` : "Prozedural"})</label>
+            <input id="ed-glb-file-input" type="file" accept=".glb,.gltf" style="display:none;" />
+            <button id="ed-load-glb-btn" class="ed-action-btn" style="width:100%;">\uD83D\uDCC2 Eigenes .GLB / .GLTF Modell laden...</button>
+        </div>
+
+        <div class="ed-field-group" style="display:flex;flex-direction:column;gap:6px;border-top:1px solid rgba(148,163,184,0.15);padding-top:8px;">
+            <button id="ed-teleport-player-btn" class="ed-action-btn primary">\uD83D\uDE80 Spielerschiff hierhin teleportieren</button>
+            <button id="ed-copy-entity-code-btn" class="ed-action-btn">\uD83D\uDCCB Objekt-Code in Zwischenablage</button>
+            ${!sel.isBuiltIn ? `<button id="ed-delete-entity-btn" class="ed-action-btn danger">\uD83D\uDDD1️ Objekt löschen</button>` : ""}
+        </div>
+    `;
+  const nameInput = document.getElementById("ed-prop-name");
+  nameInput?.addEventListener("change", () => updateSelectedEntityProperties({ name: nameInput.value }));
+  const scaleSlider = document.getElementById("ed-prop-scale");
+  const scaleNum = document.getElementById("ed-prop-scale-num");
+  scaleSlider?.addEventListener("input", () => {
+    const v = Number(scaleSlider.value);
+    if (scaleNum)
+      scaleNum.value = String(v);
+    const lbl = document.getElementById("ed-scale-val");
+    if (lbl)
+      lbl.innerText = `${v.toFixed(2)}x`;
+    sel.scale = v;
+    if (sel.mesh)
+      sel.mesh.scale.set(v, v, v);
+    updateEditorVisualGuides();
+  });
+  scaleNum?.addEventListener("change", () => updateSelectedEntityProperties({ scale: Number(scaleNum.value) }));
+  const rotSlider = document.getElementById("ed-prop-rot");
+  const rotNum = document.getElementById("ed-prop-rot-num");
+  rotSlider?.addEventListener("input", () => {
+    const v = Number(rotSlider.value);
+    if (rotNum)
+      rotNum.value = String(v);
+    sel.rotationY = v;
+    if (sel.mesh)
+      sel.mesh.rotation.y = v * Math.PI / 180;
+  });
+  rotNum?.addEventListener("change", () => updateSelectedEntityProperties({ rotationY: Number(rotNum.value) }));
+  const parentSelect = document.getElementById("ed-prop-parent");
+  parentSelect?.addEventListener("change", () => {
+    updateSelectedEntityProperties({ parentPlanetName: parentSelect.value });
+  });
+  const rSlider = document.getElementById("ed-prop-orbit-radius");
+  const rNum = document.getElementById("ed-prop-orbit-radius-num");
+  rSlider?.addEventListener("input", () => {
+    sel.orbitRadius = Number(rSlider.value);
+    applyEntityTransformToMesh(sel);
+    refreshInspectorValuesLive();
+  });
+  rNum?.addEventListener("change", () => updateSelectedEntityProperties({ orbitRadius: Number(rNum.value) }));
+  document.getElementById("ed-snap-safe-btn")?.addEventListener("click", () => {
+    snapSelectedEntityToSafeOrbit();
+  });
+  const aSlider = document.getElementById("ed-prop-orbit-angle");
+  const aNum = document.getElementById("ed-prop-orbit-angle-num");
+  aSlider?.addEventListener("input", () => {
+    sel.orbitAngle = Number(aSlider.value) * Math.PI / 180;
+    applyEntityTransformToMesh(sel);
+    refreshInspectorValuesLive();
+  });
+  aNum?.addEventListener("change", () => {
+    updateSelectedEntityProperties({ orbitAngle: Number(aNum.value) * Math.PI / 180 });
+  });
+  const speedInput = document.getElementById("ed-prop-orbit-speed");
+  speedInput?.addEventListener("change", () => {
+    updateSelectedEntityProperties({ orbitSpeed: Number(speedInput.value) });
+  });
+  const posX = document.getElementById("ed-prop-pos-x");
+  const posZ = document.getElementById("ed-prop-pos-z");
+  const onPosChange = () => {
+    if (!posX || !posZ)
+      return;
+    updateSelectedEntityProperties({
+      position: { x: Number(posX.value), y: 0, z: Number(posZ.value) }
+    });
+  };
+  posX?.addEventListener("change", onPosChange);
+  posZ?.addEventListener("change", onPosChange);
+  const dialogSelect = document.getElementById("ed-prop-dialog");
+  dialogSelect?.addEventListener("change", () => {
+    updateSelectedEntityProperties({ dialogNodeId: dialogSelect.value });
+  });
+  const glbInput = document.getElementById("ed-glb-file-input");
+  document.getElementById("ed-load-glb-btn")?.addEventListener("click", () => {
+    glbInput?.click();
+  });
+  glbInput?.addEventListener("change", () => {
+    if (glbInput.files && glbInput.files[0]) {
+      loadCustomGlbForEntity(sel, glbInput.files[0]);
+    }
+  });
+  document.getElementById("ed-teleport-player-btn")?.addEventListener("click", () => {
+    teleportPlayerToSelectedEntity();
+  });
+  document.getElementById("ed-copy-entity-code-btn")?.addEventListener("click", () => {
+    const exp = exportSystemEditorConfig();
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(exp.typescriptSnippet);
+    }
+    showEditorExportModal(exp);
+  });
+  document.getElementById("ed-delete-entity-btn")?.addEventListener("click", () => {
+    deleteEditorEntity(sel);
+  });
+}
+function showEditorExportModal(exported) {
+  const data = exported || exportSystemEditorConfig();
+  const modal = document.getElementById("editor-export-modal");
+  const textarea = document.getElementById("editor-export-textarea");
+  if (!modal || !textarea)
+    return;
+  const combinedOutput = `// === TYPESCRIPT SPAWN SNIPPET (${data.systemName}) ===
+${data.typescriptSnippet}
+
+// === RAW JSON CONFIG ===
+${JSON.stringify(data, null, 2)}`;
+  textarea.value = combinedOutput;
+  modal.classList.remove("hidden");
+}
+function initWorldEditor() {
+  if (editorInitialized)
+    return;
+  editorInitialized = true;
+  if (typeof document !== "undefined" && !document.getElementById("world-editor-overlay")) {
+    const styleEl = document.createElement("style");
+    styleEl.id = "world-editor-styles";
+    styleEl.innerHTML = `
+            #world-editor-overlay.hidden, #editor-export-modal.hidden { display: none !important; }
+            #world-editor-overlay {
+                position: fixed; inset: 0; pointer-events: none; z-index: 8500;
+                font-family: 'Outfit', sans-serif; color: #f8fafc;
+            }
+            .editor-topbar {
+                position: absolute; top: 10px; left: 16px; right: 16px; height: 46px;
+                background: rgba(9, 14, 28, 0.92); border: 1px solid rgba(56, 189, 248, 0.35);
+                border-radius: 10px; display: flex; align-items: center; justify-content: space-between;
+                padding: 0 14px; pointer-events: auto; backdrop-filter: blur(12px);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+            }
+            .editor-brand { display: flex; align-items: center; gap: 10px; font-family: 'Orbitron', sans-serif; font-size: 0.82rem; font-weight: 700; color: #38bdf8; }
+            .editor-toolbar-group { display: flex; align-items: center; gap: 6px; }
+            .editor-btn {
+                background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(148, 163, 184, 0.25);
+                color: #e2e8f0; padding: 5px 10px; border-radius: 6px; font-size: 0.75rem;
+                cursor: pointer; transition: all 0.15s ease;
+            }
+            .editor-btn:hover { border-color: #38bdf8; color: #ffffff; background: rgba(56, 189, 248, 0.18); }
+            .editor-btn.active { background: rgba(56, 189, 248, 0.28); border-color: #38bdf8; color: #38bdf8; font-weight: 700; }
+            .editor-btn.accent { background: rgba(16, 185, 129, 0.2); border-color: #10b981; color: #34d399; }
+            .editor-sidebar-left {
+                position: absolute; top: 66px; left: 16px; bottom: 74px; width: 270px;
+                background: rgba(9, 14, 28, 0.9); border: 1px solid rgba(56, 189, 248, 0.28);
+                border-radius: 10px; display: flex; flex-direction: column; pointer-events: auto;
+                backdrop-filter: blur(12px); overflow: hidden;
+            }
+            .editor-sidebar-right {
+                position: absolute; top: 66px; right: 16px; bottom: 74px; width: 310px;
+                background: rgba(9, 14, 28, 0.9); border: 1px solid rgba(56, 189, 248, 0.28);
+                border-radius: 10px; display: flex; flex-direction: column; pointer-events: auto;
+                backdrop-filter: blur(12px); overflow: hidden;
+            }
+            .editor-panel-header {
+                padding: 10px 12px; font-family: 'Orbitron', sans-serif; font-size: 0.74rem;
+                font-weight: 700; color: #38bdf8; border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+                display: flex; justify-content: space-between; align-items: center;
+            }
+            .editor-panel-scroll { flex: 1; overflow-y: auto; padding: 8px; }
+            .editor-tree-section { font-size: 0.68rem; font-weight: 700; color: #94a3b8; margin: 10px 4px 4px; letter-spacing: 0.06em; }
+            .editor-tree-item {
+                display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 6px;
+                cursor: pointer; font-size: 0.8rem; color: #cbd5e1; margin-bottom: 2px;
+            }
+            .editor-tree-item.child-item { padding-left: 22px; font-size: 0.77rem; }
+            .editor-tree-item:hover { background: rgba(56, 189, 248, 0.12); color: #ffffff; }
+            .editor-tree-item.selected { background: rgba(56, 189, 248, 0.24); border-left: 3px solid #38bdf8; color: #ffffff; font-weight: 600; }
+            .tree-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .tree-focus-btn { background: transparent; border: none; cursor: pointer; font-size: 0.8rem; opacity: 0.65; }
+            .tree-focus-btn:hover { opacity: 1; transform: scale(1.15); }
+            .ed-field-group { margin-bottom: 10px; }
+            .ed-label { display: block; font-size: 0.72rem; color: #94a3b8; margin-bottom: 4px; }
+            .ed-input, .ed-select {
+                width: 100%; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(148, 163, 184, 0.3);
+                color: #f8fafc; padding: 6px 8px; border-radius: 6px; font-size: 0.8rem; box-sizing: border-box;
+            }
+            .ed-slider-row { display: flex; align-items: center; gap: 8px; }
+            .ed-slider-row input[type="range"] { flex: 1; accent-color: #38bdf8; }
+            .ed-num-input {
+                width: 64px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(148, 163, 184, 0.3);
+                color: #f8fafc; padding: 4px 6px; border-radius: 5px; font-size: 0.78rem;
+            }
+            .ed-action-btn {
+                background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(148, 163, 184, 0.3);
+                color: #e2e8f0; padding: 7px 10px; border-radius: 6px; font-size: 0.78rem; cursor: pointer;
+            }
+            .ed-action-btn.primary { background: rgba(56, 189, 248, 0.2); border-color: #38bdf8; color: #38bdf8; font-weight: 600; }
+            .ed-action-btn.danger { background: rgba(239, 68, 68, 0.18); border-color: #ef4444; color: #fca5a5; }
+            .editor-bottombar {
+                position: absolute; bottom: 12px; left: 16px; right: 16px; height: 52px;
+                background: rgba(9, 14, 28, 0.92); border: 1px solid rgba(56, 189, 248, 0.35);
+                border-radius: 10px; display: flex; align-items: center; justify-content: space-between;
+                padding: 0 14px; pointer-events: auto; backdrop-filter: blur(12px);
+            }
+            .editor-spawn-palette { display: flex; align-items: center; gap: 6px; overflow-x: auto; }
+            #editor-export-modal {
+                position: fixed; inset: 0; background: rgba(2, 6, 23, 0.82); z-index: 9200;
+                display: flex; align-items: center; justify-content: center; pointer-events: auto;
+            }
+            .editor-modal-card {
+                width: 680px; max-width: 92vw; background: #0f172a; border: 1px solid #38bdf8;
+                border-radius: 12px; padding: 16px; color: #f8fafc;
+            }
+        `;
+    if (document.head)
+      document.head.appendChild(styleEl);
+    const overlay = document.createElement("div");
+    overlay.id = "world-editor-overlay";
+    overlay.className = "hidden";
+    overlay.innerHTML = `
+            <header class="editor-topbar">
+                <div class="editor-brand">
+                    <span>\uD83D\uDEE0️ COSMIC DIRECTOR</span>
+                    <span id="editor-system-title" style="color:#94a3b8;font-size:0.75rem;">System</span>
+                </div>
+                <div class="editor-toolbar-group">
+                    <span style="font-size:0.72rem;color:#94a3b8;margin-right:4px;">ORBIT-ZEIT:</span>
+                    <button class="editor-btn editor-speed-btn active" data-speed="0">⏸️ Pause</button>
+                    <button class="editor-btn editor-speed-btn" data-speed="1">▶️ 1x</button>
+                    <button class="editor-btn editor-speed-btn" data-speed="5">⏩ 5x</button>
+                    <button class="editor-btn editor-speed-btn" data-speed="20">⏫ 20x</button>
+                </div>
+                <div class="editor-toolbar-group">
+                    <span style="font-size:0.72rem;color:#94a3b8;margin-right:4px;">3D-GIZMO:</span>
+                    <button class="editor-btn editor-gizmo-btn active" data-mode="translate">✥ Move [T]</button>
+                    <button class="editor-btn editor-gizmo-btn" data-mode="rotate">↻ Rotate [R]</button>
+                    <button class="editor-btn editor-gizmo-btn" data-mode="scale">⤢ Scale [Y]</button>
+                </div>
+                <div class="editor-toolbar-group">
+                    <button id="editor-save-local-btn" class="editor-btn accent">\uD83D\uDCBE Lokal Speichern</button>
+                    <button id="editor-export-btn" class="editor-btn">\uD83D\uDCCB JSON / TS Export</button>
+                    <button id="editor-close-btn" class="editor-btn" style="border-color:#f43f5e;color:#fda4af;">✕ Spiel fortsetzen [F1]</button>
+                </div>
+            </header>
+
+            <aside class="editor-sidebar-left">
+                <div class="editor-panel-header">
+                    <span>SZENEN-BAUM (OUTLINER)</span>
+                </div>
+                <div id="editor-outliner-list" class="editor-panel-scroll"></div>
+            </aside>
+
+            <aside class="editor-sidebar-right">
+                <div class="editor-panel-header">
+                    <span>EIGENSCHAFTEN (INSPECTOR)</span>
+                </div>
+                <div id="editor-inspector-body" class="editor-panel-scroll"></div>
+            </aside>
+
+            <footer class="editor-bottombar">
+                <div class="editor-spawn-palette">
+                    <span style="font-size:0.72rem;font-weight:700;color:#38bdf8;margin-right:4px;">+ ASSET SPAWNEN:</span>
+                    <button class="editor-btn" data-spawn="jamal_shuttle">\uD83D\uDE80 Forschungsschiff</button>
+                    <button class="editor-btn" data-spawn="towing_drone">\uD83E\uDD16 Abschleppdrohne</button>
+                    <button class="editor-btn" data-spawn="space_station">\uD83D\uDEF0️ INSAN-Zitadelle</button>
+                    <button class="editor-btn" data-spawn="trade_hub">\uD83D\uDEF8 Handels-Station</button>
+                    <button class="editor-btn" data-spawn="voyager_probe">\uD83D\uDEF0️ Voyager-Sonde</button>
+                    <button class="editor-btn" data-spawn="derelict_wreck">\uD83D\uDCA5 Schiffswrack</button>
+                    <button class="editor-btn" data-spawn="psionic_anomaly">\uD83C\uDF0C Psio-Anomalie</button>
+                </div>
+                <div style="font-size:0.72rem;color:#94a3b8;">
+                    Kamera: <b>WASD</b> Fliegen • <b>Q/E</b> Höhe • <b>Rechtsklick</b> Umschauen • <b>Mausrad</b> Zoom
+                </div>
+            </footer>
+
+            <div id="editor-export-modal" class="hidden">
+                <div class="editor-modal-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <strong style="color:#38bdf8;font-family:'Orbitron',sans-serif;">\uD83D\uDCCB SYSTEM- & QUEST-KONFIGURATION EXPORT</strong>
+                        <button id="editor-export-close-btn" class="editor-btn">✕ Schließen</button>
+                    </div>
+                    <textarea id="editor-export-textarea" rows="16" style="width:100%;background:#020617;color:#38bdf8;border:1px solid #334155;border-radius:8px;padding:10px;font-family:monospace;font-size:0.76rem;box-sizing:border-box;"></textarea>
+                    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
+                        <button id="editor-export-copy-btn" class="ed-action-btn primary">\uD83D\uDCCB In Zwischenablage kopieren</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    if (document.body)
+      document.body.appendChild(overlay);
+    overlay.querySelectorAll(".editor-speed-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        setEditorTimeScale(Number(btn.dataset.speed || 0));
+      });
+    });
+    overlay.querySelectorAll(".editor-gizmo-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const mode = btn.dataset.mode || "translate";
+        setEditorGizmoMode(mode);
+      });
+    });
+    overlay.querySelectorAll("[data-spawn]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const cat = btn.dataset.spawn;
+        spawnEditorAsset(cat);
+      });
+    });
+    document.getElementById("editor-save-local-btn")?.addEventListener("click", () => {
+      saveSystemEditorToStorage();
+    });
+    document.getElementById("editor-export-btn")?.addEventListener("click", () => {
+      showEditorExportModal();
+    });
+    document.getElementById("editor-close-btn")?.addEventListener("click", () => {
+      toggleWorldEditor(false);
+    });
+    document.getElementById("editor-export-close-btn")?.addEventListener("click", () => {
+      document.getElementById("editor-export-modal")?.classList.add("hidden");
+    });
+    document.getElementById("editor-export-copy-btn")?.addEventListener("click", () => {
+      const ta = document.getElementById("editor-export-textarea");
+      if (ta && navigator?.clipboard?.writeText) {
+        navigator.clipboard.writeText(ta.value);
+        addLogEntry("SYSTEM", "\uD83D\uDCCB Editor-Code in die Zwischenablage kopiert!");
+      }
+    });
+  }
+  if (camera && renderer && renderer.domElement && !transformControls) {
+    try {
+      transformControls = new TransformControls(camera, renderer.domElement);
+      transformControls.size = 0.95;
+      transformHelper = transformControls.getHelper();
+      scene.add(transformHelper);
+      transformControls.addEventListener("objectChange", () => {
+        if (STATE.editorSelectedEntity) {
+          syncEntityOrbitFromWorldPosition(STATE.editorSelectedEntity);
+        }
+      });
+    } catch (e) {}
+  }
+  ensureOrbitGuideGroup();
+  if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+    window.addEventListener("keydown", (e) => {
+      const tag = e.target?.tagName;
+      const isTyping = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (e.key === "F1") {
+        e.preventDefault();
+        if (STATE.gameStarted && !STATE.prologueActive) {
+          toggleWorldEditor();
+        }
+        return;
+      }
+      if (!STATE.editorActive || isTyping)
+        return;
+      const k = e.key.toLowerCase();
+      editorKeys[k] = true;
+      if (e.shiftKey)
+        editorKeys["shift"] = true;
+      if (k === "t")
+        setEditorGizmoMode("translate");
+      else if (k === "r")
+        setEditorGizmoMode("rotate");
+      else if (k === "y")
+        setEditorGizmoMode("scale");
+      else if (k === "f" && STATE.editorSelectedEntity) {
+        focusEditorCameraOn(STATE.editorSelectedEntity);
+      } else if ((e.key === "Delete" || e.key === "Backspace") && STATE.editorSelectedEntity && !STATE.editorSelectedEntity.isBuiltIn) {
+        deleteEditorEntity(STATE.editorSelectedEntity);
+      }
+    });
+    window.addEventListener("keyup", (e) => {
+      const k = e.key.toLowerCase();
+      editorKeys[k] = false;
+      if (!e.shiftKey)
+        editorKeys["shift"] = false;
+    });
+    window.addEventListener("mousedown", (e) => {
+      if (!STATE.editorActive)
+        return;
+      if (e.button === 2 || e.button === 1) {
+        isRightMouseDragging = true;
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+      }
+    });
+    window.addEventListener("mousemove", (e) => {
+      if (!STATE.editorActive || !isRightMouseDragging)
+        return;
+      const dx = e.clientX - lastMouseX;
+      const dy = e.clientY - lastMouseY;
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+      editorYaw += dx * 0.0045;
+      editorPitch = Math.max(-1.48, Math.min(0.45, editorPitch - dy * 0.0045));
+    });
+    window.addEventListener("mouseup", () => {
+      isRightMouseDragging = false;
+    });
+    window.addEventListener("contextmenu", (e) => {
+      if (STATE.editorActive)
+        e.preventDefault();
+    });
+    window.addEventListener("wheel", (e) => {
+      if (!STATE.editorActive)
+        return;
+      if (e.target?.closest(".editor-sidebar-left, .editor-sidebar-right, #editor-export-modal"))
+        return;
+      editorCamPos.y = Math.max(8, Math.min(480, editorCamPos.y + e.deltaY * 0.06));
+    });
+  }
+}
+
 // src/systems/universe.ts
 var activeCoronaMeshes = [];
 var activeCoronaUpdaters = [];
@@ -40444,6 +46822,7 @@ function updateUniverseShaders(dt, cam) {
   if (activeSunRays && cam) {
     activeSunRays.update(dt, cam);
   }
+  updateCustomEditorEntities(dt);
 }
 async function checkUniverseData() {
   try {
@@ -40576,6 +46955,7 @@ function clearActiveSystem() {
   clearFleet();
   clearJumpGates();
   clearSpaceStations();
+  clearCustomEditorEntities();
   if (STATE.voyagerProbe && STATE.voyagerProbe.mesh) {
     scene.remove(STATE.voyagerProbe.mesh);
     disposeObject3D(STATE.voyagerProbe.mesh);
@@ -41120,6 +47500,7 @@ function spawnPlanetsAndAsteroids() {
     }
   }
   addLogEntry("NAV", `Sensoren initialisiert: ${activeSystem.name} [${activeSystem.sectorName || "Sektor"}].`);
+  loadSystemEditorFromStorage(STATE.currentSystemId);
 }
 function spawnJamalMissionEntities(targetPlanet, isRealShipAtDepot = false) {
   if (STATE.jamalShip && STATE.jamalShip.mesh) {
@@ -41348,6 +47729,101 @@ function initiateSystemArrival(fromSys, targetSys, resolution) {
   if ((STATE.ftueStep || 0) === 5) {
     advanceFtueStep(6);
   }
+}
+function updateActivePlanets(dt) {
+  activePlanets.forEach((p) => {
+    if (!p.isMoon) {
+      p.angle += p.speed * dt;
+      const px2 = p.distance * Math.cos(p.angle);
+      const pz2 = p.distance * Math.sin(p.angle);
+      p.mesh.position.set(px2, 0, pz2);
+      p.source.position.set(px2, 0, pz2);
+      const isOrbitFocus = !!(STATE.isInPlanetOrbit && STATE.orbitPlanet === p);
+      const targetScale = isOrbitFocus ? 2.8 : 1;
+      const curScale = MathUtils.lerp(p.mesh.scale.x, targetScale, Math.min(1, dt * 3));
+      p.mesh.scale.set(curScale, curScale, curScale);
+      p.source.radius = p.size * curScale;
+      if (p.bodyMesh && p.bodyMesh instanceof Mesh) {
+        if (p.attributes && p.attributes.tidalLock) {
+          p.bodyMesh.rotation.y = p.angle + Math.PI;
+        } else {
+          p.bodyMesh.rotation.y += 0.08 * dt;
+        }
+      }
+      if (p.psioAuraMesh) {
+        p.psioAuraMesh.rotation.y -= 0.15 * dt;
+        p.psioAuraMesh.rotation.x += 0.08 * dt;
+      }
+      if (p.auroraMesh) {
+        p.auroraMesh.rotation.z += 0.05 * dt;
+      }
+      if (p.cloudMesh) {
+        p.cloudMesh.rotation.y += 0.12 * dt;
+      }
+      if (p.ringMesh && p.ringMesh.material?.userData?.shader) {
+        const rs = p.ringMesh.material.userData.shader;
+        rs.uniforms.uPlanetWorldPos.value.set(px2, 0, pz2);
+        rs.uniforms.uStarWorldPos.value.set(0, 38, 0);
+        rs.uniforms.uPlanetRadius.value = p.size * curScale;
+      }
+    } else if (p.isMoon && p.parentPlanet) {
+      const isOrbitFocus = !!(STATE.isInPlanetOrbit && (STATE.orbitPlanet === p.parentPlanet || STATE.orbitPlanet === p));
+      const baseDist = p.baseDistance || 6;
+      const targetDist = isOrbitFocus ? baseDist * 3.4 + 10 : baseDist;
+      p.distance = MathUtils.lerp(p.distance, targetDist, Math.min(1, dt * 3.5));
+      const targetMoonScale = isOrbitFocus ? 1.8 : 1;
+      const curMoonScale = MathUtils.lerp(p.mesh.scale.x, targetMoonScale, Math.min(1, dt * 3));
+      p.mesh.scale.set(curMoonScale, curMoonScale, curMoonScale);
+      p.source.radius = p.size * curMoonScale;
+      p.angle += p.speed * dt;
+      const parentPos = p.parentPlanet.mesh.position;
+      const mx = parentPos.x + p.distance * Math.cos(p.angle);
+      const mz = parentPos.z + p.distance * Math.sin(p.angle);
+      p.mesh.position.set(mx, 0, mz);
+      p.source.position.set(mx, 0, mz);
+      if (p.bodyMesh && p.bodyMesh instanceof Mesh) {
+        if (p.attributes && p.attributes.tidalLock) {
+          p.bodyMesh.rotation.y = p.angle + Math.PI;
+        } else {
+          p.bodyMesh.rotation.y += 0.15 * dt;
+        }
+        const starPos = new Vector3(0, 38, 0);
+        const moonPos = p.mesh.position;
+        const toStar = starPos.clone().sub(moonPos).normalize();
+        const toPlanet = parentPos.clone().sub(moonPos);
+        const t = toPlanet.dot(toStar);
+        if (t > 0) {
+          const closest = toPlanet.clone().sub(toStar.clone().multiplyScalar(t));
+          const dist = closest.length();
+          const parentR = p.parentPlanet.size * (p.parentPlanet.mesh.scale.x || 1);
+          if (dist < parentR) {
+            const eclipseRatio = Math.min(1, Math.max(0.12, dist / Math.max(0.1, parentR)));
+            if (p.bodyMesh.material && p.bodyMesh.material.color) {
+              p.bodyMesh.material.color.set(p.color).multiplyScalar(eclipseRatio);
+            }
+          } else {
+            if (p.bodyMesh.material && p.bodyMesh.material.color) {
+              p.bodyMesh.material.color.set(p.color);
+            }
+          }
+        } else {
+          if (p.bodyMesh.material && p.bodyMesh.material.color) {
+            p.bodyMesh.material.color.set(p.color);
+          }
+        }
+      }
+      if (p.ringMesh) {
+        p.ringMesh.position.set(parentPos.x, 0, parentPos.z);
+        const ringScale = p.distance / baseDist;
+        p.ringMesh.scale.set(ringScale, 1, ringScale);
+      }
+    }
+  });
+  STATE.asteroids.forEach((a) => {
+    a.mesh.rotation.x += 0.005;
+    a.mesh.rotation.y += 0.008;
+  });
+  updateSpaceStations(dt);
 }
 
 // src/systems/save-manager.ts
@@ -48026,6 +54502,17 @@ var prevGpButtons = [];
 function setupControls() {
   window.addEventListener("keydown", (e) => {
     let key = e.key.toLowerCase();
+    if (isWorldEditorOpen()) {
+      if (key === "escape") {
+        const exportModal = document.getElementById("editor-export-modal");
+        if (exportModal && exportModal.style.display !== "none") {
+          exportModal.style.display = "none";
+        } else {
+          toggleWorldEditor(false);
+        }
+      }
+      return;
+    }
     if (key === "tab" || e.code === "Tab") {
       e.preventDefault();
       toggleDeckModal();
@@ -48108,6 +54595,8 @@ function setupControls() {
     }
     if (key === "f") {
       if (isJamalDialogOpen())
+        return;
+      if (triggerNearestEditorEntityInteraction())
         return;
       if (STATE.jamalShip && STATE.jamalShip.position) {
         const jamalDist = STATE.playerPosition.distanceTo(STATE.jamalShip.position);
@@ -48306,6 +54795,8 @@ function setupControls() {
   setupTargetRaycasting();
   initJamalDialogListeners();
   window.addEventListener("wheel", (e) => {
+    if (isWorldEditorOpen())
+      return;
     if (e.target && e.target.closest("#main-menu, #how-to-play-modal, #deck-container, #diplomacy-overlay")) {
       return;
     }
@@ -48350,14 +54841,44 @@ function setupTargetRaycasting() {
     const dy = e.clientY - pointerDownPos.y;
     if (Math.sqrt(dx * dx + dy * dy) > 8)
       return;
-    if (e.target && e.target.closest("#hud-container, #galaxy-map-overlay, #main-menu, #how-to-play-modal, #voyager-dialog-modal, #diplomacy-overlay, #npc-dialog-card")) {
+    if (e.target && e.target.closest("#hud-container, #galaxy-map-overlay, #main-menu, #how-to-play-modal, #voyager-dialog-modal, #diplomacy-overlay, #npc-dialog-card, .editor-topbar, .editor-sidebar-left, .editor-sidebar-right, .editor-bottombar, #editor-export-modal")) {
       return;
     }
-    if (!STATE.gameStarted || !renderer || !camera)
+    if (!renderer || !camera)
+      return;
+    if (!STATE.gameStarted && !isWorldEditorOpen())
       return;
     mouseVec.x = e.clientX / window.innerWidth * 2 - 1;
     mouseVec.y = -(e.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouseVec, camera);
+    if (isWorldEditorOpen()) {
+      const editorCandidates = [...activePlanets, ...getSystemEditableEntities()];
+      const editorMeshes = [];
+      editorCandidates.forEach((ent) => {
+        if (ent && ent.mesh)
+          editorMeshes.push(ent.mesh);
+      });
+      const hits = raycaster.intersectObjects(editorMeshes, true);
+      if (hits.length > 0) {
+        const hitObj = hits[0].object;
+        const matched = editorCandidates.find((ent) => {
+          if (!ent || !ent.mesh)
+            return false;
+          let cur = hitObj;
+          while (cur) {
+            if (cur === ent.mesh)
+              return true;
+            cur = cur.parent;
+          }
+          return false;
+        });
+        if (matched) {
+          selectEditorEntity(matched);
+          return;
+        }
+      }
+      return;
+    }
     const targetMeshes = [];
     activePlanets.forEach((p) => {
       if (p.mesh)
@@ -50447,24 +56968,33 @@ function animate(time) {
   const dt = Math.min((time - lastTime) / 1000, 0.1);
   lastTime = time;
   const isPaused = STATE.gameStarted && isMainMenuOpen();
+  const editorOpen = isWorldEditorOpen();
   if (starfieldController) {
-    if (isPaused) {
+    if (isPaused || editorOpen) {
       starfieldController.update(0, camera ? camera.position : STATE.playerPosition, zeroVelocity);
     } else {
       starfieldController.update(dt, camera ? camera.position : STATE.playerPosition, STATE.playerVelocity);
     }
   }
   if (!STATE.prologueActive && !isPaused) {
-    updateUniverseShaders(dt, camera);
+    const simDt = editorOpen ? dt * (STATE.editorTimeScale ?? 0) : dt;
+    updateUniverseShaders(simDt, camera);
     gravityCircles.forEach((c) => {
       const timePulse = Math.sin(Date.now() * 0.003 * c.pulseSpeed);
       c.mesh.material.opacity = c.baseOpacity + timePulse * (c.baseOpacity * 0.5);
     });
   }
-  if (!isPaused) {
+  if (!isPaused && !editorOpen) {
     updateMenagerieScene(dt);
   }
-  if (STATE.gameStarted && !isPaused) {
+  if (editorOpen) {
+    const simDt = dt * (STATE.editorTimeScale ?? 0);
+    if (simDt > 0) {
+      updateActivePlanets(simDt);
+      updateFleet(simDt);
+    }
+    updateWorldEditor(dt);
+  } else if (STATE.gameStarted && !isPaused) {
     if (!STATE.prologueActive) {
       processInput(dt);
       updatePhysics(dt);
@@ -50546,6 +57076,7 @@ function init() {
   initDirectivesHUD();
   initVoyagerDialogListeners();
   initFirstContactModalListeners();
+  initWorldEditor();
   renderCrewUI();
   updateMutationUI();
   initQuantumIsingSystem();
@@ -50635,6 +57166,9 @@ function setupMenuListeners() {
   const startAbductBtn = document.getElementById("start-abduct-btn");
   if (startAbductBtn)
     startAbductBtn.addEventListener("click", triggerAbductStart);
+  const dockEditorBtn = document.getElementById("dock-editor-btn");
+  if (dockEditorBtn)
+    dockEditorBtn.addEventListener("click", () => toggleWorldEditor());
   const runningInElectron = typeof window.api !== "undefined";
   if (runningInElectron) {
     const exitBtn = document.getElementById("exit-btn");

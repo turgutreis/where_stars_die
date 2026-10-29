@@ -756,6 +756,12 @@ export interface GameState {
     prologueActive?: boolean;
     prologueStage?: 'office_dream' | 'alien_zoo' | 'jamal_contact' | 'absorption_sync' | 'breakout_warp' | 'completed';
     prologueStep?: number;
+
+    // In-Game World & Quest Editor ("Cosmic Director")
+    editorActive?: boolean;
+    editorTimeScale?: number;
+    editorSelectedEntity?: any | null;
+    editorEntities?: any[];
 }
 
 export type OrbitLevel = 'solar' | 'planet' | 'moon';

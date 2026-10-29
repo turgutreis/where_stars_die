@@ -29,6 +29,7 @@ import { isSaveModalOpen, closeSaveModal } from '../ui/save-modal';
 import { toggleMainMenu } from '../ui/menu-controller';
 import { toggleStealth } from '../systems/stealth';
 import { closeShuttleExpeditionModal } from '../systems/shuttle-expeditions';
+import { isWorldEditorOpen, triggerNearestEditorEntityInteraction, toggleWorldEditor, selectEditorEntity, getSystemEditableEntities } from '../editor/world-editor';
 
 const raycaster = new THREE.Raycaster();
 const mouseVec = new THREE.Vector2();
@@ -38,6 +39,17 @@ export function setupControls() {
     // Keyboard down
     window.addEventListener('keydown', (e) => {
         let key = e.key.toLowerCase();
+        if (isWorldEditorOpen()) {
+            if (key === 'escape') {
+                const exportModal = document.getElementById('editor-export-modal');
+                if (exportModal && exportModal.style.display !== 'none') {
+                    exportModal.style.display = 'none';
+                } else {
+                    toggleWorldEditor(false);
+                }
+            }
+            return;
+        }
         if (key === 'tab' || e.code === 'Tab') {
             e.preventDefault();
             toggleDeckModal();
@@ -137,6 +149,7 @@ export function setupControls() {
         }
         if (key === 'f') {
             if (isJamalDialogOpen()) return;
+            if (triggerNearestEditorEntityInteraction()) return;
 
             // 0. Proximity interaction with Dr. Tariq Jamal's Research Ship / Towing Drone (< 28 AE)
             if (STATE.jamalShip && STATE.jamalShip.position) {
@@ -353,6 +366,7 @@ export function setupControls() {
 
     // Mouse Wheel Camera Zoom Listener (Zoom in up-close to see Alien anatomy, or out for system view)
     window.addEventListener('wheel', (e) => {
+        if (isWorldEditorOpen()) return;
         if (e.target && (e.target as HTMLElement).closest('#main-menu, #how-to-play-modal, #deck-container, #diplomacy-overlay')) {
             return;
         }
@@ -401,16 +415,43 @@ export function setupTargetRaycasting() {
         const dy = e.clientY - pointerDownPos.y;
         if (Math.sqrt(dx * dx + dy * dy) > 8) return;
 
-        if (e.target && (e.target as HTMLElement).closest('#hud-container, #galaxy-map-overlay, #main-menu, #how-to-play-modal, #voyager-dialog-modal, #diplomacy-overlay, #npc-dialog-card')) {
+        if (e.target && (e.target as HTMLElement).closest('#hud-container, #galaxy-map-overlay, #main-menu, #how-to-play-modal, #voyager-dialog-modal, #diplomacy-overlay, #npc-dialog-card, .editor-topbar, .editor-sidebar-left, .editor-sidebar-right, .editor-bottombar, #editor-export-modal')) {
             return;
         }
 
-        if (!STATE.gameStarted || !renderer || !camera) return;
+        if (!renderer || !camera) return;
+        if (!STATE.gameStarted && !isWorldEditorOpen()) return;
 
         mouseVec.x = (e.clientX / window.innerWidth) * 2 - 1;
         mouseVec.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
         raycaster.setFromCamera(mouseVec, camera);
+
+        if (isWorldEditorOpen()) {
+            const editorCandidates: any[] = [...activePlanets, ...getSystemEditableEntities()];
+            const editorMeshes: THREE.Object3D[] = [];
+            editorCandidates.forEach(ent => {
+                if (ent && ent.mesh) editorMeshes.push(ent.mesh);
+            });
+            const hits = raycaster.intersectObjects(editorMeshes, true);
+            if (hits.length > 0) {
+                const hitObj = hits[0].object;
+                const matched = editorCandidates.find(ent => {
+                    if (!ent || !ent.mesh) return false;
+                    let cur: THREE.Object3D | null = hitObj;
+                    while (cur) {
+                        if (cur === ent.mesh) return true;
+                        cur = cur.parent;
+                    }
+                    return false;
+                });
+                if (matched) {
+                    selectEditorEntity(matched);
+                    return;
+                }
+            }
+            return;
+        }
 
         const targetMeshes: THREE.Object3D[] = [];
         activePlanets.forEach(p => {

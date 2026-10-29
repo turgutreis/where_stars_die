@@ -24,6 +24,7 @@ import { syncActivePlanetsIsingEpochs, updateHudChronicleBadge } from './quantum
 import { QuestManager } from './quests';
 import { openNpcDialogue } from '../ui/jamal-dialog';
 import { advanceFtueStep } from '../ui/directives';
+import { updateCustomEditorEntities, clearCustomEditorEntities, loadSystemEditorFromStorage } from '../editor/world-editor';
 
 export const activeCoronaMeshes: THREE.Object3D[] = [];
 export const activeCoronaUpdaters: ((dt: number) => void)[] = [];
@@ -75,6 +76,7 @@ export function updateUniverseShaders(dt: number, cam?: THREE.Camera) {
     if (activeSunRays && cam) {
         activeSunRays.update(dt, cam);
     }
+    updateCustomEditorEntities(dt);
 }
 
 export async function checkUniverseData() {
@@ -232,6 +234,7 @@ export function clearActiveSystem() {
     clearFleet();
     clearJumpGates();
     clearSpaceStations();
+    clearCustomEditorEntities();
 
     if (STATE.voyagerProbe && STATE.voyagerProbe.mesh) {
         scene.remove(STATE.voyagerProbe.mesh);
@@ -878,6 +881,7 @@ export function spawnPlanetsAndAsteroids() {
     }
 
     addLogEntry("NAV", `Sensoren initialisiert: ${activeSystem.name} [${activeSystem.sectorName || 'Sektor'}].`);
+    loadSystemEditorFromStorage(STATE.currentSystemId);
 }
 
 export function spawnJamalMissionEntities(targetPlanet?: any, isRealShipAtDepot: boolean = false) {

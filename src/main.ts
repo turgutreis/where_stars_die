@@ -29,6 +29,8 @@ import { initSaveModal } from './ui/save-modal';
 import { hideMainMenu, showMainMenu, toggleMainMenu, isMainMenuOpen } from './ui/menu-controller';
 import { initQuantumIsingSystem } from './systems/quantum-ising';
 import { updateMenagerieScene } from './procedural/menagerie-scene';
+import { initWorldEditor, updateWorldEditor, isWorldEditorOpen, toggleWorldEditor } from './editor/world-editor';
+import { updateActivePlanets } from './systems/universe';
 
 let lastTime = 0;
 let voyagerBeaconTimer = 0;
@@ -44,10 +46,11 @@ function animate(time: number) {
     lastTime = time;
 
     const isPaused = STATE.gameStarted && isMainMenuOpen();
+    const editorOpen = isWorldEditorOpen();
 
     // Background starfield & cosmic nebula updates (infinite celestial dome & dynamic space dust)
     if (starfieldController) {
-        if (isPaused) {
+        if (isPaused || editorOpen) {
             starfieldController.update(0, camera ? camera.position : STATE.playerPosition, zeroVelocity);
         } else {
             starfieldController.update(dt, camera ? camera.position : STATE.playerPosition, STATE.playerVelocity);
@@ -55,8 +58,10 @@ function animate(time: number) {
     }
 
     if (!STATE.prologueActive && !isPaused) {
+        const simDt = editorOpen ? dt * (STATE.editorTimeScale ?? 0) : dt;
+
         // Update active procedural shaders (solar corona, volumetric sun rays, and lens flares)
-        updateUniverseShaders(dt, camera);
+        updateUniverseShaders(simDt, camera);
 
         // Pulse gravity rings
         gravityCircles.forEach(c => {
@@ -66,11 +71,18 @@ function animate(time: number) {
     }
 
     // Update 3D Menagerie Ceres-9 enclosure if active and not paused
-    if (!isPaused) {
+    if (!isPaused && !editorOpen) {
         updateMenagerieScene(dt);
     }
 
-    if (STATE.gameStarted && !isPaused) {
+    if (editorOpen) {
+        const simDt = dt * (STATE.editorTimeScale ?? 0);
+        if (simDt > 0) {
+            updateActivePlanets(simDt);
+            updateFleet(simDt);
+        }
+        updateWorldEditor(dt);
+    } else if (STATE.gameStarted && !isPaused) {
         if (!STATE.prologueActive) {
             // Unified Keyboard and Gamepad input processing
             processInput(dt);
@@ -181,6 +193,7 @@ function init() {
     initDirectivesHUD();
     initVoyagerDialogListeners();
     initFirstContactModalListeners();
+    initWorldEditor();
     renderCrewUI();
     updateMutationUI();
 
@@ -282,6 +295,9 @@ function setupMenuListeners() {
 
     const startAbductBtn = document.getElementById('start-abduct-btn');
     if (startAbductBtn) startAbductBtn.addEventListener('click', triggerAbductStart);
+
+    const dockEditorBtn = document.getElementById('dock-editor-btn');
+    if (dockEditorBtn) dockEditorBtn.addEventListener('click', () => toggleWorldEditor());
 
     // Electron Quit Button
     const runningInElectron = typeof (window as any).api !== 'undefined';

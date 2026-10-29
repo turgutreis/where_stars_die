@@ -291,7 +291,13 @@ export const STATE: GameState = {
     prologueCompleted: false,
     prologueActive: false,
     prologueStage: 'office_dream',
-    prologueStep: 0
+    prologueStep: 0,
+
+    // In-Game World & Quest Editor ("Cosmic Director")
+    editorActive: false,
+    editorTimeScale: 0,
+    editorSelectedEntity: null,
+    editorEntities: []
 };
 
 export const activePlanets: PlanetEntry[] = [];

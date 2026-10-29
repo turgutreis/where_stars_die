@@ -88,6 +88,8 @@ if (typeof globalThis.document === 'undefined') {
     }
     const elementsMap: Record<string, any> = {};
     (globalThis as any).document = {
+        body: createMockElement(),
+        head: createMockElement(),
         getElementById: (id: string) => {
             if (!elementsMap[id]) {
                 elementsMap[id] = createMockElement();
@@ -247,6 +249,25 @@ import {
     liberateRealShipAtStation,
     liberateVoyagerProbe
 } from '../src/ui/jamal-dialog';
+import {
+    initWorldEditor,
+    toggleWorldEditor,
+    isWorldEditorOpen,
+    spawnEditorAsset,
+    selectEditorEntity,
+    updateSelectedEntityProperties,
+    syncEntityOrbitFromWorldPosition,
+    getPlanetMinSafeOrbitRadius,
+    isEntityOrbitSafe,
+    snapSelectedEntityToSafeOrbit,
+    exportSystemEditorConfig,
+    saveSystemEditorToStorage,
+    loadSystemEditorFromStorage,
+    teleportPlayerToSelectedEntity,
+    triggerNearestEditorEntityInteraction,
+    clearCustomEditorEntities,
+    deleteEditorEntity
+} from '../src/editor/world-editor';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
     let mockPlanet: any;
@@ -4524,6 +4545,101 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         triggerBioDischarge();
         updateFleet(0.5); // Charge and discharge shockwave
         expect(STATE.jamalShipLiberated).toBe(true);
+    });
+
+    test("57. Cosmic Director In-Game World & Quest Editor: Spawning, Orbit Safety Check, Gizmo Sync, Persistence & Bound [F] Dialogue", () => {
+        initWorldEditor();
+        clearCustomEditorEntities();
+
+        // 1. Setup a mock planet in activePlanets
+        const mockPlanet: any = {
+            name: "Zeta-9 Prime",
+            size: 5.0,
+            mesh: new THREE.Group(),
+            position: new THREE.Vector3(100, 0, 50),
+            attributes: {}
+        };
+        mockPlanet.mesh.position.set(100, 0, 50);
+        activePlanets.length = 0;
+        activePlanets.push(mockPlanet);
+        STATE.currentSystemId = 77;
+
+        // 2. Toggle Editor On
+        toggleWorldEditor(true);
+        expect(isWorldEditorOpen()).toBe(true);
+        expect(STATE.editorActive).toBe(true);
+        expect(STATE.editorTimeScale).toBe(0);
+
+        // 3. Spawn a custom Space Station orbiting mockPlanet
+        const stationEnt = spawnEditorAsset('space_station', {
+            name: 'Forschungs-Außenposten Alpha',
+            parentPlanet: mockPlanet,
+            scale: 1.0,
+            dialogNodeId: 'insan_station_bureaucracy'
+        });
+        expect(stationEnt).toBeDefined();
+        expect(STATE.editorSelectedEntity).toBe(stationEnt);
+        expect(stationEnt.parentPlanet).toBe(mockPlanet);
+
+        // 4. Verify Safe Orbit Radius Calculation & Snap to Safe Orbit
+        const minSafeRadius = getPlanetMinSafeOrbitRadius(mockPlanet);
+        // For size 5.0: expanded 5.0 * 2.85 * 1.35 + 6.0 = 25.3
+        expect(minSafeRadius).toBeGreaterThan(24.0);
+        expect(isEntityOrbitSafe(stationEnt).safe).toBe(true);
+
+        // Force an unsafe orbit (inside planet expansion zone) and test detection + 1-click snap
+        updateSelectedEntityProperties({ orbitRadius: 12.0 });
+        expect(stationEnt.orbitRadius).toBe(12.0);
+        expect(isEntityOrbitSafe(stationEnt).safe).toBe(false);
+
+        snapSelectedEntityToSafeOrbit();
+        expect(stationEnt.orbitRadius).toBeGreaterThanOrEqual(minSafeRadius);
+        expect(isEntityOrbitSafe(stationEnt).safe).toBe(true);
+
+        // 5. Test 3D Gizmo Drag World-to-Orbit Sync
+        // Simulate dragging the mesh in 3D space to (100, 0, 90) -> 40 units in +Z from planet (100, 0, 50)
+        stationEnt.mesh.position.set(100, 0, 90);
+        syncEntityOrbitFromWorldPosition(stationEnt);
+        expect(Math.round(stationEnt.orbitRadius)).toBe(40);
+        expect(stationEnt.orbitAngle).toBeCloseTo(Math.PI / 2, 2);
+
+        // 6. Test Teleport Player Ship to Selected Entity
+        teleportPlayerToSelectedEntity();
+        const playerDistToStation = STATE.playerPosition.distanceTo(stationEnt.position);
+        expect(playerDistToStation).toBeLessThan(20.0);
+
+        // 7. Test Bound [F] Dialogue Trigger on Custom Editor Entity
+        DialogueEngine.closeDialogue();
+        const triggered = triggerNearestEditorEntityInteraction();
+        expect(triggered).toBe(true);
+        expect(DialogueEngine.isDialogOpen()).toBe(true);
+        expect(DialogueEngine.getCurrentNodeId()).toBe('insan_station_bureaucracy');
+        DialogueEngine.closeDialogue();
+
+        // 8. Test Export & LocalStorage Persistence per Star System
+        const exported = exportSystemEditorConfig();
+        expect(exported.systemId).toBe(77);
+        const customEnt = exported.entities.find((e: any) => e.name === 'Forschungs-Außenposten Alpha');
+        expect(customEnt).toBeDefined();
+        expect(customEnt!.dialogNodeId).toBe('insan_station_bureaucracy');
+        expect(exported.typescriptSnippet).toContain('Forschungs-Außenposten Alpha');
+
+        saveSystemEditorToStorage();
+        clearCustomEditorEntities();
+        expect(STATE.editorEntities?.length || 0).toBe(0);
+
+        const loaded = loadSystemEditorFromStorage(77);
+        expect(loaded).toBe(true);
+        expect(STATE.editorEntities?.length).toBe(1);
+        expect(STATE.editorEntities![0].name).toBe('Forschungs-Außenposten Alpha');
+        expect(STATE.editorEntities![0].dialogNodeId).toBe('insan_station_bureaucracy');
+
+        // Clean up & close editor
+        selectEditorEntity(STATE.editorEntities![0]);
+        deleteEditorEntity();
+        expect(STATE.editorEntities?.length).toBe(0);
+        toggleWorldEditor(false);
+        expect(isWorldEditorOpen()).toBe(false);
     });
 });
 
