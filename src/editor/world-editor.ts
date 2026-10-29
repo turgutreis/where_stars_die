@@ -9,6 +9,7 @@ import { createVoyagerProbeMesh } from '../procedural/meshes';
 import { DIALOGUE_NODES, openNpcDialogue } from '../ui/jamal-dialog';
 import { addLogEntry } from '../ui/hud';
 import { PlanetEntry } from '../types/game';
+import { clearActiveSystem, spawnPlanetsAndAsteroids } from '../systems/universe';
 
 export type EditorAssetCategory =
     | 'jamal_shuttle'
@@ -97,10 +98,15 @@ const editorKeys: Record<string, boolean> = {};
 let editorInitialized = false;
 let entityCounter = 1;
 
-// Saved game camera before entering editor
+// Saved game camera and player state before entering editor
 const savedCameraPos = new THREE.Vector3();
 const savedCameraUp = new THREE.Vector3();
 let savedCameraFov = 60;
+let savedPlayerSystemId = 1;
+const savedPlayerPos = new THREE.Vector3();
+const savedPlayerVel = new THREE.Vector3();
+let savedShipHeading = 0;
+let playerExplicitlyTeleportedInEditor = false;
 
 /**
  * Calculates the minimum safe orbital radius around a planet so that even at maximum
@@ -753,9 +759,13 @@ export function teleportPlayerToSelectedEntity(): boolean {
     const pos = sel.mesh ? sel.mesh.position : sel.position;
     if (!pos) return false;
 
+    playerExplicitlyTeleportedInEditor = true;
+    savedPlayerSystemId = STATE.currentSystemId || 1;
     const standoff = Math.max(8.0, (sel.size || sel.radius || 1.5) * 2.5 + 6.0);
     STATE.playerPosition.set(pos.x, 0, pos.z + standoff);
     STATE.playerVelocity.set(0, 0, 0);
+    savedPlayerPos.copy(STATE.playerPosition);
+    savedPlayerVel.copy(STATE.playerVelocity);
     if (STATE.playerGroup) {
         STATE.playerGroup.position.copy(STATE.playerPosition);
     }
@@ -1082,7 +1092,13 @@ export function toggleWorldEditor(forceState?: boolean): boolean {
     const leftScanner = document.getElementById('left-deck-panel');
 
     if (nextState) {
-        // Entering Editor Mode
+        // Entering Editor Mode: Snapshot player's actual system & coordinates so editor browsing never corrupts them!
+        savedPlayerSystemId = STATE.currentSystemId || 1;
+        savedPlayerPos.copy(STATE.playerPosition);
+        savedPlayerVel.copy(STATE.playerVelocity);
+        savedShipHeading = STATE.shipHeading || 0;
+        playerExplicitlyTeleportedInEditor = false;
+
         STATE.editorTimeScale = 0; // Pause orbits by default for effortless placement
         if (camera) {
             savedCameraPos.copy(camera.position);
@@ -1101,6 +1117,8 @@ export function toggleWorldEditor(forceState?: boolean): boolean {
         if (overlay) overlay.classList.remove('hidden');
         if (hudContainer) hudContainer.style.opacity = '0.15';
         if (leftScanner) leftScanner.classList.remove('visible');
+
+        populateEditorSystemDropdown();
 
         // Auto-select Jamal's ship, first space station, or first planet if nothing is selected
         if (!STATE.editorSelectedEntity) {
@@ -1121,8 +1139,8 @@ export function toggleWorldEditor(forceState?: boolean): boolean {
         renderEditorInspector();
         updateEditorVisualGuides();
     } else {
-        // Exiting Editor Mode -> Back to Ship Gameplay
-        if (transformControls) {
+        // Exiting Editor Mode -> Restore player's actual system & position unless explicitly teleported
+        if ( transformControls ) {
             transformControls.detach();
         }
         if (orbitGuideGroup) {
@@ -1130,6 +1148,21 @@ export function toggleWorldEditor(forceState?: boolean): boolean {
         }
         if (overlay) overlay.classList.add('hidden');
         if (hudContainer) hudContainer.style.opacity = '1';
+
+        if (!playerExplicitlyTeleportedInEditor) {
+            if (STATE.currentSystemId !== savedPlayerSystemId && STATE.universe) {
+                STATE.currentSystemId = savedPlayerSystemId;
+                clearActiveSystem();
+                spawnPlanetsAndAsteroids();
+            }
+            STATE.playerPosition.copy(savedPlayerPos);
+            STATE.playerVelocity.copy(savedPlayerVel);
+            STATE.shipHeading = savedShipHeading;
+            if (STATE.playerGroup) {
+                STATE.playerGroup.position.copy(savedPlayerPos);
+                STATE.playerGroup.rotation.y = savedShipHeading;
+            }
+        }
 
         if (camera) {
             camera.up.copy(savedCameraUp);
@@ -1143,6 +1176,49 @@ export function toggleWorldEditor(forceState?: boolean): boolean {
 
 export function isWorldEditorOpen(): boolean {
     return Boolean(STATE.editorActive);
+}
+
+/**
+ * Populates the Star System switcher dropdown in the Editor Topbar.
+ */
+function populateEditorSystemDropdown() {
+    const selEl = document.getElementById('editor-system-select') as HTMLSelectElement | null;
+    if (!selEl || !STATE.universe?.systems) return;
+
+    const curId = STATE.currentSystemId ?? 1;
+    selEl.innerHTML = STATE.universe.systems.map((sys: any) => {
+        const isDepot = Boolean(sys.isInsanDepot || (sys.name && sys.name.includes('INSAN')));
+        const isStart = sys.id === 1;
+        const prefix = isStart ? '🌱 [START] ' : (isDepot ? '🛰️ [QUEST] ' : (sys.isLoreSystem ? '⭐ ' : ''));
+        return `<option value="${sys.id}" ${sys.id === curId ? 'selected' : ''}>#${sys.id} ${prefix}${sys.name}</option>`;
+    }).join('');
+}
+
+/**
+ * Switches the currently inspected star system inside the Editor WITHOUT overwriting the player's saved game start point.
+ */
+export function switchEditorStarSystem(targetSystemId: number) {
+    if (!STATE.universe?.systems) return;
+    const found = STATE.universe.systems.find((s: any) => s.id === targetSystemId);
+    if (!found) return;
+
+    STATE.currentSystemId = targetSystemId;
+    clearActiveSystem();
+    spawnPlanetsAndAsteroids();
+
+    populateEditorSystemDropdown();
+    const editables = getSystemEditableEntities();
+    if (editables.length > 0) {
+        selectEditorEntity(editables[0]);
+        focusEditorCameraOn(editables[0]);
+    } else if (activePlanets.length > 0) {
+        selectEditorEntity(activePlanets[0]);
+        focusEditorCameraOn(activePlanets[0]);
+    } else {
+        selectEditorEntity(null);
+    }
+    renderEditorOutliner();
+    renderEditorInspector();
 }
 
 /**
@@ -1712,7 +1788,8 @@ export function initWorldEditor() {
             <header class="editor-topbar">
                 <div class="editor-brand">
                     <span>🛠️ COSMIC DIRECTOR</span>
-                    <span id="editor-system-title" style="color:#94a3b8;font-size:0.75rem;">System</span>
+                    <select id="editor-system-select" class="ed-select" style="width:210px;padding:3px 6px;font-size:0.74rem;" title="Sternensystem im Editor wechseln (ohne Spielstartpunkt zu überschreiben)"></select>
+                    <span id="editor-system-title" style="color:#94a3b8;font-size:0.72rem;display:none;">System</span>
                 </div>
                 <div class="editor-toolbar-group">
                     <span style="font-size:0.72rem;color:#94a3b8;margin-right:4px;">ORBIT-ZEIT:</span>
@@ -1800,6 +1877,12 @@ export function initWorldEditor() {
 
         document.getElementById('editor-save-local-btn')?.addEventListener('click', () => {
             saveSystemEditorToStorage();
+        });
+        document.getElementById('editor-system-select')?.addEventListener('change', (e) => {
+            const targetId = Number((e.target as HTMLSelectElement).value);
+            if (!isNaN(targetId)) {
+                switchEditorStarSystem(targetId);
+            }
         });
         document.getElementById('editor-export-btn')?.addEventListener('click', () => {
             showEditorExportModal();

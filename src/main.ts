@@ -224,8 +224,14 @@ function setupMenuListeners() {
 
     if (startBtn) {
         startBtn.addEventListener('click', () => {
+            if (isWorldEditorOpen()) {
+                toggleWorldEditor(false);
+            }
             hideMainMenu();
             STATE.gameStarted = true;
+            STATE.currentSystemId = 1; // Always guarantee starting in Perseus-Rand (System 1) on New Game!
+            STATE.visitedSystemIds = [1];
+            STATE.systemsVisited = 1;
             document.body.classList.add('game-started');
             if (resumeBtn) resumeBtn.style.display = 'flex';
 

@@ -45198,6 +45198,11 @@ var entityCounter = 1;
 var savedCameraPos = new Vector3;
 var savedCameraUp = new Vector3;
 var savedCameraFov = 60;
+var savedPlayerSystemId = 1;
+var savedPlayerPos = new Vector3;
+var savedPlayerVel = new Vector3;
+var savedShipHeading = 0;
+var playerExplicitlyTeleportedInEditor = false;
 function getPlanetMinSafeOrbitRadius(planet) {
   if (!planet)
     return 22;
@@ -45740,9 +45745,13 @@ function teleportPlayerToSelectedEntity() {
   const pos = sel.mesh ? sel.mesh.position : sel.position;
   if (!pos)
     return false;
+  playerExplicitlyTeleportedInEditor = true;
+  savedPlayerSystemId = STATE.currentSystemId || 1;
   const standoff = Math.max(8, (sel.size || sel.radius || 1.5) * 2.5 + 6);
   STATE.playerPosition.set(pos.x, 0, pos.z + standoff);
   STATE.playerVelocity.set(0, 0, 0);
+  savedPlayerPos.copy(STATE.playerPosition);
+  savedPlayerVel.copy(STATE.playerVelocity);
   if (STATE.playerGroup) {
     STATE.playerGroup.position.copy(STATE.playerPosition);
   }
@@ -46021,6 +46030,11 @@ function toggleWorldEditor(forceState) {
   const hudContainer = document.getElementById("hud-container");
   const leftScanner = document.getElementById("left-deck-panel");
   if (nextState) {
+    savedPlayerSystemId = STATE.currentSystemId || 1;
+    savedPlayerPos.copy(STATE.playerPosition);
+    savedPlayerVel.copy(STATE.playerVelocity);
+    savedShipHeading = STATE.shipHeading || 0;
+    playerExplicitlyTeleportedInEditor = false;
     STATE.editorTimeScale = 0;
     if (camera) {
       savedCameraPos.copy(camera.position);
@@ -46040,6 +46054,7 @@ function toggleWorldEditor(forceState) {
       hudContainer.style.opacity = "0.15";
     if (leftScanner)
       leftScanner.classList.remove("visible");
+    populateEditorSystemDropdown();
     if (!STATE.editorSelectedEntity) {
       const editables = getSystemEditableEntities();
       if (editables.length > 0) {
@@ -46067,6 +46082,20 @@ function toggleWorldEditor(forceState) {
       overlay.classList.add("hidden");
     if (hudContainer)
       hudContainer.style.opacity = "1";
+    if (!playerExplicitlyTeleportedInEditor) {
+      if (STATE.currentSystemId !== savedPlayerSystemId && STATE.universe) {
+        STATE.currentSystemId = savedPlayerSystemId;
+        clearActiveSystem();
+        spawnPlanetsAndAsteroids();
+      }
+      STATE.playerPosition.copy(savedPlayerPos);
+      STATE.playerVelocity.copy(savedPlayerVel);
+      STATE.shipHeading = savedShipHeading;
+      if (STATE.playerGroup) {
+        STATE.playerGroup.position.copy(savedPlayerPos);
+        STATE.playerGroup.rotation.y = savedShipHeading;
+      }
+    }
     if (camera) {
       camera.up.copy(savedCameraUp);
       camera.fov = savedCameraFov;
@@ -46077,6 +46106,41 @@ function toggleWorldEditor(forceState) {
 }
 function isWorldEditorOpen() {
   return Boolean(STATE.editorActive);
+}
+function populateEditorSystemDropdown() {
+  const selEl = document.getElementById("editor-system-select");
+  if (!selEl || !STATE.universe?.systems)
+    return;
+  const curId = STATE.currentSystemId ?? 1;
+  selEl.innerHTML = STATE.universe.systems.map((sys) => {
+    const isDepot = Boolean(sys.isInsanDepot || sys.name && sys.name.includes("INSAN"));
+    const isStart = sys.id === 1;
+    const prefix = isStart ? "\uD83C\uDF31 [START] " : isDepot ? "\uD83D\uDEF0️ [QUEST] " : sys.isLoreSystem ? "⭐ " : "";
+    return `<option value="${sys.id}" ${sys.id === curId ? "selected" : ""}>#${sys.id} ${prefix}${sys.name}</option>`;
+  }).join("");
+}
+function switchEditorStarSystem(targetSystemId) {
+  if (!STATE.universe?.systems)
+    return;
+  const found = STATE.universe.systems.find((s) => s.id === targetSystemId);
+  if (!found)
+    return;
+  STATE.currentSystemId = targetSystemId;
+  clearActiveSystem();
+  spawnPlanetsAndAsteroids();
+  populateEditorSystemDropdown();
+  const editables = getSystemEditableEntities();
+  if (editables.length > 0) {
+    selectEditorEntity(editables[0]);
+    focusEditorCameraOn(editables[0]);
+  } else if (activePlanets.length > 0) {
+    selectEditorEntity(activePlanets[0]);
+    focusEditorCameraOn(activePlanets[0]);
+  } else {
+    selectEditorEntity(null);
+  }
+  renderEditorOutliner();
+  renderEditorInspector();
 }
 function updateWorldEditor(dt) {
   if (!STATE.editorActive)
@@ -46583,7 +46647,8 @@ function initWorldEditor() {
             <header class="editor-topbar">
                 <div class="editor-brand">
                     <span>\uD83D\uDEE0️ COSMIC DIRECTOR</span>
-                    <span id="editor-system-title" style="color:#94a3b8;font-size:0.75rem;">System</span>
+                    <select id="editor-system-select" class="ed-select" style="width:210px;padding:3px 6px;font-size:0.74rem;" title="Sternensystem im Editor wechseln (ohne Spielstartpunkt zu überschreiben)"></select>
+                    <span id="editor-system-title" style="color:#94a3b8;font-size:0.72rem;display:none;">System</span>
                 </div>
                 <div class="editor-toolbar-group">
                     <span style="font-size:0.72rem;color:#94a3b8;margin-right:4px;">ORBIT-ZEIT:</span>
@@ -46669,6 +46734,12 @@ function initWorldEditor() {
     });
     document.getElementById("editor-save-local-btn")?.addEventListener("click", () => {
       saveSystemEditorToStorage();
+    });
+    document.getElementById("editor-system-select")?.addEventListener("change", (e) => {
+      const targetId = Number(e.target.value);
+      if (!isNaN(targetId)) {
+        switchEditorStarSystem(targetId);
+      }
     });
     document.getElementById("editor-export-btn")?.addEventListener("click", () => {
       showEditorExportModal();
@@ -55451,7 +55522,8 @@ function restartGame() {
   STATE.siliconRes = 0;
   STATE.crew = [];
   STATE.scannedPlanets = {};
-  STATE.currentSystemId = 0;
+  STATE.currentSystemId = 1;
+  STATE.visitedSystemIds = [1];
   Object.keys(STATE.mutations).forEach((key) => {
     STATE.mutations[key].purchased = false;
   });
@@ -56890,6 +56962,10 @@ function finishPrologue() {
   if (scene && isMenagerieActive()) {
     cleanupMenagerieScene(scene);
   }
+  STATE.currentSystemId = 1;
+  if (!STATE.visitedSystemIds.includes(1)) {
+    STATE.visitedSystemIds.push(1);
+  }
   if (STATE.universe) {
     clearActiveSystem();
     spawnPlanetsAndAsteroids();
@@ -57099,8 +57175,14 @@ function setupMenuListeners() {
   });
   if (startBtn) {
     startBtn.addEventListener("click", () => {
+      if (isWorldEditorOpen()) {
+        toggleWorldEditor(false);
+      }
       hideMainMenu();
       STATE.gameStarted = true;
+      STATE.currentSystemId = 1;
+      STATE.visitedSystemIds = [1];
+      STATE.systemsVisited = 1;
       document.body.classList.add("game-started");
       if (resumeBtn)
         resumeBtn.style.display = "flex";

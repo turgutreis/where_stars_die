@@ -359,7 +359,11 @@ export function finishPrologue() {
         cleanupMenagerieScene(scene);
     }
 
-    // Spawn planets in Perseus-Rand if not spawned
+    // Spawn planets in Perseus-Rand (Always guarantee System 1 on Prologue completion!)
+    STATE.currentSystemId = 1;
+    if (!STATE.visitedSystemIds.includes(1)) {
+        STATE.visitedSystemIds.push(1);
+    }
     if (STATE.universe) {
         clearActiveSystem();
         spawnPlanetsAndAsteroids();

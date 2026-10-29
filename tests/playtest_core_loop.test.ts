@@ -266,7 +266,8 @@ import {
     teleportPlayerToSelectedEntity,
     triggerNearestEditorEntityInteraction,
     clearCustomEditorEntities,
-    deleteEditorEntity
+    deleteEditorEntity,
+    switchEditorStarSystem
 } from '../src/editor/world-editor';
 
 describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
@@ -4640,6 +4641,36 @@ describe("🎮 CORE GAMEPLAY LOOP & RESOURCE ECONOMY PLAYTEST", () => {
         expect(STATE.editorEntities?.length).toBe(0);
         toggleWorldEditor(false);
         expect(isWorldEditorOpen()).toBe(false);
+
+        // 9. Verify Editor System Switching & Position Changes NEVER overwrite Player Start Point / Active System
+        STATE.universe = {
+            systems: [
+                { id: 0, name: 'Sol', x: 0, z: 0, star: { type: 'Yellow Sun', size: 12, mass: 100, color: '0xffd700' }, planets: [] },
+                { id: 1, name: 'Perseus-Rand', x: 50, z: 50, star: { type: 'Red Dwarf', size: 10, mass: 80, color: '0xff6b6b' }, planets: [] },
+                { id: 9, name: 'INSAN-Verwahrstelle Zeta-9', isInsanDepot: true, x: 120, z: -40, star: { type: 'White Dwarf', size: 8, mass: 90, color: '0x38bdf8' }, planets: [] }
+            ]
+        } as any;
+        STATE.currentSystemId = 1;
+        STATE.playerPosition.set(0, 0, 160);
+        STATE.playerVelocity.set(1.5, 0, 0);
+
+        // Enter editor at Perseus-Rand (System 1, z=160)
+        toggleWorldEditor(true);
+        // Switch star system inside editor to System 9 (INSAN Depot)
+        switchEditorStarSystem(9);
+        expect(STATE.currentSystemId).toBe(9);
+
+        // Close editor without teleporting -> must restore System 1 and z=160!
+        toggleWorldEditor(false);
+        expect(STATE.currentSystemId).toBe(1);
+        expect(STATE.playerPosition.z).toBe(160);
+
+        // Even if currentSystemId was somehow left on 9, finishing prologue always guarantees System 1 & z=160
+        STATE.currentSystemId = 9;
+        triggerPrologueSequence(() => {});
+        finishPrologue();
+        expect(STATE.currentSystemId).toBe(1);
+        expect(STATE.playerPosition.z).toBe(160);
     });
 });
 

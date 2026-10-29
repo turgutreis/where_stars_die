@@ -227,7 +227,8 @@ export function restartGame() {
     STATE.siliconRes = 0;
     STATE.crew = [];
     STATE.scannedPlanets = {};
-    STATE.currentSystemId = 0;
+    STATE.currentSystemId = 1;
+    STATE.visitedSystemIds = [1];
 
     // Reset mutations
     Object.keys(STATE.mutations).forEach(key => {
