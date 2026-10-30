@@ -726,15 +726,15 @@ func _ensure_target_reticle_ring() -> void:
 	target_reticle_ring = MeshInstance3D.new()
 	target_reticle_ring.name = "TargetReticleRing"
 	var torus := TorusMesh.new()
-	torus.inner_radius = 1.95
-	torus.outer_radius = 2.25
-	torus.rings = 48
+	torus.inner_radius = 1.98
+	torus.outer_radius = 2.02
+	torus.rings = 64
 	torus.ring_segments = 6
 	target_reticle_mat = StandardMaterial3D.new()
 	target_reticle_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	target_reticle_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	target_reticle_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	target_reticle_mat.albedo_color = Color(0.22, 0.88, 1.0, 0.75)
+	target_reticle_mat.albedo_color = Color(0.22, 0.88, 1.0, 0.34)
 	torus.material = target_reticle_mat
 	target_reticle_ring.mesh = torus
 	target_reticle_ring.visible = false
@@ -751,16 +751,16 @@ func _update_target_reticle_ring(target: Node3D, dist: float, delta: float) -> v
 	target_reticle_ring.rotate_y(delta * 1.4)
 
 	var base_r: float = float(target.get("base_radius")) if target.get("base_radius") != null else 2.0
-	var s_factor: float = max(1.2, base_r * target.scale.x * 0.72)
-	var pulse: float = 1.0 + sin(Time.get_ticks_msec() * 0.006) * 0.06
+	var s_factor: float = max(1.2, base_r * target.scale.x * 0.68)
+	var pulse: float = 1.0 + sin(Time.get_ticks_msec() * 0.006) * 0.03
 	target_reticle_ring.scale = Vector3(s_factor * pulse, 1.0, s_factor * pulse)
 
 	var cat: String = str(target.get_meta("entity_category", ""))
 	if target_reticle_mat:
 		if cat == "jamal_shuttle" or cat == "space_station" or cat == "voyager_probe":
-			target_reticle_mat.albedo_color = Color(1.0, 0.68, 0.1, 0.85 if dist <= 36.0 else 0.42)
+			target_reticle_mat.albedo_color = Color(1.0, 0.68, 0.1, 0.45 if dist <= 36.0 else 0.22)
 		else:
-			target_reticle_mat.albedo_color = Color(0.0, 1.0, 0.62, 0.82 if dist <= 36.0 else 0.38)
+			target_reticle_mat.albedo_color = Color(0.0, 1.0, 0.62, 0.36 if dist <= 36.0 else 0.18)
 
 func _compute_gravity_acceleration() -> Vector3:
 	if not player_ship:

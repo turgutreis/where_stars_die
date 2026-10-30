@@ -1,8 +1,8 @@
-[gd_scene load_steps=6 format=3 uid="uid://najmafar_star_system"]
+[gd_scene format=3 uid="uid://b3l3yo6tsiq7y"]
 
-[ext_resource type="Script" path="res://scripts/world/star_system_manager.gd" id="1_sys"]
-[ext_resource type="PackedScene" uid="uid://najmafar_player_ship" path="res://scenes/entities/player_bio_ship.tscn" id="2_ship"]
-[ext_resource type="PackedScene" uid="uid://najmafar_hud" path="res://scenes/ui/hud.tscn" id="3_hud"]
+[ext_resource type="Script" uid="uid://dmhki4m5hkvgc" path="res://scripts/world/star_system_manager.gd" id="1_sys"]
+[ext_resource type="PackedScene" uid="uid://cbpy7oypfqy8l" path="res://scenes/entities/player_bio_ship.tscn" id="2_ship"]
+[ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="3_hud"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_space"]
 sky_top_color = Color(0.01, 0.015, 0.04, 1)
@@ -23,17 +23,17 @@ glow_enabled = true
 glow_intensity = 1.1
 glow_bloom = 0.25
 
-[node name="StarSystem" type="Node3D"]
+[node name="StarSystem" type="Node3D" unique_id=374260969]
 script = ExtResource("1_sys")
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1793308239]
 environment = SubResource("Environment_space")
 
-[node name="ProceduralSystemContainer" type="Node3D" parent="."]
+[node name="ProceduralSystemContainer" type="Node3D" parent="." unique_id=132984803]
 
-[node name="EditorPlacedObjects" type="Node3D" parent="."]
+[node name="EditorPlacedObjects" type="Node3D" parent="." unique_id=1176341515]
 
-[node name="PlayerBioShip" parent="." instance=ExtResource("2_ship")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 160)
+[node name="PlayerBioShip" parent="." unique_id=1345190481 instance=ExtResource("2_ship")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 174.22345, 0, 160)
 
-[node name="HUD" parent="." instance=ExtResource("3_hud")]
+[node name="HUD" parent="." unique_id=2074513737 instance=ExtResource("3_hud")]

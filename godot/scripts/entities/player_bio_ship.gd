@@ -74,14 +74,18 @@ func trigger_warp_arrival_zoom() -> void:
 func _update_camera_transform() -> void:
 	if not is_inside_tree() or not camera_3d:
 		return
+	# Always keep PROJECTION_PERSPECTIVE so the 8K Panorama Skybox never stretches into radial lines!
+	# For Isometric mode [C], use a narrow 22° Telephoto lens at 2.1x distance + 0.38 isometric tilt.
+	camera_3d.projection = Camera3D.PROJECTION_PERSPECTIVE
 	if use_orthogonal_isometric:
-		camera_3d.projection = Camera3D.PROJECTION_ORTHOGONAL
-		camera_3d.size = camera_height * 0.85
+		camera_3d.fov = 22.0
+		var iso_h: float = camera_height * 2.05
+		var iso_z: float = iso_h * 0.38
+		camera_3d.global_position = Vector3(global_position.x, iso_h, global_position.z + iso_z)
 	else:
-		camera_3d.projection = Camera3D.PROJECTION_PERSPECTIVE
 		camera_3d.fov = camera_fov
-	var z_off: float = max(0.5, camera_height * camera_tilt_ratio)
-	camera_3d.global_position = Vector3(global_position.x, camera_height, global_position.z + z_off)
+		var z_off: float = max(0.5, camera_height * camera_tilt_ratio)
+		camera_3d.global_position = Vector3(global_position.x, camera_height, global_position.z + z_off)
 	camera_3d.look_at(global_position, Vector3.UP)
 
 func _build_detailed_bio_anatomy() -> void:
@@ -256,7 +260,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			target_camera_height = clamp(target_camera_height - 12.0, min_camera_height, max_camera_height)
 		elif ke.keycode == KEY_C:
 			use_orthogonal_isometric = not use_orthogonal_isometric
-			GameState.add_log("KAMERA", "🎥 Projektion: %s" % ("Isometrisch / Orthogonal (0%% Verzerrung)" if use_orthogonal_isometric else "3D-Perspektive (FOV %.0f°)" % camera_fov))
+			GameState.add_log("KAMERA", "🎥 Projektion: %s" % ("Tele-Isometrisch (FOV 22°)" if use_orthogonal_isometric else "Top-Down Perspektive (FOV %.0f°)" % camera_fov))
 
 func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
