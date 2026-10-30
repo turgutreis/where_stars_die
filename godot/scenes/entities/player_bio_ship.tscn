@@ -1,0 +1,76 @@
+[gd_scene load_steps=9 format=3 uid="uid://najmafar_player_ship"]
+
+[ext_resource type="Script" path="res://scripts/entities/player_bio_ship.gd" id="1_ship"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_col"]
+radius = 1.2
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_chitin"]
+albedo_color = Color(0.06, 0.38, 0.32, 1)
+metallic = 0.35
+roughness = 0.45
+emission_enabled = true
+emission = Color(0, 0.65, 0.45, 1)
+emission_energy_multiplier = 0.45
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
+material = SubResource("StandardMaterial3D_chitin")
+radius = 0.65
+height = 2.6
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_nucleus"]
+albedo_color = Color(0.2, 1, 0.65, 1)
+emission_enabled = true
+emission = Color(0, 1, 0.55, 1)
+emission_energy_multiplier = 2.2
+
+[sub_resource type="SphereMesh" id="SphereMesh_nucleus"]
+material = SubResource("StandardMaterial3D_nucleus")
+radius = 0.42
+height = 0.84
+
+[sub_resource type="BoxMesh" id="BoxMesh_wing"]
+material = SubResource("StandardMaterial3D_chitin")
+size = Vector3(1.8, 0.12, 1.1)
+
+[node name="PlayerBioShip" type="CharacterBody3D"]
+script = ExtResource("1_ship")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_col")
+
+[node name="VisualRoot" type="Node3D" parent="."]
+
+[node name="BodyMesh" type="MeshInstance3D" parent="VisualRoot"]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0)
+mesh = SubResource("CapsuleMesh_body")
+
+[node name="NucleusCore" type="MeshInstance3D" parent="VisualRoot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, -0.15)
+mesh = SubResource("SphereMesh_nucleus")
+
+[node name="LeftWing" type="Node3D" parent="VisualRoot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.95, 0, 0.1)
+
+[node name="WingMesh" type="MeshInstance3D" parent="VisualRoot/LeftWing"]
+mesh = SubResource("BoxMesh_wing")
+
+[node name="RightWing" type="Node3D" parent="VisualRoot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.95, 0, 0.1)
+
+[node name="WingMesh" type="MeshInstance3D" parent="VisualRoot/RightWing"]
+mesh = SubResource("BoxMesh_wing")
+
+[node name="BioLight" type="OmniLight3D" parent="VisualRoot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+light_color = Color(0, 1, 0.533333, 1)
+light_energy = 2.0
+omni_range = 18.0
+
+[node name="CameraRig" type="Node3D" parent="."]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+transform = Transform3D(1, 0, 0, 0, 0.422618, 0.906308, 0, -0.906308, 0.422618, 0, 68, 28)
+current = true
+fov = 55.0
+far = 2000.0
