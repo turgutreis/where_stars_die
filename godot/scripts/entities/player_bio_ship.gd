@@ -1,3 +1,4 @@
+@tool
 extends CharacterBody3D
 class_name PlayerBioShip
 
@@ -11,8 +12,8 @@ class_name PlayerBioShip
 
 var ship_heading: float = 0.0
 var angular_velocity: float = 0.0
-var camera_height: float = 68.0
-var target_camera_height: float = 68.0
+var camera_height: float = 42.0
+var target_camera_height: float = 42.0
 var anim_time: float = 0.0
 
 @onready var visual_root: Node3D = $VisualRoot
@@ -29,13 +30,24 @@ var dorsal_plates: Array[MeshInstance3D] = []
 
 func _ready() -> void:
 	add_to_group("player_ship")
-	global_position = Vector3(0.0, 0.0, 160.0)
-	velocity = Vector3(1.5, 0.0, 0.0)
 	_build_detailed_bio_anatomy()
+	if not Engine.is_editor_hint():
+		velocity = Vector3(1.5, 0.0, 0.0)
 
 func _build_detailed_bio_anatomy() -> void:
 	if not visual_root:
 		return
+	# Avoid duplicating procedural anatomy if already built in editor
+	var existing: Node = visual_root.get_node_or_null("ProceduralAnatomy")
+	if existing:
+		existing.queue_free()
+
+	var anatomy_root := Node3D.new()
+	anatomy_root.name = "ProceduralAnatomy"
+	visual_root.add_child(anatomy_root)
+
+	dorsal_plates.clear()
+	tendrils.clear()
 
 	var dorsal_mat := StandardMaterial3D.new()
 	dorsal_mat.albedo_color = Color(0.04, 0.25, 0.22)
@@ -63,17 +75,17 @@ func _build_detailed_bio_anatomy() -> void:
 		plate.mesh = cyl
 		plate.position = Vector3(0.0, 0.22 - float(i) * 0.02, -0.5 + float(i) * 0.42)
 		plate.scale = Vector3(1.0, 0.45, 0.85)
-		visual_root.add_child(plate)
+		anatomy_root.add_child(plate)
 		dorsal_plates.append(plate)
 
 	# 2. Predatory Front Mandibles (Grasping pincers at nose -Z)
 	left_mandible = Node3D.new()
 	left_mandible.position = Vector3(-0.35, 0.0, -1.15)
-	visual_root.add_child(left_mandible)
+	anatomy_root.add_child(left_mandible)
 
 	right_mandible = Node3D.new()
 	right_mandible.position = Vector3(0.35, 0.0, -1.15)
-	visual_root.add_child(right_mandible)
+	anatomy_root.add_child(right_mandible)
 
 	var mand_mesh := CylinderMesh.new()
 	mand_mesh.top_radius = 0.02
@@ -95,26 +107,11 @@ func _build_detailed_bio_anatomy() -> void:
 	r_mand_inst.position = Vector3(0.0, 0.0, -0.45)
 	right_mandible.add_child(r_mand_inst)
 
-	# Glowing Wing Edge Ribs
-	var rib_mesh := BoxMesh.new()
-	rib_mesh.size = Vector3(1.75, 0.06, 0.14)
-	rib_mesh.material = biolum_mat
-	if left_wing:
-		var l_rib := MeshInstance3D.new()
-		l_rib.mesh = rib_mesh
-		l_rib.position = Vector3(0.0, 0.05, -0.48)
-		left_wing.add_child(l_rib)
-	if right_wing:
-		var r_rib := MeshInstance3D.new()
-		r_rib.mesh = rib_mesh
-		r_rib.position = Vector3(0.0, 0.05, -0.48)
-		right_wing.add_child(r_rib)
-
 	# 3. Twin Bio-Whip Tendrils (Swaying tail appendages at +Z)
 	for t in range(2):
 		var t_root := Node3D.new()
 		t_root.position = Vector3(-0.32 if t == 0 else 0.32, 0.0, 1.25)
-		visual_root.add_child(t_root)
+		anatomy_root.add_child(t_root)
 		var parent_joint: Node3D = t_root
 		for s in range(6):
 			var seg_node := Node3D.new()
@@ -133,14 +130,18 @@ func _build_detailed_bio_anatomy() -> void:
 		tendrils.append(t_root)
 
 func _unhandled_input(event: InputEvent) -> void:
+	if Engine.is_editor_hint():
+		return
 	if event is InputEventMouseButton:
 		var mb: InputEventMouseButton = event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
-			target_camera_height = clamp(target_camera_height - 6.0, 22.0, 165.0)
+			target_camera_height = clamp(target_camera_height - 5.0, 16.0, 240.0)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
-			target_camera_height = clamp(target_camera_height + 6.0, 22.0, 165.0)
+			target_camera_height = clamp(target_camera_height + 5.0, 16.0, 240.0)
 
 func _physics_process(delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
 	if QuestManager.is_dialogue_open:
 		return
 

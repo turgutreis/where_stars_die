@@ -1,8 +1,16 @@
+@tool
 extends Node3D
 
 ## Star System World Manager for Project Najmafar (Godot 4.6)
-## High-End PBR Planetary Graphics (8K NASA/ESA Textures, Normal/Specular, Clouds, Rings, Atmosphere Rim),
-## Moons, Orbit Rings, Asteroids, Detailed Space Stations, Jamal's Ar-Riḥla & Towing Drone, plus Background Music!
+## Runs with @tool so the entire Star System (Sun, 8K Planets, Moons, Orbit Rings, Stations & Jamal's Ship)
+## is visible and inspectable LIVE inside the Godot 3D Editor Viewport!
+
+@export_category("3D Editor Live Preview")
+@export_range(0, 15, 1) var editor_preview_system_id: int = 1:
+	set(value):
+		editor_preview_system_id = value
+		if Engine.is_editor_hint() and is_inside_tree():
+			_rebuild_in_editor()
 
 @onready var procedural_container: Node3D = $ProceduralSystemContainer
 @onready var player_ship: PlayerBioShip = $PlayerBioShip
@@ -42,6 +50,10 @@ const PLANET_TEXTURES := {
 
 func _ready() -> void:
 	_setup_milky_way_skybox()
+	if Engine.is_editor_hint():
+		_rebuild_in_editor()
+		return
+
 	_setup_audio()
 	GameState.system_changed.connect(_on_system_changed)
 	build_star_system(GameState.get_current_system())
@@ -50,6 +62,26 @@ func _ready() -> void:
 		if not QuestManager.is_dialogue_open and GameState.current_system_id == 1:
 			QuestManager.open_dialogue("jamal_orbit_intro")
 	)
+
+func _rebuild_in_editor() -> void:
+	var sys_data: Dictionary = _load_system_from_json_for_editor(editor_preview_system_id)
+	if not sys_data.is_empty():
+		build_star_system(sys_data)
+
+func _load_system_from_json_for_editor(target_id: int) -> Dictionary:
+	var path := "res://data/universe_data.json"
+	if not FileAccess.file_exists(path):
+		return {}
+	var file := FileAccess.open(path, FileAccess.READ)
+	var parsed = JSON.parse_string(file.get_as_text())
+	if typeof(parsed) == TYPE_DICTIONARY and parsed.has("systems"):
+		var systems_arr: Array = parsed["systems"]
+		for sys in systems_arr:
+			if typeof(sys) == TYPE_DICTIONARY and int(sys.get("id", -1)) == target_id:
+				return sys
+		if systems_arr.size() > 0:
+			return systems_arr[0]
+	return {}
 
 func _load_tex(res_path: String) -> Texture2D:
 	if res_path == "":
@@ -67,6 +99,8 @@ func _load_tex(res_path: String) -> Texture2D:
 	return null
 
 func _setup_milky_way_skybox() -> void:
+	if not world_env:
+		world_env = get_node_or_null("WorldEnvironment") as WorldEnvironment
 	if not world_env or not world_env.environment:
 		return
 	var mw_tex := _load_tex(PLANET_TEXTURES["MILKY_WAY"])
@@ -102,23 +136,31 @@ func _play_sfx(sfx_name: String) -> void:
 
 func _on_system_changed(_sys_id: int, sys_data: Dictionary) -> void:
 	build_star_system(sys_data)
-	if player_ship:
-		player_ship.global_position = Vector3(0.0, 0.0, 150.0)
-		player_ship.velocity = Vector3(1.5, 0.0, 0.0)
-
 	var is_depot: bool = sys_data.get("isInsanDepot", false) or String(sys_data.get("name", "")).contains("INSAN")
 	if is_depot and not GameState.jamal_ship_liberated:
 		QuestManager.advance_quest("prologue_jamal_ship", 3)
 		QuestManager.open_dialogue("insan_depot_arrival")
 
+func _compute_scaled_planet_distance(p_data: Dictionary, index: int) -> float:
+	var raw_dist: float = float(p_data.get("distance", 20.0))
+	# Match Three.js spacious orbital distance formula: 110 + (raw * 3.8) + (idx * 55)
+	return 110.0 + (raw_dist * 3.8) + (float(index) * 55.0)
+
 func build_star_system(sys_data: Dictionary) -> void:
+	if not procedural_container:
+		procedural_container = get_node_or_null("ProceduralSystemContainer") as Node3D
+	if not procedural_container:
+		return
+
 	interactable_bodies.clear()
 	for child in procedural_container.get_children():
 		child.queue_free()
 
+	var sys_id: int = int(sys_data.get("id", 1))
+
 	# 1. Central Star with 8K Solar Photosphere & Volumetric Corona Halo
-	var star_info: Dictionary = sys_data.get("star", {"type": "Yellow Sun", "size": 11.0, "color": "0xffd700"})
-	var star_size: float = float(star_info.get("size", 11.0))
+	var star_info: Dictionary = sys_data.get("star", {"type": "Yellow Sun", "size": 14.0, "color": "0xffd700"})
+	var star_size: float = max(14.0, float(star_info.get("size", 14.0)) * 1.35)
 	var star_color := _parse_hex_color(String(star_info.get("color", "0xffd700")), Color(1.0, 0.84, 0.2))
 
 	var star_mesh := MeshInstance3D.new()
@@ -144,8 +186,8 @@ func build_star_system(sys_data: Dictionary) -> void:
 	# Outer Solar Corona Glow Shell
 	var corona_mesh := MeshInstance3D.new()
 	var corona_sphere := SphereMesh.new()
-	corona_sphere.radius = star_size * 1.28
-	corona_sphere.height = star_size * 2.56
+	corona_sphere.radius = star_size * 1.32
+	corona_sphere.height = star_size * 2.64
 	var corona_mat := StandardMaterial3D.new()
 	corona_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	corona_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
@@ -157,28 +199,29 @@ func build_star_system(sys_data: Dictionary) -> void:
 
 	var star_light := OmniLight3D.new()
 	star_light.light_color = star_color.lerp(Color.WHITE, 0.4)
-	star_light.light_energy = 4.2
-	star_light.omni_range = 900.0
-	star_light.omni_attenuation = 0.15
+	star_light.light_energy = 4.5
+	star_light.omni_range = 1800.0
+	star_light.omni_attenuation = 0.12
 	star_light.shadow_enabled = true
-	star_light.position = Vector3(0.0, 6.0, 0.0)
+	star_light.position = Vector3(0.0, 8.0, 0.0)
 	procedural_container.add_child(star_light)
 
-	# 2. Planets, Orbit Lines & Moons
+	# 2. Planets, Spacious Orbit Lines & Moons
 	var planets_list: Array = sys_data.get("planets", [])
 	var planet_nodes: Array[OrbitingEntity] = []
 
 	for i in range(planets_list.size()):
 		var p_data: Dictionary = planets_list[i]
-		var p_dist: float = float(p_data.get("distance", 55.0 + i * 38.0))
+		var p_dist: float = _compute_scaled_planet_distance(p_data, i)
 		var p_color := _parse_hex_color(String(p_data.get("color", "0x38bdf8")), Color(0.22, 0.74, 0.97))
 
 		# Create visible Planetary Orbit Trajectory Ring around Star (0, 0, 0)
-		var orbit_line := _create_orbit_ring_mesh(p_dist, Color(p_color.r, p_color.g, p_color.b, 0.16))
+		var orbit_line := _create_orbit_ring_mesh(p_dist, Color(p_color.r, p_color.g, p_color.b, 0.18))
 		procedural_container.add_child(orbit_line)
 
-		var p_node := _create_planet_node(p_data, i)
+		var p_node := _create_planet_node(p_data, i, sys_id, p_dist)
 		procedural_container.add_child(p_node)
+		p_node.update_orbital_position(0.0)
 		planet_nodes.append(p_node)
 		interactable_bodies.append(p_node)
 
@@ -188,6 +231,7 @@ func build_star_system(sys_data: Dictionary) -> void:
 			var m_data: Dictionary = moons_list[m_idx]
 			var m_node := _create_moon_node(m_data, p_node, m_idx)
 			procedural_container.add_child(m_node)
+			m_node.update_orbital_position(0.0)
 			interactable_bodies.append(m_node)
 
 	# 3. Asteroid Field
@@ -204,20 +248,30 @@ func build_star_system(sys_data: Dictionary) -> void:
 		if typeof(spec) == TYPE_DICTIONARY and spec.get("techLevel", "") in ["Spacefaring", "Hyper-Advanced", "Industrial"]:
 			_spawn_orbital_station(planet_nodes[p_idx], "%s Orbital-Habitat" % p_data.get("name", "Station"), false)
 
-	var first_planet: Node3D = planet_nodes[0] if planet_nodes.size() > 0 else null
+	var first_planet: OrbitingEntity = planet_nodes[0] if planet_nodes.size() > 0 else null
 	var is_depot: bool = sys_data.get("isInsanDepot", false) or String(sys_data.get("name", "")).contains("INSAN")
 
-	if GameState.current_system_id == 1 and first_planet:
+	if sys_id == 1 and first_planet:
 		_spawn_jamal_shuttle(first_planet, false)
 	elif is_depot and first_planet:
 		_spawn_orbital_station(first_planet, "INSAN-Hauptverwaltung Zeta-9 (Schalter 7B)", true)
 		_spawn_jamal_shuttle(first_planet, true)
 		_spawn_voyager_probe()
 
+	# Position Player Ship near the first planet so the player immediately sees the planet, moons & Jamal's shuttle!
+	if not player_ship:
+		player_ship = get_node_or_null("PlayerBioShip") as PlayerBioShip
+	if player_ship and first_planet:
+		var fp_pos: Vector3 = first_planet.global_position
+		player_ship.global_position = fp_pos + Vector3(0.0, 0.0, 38.0)
+		if not Engine.is_editor_hint():
+			player_ship.velocity = Vector3(1.2, 0.0, 0.0)
+
 	# Include any hand-placed OrbitingEntity nodes from the Editor scene tree!
-	for node in get_tree().get_nodes_in_group("editor_placed_entities"):
-		if node is Node3D and not interactable_bodies.has(node):
-			interactable_bodies.append(node)
+	if is_inside_tree():
+		for node in get_tree().get_nodes_in_group("editor_placed_entities"):
+			if node is Node3D and not interactable_bodies.has(node):
+				interactable_bodies.append(node)
 
 func _select_planet_template(p_data: Dictionary, seed_val: int) -> Dictionary:
 	var explicit_tex: String = str(p_data.get("texture", ""))
@@ -271,12 +325,11 @@ func _select_planet_template(p_data: Dictionary, seed_val: int) -> Dictionary:
 				r_map = PLANET_TEXTURES["MOON"]
 			return {"map": r_map, "authentic": false}
 
-func _create_planet_node(p_data: Dictionary, index: int) -> OrbitingEntity:
+func _create_planet_node(p_data: Dictionary, index: int, sys_id: int, scaled_dist: float) -> OrbitingEntity:
 	var p_entity := OrbitingEntity.new()
 	var p_name: String = str(p_data.get("name", "Planet %d" % (index + 1)))
 	var p_type: String = str(p_data.get("type", "Rocky"))
-	var p_size: float = float(p_data.get("size", 3.5))
-	var p_dist: float = float(p_data.get("distance", 55.0 + index * 38.0))
+	var p_size: float = float(p_data.get("size", 3.8)) * 1.25
 	var p_color := _parse_hex_color(String(p_data.get("color", "0x38bdf8")), Color(0.22, 0.74, 0.97))
 	var seed_val: int = p_name.hash() + index * 31
 
@@ -284,9 +337,10 @@ func _create_planet_node(p_data: Dictionary, index: int) -> OrbitingEntity:
 	p_entity.display_name = "%s [%s]" % [p_name, p_type]
 	p_entity.entity_category = "planet"
 	p_entity.base_radius = p_size
-	p_entity.orbit_radius = p_dist
-	p_entity.orbit_angle_deg = float(p_data.get("angle", float(index * 72 + 25)))
-	p_entity.orbit_speed = float(p_data.get("speed", 0.045 / sqrt(max(10.0, p_dist)) * 2.5))
+	p_entity.orbit_radius = scaled_dist
+	var default_angle_rad: float = (float(index) * 1.8) + (float(sys_id) * 0.5)
+	p_entity.orbit_angle_deg = float(p_data.get("angle", rad_to_deg(default_angle_rad)))
+	p_entity.orbit_speed = float(p_data.get("speed", 0.055 / sqrt(max(20.0, scaled_dist))))
 	p_entity.is_harvestable = true
 	p_entity.dynamic_approach_expansion = true
 
@@ -305,7 +359,6 @@ func _create_planet_node(p_data: Dictionary, index: int) -> OrbitingEntity:
 	var diffuse_tex := _load_tex(str(tmpl.get("map", "")))
 	if diffuse_tex:
 		mat.albedo_texture = diffuse_tex
-	# Lightly tint procedural worlds while preserving high-detail photo textures
 	mat.albedo_color = Color.WHITE if is_authentic else p_color.lerp(Color.WHITE, 0.55)
 	mat.roughness = 0.42 if p_type == "Gas Giant" else 0.75
 	mat.metallic = 0.06
@@ -387,8 +440,9 @@ func _create_moon_node(m_data: Dictionary, parent_planet: OrbitingEntity, m_idx:
 	var m_entity := OrbitingEntity.new()
 	var m_name: String = str(m_data.get("name", "%s Mond %d" % [parent_planet.name, m_idx + 1]))
 	var m_type: String = str(m_data.get("type", "Kratermond"))
-	var m_size: float = float(m_data.get("size", 0.9))
-	var m_dist: float = float(m_data.get("distance", parent_planet.base_radius * 2.6 + 6.0 + float(m_idx) * 4.5))
+	var m_size: float = float(m_data.get("size", 1.0)) * 1.15
+	# Spacious moon orbital distance around parent planet (matching Three.js formula)
+	var m_dist: float = (parent_planet.base_radius * 2.2) + 6.5 + (float(m_idx) * 5.2)
 	var m_color := _parse_hex_color(String(m_data.get("color", "0x94a3b8")), Color(0.7, 0.75, 0.82))
 
 	m_entity.name = m_name.validate_node_name()
@@ -398,7 +452,7 @@ func _create_moon_node(m_data: Dictionary, parent_planet: OrbitingEntity, m_idx:
 	m_entity.base_radius = m_size
 	m_entity.orbit_radius = m_dist
 	m_entity.orbit_angle_deg = float(m_idx * 135 + 40)
-	m_entity.orbit_speed = 0.14 + 0.06 / sqrt(max(2.0, m_dist))
+	m_entity.orbit_speed = 0.12 + 0.06 / sqrt(max(2.0, m_dist))
 	m_entity.is_harvestable = true
 
 	var tmpl: Dictionary = _select_planet_template({"type": m_type, "texture": m_data.get("texture", "")}, m_name.hash())
@@ -417,7 +471,7 @@ func _create_moon_node(m_data: Dictionary, parent_planet: OrbitingEntity, m_idx:
 	m_entity.add_child(m_inst)
 	m_entity.body_mesh = m_inst
 
-	var m_ring := _create_orbit_ring_mesh(m_dist, Color(m_color.r, m_color.g, m_color.b, 0.14))
+	var m_ring := _create_orbit_ring_mesh(m_dist, Color(m_color.r, m_color.g, m_color.b, 0.16))
 	procedural_container.add_child(m_ring)
 	m_entity.orbit_ring_mesh = m_ring
 
@@ -425,7 +479,7 @@ func _create_moon_node(m_data: Dictionary, parent_planet: OrbitingEntity, m_idx:
 
 func _create_asteroid_node(ast_data: Dictionary) -> Node3D:
 	var is_bio: bool = str(ast_data.get("type", "")) == "bio"
-	var size: float = 0.9 + randf() * 1.1
+	var size: float = 1.1 + randf() * 1.2
 	var inst := MeshInstance3D.new()
 	var sph := SphereMesh.new()
 	sph.radius = size
@@ -441,15 +495,15 @@ func _create_asteroid_node(ast_data: Dictionary) -> Node3D:
 	mat.metallic = 0.5
 	sph.material = mat
 	inst.mesh = sph
-	inst.position = Vector3(float(ast_data.get("x", 40.0)) * 2.2, (randf() - 0.5) * 1.5, float(ast_data.get("z", 40.0)) * 2.2)
+	inst.position = Vector3(float(ast_data.get("x", 40.0)) * 2.5, (randf() - 0.5) * 1.5, float(ast_data.get("z", 40.0)) * 2.5)
 	return inst
 
 func _create_orbit_ring_mesh(radius: float, color: Color) -> MeshInstance3D:
 	var inst := MeshInstance3D.new()
 	var torus := TorusMesh.new()
-	torus.inner_radius = max(0.1, radius - 0.12)
-	torus.outer_radius = radius + 0.12
-	torus.rings = 96
+	torus.inner_radius = max(0.1, radius - 0.16)
+	torus.outer_radius = radius + 0.16
+	torus.rings = 128
 	torus.ring_segments = 6
 	var mat := StandardMaterial3D.new()
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -466,17 +520,17 @@ func _spawn_jamal_shuttle(parent_planet: Node3D, is_real_at_depot: bool) -> void
 	shuttle.display_name = "Echte 'Ar-Riḥla' [PIER 4]" if is_real_at_depot else "Dr. Tariq Jamals Forschungsschiff [FALSPARKER]"
 	shuttle.entity_category = "jamal_shuttle"
 	shuttle.parent_body = parent_planet
-	shuttle.base_radius = 0.65
-	var p_rad: float = float(parent_planet.get("base_radius")) if parent_planet.get("base_radius") != null else 3.5
-	shuttle.orbit_radius = max(24.0, p_rad * 3.85 * 1.35 + 8.0)
-	shuttle.orbit_angle_deg = 205.0 if is_real_at_depot else 60.0
+	shuttle.base_radius = 0.85
+	var p_rad: float = float(parent_planet.get("base_radius")) if parent_planet.get("base_radius") != null else 4.2
+	shuttle.orbit_radius = max(24.0, p_rad * 3.4 + 10.0)
+	shuttle.orbit_angle_deg = 205.0 if is_real_at_depot else 75.0
 	shuttle.orbit_speed = 0.035
 	shuttle.is_harvestable = false
 	shuttle.emits_radiation = false
 	shuttle.dialogue_node_id = "insan_station_bypass_plan" if is_real_at_depot else "jamal_ship_scanned"
 
 	# Detailed Ar-Riḥla Science Shuttle + Industrial Parking Clamp + Towing Drone
-	var s_scale := 0.85
+	var s_scale := 1.15
 	var hull_mat := StandardMaterial3D.new()
 	hull_mat.albedo_color = Color(0.88, 0.92, 0.96)
 	hull_mat.metallic = 0.7
@@ -554,10 +608,11 @@ func _spawn_jamal_shuttle(parent_planet: Node3D, is_real_at_depot: bool) -> void
 	var strobe := OmniLight3D.new()
 	strobe.light_color = Color(0.22, 0.74, 0.98)
 	strobe.light_energy = 1.8
-	strobe.omni_range = 12.0
+	strobe.omni_range = 14.0
 	shuttle.add_child(strobe)
 
 	procedural_container.add_child(shuttle)
+	shuttle.update_orbital_position(0.0)
 	interactable_bodies.append(shuttle)
 
 func _spawn_orbital_station(parent_planet: Node3D, station_name: String, is_insan: bool) -> void:
@@ -567,7 +622,7 @@ func _spawn_orbital_station(parent_planet: Node3D, station_name: String, is_insa
 	station.entity_category = "space_station"
 	station.parent_body = parent_planet
 	station.base_radius = 2.8
-	var p_rad: float = float(parent_planet.get("base_radius")) if parent_planet.get("base_radius") != null else 3.5
+	var p_rad: float = float(parent_planet.get("base_radius")) if parent_planet.get("base_radius") != null else 4.2
 	station.orbit_radius = max(28.0, p_rad * 3.85 * 1.35 + 12.0)
 	station.orbit_angle_deg = 120.0 if is_insan else 290.0
 	station.orbit_speed = 0.032
@@ -606,6 +661,7 @@ func _spawn_orbital_station(parent_planet: Node3D, station_name: String, is_insa
 	station.add_child(spire)
 
 	procedural_container.add_child(station)
+	station.update_orbital_position(0.0)
 	interactable_bodies.append(station)
 
 func _spawn_voyager_probe() -> void:
@@ -636,6 +692,8 @@ func _spawn_voyager_probe() -> void:
 	interactable_bodies.append(probe)
 
 func _process(_delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
 	if not player_ship:
 		return
 
@@ -650,6 +708,8 @@ func _process(_delta: float) -> void:
 	GameState.nearest_interactable = best_node
 
 func _unhandled_input(event: InputEvent) -> void:
+	if Engine.is_editor_hint():
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var key_event: InputEventKey = event as InputEventKey
 		if key_event.keycode == KEY_F:
@@ -669,8 +729,8 @@ func _handle_f_interaction() -> void:
 	if not target or not is_instance_valid(target):
 		return
 	var dist: float = player_ship.global_position.distance_to(target.global_position)
-	if dist > 32.0:
-		GameState.add_log("SENSOR", "Ziel '%s' ist zu weit entfernt (%.1f AE > 32 AE)." % [str(target.get("display_name")), dist])
+	if dist > 36.0:
+		GameState.add_log("SENSOR", "Ziel '%s' ist zu weit entfernt (%.1f AE > 36 AE)." % [str(target.get("display_name")), dist])
 		return
 
 	_play_sfx("quantum_scan_complete.wav")
@@ -694,7 +754,7 @@ func _handle_e_harvest() -> void:
 	if not target or not is_instance_valid(target):
 		return
 	var dist: float = player_ship.global_position.distance_to(target.global_position)
-	if dist > 30.0:
+	if dist > 34.0:
 		return
 	if not bool(target.get_meta("is_harvestable", false)):
 		GameState.add_log("NAV", "Dieses Objekt ist ein Schiff/Station. Drücke [F] zum Untersuchen!")
@@ -710,7 +770,7 @@ func _handle_x_bio_emp() -> void:
 	var target: Node3D = GameState.nearest_interactable
 	if target and is_instance_valid(target):
 		var dist: float = player_ship.global_position.distance_to(target.global_position)
-		if dist <= 32.0 and str(target.get_meta("entity_category", "")) == "jamal_shuttle":
+		if dist <= 36.0 and str(target.get_meta("entity_category", "")) == "jamal_shuttle":
 			var sys: Dictionary = GameState.get_current_system()
 			if sys.get("isInsanDepot", false) or String(sys.get("name", "")).contains("INSAN"):
 				QuestManager.liberate_real_ship()

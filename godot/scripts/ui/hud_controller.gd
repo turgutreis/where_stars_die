@@ -50,7 +50,7 @@ func _on_radar_draw() -> void:
 		return
 	var center := Vector2(95.0, 95.0)
 	var radius: float = 88.0
-	var world_range: float = 280.0
+	var world_range: float = 420.0
 
 	# Radar Background & Rings
 	radar_canvas.draw_circle(center, radius, Color(0.02, 0.06, 0.12, 0.78))

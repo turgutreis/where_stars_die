@@ -1,9 +1,9 @@
+@tool
 extends Node3D
 class_name OrbitingEntity
 
 ## Reusable Component for any Planet, Moon, Space Station, or Quest Vessel in Godot 4!
-## You can edit all properties directly in the Godot Inspector AND drag the object in the 3D Viewport.
-## Includes built-in safe-orbit validation so stations never clip into expanding planets.
+## Runs with @tool so you can see and edit all planets, moons, and stations directly in the 3D Editor!
 
 @export_category("Identity & Quest Binding")
 @export var display_name: String = "Orbital Object"
@@ -14,12 +14,22 @@ class_name OrbitingEntity
 
 @export_category("Orbital Mechanics")
 @export var parent_body: Node3D = null
-@export var orbit_radius: float = 28.0
-@export var orbit_angle_deg: float = 45.0
+@export var orbit_radius: float = 28.0:
+	set(value):
+		orbit_radius = value
+		if is_inside_tree():
+			update_orbital_position(0.0)
+@export var orbit_angle_deg: float = 45.0:
+	set(value):
+		orbit_angle_deg = value
+		_current_angle_rad = deg_to_rad(value)
+		if is_inside_tree():
+			update_orbital_position(0.0)
 @export var orbit_speed: float = 0.04
 @export var base_radius: float = 1.0
 @export var axial_rotation_speed: float = 0.18
 @export var dynamic_approach_expansion: bool = false
+@export var animate_in_editor: bool = false
 
 var _current_angle_rad: float = 0.0
 var body_mesh: Node3D = null
@@ -47,6 +57,9 @@ func enforce_safe_orbit_clearance() -> void:
 			orbit_radius = min_safe
 
 func _process(delta: float) -> void:
+	if Engine.is_editor_hint() and not animate_in_editor:
+		update_orbital_position(0.0)
+		return
 	update_orbital_position(delta)
 
 func update_orbital_position(delta: float) -> void:
@@ -76,13 +89,14 @@ func update_orbital_position(delta: float) -> void:
 			orbit_ring_mesh.scale = Vector3(ring_scale, 1.0, ring_scale)
 
 	# 3. Axial rotation of planet surface & cloud layer
-	if body_mesh and is_instance_valid(body_mesh):
-		body_mesh.rotate_y(axial_rotation_speed * delta)
-	if cloud_mesh and is_instance_valid(cloud_mesh):
-		cloud_mesh.rotate_y(axial_rotation_speed * 1.35 * delta)
+	if delta > 0.0:
+		if body_mesh and is_instance_valid(body_mesh):
+			body_mesh.rotate_y(axial_rotation_speed * delta)
+		if cloud_mesh and is_instance_valid(cloud_mesh):
+			cloud_mesh.rotate_y(axial_rotation_speed * 1.35 * delta)
 
-	# 4. Smooth distance-based planetary scale expansion (1.0x -> 2.85x) when player approaches
-	if dynamic_approach_expansion and entity_category == "planet":
+	# 4. Smooth distance-based planetary scale expansion (1.0x -> 2.85x) when player approaches (Runtime only)
+	if not Engine.is_editor_hint() and dynamic_approach_expansion and entity_category == "planet":
 		var player: Node3D = get_tree().get_first_node_in_group("player_ship") as Node3D
 		if player:
 			var dist: float = global_position.distance_to(player.global_position)
