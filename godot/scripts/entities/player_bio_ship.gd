@@ -5,15 +5,29 @@ class_name PlayerBioShip
 ## Najmafar Living Bio-Ship Controller (Godot 4.6)
 ## Newtonian 2.5D Space Flight + Procedural Multi-Part Bio-Leviathan Anatomy + Camera Zoom.
 
+@export_category("Flight Physics")
 @export var thrust_strength: float = 28.0
 @export var retro_thrust_strength: float = 22.0
 @export var turn_speed: float = 2.85
 @export var max_speed: float = 55.0
 
+@export_category("Camera Settings")
+@export_range(20.0, 350.0, 1.0) var default_camera_height: float = 78.0:
+	set(value):
+		default_camera_height = value
+		camera_height = value
+		target_camera_height = value
+		if is_inside_tree() and camera_3d:
+			camera_3d.global_position = Vector3(global_position.x, camera_height, global_position.z + camera_height * camera_tilt_ratio)
+			camera_3d.look_at(global_position, Vector3.UP)
+@export_range(15.0, 100.0, 1.0) var min_camera_height: float = 22.0
+@export_range(100.0, 500.0, 5.0) var max_camera_height: float = 320.0
+@export_range(0.1, 1.0, 0.02) var camera_tilt_ratio: float = 0.42
+
 var ship_heading: float = 0.0
 var angular_velocity: float = 0.0
-var camera_height: float = 42.0
-var target_camera_height: float = 42.0
+var camera_height: float = 78.0
+var target_camera_height: float = 78.0
 var anim_time: float = 0.0
 
 @onready var visual_root: Node3D = $VisualRoot
@@ -30,7 +44,12 @@ var dorsal_plates: Array[MeshInstance3D] = []
 
 func _ready() -> void:
 	add_to_group("player_ship")
+	camera_height = default_camera_height
+	target_camera_height = default_camera_height
 	_build_detailed_bio_anatomy()
+	if camera_3d:
+		camera_3d.global_position = Vector3(global_position.x, camera_height, global_position.z + camera_height * camera_tilt_ratio)
+		camera_3d.look_at(global_position, Vector3.UP)
 	if not Engine.is_editor_hint():
 		velocity = Vector3(1.5, 0.0, 0.0)
 
@@ -135,9 +154,21 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb: InputEventMouseButton = event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
-			target_camera_height = clamp(target_camera_height - 5.0, 16.0, 240.0)
+			target_camera_height = clamp(target_camera_height - 7.0, min_camera_height, max_camera_height)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
-			target_camera_height = clamp(target_camera_height + 5.0, 16.0, 240.0)
+			target_camera_height = clamp(target_camera_height + 7.0, min_camera_height, max_camera_height)
+	elif event is InputEventPanGesture:
+		var pan: InputEventPanGesture = event as InputEventPanGesture
+		target_camera_height = clamp(target_camera_height + pan.delta.y * 6.0, min_camera_height, max_camera_height)
+	elif event is InputEventMagnifyGesture:
+		var mag: InputEventMagnifyGesture = event as InputEventMagnifyGesture
+		target_camera_height = clamp(target_camera_height / max(0.5, mag.factor), min_camera_height, max_camera_height)
+	elif event is InputEventKey and event.pressed:
+		var ke: InputEventKey = event as InputEventKey
+		if ke.keycode in [KEY_MINUS, KEY_KP_SUBTRACT, KEY_PAGEDOWN]:
+			target_camera_height = clamp(target_camera_height + 12.0, min_camera_height, max_camera_height)
+		elif ke.keycode in [KEY_EQUAL, KEY_PLUS, KEY_KP_ADD, KEY_PAGEUP]:
+			target_camera_height = clamp(target_camera_height - 12.0, min_camera_height, max_camera_height)
 
 func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
@@ -224,5 +255,5 @@ func _physics_process(delta: float) -> void:
 	# 4. Smooth Top-Down / Angled Camera Follow
 	camera_height = lerpf(camera_height, target_camera_height, min(1.0, delta * 6.0))
 	if camera_3d:
-		camera_3d.global_position = Vector3(global_position.x, camera_height, global_position.z + camera_height * 0.42)
+		camera_3d.global_position = Vector3(global_position.x, camera_height, global_position.z + camera_height * camera_tilt_ratio)
 		camera_3d.look_at(global_position, Vector3.UP)
