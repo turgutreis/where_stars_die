@@ -20,6 +20,10 @@ var interactable_bodies: Array[Node3D] = []
 var texture_cache: Dictionary = {}
 var bgm_player: AudioStreamPlayer = null
 var sfx_player: AudioStreamPlayer = null
+var target_reticle_ring: MeshInstance3D = null
+var target_reticle_mat: StandardMaterial3D = null
+var current_star_size: float = 18.0
+var current_star_mass: float = 160.0
 
 const PLANET_TEXTURES := {
 	"SUN": "res://assets/textures/planets/8k_sun.jpg",
@@ -136,6 +140,10 @@ func _play_sfx(sfx_name: String) -> void:
 
 func _on_system_changed(_sys_id: int, sys_data: Dictionary) -> void:
 	build_star_system(sys_data)
+	_play_sfx("sonar_ping.wav")
+	if player_ship:
+		player_ship.trigger_warp_arrival_zoom()
+		_spawn_bio_emp_shockwave(player_ship.global_position, null, Color(0.65, 0.35, 1.0, 0.7))
 	var is_depot: bool = sys_data.get("isInsanDepot", false) or String(sys_data.get("name", "")).contains("INSAN")
 	if is_depot and not GameState.jamal_ship_liberated:
 		QuestManager.advance_quest("prologue_jamal_ship", 3)
@@ -159,8 +167,10 @@ func build_star_system(sys_data: Dictionary) -> void:
 	var sys_id: int = int(sys_data.get("id", 1))
 
 	# 1. Central Star with 8K Solar Photosphere & Volumetric Corona Halo
-	var star_info: Dictionary = sys_data.get("star", {"type": "Yellow Sun", "size": 14.0, "color": "0xffd700"})
+	var star_info: Dictionary = sys_data.get("star", {"type": "Yellow Sun", "size": 14.0, "color": "0xffd700", "mass": 420.0})
 	var star_size: float = max(14.0, float(star_info.get("size", 14.0)) * 1.35)
+	current_star_size = star_size
+	current_star_mass = float(star_info.get("mass", 420.0)) * 0.35
 	var star_color := _parse_hex_color(String(star_info.get("color", "0xffd700")), Color(1.0, 0.84, 0.2))
 
 	var star_mesh := MeshInstance3D.new()
@@ -691,7 +701,7 @@ func _spawn_voyager_probe() -> void:
 	procedural_container.add_child(probe)
 	interactable_bodies.append(probe)
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 	if not player_ship:
@@ -706,6 +716,200 @@ func _process(_delta: float) -> void:
 				best_dist = d
 				best_node = node
 	GameState.nearest_interactable = best_node
+
+	_update_target_reticle_ring(best_node, best_dist, delta)
+	player_ship.external_gravity_accel = _compute_gravity_acceleration()
+
+func _ensure_target_reticle_ring() -> void:
+	if target_reticle_ring and is_instance_valid(target_reticle_ring):
+		return
+	target_reticle_ring = MeshInstance3D.new()
+	target_reticle_ring.name = "TargetReticleRing"
+	var torus := TorusMesh.new()
+	torus.inner_radius = 1.95
+	torus.outer_radius = 2.25
+	torus.rings = 48
+	torus.ring_segments = 6
+	target_reticle_mat = StandardMaterial3D.new()
+	target_reticle_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	target_reticle_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	target_reticle_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	target_reticle_mat.albedo_color = Color(0.22, 0.88, 1.0, 0.75)
+	torus.material = target_reticle_mat
+	target_reticle_ring.mesh = torus
+	target_reticle_ring.visible = false
+	add_child(target_reticle_ring)
+
+func _update_target_reticle_ring(target: Node3D, dist: float, delta: float) -> void:
+	_ensure_target_reticle_ring()
+	if not target or not is_instance_valid(target) or dist > 85.0:
+		target_reticle_ring.visible = false
+		return
+
+	target_reticle_ring.visible = true
+	target_reticle_ring.global_position = Vector3(target.global_position.x, -0.02, target.global_position.z)
+	target_reticle_ring.rotate_y(delta * 1.4)
+
+	var base_r: float = float(target.get("base_radius")) if target.get("base_radius") != null else 2.0
+	var s_factor: float = max(1.2, base_r * target.scale.x * 0.72)
+	var pulse: float = 1.0 + sin(Time.get_ticks_msec() * 0.006) * 0.06
+	target_reticle_ring.scale = Vector3(s_factor * pulse, 1.0, s_factor * pulse)
+
+	var cat: String = str(target.get_meta("entity_category", ""))
+	if target_reticle_mat:
+		if cat == "jamal_shuttle" or cat == "space_station" or cat == "voyager_probe":
+			target_reticle_mat.albedo_color = Color(1.0, 0.68, 0.1, 0.85 if dist <= 36.0 else 0.42)
+		else:
+			target_reticle_mat.albedo_color = Color(0.0, 1.0, 0.62, 0.82 if dist <= 36.0 else 0.38)
+
+func _compute_gravity_acceleration() -> Vector3:
+	if not player_ship:
+		return Vector3.ZERO
+
+	var total_accel := Vector3.ZERO
+	var p_pos: Vector3 = player_ship.global_position
+	var g_const: float = 14.0
+
+	# 1. Central Star Gravity & Surface Repulsion Cushion at (0, 0, 0)
+	var to_star: Vector3 = Vector3.ZERO - p_pos
+	to_star.y = 0.0
+	var star_dist: float = to_star.length()
+	var star_safe_r: float = current_star_size * 1.45
+	if star_dist > 0.1 and star_dist < 140.0:
+		var dir_star: Vector3 = to_star / star_dist
+		if star_dist < star_safe_r:
+			# Soft thermal/magnetic repulsion cushion so the player never clips inside the sun
+			var push_strength: float = (star_safe_r - star_dist) * 6.5
+			total_accel -= dir_star * push_strength
+		else:
+			var pull: float = clamp((g_const * current_star_mass) / max(60.0, star_dist * star_dist), 0.0, 12.0)
+			total_accel += dir_star * pull
+
+	# 2. Planetary Gravity Wells & Slingshot Assist
+	for body in interactable_bodies:
+		if not is_instance_valid(body):
+			continue
+		var cat: String = str(body.get("entity_category"))
+		if cat != "planet":
+			continue
+		var to_body: Vector3 = body.global_position - p_pos
+		to_body.y = 0.0
+		var d: float = to_body.length()
+		var b_rad: float = (float(body.get("base_radius")) if body.get("base_radius") != null else 3.8) * body.scale.x
+		var grav_range: float = max(28.0, b_rad * 5.2)
+		if d > 0.1 and d < grav_range:
+			var dir_b: Vector3 = to_body / d
+			var safe_surface: float = b_rad * 1.32
+			if d < safe_surface:
+				total_accel -= dir_b * ((safe_surface - d) * 8.0)
+			else:
+				var p_mass: float = b_rad * 5.5
+				var p_pull: float = clamp((g_const * p_mass) / max(25.0, d * d), 0.0, 9.5)
+				total_accel += dir_b * p_pull
+
+	return total_accel
+
+func _spawn_energy_beam(from_pos: Vector3, to_pos: Vector3, beam_color: Color, duration: float = 0.55) -> void:
+	var diff: Vector3 = to_pos - from_pos
+	diff.y = 0.0
+	var length: float = diff.length()
+	if length < 0.5 or not procedural_container:
+		return
+
+	var mid: Vector3 = (from_pos + to_pos) * 0.5 + Vector3(0.0, 0.35, 0.0)
+	var beam_node := Node3D.new()
+	beam_node.position = mid
+	procedural_container.add_child(beam_node)
+	beam_node.look_at(to_pos + Vector3(0.0, 0.35, 0.0), Vector3.UP)
+
+	var beam_inst := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.22
+	cyl.bottom_radius = 0.38
+	cyl.height = length
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = beam_color
+	cyl.material = mat
+	beam_inst.mesh = cyl
+	beam_inst.rotation.x = PI * 0.5
+	beam_node.add_child(beam_inst)
+
+	# Impact Pulse Ring on Target
+	var pulse_ring := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 1.2
+	torus.outer_radius = 1.65
+	torus.material = mat
+	pulse_ring.mesh = torus
+	pulse_ring.position = Vector3(to_pos.x, 0.2, to_pos.z)
+	procedural_container.add_child(pulse_ring)
+
+	var tw: Tween = create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(mat, "albedo_color:a", 0.0, duration)
+	tw.tween_property(pulse_ring, "scale", Vector3(3.4, 1.0, 3.4), duration)
+	tw.chain().tween_callback(func():
+		if is_instance_valid(beam_node):
+			beam_node.queue_free()
+		if is_instance_valid(pulse_ring):
+			pulse_ring.queue_free()
+	)
+
+func _spawn_bio_emp_shockwave(origin_pos: Vector3, hit_target: Node3D = null, custom_color: Color = Color(0.22, 0.88, 1.0, 0.78)) -> void:
+	if not procedural_container:
+		return
+
+	var wave_root := Node3D.new()
+	wave_root.position = Vector3(origin_pos.x, 0.15, origin_pos.z)
+	procedural_container.add_child(wave_root)
+
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.albedo_color = custom_color
+
+	# Expanding Torus Shockwave Ring
+	var ring_inst := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.85
+	torus.outer_radius = 1.15
+	torus.rings = 64
+	torus.ring_segments = 12
+	torus.material = mat
+	ring_inst.mesh = torus
+	wave_root.add_child(ring_inst)
+
+	# Expanding Energy Dome Sphere
+	var dome_mat := StandardMaterial3D.new()
+	dome_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dome_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	dome_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dome_mat.albedo_color = Color(custom_color.r, custom_color.g, custom_color.b, 0.25)
+	var dome_inst := MeshInstance3D.new()
+	var sph := SphereMesh.new()
+	sph.radius = 1.0
+	sph.height = 2.0
+	sph.material = dome_mat
+	dome_inst.mesh = sph
+	wave_root.add_child(dome_inst)
+
+	var tw: Tween = create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(wave_root, "scale", Vector3(34.0, 4.0, 34.0), 0.72).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(mat, "albedo_color:a", 0.0, 0.72)
+	tw.tween_property(dome_mat, "albedo_color:a", 0.0, 0.72)
+	tw.chain().tween_callback(func():
+		if is_instance_valid(wave_root):
+			wave_root.queue_free()
+	)
+
+	if hit_target and is_instance_valid(hit_target):
+		_spawn_energy_beam(origin_pos, hit_target.global_position, Color(0.68, 0.35, 1.0, 0.95), 0.65)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if Engine.is_editor_hint():
@@ -734,6 +938,7 @@ func _handle_f_interaction() -> void:
 		return
 
 	_play_sfx("quantum_scan_complete.wav")
+	_spawn_energy_beam(player_ship.global_position, target.global_position, Color(0.22, 0.88, 1.0, 0.9), 0.6)
 	var cat: String = str(target.get_meta("entity_category", ""))
 	var dlg: String = str(target.get_meta("dialogue_node_id", ""))
 	if cat == "jamal_shuttle" and GameState.jamal_decoy_revealed and GameState.current_system_id == 1:
@@ -760,6 +965,7 @@ func _handle_e_harvest() -> void:
 		GameState.add_log("NAV", "Dieses Objekt ist ein Schiff/Station. Drücke [F] zum Untersuchen!")
 		return
 	_play_sfx("sonar_ping.wav")
+	_spawn_energy_beam(target.global_position, player_ship.global_position, Color(0.0, 1.0, 0.55, 0.92), 0.65)
 	GameState.bio_res += 25
 	GameState.silicon_res += 15
 	GameState.vitals_updated.emit()
@@ -768,13 +974,17 @@ func _handle_e_harvest() -> void:
 func _handle_x_bio_emp() -> void:
 	_play_sfx("sonar_ping.wav")
 	var target: Node3D = GameState.nearest_interactable
+	var hit_node: Node3D = null
 	if target and is_instance_valid(target):
 		var dist: float = player_ship.global_position.distance_to(target.global_position)
-		if dist <= 36.0 and str(target.get_meta("entity_category", "")) == "jamal_shuttle":
-			var sys: Dictionary = GameState.get_current_system()
-			if sys.get("isInsanDepot", false) or String(sys.get("name", "")).contains("INSAN"):
-				QuestManager.liberate_real_ship()
-				return
+		if dist <= 36.0:
+			hit_node = target
+	_spawn_bio_emp_shockwave(player_ship.global_position, hit_node)
+	if hit_node and str(hit_node.get_meta("entity_category", "")) == "jamal_shuttle":
+		var sys: Dictionary = GameState.get_current_system()
+		if sys.get("isInsanDepot", false) or String(sys.get("name", "")).contains("INSAN"):
+			QuestManager.liberate_real_ship()
+			return
 	GameState.add_log("EMP", "⚡ Psionische Bio-EMP Schockwelle ausgelöst!")
 
 func _parse_hex_color(hex_str: String, fallback: Color) -> Color:

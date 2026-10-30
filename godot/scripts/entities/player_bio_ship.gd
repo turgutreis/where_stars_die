@@ -3,13 +3,15 @@ extends CharacterBody3D
 class_name PlayerBioShip
 
 ## Najmafar Living Bio-Ship Controller (Godot 4.6)
-## Newtonian 2.5D Space Flight + Procedural Multi-Part Bio-Leviathan Anatomy + Camera Zoom.
+## Newtonian 2.5D Space Flight + Procedural Multi-Part Bio-Leviathan Anatomy +
+## Bioluminescent Spore Trail Particles + Gravitational Slingshot Physics + Camera Zoom.
 
 @export_category("Flight Physics")
 @export var thrust_strength: float = 28.0
 @export var retro_thrust_strength: float = 22.0
 @export var turn_speed: float = 2.85
 @export var max_speed: float = 55.0
+@export var gravity_influence_multiplier: float = 1.0
 
 @export_category("Camera Settings")
 @export_range(20.0, 400.0, 1.0) var default_camera_height: float = 95.0:
@@ -39,6 +41,7 @@ var angular_velocity: float = 0.0
 var camera_height: float = 95.0
 var target_camera_height: float = 95.0
 var anim_time: float = 0.0
+var external_gravity_accel: Vector3 = Vector3.ZERO
 
 @onready var visual_root: Node3D = $VisualRoot
 @onready var left_wing: Node3D = $VisualRoot/LeftWing
@@ -51,6 +54,8 @@ var left_mandible: Node3D = null
 var right_mandible: Node3D = null
 var tendrils: Array[Node3D] = []
 var dorsal_plates: Array[MeshInstance3D] = []
+var spore_trail_particles: CPUParticles3D = null
+var boost_trail_particles: CPUParticles3D = null
 
 func _ready() -> void:
 	add_to_group("player_ship")
@@ -60,6 +65,11 @@ func _ready() -> void:
 	_update_camera_transform()
 	if not Engine.is_editor_hint():
 		velocity = Vector3(1.5, 0.0, 0.0)
+
+func trigger_warp_arrival_zoom() -> void:
+	camera_height = min(max_camera_height, default_camera_height * 1.85)
+	target_camera_height = default_camera_height
+	_update_camera_transform()
 
 func _update_camera_transform() -> void:
 	if not is_inside_tree() or not camera_3d:
@@ -77,7 +87,6 @@ func _update_camera_transform() -> void:
 func _build_detailed_bio_anatomy() -> void:
 	if not visual_root:
 		return
-	# Avoid duplicating procedural anatomy if already built in editor
 	var existing: Node = visual_root.get_node_or_null("ProceduralAnatomy")
 	if existing:
 		existing.queue_free()
@@ -169,6 +178,61 @@ func _build_detailed_bio_anatomy() -> void:
 			parent_joint = seg_node
 		tendrils.append(t_root)
 
+	# 4. Bioluminescent Spore Trail Particles (Organic Engine Plume)
+	spore_trail_particles = CPUParticles3D.new()
+	spore_trail_particles.name = "BioSporeTrail"
+	spore_trail_particles.position = Vector3(0.0, 0.0, 1.65)
+	spore_trail_particles.amount = 48
+	spore_trail_particles.lifetime = 1.35
+	spore_trail_particles.local_coords = false
+	spore_trail_particles.direction = Vector3(0.0, 0.0, 1.0)
+	spore_trail_particles.spread = 22.0
+	spore_trail_particles.gravity = Vector3.ZERO
+	spore_trail_particles.initial_velocity_min = 2.0
+	spore_trail_particles.initial_velocity_max = 6.5
+
+	var spore_mat := StandardMaterial3D.new()
+	spore_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	spore_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	spore_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	spore_mat.albedo_color = Color(0.0, 1.0, 0.65, 0.72)
+	var spore_sphere := SphereMesh.new()
+	spore_sphere.radius = 0.18
+	spore_sphere.height = 0.36
+	spore_sphere.radial_segments = 8
+	spore_sphere.rings = 4
+	spore_sphere.material = spore_mat
+	spore_trail_particles.mesh = spore_sphere
+	anatomy_root.add_child(spore_trail_particles)
+
+	# Secondary Cyan Ion-Bio Boost Plume when actively thrusting
+	boost_trail_particles = CPUParticles3D.new()
+	boost_trail_particles.name = "BioBoostPlume"
+	boost_trail_particles.position = Vector3(0.0, 0.0, 1.45)
+	boost_trail_particles.amount = 36
+	boost_trail_particles.lifetime = 0.65
+	boost_trail_particles.local_coords = false
+	boost_trail_particles.direction = Vector3(0.0, 0.0, 1.0)
+	boost_trail_particles.spread = 14.0
+	boost_trail_particles.gravity = Vector3.ZERO
+	boost_trail_particles.initial_velocity_min = 8.0
+	boost_trail_particles.initial_velocity_max = 16.0
+	boost_trail_particles.emitting = false
+
+	var boost_mat := StandardMaterial3D.new()
+	boost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	boost_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	boost_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	boost_mat.albedo_color = Color(0.22, 0.88, 1.0, 0.88)
+	var boost_sphere := SphereMesh.new()
+	boost_sphere.radius = 0.26
+	boost_sphere.height = 0.52
+	boost_sphere.radial_segments = 8
+	boost_sphere.rings = 4
+	boost_sphere.material = boost_mat
+	boost_trail_particles.mesh = boost_sphere
+	anatomy_root.add_child(boost_trail_particles)
+
 func _unhandled_input(event: InputEvent) -> void:
 	if Engine.is_editor_hint():
 		return
@@ -219,11 +283,14 @@ func _physics_process(delta: float) -> void:
 		visual_root.rotation.y = ship_heading - PI * 0.5
 		visual_root.rotation.z = lerpf(visual_root.rotation.z, -turn_input * 0.25, min(1.0, delta * 8.0))
 
-	# 2. Forward Thrust (W / Up) & Retro Braking (S / Down)
+	# 2. Forward Thrust (W / Up), Retro Braking (S / Down) & Gravitational Pull
 	var is_thrusting := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP)
 	var is_braking := Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN)
 
 	var forward_dir := Vector3(cos(ship_heading), 0.0, -sin(ship_heading)).normalized()
+
+	# Apply planetary & solar gravity acceleration
+	velocity += external_gravity_accel * gravity_influence_multiplier * delta
 
 	if is_thrusting:
 		velocity += forward_dir * thrust_strength * delta
@@ -234,6 +301,11 @@ func _physics_process(delta: float) -> void:
 			velocity -= lateral * min(1.0, delta * 4.5)
 	else:
 		GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 2.5 * delta)
+
+	if boost_trail_particles:
+		boost_trail_particles.emitting = is_thrusting
+	if bio_light:
+		bio_light.light_energy = 3.2 if is_thrusting else 1.8
 
 	if is_braking:
 		velocity = velocity.move_toward(Vector3.ZERO, retro_thrust_strength * delta)
