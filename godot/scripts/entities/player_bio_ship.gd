@@ -29,6 +29,10 @@ class_name PlayerBioShip
 	set(value):
 		camera_tilt_ratio = value
 		_update_camera_transform()
+@export var use_orthogonal_isometric: bool = false:
+	set(value):
+		use_orthogonal_isometric = value
+		_update_camera_transform()
 
 var ship_heading: float = 0.0
 var angular_velocity: float = 0.0
@@ -60,7 +64,12 @@ func _ready() -> void:
 func _update_camera_transform() -> void:
 	if not is_inside_tree() or not camera_3d:
 		return
-	camera_3d.fov = camera_fov
+	if use_orthogonal_isometric:
+		camera_3d.projection = Camera3D.PROJECTION_ORTHOGONAL
+		camera_3d.size = camera_height * 0.85
+	else:
+		camera_3d.projection = Camera3D.PROJECTION_PERSPECTIVE
+		camera_3d.fov = camera_fov
 	var z_off: float = max(0.5, camera_height * camera_tilt_ratio)
 	camera_3d.global_position = Vector3(global_position.x, camera_height, global_position.z + z_off)
 	camera_3d.look_at(global_position, Vector3.UP)
@@ -175,12 +184,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMagnifyGesture:
 		var mag: InputEventMagnifyGesture = event as InputEventMagnifyGesture
 		target_camera_height = clamp(target_camera_height / max(0.5, mag.factor), min_camera_height, max_camera_height)
-	elif event is InputEventKey and event.pressed:
+	elif event is InputEventKey and event.pressed and not event.echo:
 		var ke: InputEventKey = event as InputEventKey
 		if ke.keycode in [KEY_MINUS, KEY_KP_SUBTRACT, KEY_PAGEDOWN]:
 			target_camera_height = clamp(target_camera_height + 12.0, min_camera_height, max_camera_height)
 		elif ke.keycode in [KEY_EQUAL, KEY_PLUS, KEY_KP_ADD, KEY_PAGEUP]:
 			target_camera_height = clamp(target_camera_height - 12.0, min_camera_height, max_camera_height)
+		elif ke.keycode == KEY_C:
+			use_orthogonal_isometric = not use_orthogonal_isometric
+			GameState.add_log("KAMERA", "🎥 Projektion: %s" % ("Isometrisch / Orthogonal (0%% Verzerrung)" if use_orthogonal_isometric else "3D-Perspektive (FOV %.0f°)" % camera_fov))
 
 func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
