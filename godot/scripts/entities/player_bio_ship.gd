@@ -12,22 +12,28 @@ class_name PlayerBioShip
 @export var max_speed: float = 55.0
 
 @export_category("Camera Settings")
-@export_range(20.0, 350.0, 1.0) var default_camera_height: float = 78.0:
+@export_range(20.0, 400.0, 1.0) var default_camera_height: float = 95.0:
 	set(value):
 		default_camera_height = value
 		camera_height = value
 		target_camera_height = value
+		_update_camera_transform()
+@export_range(30.0, 75.0, 1.0) var camera_fov: float = 46.0:
+	set(value):
+		camera_fov = value
 		if is_inside_tree() and camera_3d:
-			camera_3d.global_position = Vector3(global_position.x, camera_height, global_position.z + camera_height * camera_tilt_ratio)
-			camera_3d.look_at(global_position, Vector3.UP)
-@export_range(15.0, 100.0, 1.0) var min_camera_height: float = 22.0
-@export_range(100.0, 500.0, 5.0) var max_camera_height: float = 320.0
-@export_range(0.1, 1.0, 0.02) var camera_tilt_ratio: float = 0.42
+			camera_3d.fov = camera_fov
+@export_range(15.0, 100.0, 1.0) var min_camera_height: float = 24.0
+@export_range(100.0, 600.0, 5.0) var max_camera_height: float = 380.0
+@export_range(0.01, 0.5, 0.01) var camera_tilt_ratio: float = 0.05:
+	set(value):
+		camera_tilt_ratio = value
+		_update_camera_transform()
 
 var ship_heading: float = 0.0
 var angular_velocity: float = 0.0
-var camera_height: float = 78.0
-var target_camera_height: float = 78.0
+var camera_height: float = 95.0
+var target_camera_height: float = 95.0
 var anim_time: float = 0.0
 
 @onready var visual_root: Node3D = $VisualRoot
@@ -47,11 +53,17 @@ func _ready() -> void:
 	camera_height = default_camera_height
 	target_camera_height = default_camera_height
 	_build_detailed_bio_anatomy()
-	if camera_3d:
-		camera_3d.global_position = Vector3(global_position.x, camera_height, global_position.z + camera_height * camera_tilt_ratio)
-		camera_3d.look_at(global_position, Vector3.UP)
+	_update_camera_transform()
 	if not Engine.is_editor_hint():
 		velocity = Vector3(1.5, 0.0, 0.0)
+
+func _update_camera_transform() -> void:
+	if not is_inside_tree() or not camera_3d:
+		return
+	camera_3d.fov = camera_fov
+	var z_off: float = max(0.5, camera_height * camera_tilt_ratio)
+	camera_3d.global_position = Vector3(global_position.x, camera_height, global_position.z + z_off)
+	camera_3d.look_at(global_position, Vector3.UP)
 
 func _build_detailed_bio_anatomy() -> void:
 	if not visual_root:
@@ -254,6 +266,4 @@ func _physics_process(delta: float) -> void:
 
 	# 4. Smooth Top-Down / Angled Camera Follow
 	camera_height = lerpf(camera_height, target_camera_height, min(1.0, delta * 6.0))
-	if camera_3d:
-		camera_3d.global_position = Vector3(global_position.x, camera_height, global_position.z + camera_height * camera_tilt_ratio)
-		camera_3d.look_at(global_position, Vector3.UP)
+	_update_camera_transform()
