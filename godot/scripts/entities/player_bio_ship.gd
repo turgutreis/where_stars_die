@@ -2,7 +2,7 @@ extends CharacterBody3D
 class_name PlayerBioShip
 
 ## Najmafar Living Bio-Ship Controller (Godot 4.6)
-## Newtonian 2.5D Space Flight + Flight Assist + Organic Tentacle/Wing Animation + Camera Zoom.
+## Newtonian 2.5D Space Flight + Procedural Multi-Part Bio-Leviathan Anatomy + Camera Zoom.
 
 @export var thrust_strength: float = 28.0
 @export var retro_thrust_strength: float = 22.0
@@ -22,17 +22,123 @@ var anim_time: float = 0.0
 @onready var camera_3d: Camera3D = $CameraRig/Camera3D
 @onready var bio_light: OmniLight3D = $VisualRoot/BioLight
 
+var left_mandible: Node3D = null
+var right_mandible: Node3D = null
+var tendrils: Array[Node3D] = []
+var dorsal_plates: Array[MeshInstance3D] = []
+
 func _ready() -> void:
 	add_to_group("player_ship")
 	global_position = Vector3(0.0, 0.0, 160.0)
 	velocity = Vector3(1.5, 0.0, 0.0)
+	_build_detailed_bio_anatomy()
+
+func _build_detailed_bio_anatomy() -> void:
+	if not visual_root:
+		return
+
+	var dorsal_mat := StandardMaterial3D.new()
+	dorsal_mat.albedo_color = Color(0.04, 0.25, 0.22)
+	dorsal_mat.metallic = 0.78
+	dorsal_mat.roughness = 0.28
+	dorsal_mat.emission_enabled = true
+	dorsal_mat.emission = Color(0.02, 0.35, 0.24)
+	dorsal_mat.emission_energy_multiplier = 0.4
+
+	var biolum_mat := StandardMaterial3D.new()
+	biolum_mat.albedo_color = Color(0.0, 1.0, 0.55)
+	biolum_mat.emission_enabled = true
+	biolum_mat.emission = Color(0.0, 1.0, 0.55)
+	biolum_mat.emission_energy_multiplier = 2.2
+
+	# 1. Segmented Dorsal Carapace Plates (Trilobite spinal crests along Z)
+	for i in range(5):
+		var plate := MeshInstance3D.new()
+		var cyl := CylinderMesh.new()
+		var p_size: float = 0.72 - float(i) * 0.09
+		cyl.top_radius = p_size * 0.65
+		cyl.bottom_radius = p_size
+		cyl.height = 0.28
+		cyl.material = dorsal_mat
+		plate.mesh = cyl
+		plate.position = Vector3(0.0, 0.22 - float(i) * 0.02, -0.5 + float(i) * 0.42)
+		plate.scale = Vector3(1.0, 0.45, 0.85)
+		visual_root.add_child(plate)
+		dorsal_plates.append(plate)
+
+	# 2. Predatory Front Mandibles (Grasping pincers at nose -Z)
+	left_mandible = Node3D.new()
+	left_mandible.position = Vector3(-0.35, 0.0, -1.15)
+	visual_root.add_child(left_mandible)
+
+	right_mandible = Node3D.new()
+	right_mandible.position = Vector3(0.35, 0.0, -1.15)
+	visual_root.add_child(right_mandible)
+
+	var mand_mesh := CylinderMesh.new()
+	mand_mesh.top_radius = 0.02
+	mand_mesh.bottom_radius = 0.18
+	mand_mesh.height = 1.05
+	mand_mesh.material = dorsal_mat
+
+	var l_mand_inst := MeshInstance3D.new()
+	l_mand_inst.mesh = mand_mesh
+	l_mand_inst.rotation.x = PI * 0.5
+	l_mand_inst.rotation.y = -0.22
+	l_mand_inst.position = Vector3(0.0, 0.0, -0.45)
+	left_mandible.add_child(l_mand_inst)
+
+	var r_mand_inst := MeshInstance3D.new()
+	r_mand_inst.mesh = mand_mesh
+	r_mand_inst.rotation.x = PI * 0.5
+	r_mand_inst.rotation.y = 0.22
+	r_mand_inst.position = Vector3(0.0, 0.0, -0.45)
+	right_mandible.add_child(r_mand_inst)
+
+	# Glowing Wing Edge Ribs
+	var rib_mesh := BoxMesh.new()
+	rib_mesh.size = Vector3(1.75, 0.06, 0.14)
+	rib_mesh.material = biolum_mat
+	if left_wing:
+		var l_rib := MeshInstance3D.new()
+		l_rib.mesh = rib_mesh
+		l_rib.position = Vector3(0.0, 0.05, -0.48)
+		left_wing.add_child(l_rib)
+	if right_wing:
+		var r_rib := MeshInstance3D.new()
+		r_rib.mesh = rib_mesh
+		r_rib.position = Vector3(0.0, 0.05, -0.48)
+		right_wing.add_child(r_rib)
+
+	# 3. Twin Bio-Whip Tendrils (Swaying tail appendages at +Z)
+	for t in range(2):
+		var t_root := Node3D.new()
+		t_root.position = Vector3(-0.32 if t == 0 else 0.32, 0.0, 1.25)
+		visual_root.add_child(t_root)
+		var parent_joint: Node3D = t_root
+		for s in range(6):
+			var seg_node := Node3D.new()
+			seg_node.position = Vector3(0.0, 0.0, 0.36)
+			var seg_inst := MeshInstance3D.new()
+			var seg_cyl := CylinderMesh.new()
+			seg_cyl.top_radius = max(0.02, 0.13 - float(s) * 0.018)
+			seg_cyl.bottom_radius = max(0.03, 0.15 - float(s) * 0.018)
+			seg_cyl.height = 0.38
+			seg_cyl.material = biolum_mat if s >= 4 else dorsal_mat
+			seg_inst.mesh = seg_cyl
+			seg_inst.rotation.x = PI * 0.5
+			seg_node.add_child(seg_inst)
+			parent_joint.add_child(seg_node)
+			parent_joint = seg_node
+		tendrils.append(t_root)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
-			target_camera_height = clamp(target_camera_height - 6.0, 26.0, 150.0)
-		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
-			target_camera_height = clamp(target_camera_height + 6.0, 26.0, 150.0)
+		var mb: InputEventMouseButton = event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
+			target_camera_height = clamp(target_camera_height - 6.0, 22.0, 165.0)
+		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
+			target_camera_height = clamp(target_camera_height + 6.0, 22.0, 165.0)
 
 func _physics_process(delta: float) -> void:
 	if QuestManager.is_dialogue_open:
@@ -55,7 +161,6 @@ func _physics_process(delta: float) -> void:
 	ship_heading += angular_velocity * delta
 	if visual_root:
 		visual_root.rotation.y = ship_heading - PI * 0.5
-		# Subtle organic roll when turning
 		visual_root.rotation.z = lerpf(visual_root.rotation.z, -turn_input * 0.25, min(1.0, delta * 8.0))
 
 	# 2. Forward Thrust (W / Up) & Retro Braking (S / Down)
@@ -68,7 +173,6 @@ func _physics_process(delta: float) -> void:
 		velocity += forward_dir * thrust_strength * delta
 		GameState.bio_energy = max(0.0, GameState.bio_energy - 3.5 * delta)
 		if GameState.flight_assist:
-			# Dampen lateral drift for responsive organic cornering
 			var forward_speed := velocity.dot(forward_dir)
 			var lateral := velocity - forward_dir * forward_speed
 			velocity -= lateral * min(1.0, delta * 4.5)
@@ -78,7 +182,6 @@ func _physics_process(delta: float) -> void:
 	if is_braking:
 		velocity = velocity.move_toward(Vector3.ZERO, retro_thrust_strength * delta)
 
-	# Clamp speed & lock to ecliptic plane Y=0
 	if velocity.length() > max_speed:
 		velocity = velocity.normalized() * max_speed
 	velocity.y = 0.0
@@ -86,16 +189,36 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	global_position.y = 0.0
 
-	# 3. Organic Manta-Wing & Nucleus Animation
+	# 3. Organic Manta-Wing, Mandible & Tendril Animation
 	var flap_speed: float = 6.5 if is_thrusting else 2.4
-	var flap_amp: float = 0.22 if is_thrusting else 0.08
+	var flap_amp: float = 0.24 if is_thrusting else 0.09
 	if left_wing:
 		left_wing.rotation.z = sin(anim_time * flap_speed) * flap_amp
 	if right_wing:
 		right_wing.rotation.z = -sin(anim_time * flap_speed) * flap_amp
 	if nucleus_core:
-		var pulse := 1.0 + sin(anim_time * 3.5) * 0.1
+		var pulse := 1.0 + sin(anim_time * 3.5) * 0.12
 		nucleus_core.scale = Vector3(pulse, pulse, pulse)
+	if left_mandible and right_mandible:
+		var pinch := sin(anim_time * 2.8) * 0.12
+		left_mandible.rotation.y = pinch
+		right_mandible.rotation.y = -pinch
+	for t_idx in range(tendrils.size()):
+		var t_root: Node3D = tendrils[t_idx]
+		var cur: Node3D = t_root
+		var phase_offset: float = float(t_idx) * PI
+		var seg_i: int = 0
+		while cur.get_child_count() > 0:
+			var next_joint: Node3D = null
+			for c in cur.get_children():
+				if c is Node3D and not (c is MeshInstance3D):
+					next_joint = c
+					break
+			if next_joint == null:
+				break
+			next_joint.rotation.y = sin(anim_time * (4.8 if is_thrusting else 2.2) - float(seg_i) * 0.55 + phase_offset) * 0.18
+			cur = next_joint
+			seg_i += 1
 
 	# 4. Smooth Top-Down / Angled Camera Follow
 	camera_height = lerpf(camera_height, target_camera_height, min(1.0, delta * 6.0))
