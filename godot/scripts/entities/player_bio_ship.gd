@@ -3,8 +3,8 @@ extends CharacterBody3D
 class_name PlayerBioShip
 
 ## Najmafar Living Bio-Ship Controller (Godot 4.6)
-## Newtonian 2.5D Space Flight + Procedural Multi-Part Bio-Leviathan Anatomy +
-## Bioluminescent Spore Trail Particles + Gravitational Slingshot Physics + Camera Zoom.
+## Organic Wave-Like Swimming Locomotion (Manta / Leviathan Traveling Sine-Wave Undulation)
+## + Procedural Multi-Part Bio-Anatomy + Gravitational Slingshot Physics + Camera Zoom.
 
 @export_category("Flight Physics")
 @export var thrust_strength: float = 28.0
@@ -12,6 +12,8 @@ class_name PlayerBioShip
 @export var turn_speed: float = 2.85
 @export var max_speed: float = 55.0
 @export var gravity_influence_multiplier: float = 1.0
+@export var wave_swim_amplitude: float = 0.42
+@export var wave_swim_frequency: float = 4.2
 
 @export_category("Camera Settings")
 @export_range(20.0, 400.0, 1.0) var default_camera_height: float = 95.0:
@@ -41,9 +43,11 @@ var angular_velocity: float = 0.0
 var camera_height: float = 95.0
 var target_camera_height: float = 95.0
 var anim_time: float = 0.0
+var swim_phase: float = 0.0
 var external_gravity_accel: Vector3 = Vector3.ZERO
 
 @onready var visual_root: Node3D = $VisualRoot
+@onready var body_mesh: MeshInstance3D = $VisualRoot/BodyMesh
 @onready var left_wing: Node3D = $VisualRoot/LeftWing
 @onready var right_wing: Node3D = $VisualRoot/RightWing
 @onready var nucleus_core: MeshInstance3D = $VisualRoot/NucleusCore
@@ -54,8 +58,6 @@ var left_mandible: Node3D = null
 var right_mandible: Node3D = null
 var tendrils: Array[Node3D] = []
 var dorsal_plates: Array[MeshInstance3D] = []
-var spore_trail_particles: CPUParticles3D = null
-var boost_trail_particles: CPUParticles3D = null
 
 func _ready() -> void:
 	add_to_group("player_ship")
@@ -74,8 +76,6 @@ func trigger_warp_arrival_zoom() -> void:
 func _update_camera_transform() -> void:
 	if not is_inside_tree() or not camera_3d:
 		return
-	# Always keep PROJECTION_PERSPECTIVE so the 8K Panorama Skybox never stretches into radial lines!
-	# For Isometric mode [C], use a narrow 22° Telephoto lens at 2.1x distance + 0.38 isometric tilt.
 	camera_3d.projection = Camera3D.PROJECTION_PERSPECTIVE
 	if use_orthogonal_isometric:
 		camera_3d.fov = 22.0
@@ -114,7 +114,7 @@ func _build_detailed_bio_anatomy() -> void:
 	biolum_mat.albedo_color = Color(0.0, 1.0, 0.55)
 	biolum_mat.emission_enabled = true
 	biolum_mat.emission = Color(0.0, 1.0, 0.55)
-	biolum_mat.emission_energy_multiplier = 2.2
+	biolum_mat.emission_energy_multiplier = 1.8
 
 	# 1. Segmented Dorsal Carapace Plates (Trilobite spinal crests along Z)
 	for i in range(5):
@@ -182,61 +182,6 @@ func _build_detailed_bio_anatomy() -> void:
 			parent_joint = seg_node
 		tendrils.append(t_root)
 
-	# 4. Bioluminescent Spore Trail Particles (Organic Engine Plume)
-	spore_trail_particles = CPUParticles3D.new()
-	spore_trail_particles.name = "BioSporeTrail"
-	spore_trail_particles.position = Vector3(0.0, 0.0, 1.65)
-	spore_trail_particles.amount = 48
-	spore_trail_particles.lifetime = 1.35
-	spore_trail_particles.local_coords = false
-	spore_trail_particles.direction = Vector3(0.0, 0.0, 1.0)
-	spore_trail_particles.spread = 22.0
-	spore_trail_particles.gravity = Vector3.ZERO
-	spore_trail_particles.initial_velocity_min = 2.0
-	spore_trail_particles.initial_velocity_max = 6.5
-
-	var spore_mat := StandardMaterial3D.new()
-	spore_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	spore_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	spore_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	spore_mat.albedo_color = Color(0.0, 1.0, 0.65, 0.72)
-	var spore_sphere := SphereMesh.new()
-	spore_sphere.radius = 0.18
-	spore_sphere.height = 0.36
-	spore_sphere.radial_segments = 8
-	spore_sphere.rings = 4
-	spore_sphere.material = spore_mat
-	spore_trail_particles.mesh = spore_sphere
-	anatomy_root.add_child(spore_trail_particles)
-
-	# Secondary Cyan Ion-Bio Boost Plume when actively thrusting
-	boost_trail_particles = CPUParticles3D.new()
-	boost_trail_particles.name = "BioBoostPlume"
-	boost_trail_particles.position = Vector3(0.0, 0.0, 1.45)
-	boost_trail_particles.amount = 36
-	boost_trail_particles.lifetime = 0.65
-	boost_trail_particles.local_coords = false
-	boost_trail_particles.direction = Vector3(0.0, 0.0, 1.0)
-	boost_trail_particles.spread = 14.0
-	boost_trail_particles.gravity = Vector3.ZERO
-	boost_trail_particles.initial_velocity_min = 8.0
-	boost_trail_particles.initial_velocity_max = 16.0
-	boost_trail_particles.emitting = false
-
-	var boost_mat := StandardMaterial3D.new()
-	boost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	boost_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	boost_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	boost_mat.albedo_color = Color(0.22, 0.88, 1.0, 0.88)
-	var boost_sphere := SphereMesh.new()
-	boost_sphere.radius = 0.26
-	boost_sphere.height = 0.52
-	boost_sphere.radial_segments = 8
-	boost_sphere.rings = 4
-	boost_sphere.material = boost_mat
-	boost_trail_particles.mesh = boost_sphere
-	anatomy_root.add_child(boost_trail_particles)
-
 func _unhandled_input(event: InputEvent) -> void:
 	if Engine.is_editor_hint():
 		return
@@ -283,21 +228,25 @@ func _physics_process(delta: float) -> void:
 		angular_velocity = lerpf(angular_velocity, 0.0, min(1.0, delta * 14.0))
 
 	ship_heading += angular_velocity * delta
-	if visual_root:
-		visual_root.rotation.y = ship_heading - PI * 0.5
-		visual_root.rotation.z = lerpf(visual_root.rotation.z, -turn_input * 0.25, min(1.0, delta * 8.0))
 
-	# 2. Forward Thrust (W / Up), Retro Braking (S / Down) & Gravitational Pull
+	# 2. Forward Thrust (W / Up), Retro Braking (S / Down) & Wave-Like Swimming Locomotion
 	var is_thrusting := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP)
 	var is_braking := Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN)
 
-	var forward_dir := Vector3(cos(ship_heading), 0.0, -sin(ship_heading)).normalized()
+	var speed_ratio: float = clamp(velocity.length() / max(1.0, max_speed), 0.0, 1.0)
+	var active_freq: float = (wave_swim_frequency * 1.45) if is_thrusting else (wave_swim_frequency * (0.55 + speed_ratio * 0.45))
+	swim_phase += delta * active_freq
 
-	# Apply planetary & solar gravity acceleration
+	var forward_dir := Vector3(cos(ship_heading), 0.0, -sin(ship_heading)).normalized()
+	var lateral_dir := Vector3(sin(ship_heading), 0.0, cos(ship_heading)).normalized()
+
+	# Apply celestial body gravity acceleration
 	velocity += external_gravity_accel * gravity_influence_multiplier * delta
 
 	if is_thrusting:
-		velocity += forward_dir * thrust_strength * delta
+		# Organic rhythmic swimming propulsion pulse (strongest on the downstroke of the wave)
+		var stroke_pulse: float = 0.78 + 0.44 * pow(abs(cos(swim_phase)), 1.5)
+		velocity += forward_dir * (thrust_strength * stroke_pulse) * delta
 		GameState.bio_energy = max(0.0, GameState.bio_energy - 3.5 * delta)
 		if GameState.flight_assist:
 			var forward_speed := velocity.dot(forward_dir)
@@ -306,10 +255,8 @@ func _physics_process(delta: float) -> void:
 	else:
 		GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 2.5 * delta)
 
-	if boost_trail_particles:
-		boost_trail_particles.emitting = is_thrusting
 	if bio_light:
-		bio_light.light_energy = 3.2 if is_thrusting else 1.8
+		bio_light.light_energy = 2.4 + sin(swim_phase) * 0.5 if is_thrusting else 1.6
 
 	if is_braking:
 		velocity = velocity.move_toward(Vector3.ZERO, retro_thrust_strength * delta)
@@ -321,24 +268,49 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	global_position.y = 0.0
 
-	# 3. Organic Manta-Wing, Mandible & Tendril Animation
-	var flap_speed: float = 6.5 if is_thrusting else 2.4
-	var flap_amp: float = 0.24 if is_thrusting else 0.09
+	# 3. Traveling Sine-Wave Body Undulation (Slithering / Manta-Swimming Motion)
+	var swim_intensity: float = 1.0 if is_thrusting else (0.28 + speed_ratio * 0.55)
+	var body_sway_yaw: float = sin(swim_phase) * 0.14 * swim_intensity
+	var body_sway_offset: float = cos(swim_phase) * wave_swim_amplitude * swim_intensity
+
+	if visual_root:
+		# Visual hull weaves smoothly left/right perpendicular to flight heading without shaking the camera!
+		visual_root.position = lateral_dir * body_sway_offset
+		visual_root.rotation.y = (ship_heading - PI * 0.5) + body_sway_yaw
+		visual_root.rotation.z = lerpf(visual_root.rotation.z, -turn_input * 0.28 + sin(swim_phase) * 0.08 * swim_intensity, min(1.0, delta * 8.0))
+		visual_root.rotation.x = cos(swim_phase) * 0.07 * swim_intensity
+
+	# Traveling wave along the 5 Dorsal Carapace Plates (head-to-tail phase lag)
+	for i in range(dorsal_plates.size()):
+		var plate: MeshInstance3D = dorsal_plates[i]
+		if is_instance_valid(plate):
+			var plate_phase: float = swim_phase - float(i) * 0.52
+			plate.position.x = sin(plate_phase) * 0.11 * swim_intensity
+			plate.position.y = (0.22 - float(i) * 0.02) + cos(plate_phase) * 0.04 * swim_intensity
+			plate.rotation.y = cos(plate_phase) * 0.12 * swim_intensity
+
+	# Fluid Manta-Wing Undulation (figure-eight pitch + roll wave)
+	var flap_amp: float = 0.28 * swim_intensity
 	if left_wing:
-		left_wing.rotation.z = sin(anim_time * flap_speed) * flap_amp
+		left_wing.rotation.z = sin(swim_phase - 0.3) * flap_amp
+		left_wing.rotation.x = cos(swim_phase - 0.3) * (flap_amp * 0.45)
 	if right_wing:
-		right_wing.rotation.z = -sin(anim_time * flap_speed) * flap_amp
+		right_wing.rotation.z = -sin(swim_phase - 0.3) * flap_amp
+		right_wing.rotation.x = cos(swim_phase - 0.3) * (flap_amp * 0.45)
+
 	if nucleus_core:
-		var pulse := 1.0 + sin(anim_time * 3.5) * 0.12
+		var pulse := 1.0 + sin(swim_phase * 1.2) * 0.11
 		nucleus_core.scale = Vector3(pulse, pulse, pulse)
+
 	if left_mandible and right_mandible:
-		var pinch := sin(anim_time * 2.8) * 0.12
+		var pinch := sin(swim_phase * 0.8) * 0.12
 		left_mandible.rotation.y = pinch
 		right_mandible.rotation.y = -pinch
+
+	# Traveling S-Wave along the Twin 6-Segment Tail Tendrils (in-phase swimming whip)
 	for t_idx in range(tendrils.size()):
 		var t_root: Node3D = tendrils[t_idx]
 		var cur: Node3D = t_root
-		var phase_offset: float = float(t_idx) * PI
 		var seg_i: int = 0
 		while cur.get_child_count() > 0:
 			var next_joint: Node3D = null
@@ -348,10 +320,12 @@ func _physics_process(delta: float) -> void:
 					break
 			if next_joint == null:
 				break
-			next_joint.rotation.y = sin(anim_time * (4.8 if is_thrusting else 2.2) - float(seg_i) * 0.55 + phase_offset) * 0.18
+			var seg_phase: float = swim_phase - 0.85 - float(seg_i) * 0.58
+			next_joint.rotation.y = sin(seg_phase) * (0.16 + float(seg_i) * 0.025) * swim_intensity
+			next_joint.rotation.x = cos(seg_phase) * 0.05 * swim_intensity
 			cur = next_joint
 			seg_i += 1
 
-	# 4. Smooth Top-Down / Angled Camera Follow
+	# 4. Smooth Top-Down / Angled Camera Follow (follows center of mass so camera never wobbles)
 	camera_height = lerpf(camera_height, target_camera_height, min(1.0, delta * 6.0))
 	_update_camera_transform()

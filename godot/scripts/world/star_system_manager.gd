@@ -770,41 +770,40 @@ func _compute_gravity_acceleration() -> Vector3:
 	var p_pos: Vector3 = player_ship.global_position
 	var g_const: float = 14.0
 
-	# 1. Central Star Gravity & Surface Repulsion Cushion at (0, 0, 0)
+	# 1. Central Star Gravity & Surface Repulsion Cushion at (0, 0, 0) (Celestial Body Only)
 	var to_star: Vector3 = Vector3.ZERO - p_pos
 	to_star.y = 0.0
 	var star_dist: float = to_star.length()
-	var star_safe_r: float = current_star_size * 1.45
+	var star_safe_r: float = current_star_size + 2.5
 	if star_dist > 0.1 and star_dist < 140.0:
 		var dir_star: Vector3 = to_star / star_dist
 		if star_dist < star_safe_r:
-			# Soft thermal/magnetic repulsion cushion so the player never clips inside the sun
-			var push_strength: float = (star_safe_r - star_dist) * 6.5
+			var push_strength: float = (star_safe_r - star_dist) * 8.0
 			total_accel -= dir_star * push_strength
 		else:
-			var pull: float = clamp((g_const * current_star_mass) / max(60.0, star_dist * star_dist), 0.0, 12.0)
+			var pull: float = clamp((g_const * current_star_mass) / max(60.0, star_dist * star_dist), 0.0, 10.0)
 			total_accel += dir_star * pull
 
-	# 2. Planetary Gravity Wells & Slingshot Assist
+	# 2. Celestial Bodies Only (Planets & Moons) — Ships, Stations & Probes NEVER push or pull!
 	for body in interactable_bodies:
 		if not is_instance_valid(body):
 			continue
 		var cat: String = str(body.get("entity_category"))
-		if cat != "planet":
+		if cat != "planet" and cat != "moon":
 			continue
 		var to_body: Vector3 = body.global_position - p_pos
 		to_body.y = 0.0
 		var d: float = to_body.length()
 		var b_rad: float = (float(body.get("base_radius")) if body.get("base_radius") != null else 3.8) * body.scale.x
-		var grav_range: float = max(28.0, b_rad * 5.2)
+		var grav_range: float = max(22.0, b_rad * 4.2) if cat == "planet" else (b_rad * 3.0 + 4.0)
 		if d > 0.1 and d < grav_range:
 			var dir_b: Vector3 = to_body / d
-			var safe_surface: float = b_rad * 1.32
+			var safe_surface: float = b_rad + 1.8
 			if d < safe_surface:
-				total_accel -= dir_b * ((safe_surface - d) * 8.0)
-			else:
-				var p_mass: float = b_rad * 5.5
-				var p_pull: float = clamp((g_const * p_mass) / max(25.0, d * d), 0.0, 9.5)
+				total_accel -= dir_b * ((safe_surface - d) * 9.0)
+			elif cat == "planet":
+				var p_mass: float = b_rad * 4.8
+				var p_pull: float = clamp((g_const * p_mass) / max(25.0, d * d), 0.0, 8.5)
 				total_accel += dir_b * p_pull
 
 	return total_accel
