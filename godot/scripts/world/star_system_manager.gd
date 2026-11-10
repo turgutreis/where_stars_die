@@ -25,6 +25,13 @@ var target_reticle_mat: StandardMaterial3D = null
 var current_star_size: float = 18.0
 var current_star_mass: float = 160.0
 
+# Continuous Channeling State (Scan [F], Harvest [E], Abduct [R])
+var active_channel_mode: String = "" # "", "scan", "harvest", "abduct"
+var active_channel_target: Node3D = null
+var active_channel_progress: float = 0.0
+var active_channel_beam: Node3D = null
+var active_channel_ring: MeshInstance3D = null
+
 const PLANET_TEXTURES := {
 	"SUN": "res://assets/textures/planets/8k_sun.jpg",
 	"MERCURY": "res://assets/textures/planets/8k_mercury.jpg",
@@ -346,6 +353,9 @@ func _create_planet_node(p_data: Dictionary, index: int, sys_id: int, scaled_dis
 	p_entity.name = p_name.validate_node_name()
 	p_entity.display_name = "%s [%s]" % [p_name, p_type]
 	p_entity.entity_category = "planet"
+	p_entity.planet_key = "%d_%s" % [sys_id, p_name]
+	p_entity.planet_type = p_type
+	p_entity.raw_planet_data = p_data
 	p_entity.base_radius = p_size
 	p_entity.orbit_radius = scaled_dist
 	var default_angle_rad: float = (float(index) * 1.8) + (float(sys_id) * 0.5)
@@ -444,6 +454,9 @@ func _create_planet_node(p_data: Dictionary, index: int, sys_id: int, scaled_dis
 		ring_inst.rotation.x = deg_to_rad(8.0)
 		p_entity.add_child(ring_inst)
 
+	if not Engine.is_editor_hint() and GameState.is_planet_depleted(p_entity.planet_key):
+		p_entity.mark_visual_depleted()
+
 	return p_entity
 
 func _create_moon_node(m_data: Dictionary, parent_planet: OrbitingEntity, m_idx: int) -> OrbitingEntity:
@@ -458,6 +471,9 @@ func _create_moon_node(m_data: Dictionary, parent_planet: OrbitingEntity, m_idx:
 	m_entity.name = m_name.validate_node_name()
 	m_entity.display_name = "%s [%s]" % [m_name, m_type]
 	m_entity.entity_category = "moon"
+	m_entity.planet_key = "%s_moon_%s" % [parent_planet.planet_key, m_name]
+	m_entity.planet_type = m_type
+	m_entity.raw_planet_data = m_data
 	m_entity.parent_body = parent_planet
 	m_entity.base_radius = m_size
 	m_entity.orbit_radius = m_dist
@@ -484,6 +500,9 @@ func _create_moon_node(m_data: Dictionary, parent_planet: OrbitingEntity, m_idx:
 	var m_ring := _create_orbit_ring_mesh(m_dist, Color(m_color.r, m_color.g, m_color.b, 0.16))
 	procedural_container.add_child(m_ring)
 	m_entity.orbit_ring_mesh = m_ring
+
+	if not Engine.is_editor_hint() and GameState.is_planet_depleted(m_entity.planet_key):
+		m_entity.mark_visual_depleted()
 
 	return m_entity
 
@@ -718,6 +737,7 @@ func _process(delta: float) -> void:
 	GameState.nearest_interactable = best_node
 
 	_update_target_reticle_ring(best_node, best_dist, delta)
+	_update_active_channeling(delta)
 	player_ship.external_gravity_accel = _compute_gravity_acceleration()
 
 func _ensure_target_reticle_ring() -> void:
@@ -919,56 +939,291 @@ func _unhandled_input(event: InputEvent) -> void:
 			_handle_f_interaction()
 		elif key_event.keycode == KEY_E:
 			_handle_e_harvest()
+		elif key_event.keycode == KEY_R:
+			_handle_r_abduct()
 		elif key_event.keycode == KEY_X:
 			_handle_x_bio_emp()
 		elif key_event.keycode == KEY_Z:
 			GameState.flight_assist = not GameState.flight_assist
 			GameState.add_log("SYSTEM", "🛸 Flug-Assistent: %s" % ("AN" if GameState.flight_assist else "AUS"))
 
+func _get_target_planet_key(target: Node3D) -> String:
+	var pk: String = str(target.get("planet_key")) if target.get("planet_key") != null else ""
+	if pk == "":
+		pk = str(target.get_meta("planet_key", ""))
+	if pk == "":
+		pk = GameState.make_planet_key(target.name)
+	return pk
+
 func _handle_f_interaction() -> void:
-	if QuestManager.is_dialogue_open:
+	if QuestManager.is_dialogue_open or active_channel_mode != "":
 		return
 	var target: Node3D = GameState.nearest_interactable
 	if not target or not is_instance_valid(target):
 		return
 	var dist: float = player_ship.global_position.distance_to(target.global_position)
-	if dist > 36.0:
-		GameState.add_log("SENSOR", "Ziel '%s' ist zu weit entfernt (%.1f AE > 36 AE)." % [str(target.get("display_name")), dist])
+	if dist > 40.0:
+		GameState.add_log("SENSOR", "Ziel '%s' ist zu weit entfernt (%.1f AE > 40 AE)." % [str(target.get("display_name")), dist])
 		return
 
-	_play_sfx("quantum_scan_complete.wav")
-	_spawn_energy_beam(player_ship.global_position, target.global_position, Color(0.22, 0.88, 1.0, 0.9), 0.6)
 	var cat: String = str(target.get_meta("entity_category", ""))
 	var dlg: String = str(target.get_meta("dialogue_node_id", ""))
 	if cat == "jamal_shuttle" and GameState.jamal_decoy_revealed and GameState.current_system_id == 1:
+		_play_sfx("quantum_scan_complete.wav")
+		_spawn_energy_beam(player_ship.global_position, target.global_position, Color(0.22, 0.88, 1.0, 0.9), 0.6)
 		QuestManager.open_dialogue("hologram_trap_revealed")
 		return
 	if dlg != "":
+		_play_sfx("quantum_scan_complete.wav")
+		_spawn_energy_beam(player_ship.global_position, target.global_position, Color(0.22, 0.88, 1.0, 0.9), 0.6)
 		QuestManager.open_dialogue(dlg)
-	else:
-		GameState.add_log("SCAN", "✅ Spektral-Scan abgeschlossen: %s (+15 Bio, +10 Silizium)" % str(target.get("display_name")))
-		GameState.bio_res += 15
-		GameState.silicon_res += 10
-		GameState.vitals_updated.emit()
+		return
+
+	# Planetary / Lunar Spectral Scan
+	var p_key: String = _get_target_planet_key(target)
+	var raw_data: Dictionary = target.get("raw_planet_data") if target.get("raw_planet_data") != null else {}
+	var is_moon: bool = (cat == "moon")
+	if GameState.is_planet_scanned(p_key):
+		var dossier: Dictionary = GameState.get_or_create_planet_dossier(p_key, raw_data, is_moon)
+		GameState.active_dossier_key = p_key
+		GameState.dossier_updated.emit(p_key, dossier)
+		GameState.add_log("DOSSIER", "📋 Spektral-Dossier aufgerufen: %s (Bereits analysiert)." % str(target.get("display_name")))
+		return
+
+	_start_channeling("scan", target, Color(0.22, 0.88, 1.0, 0.88))
+	GameState.add_log("SCAN", "🛰️ Spektral-Analyse auf %s gestartet..." % str(target.get("display_name")))
 
 func _handle_e_harvest() -> void:
-	if QuestManager.is_dialogue_open:
+	if QuestManager.is_dialogue_open or active_channel_mode != "":
 		return
 	var target: Node3D = GameState.nearest_interactable
 	if not target or not is_instance_valid(target):
 		return
 	var dist: float = player_ship.global_position.distance_to(target.global_position)
-	if dist > 34.0:
+	if dist > 40.0:
+		GameState.add_log("SENSOR", "Außerhalb der Bio-Siphon-Reichweite (%.1f AE > 40 AE)." % dist)
 		return
 	if not bool(target.get_meta("is_harvestable", false)):
-		GameState.add_log("NAV", "Dieses Objekt ist ein Schiff/Station. Drücke [F] zum Untersuchen!")
+		GameState.add_log("NAV", "Dieses Objekt ist ein Schiff/Konstrukt — Bio-Siphon nur auf Planeten & Monden möglich! Drücke [F].")
 		return
-	_play_sfx("sonar_ping.wav")
-	_spawn_energy_beam(target.global_position, player_ship.global_position, Color(0.0, 1.0, 0.55, 0.92), 0.65)
-	GameState.bio_res += 25
-	GameState.silicon_res += 15
+
+	var p_key: String = _get_target_planet_key(target)
+	if not GameState.is_planet_scanned(p_key):
+		GameState.add_log("WARNUNG", "⚠️ Scan erforderlich [F]! Vor der Bio-Extraktion muss %s spektralanalysiert werden." % str(target.get("display_name")))
+		return
+
+	if GameState.is_planet_depleted(p_key):
+		GameState.add_log("WARNUNG", "🔴 Vorkommen erschöpft! %s wurde bereits abgeerntet — keine weitere Extraktion möglich." % str(target.get("display_name")))
+		return
+
+	if GameState.bio_energy < 10.0:
+		GameState.add_log("WARNUNG", "⚠️ Unzureichende Bio-Energie (%.0f / 10) für Siphon-Kanalisierung!" % GameState.bio_energy)
+		return
+
+	GameState.bio_energy = max(0.0, GameState.bio_energy - 10.0)
 	GameState.vitals_updated.emit()
-	GameState.add_log("ERNTE", "🌿 Bio-Siphon erfolgreich auf %s (+25 Bio, +15 Silizium)." % str(target.get("display_name")))
+	_start_channeling("harvest", target, Color(0.0, 1.0, 0.55, 0.9))
+	GameState.add_log("ERNTE", "🌿 Bio-Siphon aktiviert: Extrahiere Ressourcen von %s... (-10 Bio-Energie)" % str(target.get("display_name")))
+
+func _handle_r_abduct() -> void:
+	if QuestManager.is_dialogue_open or active_channel_mode != "":
+		return
+	var target: Node3D = GameState.nearest_interactable
+	if not target or not is_instance_valid(target):
+		return
+	var dist: float = player_ship.global_position.distance_to(target.global_position)
+	if dist > 40.0:
+		GameState.add_log("SENSOR", "Zu weit entfernt für psionischen Traktorstrahl (%.1f AE > 40 AE)." % dist)
+		return
+	if not bool(target.get_meta("is_harvestable", false)):
+		GameState.add_log("NAV", "Psionischer Traktorstrahl [R] erfordert einen besiedelten Himmelskörper.")
+		return
+
+	var p_key: String = _get_target_planet_key(target)
+	if not GameState.is_planet_scanned(p_key):
+		GameState.add_log("WARNUNG", "⚠️ Scan erforderlich [F]! Scanne %s zuerst nach Lebenszeichen." % str(target.get("display_name")))
+		return
+
+	if GameState.crew.size() >= GameState.max_crew_capacity:
+		GameState.add_log("WARNUNG", "⚠️ Kokon-Kammern voll (%d/%d)! Keine weiteren Symbionten aufnehmbar." % [GameState.crew.size(), GameState.max_crew_capacity])
+		return
+
+	var raw_data: Dictionary = target.get("raw_planet_data") if target.get("raw_planet_data") != null else {}
+	var is_moon: bool = (str(target.get_meta("entity_category", "")) == "moon")
+	var dossier: Dictionary = GameState.get_or_create_planet_dossier(p_key, raw_data, is_moon)
+	var cands: Array = dossier.get("candidates", [])
+	if cands.is_empty():
+		GameState.add_log("SENSOR", "Keine vernunftbegabten Individuen (mehr) auf %s für psionische Entführung verfügbar." % str(target.get("display_name")))
+		return
+
+	_start_channeling("abduct", target, Color(0.72, 0.32, 1.0, 0.92))
+	GameState.add_log("PSIONIK", "🔮 Psionischer Traktorstrahl aktiviert: Erfasse Bewusstsein auf %s..." % str(target.get("display_name")))
+
+func _start_channeling(mode: String, target: Node3D, beam_color: Color) -> void:
+	_cleanup_channel_visuals()
+	active_channel_mode = mode
+	active_channel_target = target
+	active_channel_progress = 0.0
+	_play_sfx("sonar_ping.wav")
+
+	if procedural_container:
+		active_channel_beam = Node3D.new()
+		var beam_inst := MeshInstance3D.new()
+		beam_inst.name = "BeamMesh"
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = 0.24
+		cyl.bottom_radius = 0.42
+		cyl.height = 1.0
+		var mat := StandardMaterial3D.new()
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.albedo_color = beam_color
+		cyl.material = mat
+		beam_inst.mesh = cyl
+		beam_inst.rotation.x = PI * 0.5
+		active_channel_beam.add_child(beam_inst)
+		procedural_container.add_child(active_channel_beam)
+
+		active_channel_ring = MeshInstance3D.new()
+		var torus := TorusMesh.new()
+		torus.inner_radius = 1.4
+		torus.outer_radius = 1.75
+		torus.material = mat
+		active_channel_ring.mesh = torus
+		procedural_container.add_child(active_channel_ring)
+
+	var t_name: String = str(target.get("display_name")) if target.get("display_name") != null else target.name
+	GameState.channel_progress_updated.emit(active_channel_mode, 0.0, t_name)
+
+func _cleanup_channel_visuals() -> void:
+	if active_channel_beam and is_instance_valid(active_channel_beam):
+		active_channel_beam.queue_free()
+	active_channel_beam = null
+	if active_channel_ring and is_instance_valid(active_channel_ring):
+		active_channel_ring.queue_free()
+	active_channel_ring = null
+
+func _cancel_channeling(reason: String) -> void:
+	var old_mode: String = active_channel_mode
+	active_channel_mode = ""
+	active_channel_target = null
+	active_channel_progress = 0.0
+	_cleanup_channel_visuals()
+	GameState.channel_progress_updated.emit("", 0.0, "")
+	if reason != "":
+		GameState.add_log("ABBRUCH", "❌ %s abgebrochen: %s" % [old_mode.to_upper(), reason])
+
+func _update_active_channeling(delta: float) -> void:
+	if active_channel_mode == "":
+		return
+	if not active_channel_target or not is_instance_valid(active_channel_target) or not player_ship:
+		_cancel_channeling("Ziel verloren.")
+		return
+
+	var p_pos: Vector3 = player_ship.global_position
+	var t_pos: Vector3 = active_channel_target.global_position
+	var dist: float = p_pos.distance_to(t_pos)
+	if dist > 46.0:
+		_cancel_channeling("Außerhalb der Orbit-Reichweite (%.1f AE > 46 AE)." % dist)
+		return
+
+	# Update live 3D beam geometry between Najmafar and orbiting target
+	if active_channel_beam and is_instance_valid(active_channel_beam):
+		var mid: Vector3 = (p_pos + t_pos) * 0.5 + Vector3(0.0, 0.35, 0.0)
+		active_channel_beam.global_position = mid
+		active_channel_beam.look_at(t_pos + Vector3(0.0, 0.35, 0.0), Vector3.UP)
+		var bm: MeshInstance3D = active_channel_beam.get_node_or_null("BeamMesh") as MeshInstance3D
+		if bm and bm.mesh is CylinderMesh:
+			var cyl: CylinderMesh = bm.mesh as CylinderMesh
+			cyl.height = max(0.5, dist)
+	if active_channel_ring and is_instance_valid(active_channel_ring):
+		active_channel_ring.global_position = Vector3(t_pos.x, 0.25, t_pos.z)
+		var pulse_s: float = 1.0 + sin(Time.get_ticks_msec() * 0.012) * 0.25
+		active_channel_ring.scale = Vector3(pulse_s, 1.0, pulse_s)
+
+	var speed_pct_per_sec: float = 58.0 # ~1.7s for scan
+	if active_channel_mode == "harvest":
+		speed_pct_per_sec = 42.0 # ~2.4s for harvest
+	elif active_channel_mode == "abduct":
+		speed_pct_per_sec = 46.0 # ~2.2s for abduction
+
+	active_channel_progress = min(100.0, active_channel_progress + speed_pct_per_sec * delta)
+	var t_name: String = str(active_channel_target.get("display_name")) if active_channel_target.get("display_name") != null else active_channel_target.name
+	GameState.channel_progress_updated.emit(active_channel_mode, active_channel_progress, t_name)
+
+	if active_channel_progress >= 100.0:
+		_complete_channeling()
+
+func _complete_channeling() -> void:
+	var mode: String = active_channel_mode
+	var target: Node3D = active_channel_target
+	active_channel_mode = ""
+	active_channel_target = null
+	active_channel_progress = 0.0
+	_cleanup_channel_visuals()
+	GameState.channel_progress_updated.emit("", 0.0, "")
+
+	if not target or not is_instance_valid(target):
+		return
+
+	_play_sfx("quantum_scan_complete.wav")
+	var p_key: String = _get_target_planet_key(target)
+	var raw_data: Dictionary = target.get("raw_planet_data") if target.get("raw_planet_data") != null else {}
+	var cat: String = str(target.get_meta("entity_category", ""))
+	var is_moon: bool = (cat == "moon")
+	var p_type: String = str(target.get("planet_type")) if target.get("planet_type") != null else "Rocky"
+	var t_name: String = str(target.get("display_name")) if target.get("display_name") != null else target.name
+
+	if mode == "scan":
+		var dossier: Dictionary = GameState.get_or_create_planet_dossier(p_key, raw_data, is_moon)
+		GameState.mark_planet_scanned(p_key, dossier)
+		GameState.mental_energy = min(GameState.max_mental_energy, GameState.mental_energy + 10.0)
+		GameState.vitals_updated.emit()
+		var cand_count: int = (dossier.get("candidates", []) as Array).size()
+		var life_hint: String = " | 🧬 %d Lebenszeichen geortet ([R] Entführen)" % cand_count if cand_count > 0 else ""
+		GameState.add_log("SCAN", "✅ Spektral-Scan abgeschlossen: %s (+10 Mentalkraft%s). [E] zum Ernten." % [t_name, life_hint])
+
+	elif mode == "harvest":
+		GameState.mark_planet_depleted(p_key)
+		if target.has_method("mark_visual_depleted"):
+			target.call("mark_visual_depleted")
+
+		var base_bio: int = 65 if p_type == "Habitable" else (35 if p_type == "Gas Giant" else 25)
+		var base_sil: int = 50 if (p_type == "Rocky" or is_moon) else 20
+		var bio_gain: int = int(round(float(base_bio) * GameState.get_bio_harvest_multiplier()))
+		var sil_gain: int = int(round(float(base_sil) * GameState.get_silicon_harvest_multiplier()))
+
+		GameState.bio_res += bio_gain
+		GameState.silicon_res += sil_gain
+		GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 25.0)
+		GameState.health = min(GameState.max_health, GameState.health + 15.0)
+		if t_name.contains("Arrakis"):
+			GameState.melange_res += 25
+			GameState.add_log("MELANGE", "🌶️ Das Gewürz von Arrakis fließt in Najmafars Zellkerne (+25 Melange)!")
+		GameState.vitals_updated.emit()
+		GameState.add_log("ERNTE", "🌿 Assimilation von %s abgeschlossen! +%d Biomasse | +%d Silizium absorbiert. Vorkommen erschöpft." % [t_name, bio_gain, sil_gain])
+
+	elif mode == "abduct":
+		var dossier: Dictionary = GameState.get_or_create_planet_dossier(p_key, raw_data, is_moon)
+		var cands: Array = dossier.get("candidates", [])
+		if not cands.is_empty():
+			var cand: Dictionary = cands.pop_front()
+			dossier["candidates"] = cands
+			GameState.planet_dossiers[p_key] = dossier
+			GameState.crew.append(cand)
+			GameState.loneliness = max(5.0, GameState.loneliness - 20.0)
+			GameState.mental_energy = min(GameState.max_mental_energy, GameState.mental_energy + 15.0)
+			GameState.vitals_updated.emit()
+			GameState.crew_updated.emit()
+			GameState.dossier_updated.emit(p_key, dossier)
+			GameState.add_log("CREW", "🔮 PSIONISCHE ASSIMILATION: %s (%s — %s) in Kokon-Kammer aufgenommen! (%d/%d Crew)" % [
+				str(cand.get("name", "Symbiont")),
+				str(cand.get("species", "Spezies")),
+				str(cand.get("role", "Rolle")),
+				GameState.crew.size(),
+				GameState.max_crew_capacity
+			])
 
 func _handle_x_bio_emp() -> void:
 	_play_sfx("sonar_ping.wav")

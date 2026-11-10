@@ -35,6 +35,9 @@ var _current_angle_rad: float = 0.0
 var body_mesh: Node3D = null
 var cloud_mesh: Node3D = null
 var orbit_ring_mesh: Node3D = null
+var planet_key: String = ""
+var planet_type: String = "Rocky"
+var raw_planet_data: Dictionary = {}
 
 func _ready() -> void:
 	_current_angle_rad = deg_to_rad(orbit_angle_deg)
@@ -43,8 +46,21 @@ func _ready() -> void:
 	set_meta("dialogue_node_id", dialogue_node_id)
 	set_meta("is_harvestable", is_harvestable)
 	set_meta("emits_radiation", emits_radiation)
+	set_meta("planet_key", planet_key)
+	set_meta("planet_type", planet_type)
 	enforce_safe_orbit_clearance()
 	update_orbital_position(0.0)
+
+func mark_visual_depleted() -> void:
+	if not display_name.contains("ERSCHÖPFT"):
+		display_name = "%s [ERSCHÖPFT]" % display_name
+		set_meta("display_name", display_name)
+	if body_mesh and body_mesh is MeshInstance3D:
+		var mi: MeshInstance3D = body_mesh as MeshInstance3D
+		if mi.mesh and mi.mesh.surface_get_material(0) is StandardMaterial3D:
+			var mat: StandardMaterial3D = mi.mesh.surface_get_material(0) as StandardMaterial3D
+			mat.albedo_color = mat.albedo_color.darkened(0.38)
+			mat.emission_enabled = false
 
 func enforce_safe_orbit_clearance() -> void:
 	if parent_body == null:
