@@ -222,8 +222,10 @@ func _render_dossier_panel(dossier: Dictionary) -> void:
 					str(c.get("role", "Symbiont")),
 					str(c.get("buffDesc", ""))
 				])
+	elif p_type == "Habitable" or str(dossier.get("bio", "")).contains("Kuppel") or str(dossier.get("bio", "")).contains("Forschungsstation"):
+		text_lines.append("[color=#94a3b8]🧬 Keine weiteren vernunftbegabten Individuen verfügbar (Bereits assimiliert).[/color]")
 	else:
-		text_lines.append("[color=#94a3b8]🧬 Keine weiteren vernunftbegabten Individuen für Traktorstrahl verfügbar.[/color]")
+		text_lines.append("[color=#94a3b8]🧬 Keine Lebenszeichen (Unbewohnbares Klima / Keine Oberflächen-Habitate).[/color]")
 
 	dossier_body_label.text = "\n".join(text_lines)
 

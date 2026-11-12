@@ -181,6 +181,14 @@ func mark_planet_depleted(planet_key: String) -> void:
 		if active_dossier_key == planet_key:
 			dossier_updated.emit(planet_key, d)
 
+func _extract_temp_celsius(temp_str: String) -> float:
+	var regex := RegEx.new()
+	regex.compile("([+-]?\\d+)")
+	var m: RegExMatch = regex.search(temp_str)
+	if m:
+		return float(m.get_string(1))
+	return 20.0
+
 func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moon: bool = false) -> Dictionary:
 	if planet_dossiers.has(planet_key):
 		var existing: Dictionary = planet_dossiers[planet_key]
@@ -200,7 +208,7 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 		if p_type == "Habitable":
 			atmos = "Stickstoff & Sauerstoff (Klasse M)" if (h % 2 == 0) else "Dichte Bio-Aerosole & Wasserdampf"
 		elif p_type == "Gas Giant":
-			atmos = "Superdichtes Wasserstoff- & Helium-band"
+			atmos = "Superdichtes Wasserstoff- & Helium-Band"
 		elif p_type in ["Ice", "Eismond"]:
 			atmos = "Dünner Kryo-Stickstoff & Methandunst"
 		else:
@@ -214,11 +222,21 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 		elif p_type in ["Ice", "Eismond"]:
 			temp = "-%d°C (Kryogen)" % (160 + (h % 60))
 		else:
-			temp = "%s%d°C" % [("+" if (h % 2 == 0) else "-"), 45 + (h % 180)]
+			# Some rocky planets are moderate (-45°C to +45°C), others are extreme (-180°C or +320°C)
+			if h % 4 == 0:
+				temp = "%s%d°C (Tolerierbar mit Schutzanzug)" % [("+" if (h % 2 == 0) else "-"), 18 + (h % 28)]
+			else:
+				temp = "%s%d°C (Extrem)" % [("+" if (h % 2 == 0) else "-"), 110 + (h % 380)]
+
+	var temp_c: float = _extract_temp_celsius(temp)
+	var is_extreme_temp: bool = (temp_c > 58.0 or temp_c < -75.0) and p_type != "Vorläufer-Konstrukt"
+	var can_support_outpost: bool = (not is_moon) and (p_type in ["Rocky", "Desert"]) and (not is_extreme_temp) and (h % 4 == 0)
 
 	if bio == "":
 		if p_type == "Habitable":
 			bio = "Biolumineszierendes Xeno-Ökosystem & intelligente Signale"
+		elif can_support_outpost:
+			bio = "Abgeschirmte Oberflächen-Forschungsstation (Kuppelsiedlung)"
 		elif p_type == "Gas Giant":
 			bio = "Schwebende Aero-Plankton-Kolonien" if (h % 3 == 0) else "Keine festen Bio-Signaturen"
 		else:
@@ -233,32 +251,40 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 			res = "Reine Silikat-Adern & Schwermetalle (+25 Bio, +50 Silizium)"
 
 	var candidates: Array = []
-	var raw_species = p_data.get("species", null)
-	if typeof(raw_species) == TYPE_DICTIONARY and raw_species.has("candidates"):
-		var raw_cands: Array = raw_species.get("candidates", [])
-		for c in raw_cands:
-			if typeof(c) == TYPE_DICTIONARY:
-				candidates.append(c.duplicate())
+	var is_habitable_or_construct: bool = (p_type == "Habitable" or p_type == "Vorläufer-Konstrukt")
 
-	# Guarantee sentient candidates on Habitable worlds or selected outposts so abduction [R] is deeply playable!
-	if candidates.is_empty() and (p_type == "Habitable" or (not is_moon and (h % 2 == 0))):
-		var count: int = 2 if p_type == "Habitable" else 1
-		for c_i in range(count):
-			var ch: int = abs((h + c_i * 97) * 31)
-			var f_name: String = PROCEDURAL_FIRST_NAMES[ch % PROCEDURAL_FIRST_NAMES.size()]
-			var l_name: String = PROCEDURAL_LAST_NAMES[(ch / 7) % PROCEDURAL_LAST_NAMES.size()]
-			var sp_name: String = PROCEDURAL_SPECIES[(ch / 13) % PROCEDURAL_SPECIES.size()]
-			var role_dict: Dictionary = PROCEDURAL_ROLES[(ch / 19) % PROCEDURAL_ROLES.size()]
-			candidates.append({
-				"id": 200 + (ch % 8000),
-				"name": "%s %s" % [f_name, l_name],
-				"species": sp_name,
-				"role": role_dict["roleName"],
-				"roleKey": role_dict["role"],
-				"buffDesc": role_dict["buffDesc"],
-				"station": "Synapsen-Deck",
-				"stress": 10.0
-			})
+	# Only allow candidates on Habitable worlds, Precursor Constructs, or thermally survivable Outpost worlds (-75°C to +58°C)!
+	if is_habitable_or_construct or can_support_outpost:
+		var raw_species = p_data.get("species", null)
+		if typeof(raw_species) == TYPE_DICTIONARY and raw_species.has("candidates"):
+			var raw_cands: Array = raw_species.get("candidates", [])
+			for c in raw_cands:
+				if typeof(c) == TYPE_DICTIONARY:
+					candidates.append(c.duplicate())
+
+		if candidates.is_empty():
+			var count: int = 2 if p_type == "Habitable" else 1
+			for c_i in range(count):
+				var ch: int = abs((h + c_i * 97) * 31)
+				var f_name: String = PROCEDURAL_FIRST_NAMES[ch % PROCEDURAL_FIRST_NAMES.size()]
+				var l_name: String = PROCEDURAL_LAST_NAMES[(ch / 7) % PROCEDURAL_LAST_NAMES.size()]
+				var sp_name: String = PROCEDURAL_SPECIES[(ch / 13) % PROCEDURAL_SPECIES.size()]
+				var role_dict: Dictionary = PROCEDURAL_ROLES[(ch / 19) % PROCEDURAL_ROLES.size()]
+				candidates.append({
+					"id": 200 + (ch % 8000),
+					"name": "%s %s" % [f_name, l_name],
+					"species": sp_name,
+					"role": role_dict["roleName"],
+					"roleKey": role_dict["role"],
+					"buffDesc": role_dict["buffDesc"],
+					"station": "Synapsen-Deck",
+					"stress": 10.0
+				})
+		if can_support_outpost and not bio.contains("Forschungsstation") and not bio.contains("Kuppel") and not bio.contains("Siedlung"):
+			bio = "%s (Abgeschirmte Forschungs-Kuppel aktiv)" % bio
+	else:
+		# Strictly block any candidates on 600°C inferno worlds, cryogenic ice balls, moons, or Gas Giants!
+		candidates.clear()
 
 	var dossier := {
 		"key": planet_key,
