@@ -34,6 +34,7 @@ extends Node3D
 @onready var world_env: WorldEnvironment = $WorldEnvironment
 
 var interactable_bodies: Array[Node3D] = []
+var active_asteroids: Array[Node3D] = []
 var texture_cache: Dictionary = {}
 var bgm_player: AudioStreamPlayer = null
 var sfx_player: AudioStreamPlayer = null
@@ -198,6 +199,7 @@ func build_star_system(sys_data: Dictionary) -> void:
 		return
 
 	interactable_bodies.clear()
+	active_asteroids.clear()
 	for child in procedural_container.get_children():
 		child.queue_free()
 
@@ -287,6 +289,7 @@ func build_star_system(sys_data: Dictionary) -> void:
 		if typeof(ast) == TYPE_DICTIONARY:
 			var ast_node := _create_asteroid_node(ast)
 			procedural_container.add_child(ast_node)
+			active_asteroids.append(ast_node)
 
 	# 4. Space Stations for Spacefaring Planets & Quest Entities
 	for p_idx in range(planet_nodes.size()):
@@ -568,6 +571,7 @@ func _create_asteroid_node(ast_data: Dictionary) -> Node3D:
 	sph.material = mat
 	inst.mesh = sph
 	inst.position = Vector3(float(ast_data.get("x", 40.0)) * 2.5, (randf() - 0.5) * 1.5, float(ast_data.get("z", 40.0)) * 2.5)
+	inst.set_meta("asteroid_type", "bio" if is_bio else "silicon")
 	return inst
 
 func _create_orbit_ring_mesh(radius: float, color: Color) -> MeshInstance3D:
@@ -781,7 +785,74 @@ func _process(delta: float) -> void:
 
 	_update_target_reticle_ring(best_node, best_dist, delta)
 	_update_active_channeling(delta)
+	_update_environmental_radiation()
+	_check_asteroid_collection()
 	player_ship.external_gravity_accel = _compute_gravity_acceleration()
+
+func _update_environmental_radiation() -> void:
+	if not player_ship:
+		return
+	var p_pos: Vector3 = player_ship.global_position
+	var amb_rad: float = 0.0
+	var rad_src: String = ""
+
+	# 1. Solar Corona Radiation near Central Star (0, 0, 0)
+	var dist_star: float = p_pos.length()
+	var solar_zone: float = current_star_size * 3.6
+	if dist_star < solar_zone:
+		var s_int: float = clamp((1.0 - (dist_star / solar_zone)) * 0.68, 0.0, 1.0)
+		if s_int > amb_rad:
+			amb_rad = s_int
+			rad_src = "Solare Korona"
+
+	# 2. Planetary Magnetosphere / Thermal Radiation
+	var nearest: Node3D = GameState.nearest_interactable
+	if nearest and is_instance_valid(nearest):
+		var d: float = p_pos.distance_to(nearest.global_position)
+		var cat: String = str(nearest.get_meta("entity_category", ""))
+		if cat == "jamal_shuttle" and d < 30.0:
+			# Ar-Riḥla's sub-quantum field shields Najmafar
+			amb_rad = 0.0
+			rad_src = ""
+		elif cat in ["planet", "moon"] and d < 48.0:
+			var p_type: String = str(nearest.get("planet_type")) if nearest.get("planet_type") != null else "Rocky"
+			var emits: bool = bool(nearest.get_meta("emits_radiation", false))
+			if emits or p_type in ["Gas Giant", "Vulkanmond"]:
+				var p_int: float = clamp((1.0 - (d / 48.0)) * 0.48, 0.0, 0.85)
+				if p_int > amb_rad:
+					amb_rad = p_int
+					rad_src = str(nearest.get("display_name"))
+
+	GameState.ambient_radiation = amb_rad
+	GameState.radiation_source = rad_src
+
+func _check_asteroid_collection() -> void:
+	if not player_ship or active_asteroids.is_empty():
+		return
+	var p_pos: Vector3 = player_ship.global_position
+	for i in range(active_asteroids.size() - 1, -1, -1):
+		var ast: Node3D = active_asteroids[i]
+		if not is_instance_valid(ast):
+			active_asteroids.remove_at(i)
+			continue
+		if p_pos.distance_to(ast.global_position) <= 6.2:
+			var a_type: String = str(ast.get_meta("asteroid_type", "silicon"))
+			_play_sfx("sonar_ping.wav")
+			_spawn_energy_beam(ast.global_position, p_pos, Color(0.0, 1.0, 0.55, 0.85) if a_type == "bio" else Color(0.22, 0.88, 1.0, 0.85), 0.35)
+			if a_type == "bio":
+				var b_gain: int = int(round(18.0 * GameState.get_bio_harvest_multiplier()))
+				GameState.bio_res += b_gain
+				GameState.add_food(10)
+				GameState.add_log("ASTEROID", "☄️ Organisches Fragment absorbiert: +%d 🌿 Biomasse | +10 🍖 Nahrung!" % b_gain)
+			else:
+				var s_gain: int = int(round(22.0 * GameState.get_silicon_harvest_multiplier()))
+				GameState.silicon_res += s_gain
+				GameState.add_water(6)
+				GameState.alloy_res += 4
+				GameState.add_log("ASTEROID", "☄️ Kristall-Fragment absorbiert: +%d 💎 Silizium | +6 💧 Wasser | +4 🛡️ Legierungen!" % s_gain)
+			GameState.vitals_updated.emit()
+			ast.queue_free()
+			active_asteroids.remove_at(i)
 
 func _ensure_target_reticle_ring() -> void:
 	if target_reticle_ring and is_instance_valid(target_reticle_ring):
@@ -1091,6 +1162,10 @@ func _handle_r_abduct() -> void:
 		GameState.add_log("WARNUNG", "⚠️ Kokon-Kammern voll (%d/%d)! Keine weiteren Symbionten aufnehmbar." % [GameState.crew.size(), GameState.max_crew_capacity])
 		return
 
+	if GameState.mental_energy < 15.0:
+		GameState.add_log("WARNUNG", "⚠️ Unzureichende Mentalkraft (%.0f / 15 🧠) für psionischen Traktorstrahl!" % GameState.mental_energy)
+		return
+
 	var raw_data: Dictionary = target.get("raw_planet_data") if target.get("raw_planet_data") != null else {}
 	var is_moon: bool = (str(target.get_meta("entity_category", "")) == "moon")
 	var dossier: Dictionary = GameState.get_or_create_planet_dossier(p_key, raw_data, is_moon)
@@ -1099,8 +1174,10 @@ func _handle_r_abduct() -> void:
 		GameState.add_log("SENSOR", "Keine vernunftbegabten Individuen (mehr) auf %s für psionische Entführung verfügbar." % str(target.get("display_name")))
 		return
 
+	GameState.mental_energy = max(0.0, GameState.mental_energy - 15.0)
+	GameState.vitals_updated.emit()
 	_start_channeling("abduct", target, Color(0.72, 0.32, 1.0, 0.92))
-	GameState.add_log("PSIONIK", "🔮 Psionischer Traktorstrahl aktiviert: Erfasse Bewusstsein auf %s..." % str(target.get("display_name")))
+	GameState.add_log("PSIONIK", "🔮 Psionischer Traktorstrahl aktiviert (-15 🧠 Mentalkraft): Erfasse Bewusstsein auf %s..." % str(target.get("display_name")))
 
 func _start_channeling(mode: String, target: Node3D, beam_color: Color) -> void:
 	_cleanup_channel_visuals()
@@ -1232,20 +1309,77 @@ func _complete_channeling() -> void:
 		if target.has_method("mark_visual_depleted"):
 			target.call("mark_visual_depleted")
 
-		var base_bio: int = 65 if p_type == "Habitable" else (35 if p_type == "Gas Giant" else 25)
-		var base_sil: int = 50 if (p_type == "Rocky" or is_moon) else 20
-		var bio_gain: int = int(round(float(base_bio) * GameState.get_bio_harvest_multiplier()))
-		var sil_gain: int = int(round(float(base_sil) * GameState.get_silicon_harvest_multiplier()))
+		var dossier: Dictionary = GameState.get_or_create_planet_dossier(p_key, raw_data, is_moon)
+		var temp_c: float = float(dossier.get("tempC", 20.0))
+		var bio_mult: float = GameState.get_bio_harvest_multiplier()
+		var sil_mult: float = GameState.get_silicon_harvest_multiplier()
+
+		var bio_gain: int = 0
+		var sil_gain: int = 0
+		var water_gain: int = 0
+		var food_gain: int = 0
+		var alloy_gain: int = 0
+		var tech_gain: int = 0
+		var spice_gain: int = 0
+
+		if cat == "custom":
+			# Derelict ships & Precursor Monoliths
+			sil_gain = int(round(30.0 * sil_mult))
+			alloy_gain = 20
+			tech_gain = 18
+		elif p_type == "Habitable":
+			bio_gain = int(round(55.0 * bio_mult))
+			food_gain = int(round(30.0 * bio_mult))
+			water_gain = int(round(35.0 * bio_mult))
+			sil_gain = int(round(15.0 * sil_mult))
+		elif p_type in ["Ice", "Eismond"]:
+			water_gain = int(round(55.0 * bio_mult))
+			sil_gain = int(round(25.0 * sil_mult))
+			bio_gain = int(round(15.0 * bio_mult))
+		elif p_type == "Gas Giant":
+			water_gain = int(round(40.0 * bio_mult))
+			bio_gain = int(round(35.0 * bio_mult))
+			sil_gain = int(round(15.0 * sil_mult))
+		elif p_type == "Desert":
+			sil_gain = int(round(40.0 * sil_mult))
+			spice_gain = 15
+			alloy_gain = 12
+			bio_gain = int(round(15.0 * bio_mult))
+		elif p_type == "Vulkanmond" or temp_c > 90.0:
+			alloy_gain = 25
+			sil_gain = int(round(45.0 * sil_mult))
+			tech_gain = 8
+		else:
+			sil_gain = int(round(45.0 * sil_mult))
+			alloy_gain = 15
+			water_gain = 15
+			bio_gain = int(round(20.0 * bio_mult))
+
+		if t_name.contains("Arrakis"):
+			spice_gain += 30
 
 		GameState.bio_res += bio_gain
 		GameState.silicon_res += sil_gain
-		GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 25.0)
-		GameState.health = min(GameState.max_health, GameState.health + 15.0)
-		if t_name.contains("Arrakis"):
-			GameState.melange_res += 25
-			GameState.add_log("MELANGE", "🌶️ Das Gewürz von Arrakis fließt in Najmafars Zellkerne (+25 Melange)!")
+		if water_gain > 0:
+			GameState.add_water(water_gain)
+		if food_gain > 0:
+			GameState.add_food(food_gain)
+		GameState.alloy_res += alloy_gain
+		GameState.tech_res += tech_gain
+		GameState.melange_res += spice_gain
+		GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 22.0)
+		GameState.health = min(GameState.max_health, GameState.health + 12.0)
 		GameState.vitals_updated.emit()
-		GameState.add_log("ERNTE", "🌿 Assimilation von %s abgeschlossen! +%d Biomasse | +%d Silizium absorbiert. Vorkommen erschöpft." % [t_name, bio_gain, sil_gain])
+
+		var parts: Array[String] = []
+		if bio_gain > 0: parts.append("+%d 🌿 Bio" % bio_gain)
+		if sil_gain > 0: parts.append("+%d 💎 Sil" % sil_gain)
+		if water_gain > 0: parts.append("+%d 💧 Wasser" % water_gain)
+		if food_gain > 0: parts.append("+%d 🍖 Nahrung" % food_gain)
+		if alloy_gain > 0: parts.append("+%d 🛡️ Legierungen" % alloy_gain)
+		if tech_gain > 0: parts.append("+%d ⚙️ Tech" % tech_gain)
+		if spice_gain > 0: parts.append("+%d 🌶️ Melange" % spice_gain)
+		GameState.add_log("ERNTE", "🌿 Assimilation von %s abgeschlossen (%s)! Vorkommen erschöpft." % [t_name, ", ".join(parts)])
 
 	elif mode == "abduct":
 		var dossier: Dictionary = GameState.get_or_create_planet_dossier(p_key, raw_data, is_moon)
@@ -1269,6 +1403,11 @@ func _complete_channeling() -> void:
 			])
 
 func _handle_x_bio_emp() -> void:
+	if GameState.bio_energy < 18.0:
+		GameState.add_log("WARNUNG", "⚠️ Unzureichende Bio-Energie (%.0f / 18 ⚡) für Bio-EMP Schockwelle!" % GameState.bio_energy)
+		return
+	GameState.bio_energy = max(0.0, GameState.bio_energy - 18.0)
+	GameState.vitals_updated.emit()
 	_play_sfx("sonar_ping.wav")
 	var target: Node3D = GameState.nearest_interactable
 	var hit_node: Node3D = null
@@ -1282,7 +1421,7 @@ func _handle_x_bio_emp() -> void:
 		if sys.get("isInsanDepot", false) or String(sys.get("name", "")).contains("INSAN"):
 			QuestManager.liberate_real_ship()
 			return
-	GameState.add_log("EMP", "⚡ Psionische Bio-EMP Schockwelle ausgelöst!")
+	GameState.add_log("EMP", "⚡ Psionische Bio-EMP Schockwelle ausgelöst (-18 ⚡ Bio-Energie)!")
 
 func _parse_hex_color(hex_str: String, fallback: Color) -> Color:
 	var clean := hex_str.replace("0x", "#")

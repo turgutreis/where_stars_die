@@ -24,8 +24,8 @@ glow_bloom = 0.25
 
 [node name="StarSystem" type="Node3D" unique_id=374260969]
 script = ExtResource("1_sys")
+editor_preview_system_id = 2
 editor_camera_height = 40.0
-center_editor_camera_now = null
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1793308239]
 environment = SubResource("Environment_space")
@@ -35,6 +35,6 @@ environment = SubResource("Environment_space")
 [node name="EditorPlacedObjects" type="Node3D" parent="." unique_id=1176341515]
 
 [node name="PlayerBioShip" parent="." unique_id=1345190481 instance=ExtResource("2_ship")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 160.06047, 0, 107.975006)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40.40313, 0, 188.11842)
 
 [node name="HUD" parent="." unique_id=2074513737 instance=ExtResource("3_hud")]

@@ -222,8 +222,12 @@ func _physics_process(delta: float) -> void:
 	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
 		turn_input -= 1.0
 
+	var has_vec_mut: bool = GameState.is_mutation_purchased("vector_tentacles")
+	var eff_turn_speed: float = turn_speed * (1.25 if has_vec_mut else 1.0)
+	var eff_thrust: float = thrust_strength * (1.25 if has_vec_mut else 1.0)
+
 	if turn_input != 0.0:
-		angular_velocity = turn_input * turn_speed
+		angular_velocity = turn_input * eff_turn_speed
 	else:
 		angular_velocity = lerpf(angular_velocity, 0.0, min(1.0, delta * 14.0))
 
@@ -244,16 +248,22 @@ func _physics_process(delta: float) -> void:
 	velocity += external_gravity_accel * gravity_influence_multiplier * delta
 
 	if is_thrusting:
-		# Organic rhythmic swimming propulsion pulse (strongest on the downstroke of the wave)
 		var stroke_pulse: float = 0.78 + 0.44 * pow(abs(cos(swim_phase)), 1.5)
-		velocity += forward_dir * (thrust_strength * stroke_pulse) * delta
-		GameState.bio_energy = max(0.0, GameState.bio_energy - 3.5 * delta)
+		var energy_mult: float = 1.0 if GameState.bio_energy > 0.5 else 0.35
+		velocity += forward_dir * (eff_thrust * stroke_pulse * energy_mult) * delta
+		var drain_rate: float = 4.8 * GameState.get_thrust_energy_multiplier()
+		GameState.bio_energy = max(0.0, GameState.bio_energy - drain_rate * delta)
+		if GameState.bio_energy <= 0.1:
+			# Exhausted emergency swimming slowly taxes cellular hull health
+			GameState.health = max(1.0, GameState.health - 0.5 * delta)
 		if GameState.flight_assist:
 			var forward_speed := velocity.dot(forward_dir)
 			var lateral := velocity - forward_dir * forward_speed
 			velocity -= lateral * min(1.0, delta * 4.5)
 	else:
-		GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 2.5 * delta)
+		# Bio-energy only regenerates naturally if Najmafar has Nutrient Gel (food_res > 0)
+		if GameState.food_res > 0:
+			GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 1.15 * delta)
 
 	if bio_light:
 		bio_light.light_energy = 2.4 + sin(swim_phase) * 0.5 if is_thrusting else 1.6

@@ -1,7 +1,7 @@
 extends Node
 
-## Central Game State & Universe Registry for Project Najmafar (Godot 4.6)
-## Holds player stats, resources, crew, scan/depletion registries, active star system, and universe_data.json.
+## Central Game State, Survival Metabolism & Universe Registry for Project Najmafar (Godot 4.6)
+## Holds all 7 resources, player vitals, real-time life-support consumption, radiation, crew, and mutations.
 
 signal system_changed(system_id: int, system_data: Dictionary)
 signal vitals_updated()
@@ -11,8 +11,9 @@ signal scan_completed(target_node: Node3D)
 signal channel_progress_updated(mode: String, progress: float, target_name: String)
 signal dossier_updated(planet_key: String, dossier: Dictionary)
 signal crew_updated()
+signal mutations_updated()
 
-# --- Player Vitals & Resources ---
+# --- Player Vitals & Environmental Survival ---
 var health: float = 100.0
 var max_health: float = 100.0
 var bio_energy: float = 100.0
@@ -21,13 +22,28 @@ var mental_energy: float = 100.0
 var max_mental_energy: float = 100.0
 var loneliness: float = 45.0
 
+var ambient_radiation: float = 0.0
+var effective_radiation: float = 0.0
+var radiation_resistance: float = 0.0
+var radiation_source: String = ""
+
+# --- All 7 Core Resources (matching Three.js prototype) ---
 var bio_res: int = 0
 var silicon_res: int = 0
 var water_res: int = 25
+var food_res: int = 30
 var alloy_res: int = 10
 var tech_res: int = 0
-var food_res: int = 30
 var melange_res: int = 0
+
+# Internal fractional accumulators for smooth per-second life support drain
+var _water_accum: float = 25.0
+var _food_accum: float = 30.0
+var _hud_tick_timer: float = 0.0
+var _warn_cooldown_water: float = 0.0
+var _warn_cooldown_food: float = 0.0
+var _warn_cooldown_rad: float = 0.0
+var _warn_cooldown_energy: float = 0.0
 
 # --- Flight & Modes ---
 var flight_assist: bool = true
@@ -58,6 +74,50 @@ var depleted_planets: Dictionary = {}  # planet_key -> bool
 var planet_dossiers: Dictionary = {}   # planet_key -> Dictionary
 var active_dossier_key: String = ""
 
+# --- Mutations & Evolution Tree ---
+var mutations: Dictionary = {
+	"organic_siphon": {
+		"purchased": false,
+		"bioCost": 120,
+		"siliconCost": 60,
+		"techCost": 0,
+		"name": "Organischer Siphon",
+		"desc": "+35% Ernte-Ertrag & +25% Strahlungsschutz"
+	},
+	"chitin_armor": {
+		"purchased": false,
+		"bioCost": 220,
+		"siliconCost": 130,
+		"techCost": 0,
+		"name": "Chitin-Panzer",
+		"desc": "+40 Max-Hülle & +35% Strahlungs-Zellschutz"
+	},
+	"telepathic_focus": {
+		"purchased": false,
+		"bioCost": 140,
+		"siliconCost": 80,
+		"techCost": 0,
+		"name": "Telepathischer Fokus",
+		"desc": "-35% Mental-Drain & +30 Max-Mentalkraft"
+	},
+	"vector_tentacles": {
+		"purchased": false,
+		"bioCost": 360,
+		"siliconCost": 240,
+		"techCost": 10,
+		"name": "Vektor-Tentakel",
+		"desc": "+25% Schwimm-Schub & -30% Bio-Energieverbrauch"
+	},
+	"hivemind": {
+		"purchased": false,
+		"bioCost": 500,
+		"siliconCost": 320,
+		"techCost": 15,
+		"name": "Schwarm-Synapse (6 Kokons)",
+		"desc": "Erweitert Crew-Kapazität auf 6 & verstärkt Crew-Synergien"
+	}
+}
+
 # --- Quantum Ising Chronicle ---
 var galactic_cycle: int = 1
 var galactic_year: float = 2242.0
@@ -71,6 +131,7 @@ var crew: Array[Dictionary] = [
 		"name": "Dr. Tariq Jamal",
 		"species": "Mensch (Sol-Terraner)",
 		"role": "Chef-Quantenphysiker & Co-Pilot",
+		"roleKey": "scientist",
 		"buffDesc": "+25% Spektral-Scan & Quanten-Navigation",
 		"station": "Traum-Kern",
 		"stress": 15.0,
@@ -88,15 +149,242 @@ const PROCEDURAL_SPECIES: Array[String] = [
 	"Olyndar-Psioniker", "Vega-Kybernetiker", "Lithoid-Kristallwesen", "Nautiloid-Tiefseewanderer", "Aethelgard-Archivar"
 ]
 const PROCEDURAL_ROLES: Array[Dictionary] = [
-	{"role": "navigator", "roleName": "🧭 Kosmischer Navigator", "buffDesc": "+15% Schub-Effizienz & Orbit-Stabilität"},
-	{"role": "biologist", "roleName": "🧬 Xenobiologe", "buffDesc": "+25% Biomasse-Ertrag beim Bio-Siphon"},
-	{"role": "psion", "roleName": "🔮 Psionischer Resonator", "buffDesc": "-20% Einsamkeit & +15% Mentalkraft-Fokus"},
-	{"role": "engineer", "roleName": "⚙️ Chitin-Ingenieur", "buffDesc": "+20% Silizium-Synthese & Hüllen-Regeneration"}
+	{"role": "navigator", "roleName": "🧭 Kosmischer Navigator", "buffDesc": "-20% Schub-Energieverbrauch & stabile Orbits"},
+	{"role": "biologist", "roleName": "🧬 Xenobiologe", "buffDesc": "+25% Biomasse-, Wasser- & Nahrungs-Ertrag"},
+	{"role": "psion", "roleName": "🔮 Psionischer Resonator", "buffDesc": "-25% Einsamkeit & +0.6/s Mentalkraft-Fokus"},
+	{"role": "engineer", "roleName": "⚙️ Chitin-Ingenieur", "buffDesc": "+25% Silizium/Legierungen & langsame Hüllen-Selbstheilung"}
 ]
 
 func _ready() -> void:
+	_water_accum = float(water_res)
+	_food_accum = float(food_res)
 	load_universe_data()
 	load_ising_data()
+
+func _process(delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
+	if QuestManager.is_dialogue_open:
+		return
+	_process_survival_metabolism(delta)
+
+func _process_survival_metabolism(delta: float) -> void:
+	var crew_count: int = crew.size()
+
+	# 1. Water & Food Life-Support Consumption (every organic crew member + Najmafar's metabolism)
+	var water_drain_per_sec: float = 0.08 + float(crew_count) * 0.055
+	var food_drain_per_sec: float = 0.09 + float(crew_count) * 0.06
+
+	_water_accum = max(0.0, _water_accum - water_drain_per_sec * delta)
+	_food_accum = max(0.0, _food_accum - food_drain_per_sec * delta)
+	water_res = int(ceil(_water_accum))
+	food_res = int(ceil(_food_accum))
+
+	var is_dehydrated: bool = (water_res <= 0)
+	var is_starving: bool = (food_res <= 0)
+
+	if is_dehydrated:
+		_warn_cooldown_water -= delta
+		if _warn_cooldown_water <= 0.0:
+			_warn_cooldown_water = 14.0
+			add_log("ÜBERLEBEN", "⚠️ DEHYDRIERUNG: Wasservorräte (💧 0) erschöpft! Ernte Eis-/Habitable Welten oder Monde!")
+	else:
+		_warn_cooldown_water = max(0.0, _warn_cooldown_water - delta)
+
+	if is_starving:
+		_warn_cooldown_food -= delta
+		if _warn_cooldown_food <= 0.0:
+			_warn_cooldown_food = 14.0
+			add_log("ÜBERLEBEN", "⚠️ HUNGER-KRISE: Nährstoff-Gel (🍖 0) aufgebraucht! Bio-Energie regeneriert nicht mehr!")
+	else:
+		_warn_cooldown_food = max(0.0, _warn_cooldown_food - delta)
+
+	# 2. Loneliness & Mental Energy Drain (Dream Matrix Maintenance)
+	var target_loneliness: float = 65.0
+	if crew_count == 1:
+		target_loneliness = 45.0
+	elif crew_count == 2:
+		target_loneliness = 25.0
+	elif crew_count >= 3:
+		target_loneliness = 8.0
+
+	for c in crew:
+		if str(c.get("roleKey", "")) == "psion":
+			target_loneliness = max(0.0, target_loneliness - 15.0)
+
+	if is_dehydrated or is_starving:
+		target_loneliness = min(100.0, target_loneliness + 25.0)
+
+	loneliness = move_toward(loneliness, target_loneliness, delta * 2.5)
+
+	var focus_mult: float = 0.65 if is_mutation_purchased("telepathic_focus") else 1.0
+	var mental_drain: float = (0.18 + (loneliness / 100.0) * 0.32) * focus_mult
+	if is_dehydrated:
+		mental_drain += 0.45
+
+	var mental_regen: float = 0.0
+	for c in crew:
+		if str(c.get("roleKey", "")) == "psion":
+			mental_regen += 0.45
+	if crew_count >= 3 and not is_dehydrated and not is_starving:
+		mental_regen += 0.25
+
+	mental_energy = clamp(mental_energy + (mental_regen - mental_drain) * delta, 0.0, max_mental_energy)
+
+	# 3. Engineer Chitin Auto-Repair & Starvation/Dehydration Hull Decay
+	var eng_count: int = 0
+	for c in crew:
+		if str(c.get("roleKey", "")) == "engineer":
+			eng_count += 1
+	if eng_count > 0 and health < max_health and silicon_res > 0 and not is_starving:
+		health = min(max_health, health + float(eng_count) * 0.35 * delta)
+
+	if is_dehydrated and is_starving:
+		health = max(1.0, health - 0.85 * delta)
+
+	# 4. Cosmic & Solar Radiation Hull Erosion
+	var rad_res: float = 0.0
+	if is_mutation_purchased("organic_siphon"):
+		rad_res += 0.25
+	if is_mutation_purchased("chitin_armor"):
+		rad_res += 0.35
+	radiation_resistance = min(0.85, rad_res)
+	effective_radiation = max(0.0, ambient_radiation * (1.0 - radiation_resistance))
+
+	if effective_radiation > 0.15:
+		var rad_dmg: float = (effective_radiation - 0.15) * 3.2 * delta
+		health = max(1.0, health - rad_dmg)
+		_warn_cooldown_rad -= delta
+		if _warn_cooldown_rad <= 0.0:
+			_warn_cooldown_rad = 10.0
+			add_log("STRAHLUNG", "☢️ STRAHLUNGS-EROSION (%s): Hülle nimmt Schaden (%.0f%% Belastung)! Halte Abstand oder mutiere Chitin-Panzer [U]!" % [
+				radiation_source,
+				effective_radiation * 100.0
+			])
+	else:
+		_warn_cooldown_rad = max(0.0, _warn_cooldown_rad - delta)
+
+	# 5. Periodic HUD refresh (every 0.25s) so resource/vital counters stay live
+	_hud_tick_timer += delta
+	if _hud_tick_timer >= 0.25:
+		_hud_tick_timer = 0.0
+		vitals_updated.emit()
+
+func add_water(amount: int) -> void:
+	_water_accum = min(999.0, _water_accum + float(amount))
+	water_res = int(ceil(_water_accum))
+
+func add_food(amount: int) -> void:
+	_food_accum = min(999.0, _food_accum + float(amount))
+	food_res = int(ceil(_food_accum))
+
+func consume_water(amount: int) -> bool:
+	if water_res < amount:
+		return false
+	_water_accum = max(0.0, _water_accum - float(amount))
+	water_res = int(ceil(_water_accum))
+	return true
+
+func consume_food(amount: int) -> bool:
+	if food_res < amount:
+		return false
+	_food_accum = max(0.0, _food_accum - float(amount))
+	food_res = int(ceil(_food_accum))
+	return true
+
+func is_mutation_purchased(mut_id: String) -> bool:
+	if mutations.has(mut_id):
+		var m: Dictionary = mutations[mut_id]
+		return bool(m.get("purchased", false))
+	return false
+
+func buy_mutation(mut_id: String) -> bool:
+	if not mutations.has(mut_id):
+		return false
+	var m: Dictionary = mutations[mut_id]
+	if bool(m.get("purchased", false)):
+		return false
+
+	var b_cost: int = int(m.get("bioCost", 0))
+	var s_cost: int = int(m.get("siliconCost", 0))
+	var t_cost: int = int(m.get("techCost", 0))
+
+	if bio_res < b_cost or silicon_res < s_cost or tech_res < t_cost:
+		add_log("EVOLUTION", "⚠️ Nicht genug Ressourcen für %s (Benötigt: %d Bio, %d Sil%s)!" % [
+			str(m.get("name", mut_id)),
+			b_cost,
+			s_cost,
+			(", %d Tech" % t_cost) if t_cost > 0 else ""
+		])
+		return false
+
+	bio_res -= b_cost
+	silicon_res -= s_cost
+	tech_res -= t_cost
+	m["purchased"] = true
+	mutations[mut_id] = m
+
+	if mut_id == "chitin_armor":
+		max_health = 140.0
+		health = min(max_health, health + 40.0)
+	elif mut_id == "telepathic_focus":
+		max_mental_energy = 130.0
+		mental_energy = min(max_mental_energy, mental_energy + 30.0)
+	elif mut_id == "hivemind":
+		max_crew_capacity = 6
+
+	add_log("EVOLUTION", "🧬 MUTATION AKTIVIERT: [%s] — %s!" % [str(m.get("name", mut_id)), str(m.get("desc", ""))])
+	vitals_updated.emit()
+	mutations_updated.emit()
+	return true
+
+func repair_hull_with_alloys() -> bool:
+	if health >= max_health:
+		add_log("HÜLLE", "Biologische Hülle ist bereits vollständig intakt (%.0f%%)." % health)
+		return false
+	if alloy_res < 5:
+		add_log("WARNUNG", "⚠️ 5 🛡️ Legierungen benötigt für Chitin-Hüllenreparatur (Aktuell: %d)!" % alloy_res)
+		return false
+	alloy_res -= 5
+	health = min(max_health, health + 30.0)
+	vitals_updated.emit()
+	add_log("HÜLLE", "🛡️ Chitin-Legierungs-Matrix appliziert: +30% Hülle regeneriert (-5 Legierungen)!")
+	return true
+
+func synthesize_bio_energy_from_food() -> bool:
+	if bio_energy >= max_bio_energy:
+		add_log("METABOLISMUS", "⚡ Bio-Energie ist bereits auf Maximum (%.0f%%)." % bio_energy)
+		return false
+	if food_res < 8:
+		add_log("WARNUNG", "⚠️ 8 🍖 Nahrung benötigt für schnelle Bio-Verdauung (Aktuell: %d)!" % food_res)
+		return false
+	consume_food(8)
+	bio_energy = min(max_bio_energy, bio_energy + 40.0)
+	vitals_updated.emit()
+	add_log("METABOLISMUS", "⚡ Nährstoff-Gel verstoffwechselt: +40% Bio-Energie wiederhergestellt (-8 Nahrung)!")
+	return true
+
+func perform_psionic_catharsis() -> bool:
+	if mental_energy >= max_mental_energy and loneliness <= 15.0:
+		add_log("PSIONIK", "🧠 Geisteszustand ist bereits harmonisiert.")
+		return false
+	if melange_res >= 5:
+		melange_res -= 5
+		mental_energy = max_mental_energy
+		loneliness = max(0.0, loneliness - 35.0)
+		vitals_updated.emit()
+		add_log("PSIONIK", "🌶️ Melange-Trance vollzogen: Mentalkraft auf 100% & Einsamkeit gelindert (-5 Melange)!")
+		return true
+	if water_res < 6 or bio_res < 10:
+		add_log("WARNUNG", "⚠️ Für Psionische Katharsis werden 6 💧 Wasser & 10 🌿 Biomasse (oder 5 🌶️ Melange) benötigt!")
+		return false
+	consume_water(6)
+	bio_res -= 10
+	mental_energy = min(max_mental_energy, mental_energy + 38.0)
+	loneliness = max(5.0, loneliness - 20.0)
+	vitals_updated.emit()
+	add_log("PSIONIK", "🧠 Psionische Katharsis: +38% Mentalkraft & Einsamkeit gesenkt (-6 Wasser, -10 Biomasse)!")
+	return true
 
 func load_universe_data() -> void:
 	var path := "res://data/universe_data.json"
@@ -222,7 +510,6 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 		elif p_type in ["Ice", "Eismond"]:
 			temp = "-%d°C (Kryogen)" % (160 + (h % 60))
 		else:
-			# Some rocky planets are moderate (-45°C to +45°C), others are extreme (-180°C or +320°C)
 			if h % 4 == 0:
 				temp = "%s%d°C (Tolerierbar mit Schutzanzug)" % [("+" if (h % 2 == 0) else "-"), 18 + (h % 28)]
 			else:
@@ -244,16 +531,21 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 
 	if res == "":
 		if p_type == "Habitable":
-			res = "Reich an Biomasse (+65 Bio, +20 Silizium)"
+			res = "🌿 +55 Bio | 🍖 +30 Nahrung | 💧 +35 Wasser | 💎 +15 Silizium"
+		elif p_type in ["Ice", "Eismond"]:
+			res = "💧 +55 Wasser | 💎 +25 Silizium | 🌿 +15 Bio"
 		elif p_type == "Gas Giant":
-			res = "Deuterium & Aero-Biomasse (+35 Bio, +20 Silizium)"
+			res = "💧 +40 Wasser (Deuterium) | 🌿 +35 Bio | 💎 +15 Silizium"
+		elif p_type == "Desert":
+			res = "💎 +40 Silizium | 🌶️ +15 Melange | 🛡️ +12 Legierungen"
+		elif p_type == "Vulkanmond" or temp_c > 90.0:
+			res = "🛡️ +25 Legierungen | 💎 +45 Silizium | ⚙️ +8 Tech"
 		else:
-			res = "Reine Silikat-Adern & Schwermetalle (+25 Bio, +50 Silizium)"
+			res = "💎 +45 Silizium | 🛡️ +15 Legierungen | 💧 +15 Wasser | 🌿 +20 Bio"
 
 	var candidates: Array = []
 	var is_habitable_or_construct: bool = (p_type == "Habitable" or p_type == "Vorläufer-Konstrukt")
 
-	# Only allow candidates on Habitable worlds, Precursor Constructs, or thermally survivable Outpost worlds (-75°C to +58°C)!
 	if is_habitable_or_construct or can_support_outpost:
 		var raw_species = p_data.get("species", null)
 		if typeof(raw_species) == TYPE_DICTIONARY and raw_species.has("candidates"):
@@ -283,7 +575,6 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 		if can_support_outpost and not bio.contains("Forschungsstation") and not bio.contains("Kuppel") and not bio.contains("Siedlung"):
 			bio = "%s (Abgeschirmte Forschungs-Kuppel aktiv)" % bio
 	else:
-		# Strictly block any candidates on 600°C inferno worlds, cryogenic ice balls, moons, or Gas Giants!
 		candidates.clear()
 
 	var dossier := {
@@ -293,6 +584,7 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 		"isMoon": is_moon,
 		"atmos": atmos,
 		"temp": temp,
+		"tempC": temp_c,
 		"bio": bio,
 		"res": res,
 		"candidates": candidates,
@@ -302,20 +594,35 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 	return dossier
 
 func get_bio_harvest_multiplier() -> float:
-	var mult: float = 1.0
+	var mult: float = 1.35 if is_mutation_purchased("organic_siphon") else 1.0
 	for c in crew:
 		if str(c.get("roleKey", "")) == "biologist":
 			mult += 0.25
 	return mult
 
 func get_silicon_harvest_multiplier() -> float:
-	var mult: float = 1.0
+	var mult: float = 1.35 if is_mutation_purchased("organic_siphon") else 1.0
 	for c in crew:
 		if str(c.get("roleKey", "")) == "engineer":
-			mult += 0.20
+			mult += 0.25
+	return mult
+
+func get_thrust_energy_multiplier() -> float:
+	var mult: float = 0.7 if is_mutation_purchased("vector_tentacles") else 1.0
+	for c in crew:
+		if str(c.get("roleKey", "")) == "navigator":
+			mult *= 0.8
 	return mult
 
 func warp_to_system(target_id: int) -> void:
+	var warp_bio_cost: float = 20.0
+	var warp_mental_cost: float = 15.0
+	if bio_energy < warp_bio_cost or mental_energy < warp_mental_cost:
+		add_log("WARNUNG", "⚠️ Raumfaltung blockiert! Benötigt %.0f ⚡ Bio-Energie & %.0f 🧠 Mentalkraft (Ernte Planeten oder nutze Versorgung [Tab]!)" % [warp_bio_cost, warp_mental_cost])
+		return
+
+	bio_energy = max(0.0, bio_energy - warp_bio_cost)
+	mental_energy = max(0.0, mental_energy - warp_mental_cost)
 	current_system_id = target_id
 	if not visited_system_ids.has(target_id):
 		visited_system_ids.append(target_id)
@@ -323,13 +630,30 @@ func warp_to_system(target_id: int) -> void:
 	nearest_interactable = null
 	active_dossier_key = ""
 	var sys := get_current_system()
-	add_log("NAV", "🌀 Quantenfeld gefaltet: Ankunft im System %s." % sys.get("name", "Unbekannt"))
+	vitals_updated.emit()
+	add_log("NAV", "🌀 Quantenfeld gefaltet (-20 ⚡ Bio, -15 🧠 Mental): Ankunft im System %s." % sys.get("name", "Unbekannt"))
 	system_changed.emit(current_system_id, sys)
 
 func reset_to_new_game() -> void:
+	max_health = 100.0
 	health = max_health
+	max_bio_energy = 100.0
 	bio_energy = max_bio_energy
+	max_mental_energy = 100.0
 	mental_energy = max_mental_energy
+	loneliness = 45.0
+	bio_res = 0
+	silicon_res = 0
+	water_res = 25
+	food_res = 30
+	alloy_res = 10
+	tech_res = 0
+	melange_res = 0
+	_water_accum = 25.0
+	_food_accum = 30.0
+	for k in mutations.keys():
+		mutations[k]["purchased"] = false
+	max_crew_capacity = 4
 	current_system_id = 1
 	visited_system_ids = [1]
 	scanned_planets.clear()
