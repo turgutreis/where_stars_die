@@ -1,0 +1,42 @@
+[gd_scene load_steps=7 format=3 uid="uid://najmafar_prefab_planet"]
+
+[ext_resource type="Script" path="res://scripts/entities/orbiting_entity.gd" id="1_orb"]
+[ext_resource type="Texture2D" path="res://assets/textures/planets/8k_earth_daymap.jpg" id="2_tex"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_planet"]
+albedo_texture = ExtResource("2_tex")
+roughness = 0.72
+
+[sub_resource type="SphereMesh" id="SphereMesh_surface"]
+material = SubResource("StandardMaterial3D_planet")
+radius = 4.5
+height = 9.0
+radial_segments = 64
+rings = 32
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_atmo"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(0.22, 0.74, 0.98, 0.16)
+
+[sub_resource type="SphereMesh" id="SphereMesh_atmo"]
+material = SubResource("StandardMaterial3D_atmo")
+radius = 4.86
+height = 9.72
+
+[node name="CustomPlanet" type="Node3D" groups=["editor_placed_entities"]]
+script = ExtResource("1_orb")
+display_name = "Neuer Planet [Habitable]"
+entity_category = "planet"
+spawn_in_system_id = 1
+is_harvestable = true
+use_manual_editor_position = true
+base_radius = 4.5
+dynamic_approach_expansion = true
+
+[node name="SurfaceMesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_surface")
+
+[node name="AtmosphereGlow" type="MeshInstance3D" parent="."]
+mesh = SubResource("SphereMesh_atmo")

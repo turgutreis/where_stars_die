@@ -314,10 +314,23 @@ func build_star_system(sys_data: Dictionary) -> void:
 		if not Engine.is_editor_hint():
 			player_ship.velocity = Vector3(1.2, 0.0, 0.0)
 
-	# Include any hand-placed OrbitingEntity nodes from the Editor scene tree!
+	# 5. Include any hand-placed nodes inside EditorPlacedObjects (or group "editor_placed_entities")!
+	var editor_container: Node3D = get_node_or_null("EditorPlacedObjects") as Node3D
+	if editor_container:
+		for child in editor_container.get_children():
+			if child is Node3D:
+				var c_node: Node3D = child as Node3D
+				var target_sys: int = int(c_node.get("spawn_in_system_id")) if c_node.get("spawn_in_system_id") != null else -1
+				var should_show: bool = (target_sys == -1 or target_sys == sys_id)
+				c_node.visible = should_show
+				if should_show and not interactable_bodies.has(c_node):
+					if c_node.get("planet_key") == "":
+						c_node.set("planet_key", "%d_%s" % [sys_id, c_node.name])
+					interactable_bodies.append(c_node)
+
 	if is_inside_tree():
 		for node in get_tree().get_nodes_in_group("editor_placed_entities"):
-			if node is Node3D and not interactable_bodies.has(node):
+			if node is Node3D and (node as Node3D).visible and not interactable_bodies.has(node):
 				interactable_bodies.append(node)
 
 func _select_planet_template(p_data: Dictionary, seed_val: int) -> Dictionary:

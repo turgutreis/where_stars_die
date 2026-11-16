@@ -8,11 +8,14 @@ class_name OrbitingEntity
 @export_category("Identity & Quest Binding")
 @export var display_name: String = "Orbital Object"
 @export_enum("planet", "moon", "space_station", "jamal_shuttle", "towing_drone", "voyager_probe", "asteroid", "custom") var entity_category: String = "custom"
+@export_enum("Habitable", "Rocky", "Gas Giant", "Ice", "Desert", "Vulkanmond", "Kratermond", "Vorläufer-Konstrukt") var planet_type: String = "Habitable"
+@export var spawn_in_system_id: int = 1 ## Set to 1..15 for a specific star system, or -1 to appear in ALL systems!
 @export var dialogue_node_id: String = ""
 @export var is_harvestable: bool = false
 @export var emits_radiation: bool = false
 
 @export_category("Orbital Mechanics")
+@export var use_manual_editor_position: bool = false ## If true (and Parent Body is empty), you can freely drag this object anywhere in the 3D Editor!
 @export var parent_body: Node3D = null
 @export var orbit_radius: float = 28.0:
 	set(value):
@@ -36,11 +39,15 @@ var body_mesh: Node3D = null
 var cloud_mesh: Node3D = null
 var orbit_ring_mesh: Node3D = null
 var planet_key: String = ""
-var planet_type: String = "Rocky"
 var raw_planet_data: Dictionary = {}
 
 func _ready() -> void:
 	_current_angle_rad = deg_to_rad(orbit_angle_deg)
+	if body_mesh == null:
+		for c in get_children():
+			if c is MeshInstance3D:
+				body_mesh = c
+				break
 	set_meta("display_name", display_name)
 	set_meta("entity_category", entity_category)
 	set_meta("dialogue_node_id", dialogue_node_id)
@@ -79,8 +86,8 @@ func _process(delta: float) -> void:
 	update_orbital_position(delta)
 
 func update_orbital_position(delta: float) -> void:
-	# 1. Planet orbiting the central star at (0, 0, 0)
-	if parent_body == null and entity_category == "planet" and orbit_radius > 0.1:
+	# 1. Planet orbiting the central star at (0, 0, 0) (unless placed manually in Editor)
+	if parent_body == null and not use_manual_editor_position and entity_category == "planet" and orbit_radius > 0.1:
 		_current_angle_rad += orbit_speed * delta
 		var px: float = cos(_current_angle_rad) * orbit_radius
 		var pz: float = sin(_current_angle_rad) * orbit_radius

@@ -1,0 +1,48 @@
+[gd_scene load_steps=6 format=3 uid="uid://najmafar_prefab_monolith"]
+
+[ext_resource type="Script" path="res://scripts/entities/orbiting_entity.gd" id="1_orb"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_obsidian"]
+albedo_color = Color(0.08, 0.05, 0.16, 1)
+metallic = 0.92
+roughness = 0.15
+emission_enabled = true
+emission = Color(0.55, 0.2, 0.95, 1)
+emission_energy_multiplier = 0.6
+
+[sub_resource type="BoxMesh" id="BoxMesh_slab"]
+material = SubResource("StandardMaterial3D_obsidian")
+size = Vector3(1.2, 5.4, 2.7)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_psi_ring"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(0.68, 0.32, 1, 0.78)
+
+[sub_resource type="TorusMesh" id="TorusMesh_halo"]
+material = SubResource("StandardMaterial3D_psi_ring")
+inner_radius = 2.4
+outer_radius = 2.65
+
+[node name="AlienMonolith" type="Node3D" groups=["editor_placed_entities"]]
+script = ExtResource("1_orb")
+display_name = "Vorläufer-Monolith (Dschinn-Relais)"
+entity_category = "custom"
+spawn_in_system_id = 1
+is_harvestable = true
+use_manual_editor_position = true
+base_radius = 2.6
+axial_rotation_speed = 0.35
+
+[node name="ObsidianSlab" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_slab")
+
+[node name="PsionicHalo" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.866025, -0.5, 0, 0.5, 0.866025, 0, 0, 0)
+mesh = SubResource("TorusMesh_halo")
+
+[node name="PsiLight" type="OmniLight3D" parent="."]
+light_color = Color(0.68, 0.32, 1, 1)
+light_energy = 3.0
+omni_range = 22.0

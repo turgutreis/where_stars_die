@@ -5,16 +5,16 @@
 [ext_resource type="PackedScene" uid="uid://cbpy7oypfqy8l" path="res://scenes/entities/player_bio_ship.tscn" id="2_ship"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="3_hud"]
 
-[sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_h3xdx"]
+[sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_43erk"]
 panorama = ExtResource("2_43erk")
 energy_multiplier = 0.85
 
-[sub_resource type="Sky" id="Sky_10ju7"]
-sky_material = SubResource("PanoramaSkyMaterial_h3xdx")
+[sub_resource type="Sky" id="Sky_h3xdx"]
+sky_material = SubResource("PanoramaSkyMaterial_43erk")
 
 [sub_resource type="Environment" id="Environment_space"]
 background_mode = 2
-sky = SubResource("Sky_10ju7")
+sky = SubResource("Sky_h3xdx")
 ambient_light_source = 2
 ambient_light_color = Color(0.16, 0.22, 0.35, 1)
 ambient_light_energy = 0.65
@@ -24,7 +24,8 @@ glow_bloom = 0.25
 
 [node name="StarSystem" type="Node3D" unique_id=374260969]
 script = ExtResource("1_sys")
-editor_live_simulation = null
+editor_camera_height = 40.0
+center_editor_camera_now = null
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1793308239]
 environment = SubResource("Environment_space")
@@ -34,6 +35,6 @@ environment = SubResource("Environment_space")
 [node name="EditorPlacedObjects" type="Node3D" parent="." unique_id=1176341515]
 
 [node name="PlayerBioShip" parent="." unique_id=1345190481 instance=ExtResource("2_ship")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 181.37175, 0, 137.08383)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 160.06047, 0, 107.975006)
 
 [node name="HUD" parent="." unique_id=2074513737 instance=ExtResource("3_hud")]
