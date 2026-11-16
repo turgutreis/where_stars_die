@@ -18,6 +18,16 @@ extends Node3D
 			for child in procedural_container.get_children():
 				if child is OrbitingEntity:
 					(child as OrbitingEntity).animate_in_editor = value
+@export_range(40.0, 900.0, 10.0) var editor_camera_height: float = 260.0:
+	set(value):
+		editor_camera_height = value
+		if Engine.is_editor_hint() and is_inside_tree():
+			_focus_editor_viewport_camera()
+@export var center_editor_camera_now: bool = false:
+	set(value):
+		center_editor_camera_now = false
+		if Engine.is_editor_hint() and is_inside_tree():
+			_focus_editor_viewport_camera()
 
 @onready var procedural_container: Node3D = $ProceduralSystemContainer
 @onready var player_ship: PlayerBioShip = $PlayerBioShip
@@ -85,6 +95,19 @@ func _rebuild_in_editor() -> void:
 	var sys_data: Dictionary = _load_system_from_json_for_editor(editor_preview_system_id)
 	if not sys_data.is_empty():
 		build_star_system(sys_data)
+		_focus_editor_viewport_camera()
+
+func _focus_editor_viewport_camera() -> void:
+	if not Engine.is_editor_hint():
+		return
+	if Engine.has_singleton("EditorInterface"):
+		var ei: Object = Engine.get_singleton("EditorInterface")
+		var vp: SubViewport = ei.call("get_editor_viewport_3d", 0) as SubViewport
+		if vp:
+			var cam: Camera3D = vp.get_camera_3d()
+			if cam:
+				cam.global_position = Vector3(0.0, editor_camera_height, editor_camera_height * 0.45)
+				cam.look_at(Vector3.ZERO, Vector3.UP)
 
 func _load_system_from_json_for_editor(target_id: int) -> Dictionary:
 	var path := "res://data/universe_data.json"
