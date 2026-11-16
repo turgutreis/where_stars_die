@@ -1,21 +1,20 @@
 [gd_scene format=3 uid="uid://b3l3yo6tsiq7y"]
 
 [ext_resource type="Script" uid="uid://dmhki4m5hkvgc" path="res://scripts/world/star_system_manager.gd" id="1_sys"]
+[ext_resource type="Texture2D" uid="uid://cu5cjq8nnbi2u" path="res://assets/textures/space/8k_stars_milky_way.jpg" id="2_43erk"]
 [ext_resource type="PackedScene" uid="uid://cbpy7oypfqy8l" path="res://scenes/entities/player_bio_ship.tscn" id="2_ship"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="3_hud"]
 
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_space"]
-sky_top_color = Color(0.01, 0.015, 0.04, 1)
-sky_horizon_color = Color(0.03, 0.04, 0.09, 1)
-ground_bottom_color = Color(0.005, 0.008, 0.02, 1)
-ground_horizon_color = Color(0.03, 0.04, 0.09, 1)
+[sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_h3xdx"]
+panorama = ExtResource("2_43erk")
+energy_multiplier = 0.85
 
-[sub_resource type="Sky" id="Sky_space"]
-sky_material = SubResource("ProceduralSkyMaterial_space")
+[sub_resource type="Sky" id="Sky_10ju7"]
+sky_material = SubResource("PanoramaSkyMaterial_h3xdx")
 
 [sub_resource type="Environment" id="Environment_space"]
 background_mode = 2
-sky = SubResource("Sky_space")
+sky = SubResource("Sky_10ju7")
 ambient_light_source = 2
 ambient_light_color = Color(0.16, 0.22, 0.35, 1)
 ambient_light_energy = 0.65
@@ -34,6 +33,6 @@ environment = SubResource("Environment_space")
 [node name="EditorPlacedObjects" type="Node3D" parent="." unique_id=1176341515]
 
 [node name="PlayerBioShip" parent="." unique_id=1345190481 instance=ExtResource("2_ship")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 174.22345, 0, 160)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 181.37175, 0, 137.08383)
 
 [node name="HUD" parent="." unique_id=2074513737 instance=ExtResource("3_hud")]

@@ -29,7 +29,7 @@ class_name OrbitingEntity
 @export var base_radius: float = 1.0
 @export var axial_rotation_speed: float = 0.18
 @export var dynamic_approach_expansion: bool = false
-@export var animate_in_editor: bool = false
+@export var animate_in_editor: bool = true
 
 var _current_angle_rad: float = 0.0
 var body_mesh: Node3D = null

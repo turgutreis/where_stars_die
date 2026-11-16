@@ -11,6 +11,13 @@ extends Node3D
 		editor_preview_system_id = value
 		if Engine.is_editor_hint() and is_inside_tree():
 			_rebuild_in_editor()
+@export var editor_live_simulation: bool = true:
+	set(value):
+		editor_live_simulation = value
+		if procedural_container:
+			for child in procedural_container.get_children():
+				if child is OrbitingEntity:
+					(child as OrbitingEntity).animate_in_editor = value
 
 @onready var procedural_container: Node3D = $ProceduralSystemContainer
 @onready var player_ship: PlayerBioShip = $PlayerBioShip
