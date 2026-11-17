@@ -25,6 +25,7 @@ glow_bloom = 0.25
 [node name="StarSystem" type="Node3D" unique_id=374260969]
 script = ExtResource("1_sys")
 editor_preview_system_id = 2
+editor_live_simulation = false
 editor_camera_height = 40.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1793308239]

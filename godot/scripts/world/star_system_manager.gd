@@ -168,12 +168,14 @@ func _setup_audio() -> void:
 	sfx_player.volume_db = -8.0
 	add_child(sfx_player)
 
-func _play_sfx(sfx_name: String) -> void:
+func _play_sfx(sfx_name: String, pitch: float = 1.0, vol_db: float = -8.0) -> void:
 	if not sfx_player:
 		return
 	var path := "res://assets/sfx/" + sfx_name
 	if ResourceLoader.exists(path):
 		sfx_player.stream = load(path)
+		sfx_player.pitch_scale = pitch
+		sfx_player.volume_db = vol_db
 		sfx_player.play()
 
 func _on_system_changed(_sys_id: int, sys_data: Dictionary) -> void:
@@ -837,8 +839,8 @@ func _check_asteroid_collection() -> void:
 			continue
 		if p_pos.distance_to(ast.global_position) <= 6.2:
 			var a_type: String = str(ast.get_meta("asteroid_type", "silicon"))
-			_play_sfx("sonar_ping.wav")
-			_spawn_energy_beam(ast.global_position, p_pos, Color(0.0, 1.0, 0.55, 0.85) if a_type == "bio" else Color(0.22, 0.88, 1.0, 0.85), 0.35)
+			# Soft, deep organic absorption gulp sound instead of sonar ping, and no beam/wave!
+			_play_sfx("ship_thrust_ignite.wav", 0.68 + randf() * 0.14, -12.5)
 			if a_type == "bio":
 				var b_gain: int = int(round(18.0 * GameState.get_bio_harvest_multiplier()))
 				GameState.bio_res += b_gain
@@ -851,8 +853,16 @@ func _check_asteroid_collection() -> void:
 				GameState.alloy_res += 4
 				GameState.add_log("ASTEROID", "☄️ Kristall-Fragment absorbiert: +%d 💎 Silizium | +6 💧 Wasser | +4 🛡️ Legierungen!" % s_gain)
 			GameState.vitals_updated.emit()
-			ast.queue_free()
 			active_asteroids.remove_at(i)
+			# Smoothly pull and shrink asteroid into Najmafar's mandibles
+			var tw: Tween = create_tween()
+			tw.set_parallel(true)
+			tw.tween_property(ast, "global_position", player_ship.global_position, 0.22)
+			tw.tween_property(ast, "scale", Vector3(0.02, 0.02, 0.02), 0.22)
+			tw.chain().tween_callback(func():
+				if is_instance_valid(ast):
+					ast.queue_free()
+			)
 
 func _ensure_target_reticle_ring() -> void:
 	if target_reticle_ring and is_instance_valid(target_reticle_ring):
