@@ -313,7 +313,7 @@ func _render_crew_panel() -> void:
 	dossier_action_box.add_child(btn_food)
 
 	var btn_psi := Button.new()
-	btn_psi.text = "🧠 Psionische Katharsis (+38% 🧠 Mental & -20% Einsamkeit  —  6 💧 + 10 🌿 oder 5 🌶️)"
+	btn_psi.text = "☕ Qahwun-Aufguss & Katharsis (+ 🧠 Mental & - Einsamkeit  —  5 ☕ Qahwun oder 6 💧 + 10 🌿)"
 	btn_psi.pressed.connect(func():
 		GameState.perform_psionic_catharsis()
 		_render_crew_panel()
@@ -446,7 +446,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _refresh_hud() -> void:
 	var sys: Dictionary = GameState.get_current_system()
 	var rad_badge: String = ("  |  ☢️ %.0f%%" % (GameState.effective_radiation * 100.0)) if GameState.effective_radiation > 0.05 else ""
-	vitals_label.text = "🪐 %s  |  ❤️ %.0f/%.0f  ⚡ %.0f%%  🧠 %.0f%%  😌 %.0f%%%s  |  🌿 %d Bio  💎 %d Sil  💧 %d H2O  🍖 %d Food  🛡️ %d Leg  ⚙️ %d Tech  🌶️ %d Spice  |  👥 %d/%d" % [
+	vitals_label.text = "🪐 %s  |  ❤️ %.0f/%.0f  ⚡ %.0f%%  🧠 %.0f%%  😌 %.0f%%%s  |  🌿 %d Bio  💎 %d Sil  💧 %d H2O  🍖 %d Food  🛡️ %d Leg  ⚙️ %d Tech  ☕ %d Qahwun  |  👥 %d/%d" % [
 		sys.get("name", "Perseus-Rand"),
 		GameState.health,
 		GameState.max_health,

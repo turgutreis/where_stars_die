@@ -366,17 +366,18 @@ func synthesize_bio_energy_from_food() -> bool:
 
 func perform_psionic_catharsis() -> bool:
 	if mental_energy >= max_mental_energy and loneliness <= 15.0:
-		add_log("PSIONIK", "🧠 Geisteszustand ist bereits harmonisiert.")
+		add_log("PSIONIK", "🧠 Geisteszustand ist bereits harmonisiert (Koffeinspiegel stabil).")
 		return false
 	if melange_res >= 5:
 		melange_res -= 5
 		mental_energy = max_mental_energy
+		bio_energy = min(max_bio_energy, bio_energy + 20.0)
 		loneliness = max(0.0, loneliness - 35.0)
 		vitals_updated.emit()
-		add_log("PSIONIK", "🌶️ Melange-Trance vollzogen: Mentalkraft auf 100% & Einsamkeit gelindert (-5 Melange)!")
+		add_log("QAHWUN", "☕ Qahwun-Röstung aufgebrüht: Kosmisches Qahwa-Bunn-Elixier durchströmt Najmafars Synapsen! (100% 🧠 Mental, +20% ⚡ Bio, -35% Einsamkeit)!")
 		return true
 	if water_res < 6 or bio_res < 10:
-		add_log("WARNUNG", "⚠️ Für Psionische Katharsis werden 6 💧 Wasser & 10 🌿 Biomasse (oder 5 🌶️ Melange) benötigt!")
+		add_log("WARNUNG", "⚠️ Für Psionische Katharsis werden 5 ☕ Qahwun (oder 6 💧 Wasser & 10 🌿 Biomasse) benötigt!")
 		return false
 	consume_water(6)
 	bio_res -= 10
@@ -531,13 +532,13 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 
 	if res == "":
 		if p_type == "Habitable":
-			res = "🌿 +55 Bio | 🍖 +30 Nahrung | 💧 +35 Wasser | 💎 +15 Silizium"
+			res = "🌿 +55 Bio | 🍖 +30 Nahrung | 💧 +35 Wasser | ☕ +8 Qahwun"
 		elif p_type in ["Ice", "Eismond"]:
 			res = "💧 +55 Wasser | 💎 +25 Silizium | 🌿 +15 Bio"
 		elif p_type == "Gas Giant":
 			res = "💧 +40 Wasser (Deuterium) | 🌿 +35 Bio | 💎 +15 Silizium"
 		elif p_type == "Desert":
-			res = "💎 +40 Silizium | 🌶️ +15 Melange | 🛡️ +12 Legierungen"
+			res = "💎 +40 Silizium | ☕ +18 Qahwun (Space-Kaffeebohne) | 🛡️ +12 Legierungen"
 		elif p_type == "Vulkanmond" or temp_c > 90.0:
 			res = "🛡️ +25 Legierungen | 💎 +45 Silizium | ⚙️ +8 Tech"
 		else:

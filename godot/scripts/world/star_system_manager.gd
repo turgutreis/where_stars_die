@@ -1332,6 +1332,7 @@ func _complete_channeling() -> void:
 			food_gain = int(round(30.0 * bio_mult))
 			water_gain = int(round(35.0 * bio_mult))
 			sil_gain = int(round(15.0 * sil_mult))
+			spice_gain = 8
 		elif p_type in ["Ice", "Eismond"]:
 			water_gain = int(round(55.0 * bio_mult))
 			sil_gain = int(round(25.0 * sil_mult))
@@ -1342,7 +1343,7 @@ func _complete_channeling() -> void:
 			sil_gain = int(round(15.0 * sil_mult))
 		elif p_type == "Desert":
 			sil_gain = int(round(40.0 * sil_mult))
-			spice_gain = 15
+			spice_gain = 18
 			alloy_gain = 12
 			bio_gain = int(round(15.0 * bio_mult))
 		elif p_type == "Vulkanmond" or temp_c > 90.0:
@@ -1378,7 +1379,7 @@ func _complete_channeling() -> void:
 		if food_gain > 0: parts.append("+%d 🍖 Nahrung" % food_gain)
 		if alloy_gain > 0: parts.append("+%d 🛡️ Legierungen" % alloy_gain)
 		if tech_gain > 0: parts.append("+%d ⚙️ Tech" % tech_gain)
-		if spice_gain > 0: parts.append("+%d 🌶️ Melange" % spice_gain)
+		if spice_gain > 0: parts.append("+%d ☕ Qahwun" % spice_gain)
 		GameState.add_log("ERNTE", "🌿 Assimilation von %s abgeschlossen (%s)! Vorkommen erschöpft." % [t_name, ", ".join(parts)])
 
 	elif mode == "abduct":
