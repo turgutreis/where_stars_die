@@ -7,3 +7,4 @@ legacy_verse/
 
 __pycache__/
 *.pyc
+godot/.godot/

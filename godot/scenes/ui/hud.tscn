@@ -1,0 +1,127 @@
+[gd_scene load_steps=2 format=3 uid="uid://najmafar_hud"]
+
+[ext_resource type="Script" path="res://scripts/ui/hud_controller.gd" id="1_hud"]
+
+[node name="HUD" type="CanvasLayer"]
+script = ExtResource("1_hud")
+
+[node name="TopBar" type="PanelContainer" parent="."]
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 16.0
+offset_top = 12.0
+offset_right = -16.0
+offset_bottom = 78.0
+grow_horizontal = 2
+
+[node name="VitalsLabel" type="Label" parent="TopBar"]
+layout_mode = 2
+text = "🪐 Perseus-Rand  |  ❤️ 100%  ⚡ 100%  🧠 100%"
+
+[node name="DirectiveLabel" type="Label" parent="TopBar"]
+layout_mode = 2
+size_flags_vertical = 8
+theme_override_colors/font_color = Color(0.22, 0.74, 0.97, 1)
+text = "🛰️ DIREKTIVE: Fliege zu Dr. Tariq Jamals Forschungsschiff..."
+
+[node name="LogPanel" type="PanelContainer" parent="."]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -180.0
+offset_right = 540.0
+offset_bottom = -58.0
+grow_vertical = 0
+
+[node name="LogLabel" type="RichTextLabel" parent="LogPanel"]
+layout_mode = 2
+bbcode_enabled = true
+text = "[b][SYSTEM][/b] Najmafar erwacht im Perseus-Rand."
+
+[node name="BottomBar" type="PanelContainer" parent="."]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -48.0
+offset_right = -16.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="TargetPromptLabel" type="Label" parent="BottomBar"]
+layout_mode = 2
+horizontal_alignment = 1
+text = "[WASD] Schub & Steuerung  |  [F] Scannen / Interagieren  |  [M] Sternenkarte  |  [J] Dr. Tariq Jamal"
+
+[node name="DialogueOverlay" type="PanelContainer" parent="."]
+visible = false
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -520.0
+offset_top = -210.0
+offset_right = -24.0
+offset_bottom = 210.0
+grow_horizontal = 0
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="DialogueOverlay"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SpeakerLabel" type="Label" parent="DialogueOverlay/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.22, 0.74, 0.97, 1)
+text = "⚛️ TELEPATHIE • Dr. Tariq Jamal"
+
+[node name="MainTextLabel" type="Label" parent="DialogueOverlay/VBox"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Haupttext"
+
+[node name="SubTextLabel" type="Label" parent="DialogueOverlay/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.82, 0.9, 1)
+autowrap_mode = 3
+text = "Subtext"
+
+[node name="OptionsBox" type="VBoxContainer" parent="DialogueOverlay/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="GalaxyMapModal" type="PanelContainer" parent="."]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -360.0
+offset_top = -250.0
+offset_right = 360.0
+offset_bottom = 250.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="GalaxyMapModal"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TitleLabel" type="Label" parent="GalaxyMapModal/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.33, 0.97, 1)
+text = "🌌 GALAKTISCHE STERNENKARTE (Klicke auf ein System zum Raumfalten)  •  [M] Schließen"
+
+[node name="Scroll" type="ScrollContainer" parent="GalaxyMapModal/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SystemsList" type="VBoxContainer" parent="GalaxyMapModal/VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6

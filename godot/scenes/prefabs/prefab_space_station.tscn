@@ -1,0 +1,58 @@
+[gd_scene load_steps=7 format=3 uid="uid://najmafar_prefab_station"]
+
+[ext_resource type="Script" path="res://scripts/entities/orbiting_entity.gd" id="1_orb"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hull"]
+albedo_color = Color(0.82, 0.86, 0.94, 1)
+metallic = 0.82
+roughness = 0.25
+
+[sub_resource type="TorusMesh" id="TorusMesh_ring"]
+material = SubResource("StandardMaterial3D_hull")
+inner_radius = 2.4
+outer_radius = 3.2
+rings = 48
+ring_segments = 16
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_core"]
+albedo_color = Color(0.22, 0.74, 0.98, 1)
+emission_enabled = true
+emission = Color(0.22, 0.74, 0.98, 1)
+emission_energy_multiplier = 1.8
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_spire"]
+material = SubResource("StandardMaterial3D_core")
+top_radius = 0.6
+bottom_radius = 0.6
+height = 4.2
+
+[sub_resource type="BoxMesh" id="BoxMesh_spoke"]
+material = SubResource("StandardMaterial3D_hull")
+size = Vector3(5.6, 0.28, 0.45)
+
+[node name="CustomSpaceStation" type="Node3D" groups=["editor_placed_entities"]]
+script = ExtResource("1_orb")
+display_name = "Freie Handelsstation (Editor)"
+entity_category = "space_station"
+spawn_in_system_id = 1
+use_manual_editor_position = true
+base_radius = 3.2
+
+[node name="HabitatRing" type="MeshInstance3D" parent="."]
+mesh = SubResource("TorusMesh_ring")
+
+[node name="CentralSpire" type="MeshInstance3D" parent="."]
+mesh = SubResource("CylinderMesh_spire")
+
+[node name="DockingSpokeA" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_spoke")
+
+[node name="DockingSpokeB" type="MeshInstance3D" parent="."]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 0, 0, 0)
+mesh = SubResource("BoxMesh_spoke")
+
+[node name="StationBeacon" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
+light_color = Color(0.22, 0.74, 0.98, 1)
+light_energy = 2.2
+omni_range = 18.0

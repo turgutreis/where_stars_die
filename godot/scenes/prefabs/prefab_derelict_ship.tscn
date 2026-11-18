@@ -1,0 +1,51 @@
+[gd_scene load_steps=7 format=3 uid="uid://najmafar_prefab_derelict"]
+
+[ext_resource type="Script" path="res://scripts/entities/orbiting_entity.gd" id="1_orb"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hull"]
+albedo_color = Color(0.55, 0.6, 0.68, 1)
+metallic = 0.75
+roughness = 0.42
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_fuselage"]
+material = SubResource("StandardMaterial3D_hull")
+top_radius = 0.25
+bottom_radius = 0.85
+height = 3.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_beacon"]
+albedo_color = Color(1, 0.45, 0.1, 1)
+emission_enabled = true
+emission = Color(1, 0.35, 0.05, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="SphereMesh" id="SphereMesh_cockpit"]
+material = SubResource("StandardMaterial3D_beacon")
+radius = 0.45
+height = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_wings"]
+material = SubResource("StandardMaterial3D_hull")
+size = Vector3(4.2, 0.14, 1.4)
+
+[node name="DerelictShip" type="Node3D" groups=["editor_placed_entities"]]
+script = ExtResource("1_orb")
+display_name = "Gestrandetes Forschungsschiff [Wrack]"
+entity_category = "custom"
+spawn_in_system_id = 1
+is_harvestable = true
+use_manual_editor_position = true
+base_radius = 2.0
+axial_rotation_speed = 0.08
+
+[node name="Fuselage" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0)
+mesh = SubResource("CylinderMesh_fuselage")
+
+[node name="CockpitCore" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, -0.8)
+mesh = SubResource("SphereMesh_cockpit")
+
+[node name="SolarWings" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 0, 0, 1, 0, 0, 0.4)
+mesh = SubResource("BoxMesh_wings")
