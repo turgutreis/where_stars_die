@@ -180,10 +180,9 @@ func _play_sfx(sfx_name: String, pitch: float = 1.0, vol_db: float = -8.0) -> vo
 
 func _on_system_changed(_sys_id: int, sys_data: Dictionary) -> void:
 	build_star_system(sys_data)
-	_play_sfx("sonar_ping.wav")
+	_play_sfx("ship_retro_brake.wav", 0.75, -10.0)
 	if player_ship:
 		player_ship.trigger_warp_arrival_zoom()
-		_spawn_bio_emp_shockwave(player_ship.global_position, null, Color(0.65, 0.35, 1.0, 0.7))
 	var is_depot: bool = sys_data.get("isInsanDepot", false) or String(sys_data.get("name", "")).contains("INSAN")
 	if is_depot and not GameState.jamal_ship_liberated:
 		QuestManager.advance_quest("prologue_jamal_ship", 3)
