@@ -29,6 +29,11 @@ extends Node3D
 		if Engine.is_editor_hint() and is_inside_tree():
 			_focus_editor_viewport_camera()
 
+@export_category("Navigation & Kurslinie")
+@export var show_trajectory_line: bool = true
+@export_range(2.0, 20.0, 0.5) var trajectory_duration_sec: float = 8.0
+@export_range(16, 80, 2) var trajectory_steps: int = 44
+
 @onready var procedural_container: Node3D = $ProceduralSystemContainer
 @onready var player_ship: PlayerBioShip = $PlayerBioShip
 @onready var world_env: WorldEnvironment = $WorldEnvironment
@@ -40,6 +45,12 @@ var bgm_player: AudioStreamPlayer = null
 var sfx_player: AudioStreamPlayer = null
 var target_reticle_ring: MeshInstance3D = null
 var target_reticle_mat: StandardMaterial3D = null
+var trajectory_mesh_inst: MeshInstance3D = null
+var trajectory_imm_mesh: ImmediateMesh = null
+var inertial_ref_inst: MeshInstance3D = null
+var inertial_ref_imm: ImmediateMesh = null
+var heading_guide_inst: MeshInstance3D = null
+var heading_guide_imm: ImmediateMesh = null
 var current_star_size: float = 18.0
 var current_star_mass: float = 160.0
 
@@ -803,6 +814,7 @@ func _process(delta: float) -> void:
 	_update_environmental_radiation()
 	_check_asteroid_collection()
 	player_ship.external_gravity_accel = _compute_gravity_acceleration()
+	_update_trajectory_prediction()
 
 func _update_environmental_radiation() -> void:
 	if not player_ship:
@@ -919,16 +931,14 @@ func _update_target_reticle_ring(target: Node3D, dist: float, delta: float) -> v
 		else:
 			target_reticle_mat.albedo_color = Color(0.0, 1.0, 0.62, 0.36 if dist <= 36.0 else 0.18)
 
-func _compute_gravity_acceleration() -> Vector3:
-	if not player_ship:
-		return Vector3.ZERO
-
+func _sample_gravity_info(sample_pos: Vector3, future_sec: float = 0.0) -> Dictionary:
 	var total_accel := Vector3.ZERO
-	var p_pos: Vector3 = player_ship.global_position
+	var pull_magnitude: float = 0.0
+	var is_repelling: bool = false
 	var g_const: float = 14.0
 
 	# 1. Central Star Gravity & Surface Repulsion Cushion at (0, 0, 0) (Celestial Body Only)
-	var to_star: Vector3 = Vector3.ZERO - p_pos
+	var to_star: Vector3 = Vector3.ZERO - sample_pos
 	to_star.y = 0.0
 	var star_dist: float = to_star.length()
 	var star_safe_r: float = current_star_size + 2.5
@@ -937,9 +947,11 @@ func _compute_gravity_acceleration() -> Vector3:
 		if star_dist < star_safe_r:
 			var push_strength: float = (star_safe_r - star_dist) * 8.0
 			total_accel -= dir_star * push_strength
+			is_repelling = true
 		else:
 			var pull: float = clamp((g_const * current_star_mass) / max(60.0, star_dist * star_dist), 0.0, 10.0)
 			total_accel += dir_star * pull
+			pull_magnitude += pull
 
 	# 2. Celestial Bodies Only (Planets & Moons) — Ships, Stations & Probes NEVER push or pull!
 	for body in interactable_bodies:
@@ -948,7 +960,10 @@ func _compute_gravity_acceleration() -> Vector3:
 		var cat: String = str(body.get("entity_category"))
 		if cat != "planet" and cat != "moon":
 			continue
-		var to_body: Vector3 = body.global_position - p_pos
+		var b_pos: Vector3 = body.global_position
+		if future_sec > 0.0 and body.has_method("predict_position_after"):
+			b_pos = body.call("predict_position_after", future_sec)
+		var to_body: Vector3 = b_pos - sample_pos
 		to_body.y = 0.0
 		var d: float = to_body.length()
 		var b_rad: float = (float(body.get("base_radius")) if body.get("base_radius") != null else 3.8) * body.scale.x
@@ -958,12 +973,184 @@ func _compute_gravity_acceleration() -> Vector3:
 			var safe_surface: float = b_rad + 1.8
 			if d < safe_surface:
 				total_accel -= dir_b * ((safe_surface - d) * 9.0)
+				is_repelling = true
 			elif cat == "planet":
 				var p_mass: float = b_rad * 4.8
 				var p_pull: float = clamp((g_const * p_mass) / max(25.0, d * d), 0.0, 8.5)
 				total_accel += dir_b * p_pull
+				pull_magnitude += p_pull
 
-	return total_accel
+	return {
+		"accel": total_accel,
+		"pull_mag": pull_magnitude,
+		"repel": is_repelling
+	}
+
+func _compute_gravity_acceleration() -> Vector3:
+	if not player_ship:
+		return Vector3.ZERO
+	var info: Dictionary = _sample_gravity_info(player_ship.global_position, 0.0)
+	return info["accel"]
+
+func _create_trajectory_ribbon_node(node_name: String, add_blend: bool = true) -> Array:
+	var imm := ImmediateMesh.new()
+	var inst := MeshInstance3D.new()
+	inst.name = node_name
+	inst.mesh = imm
+	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	if add_blend:
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	inst.material_override = mat
+	add_child(inst)
+	return [inst, imm]
+
+func _ensure_trajectory_visuals() -> void:
+	if not trajectory_mesh_inst or not is_instance_valid(trajectory_mesh_inst):
+		var pair_main: Array = _create_trajectory_ribbon_node("TrajectoryPredictionRibbon", true)
+		trajectory_mesh_inst = pair_main[0] as MeshInstance3D
+		trajectory_imm_mesh = pair_main[1] as ImmediateMesh
+	if not inertial_ref_inst or not is_instance_valid(inertial_ref_inst):
+		var pair_ref: Array = _create_trajectory_ribbon_node("InertialReferenceRibbon", false)
+		inertial_ref_inst = pair_ref[0] as MeshInstance3D
+		inertial_ref_imm = pair_ref[1] as ImmediateMesh
+	if not heading_guide_inst or not is_instance_valid(heading_guide_inst):
+		var pair_head: Array = _create_trajectory_ribbon_node("HeadingGuideRibbon", true)
+		heading_guide_inst = pair_head[0] as MeshInstance3D
+		heading_guide_imm = pair_head[1] as ImmediateMesh
+
+func _draw_ribbon_strip(inst: MeshInstance3D, imm: ImmediateMesh, points: Array[Vector3], colors: Array[Color], half_width: float) -> void:
+	if not inst or not imm:
+		return
+	if points.size() < 2 or points.size() != colors.size():
+		inst.visible = false
+		return
+
+	imm.clear_surfaces()
+	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	var last_side := Vector3(half_width, 0.0, 0.0)
+	var count: int = points.size()
+	for i in range(count):
+		var dir: Vector3
+		if i < count - 1:
+			dir = points[i + 1] - points[i]
+		else:
+			dir = points[i] - points[i - 1]
+		dir.y = 0.0
+		var side: Vector3 = last_side
+		if dir.length_squared() > 0.0001:
+			var n_dir: Vector3 = dir.normalized()
+			side = Vector3(-n_dir.z, 0.0, n_dir.x) * half_width
+			last_side = side
+		var col: Color = colors[i]
+		imm.surface_set_color(col)
+		imm.surface_add_vertex(points[i] - side)
+		imm.surface_set_color(col)
+		imm.surface_add_vertex(points[i] + side)
+	imm.surface_end()
+	inst.visible = true
+
+func _update_trajectory_prediction() -> void:
+	_ensure_trajectory_visuals()
+	if not show_trajectory_line or not player_ship or QuestManager.is_dialogue_open:
+		if trajectory_mesh_inst: trajectory_mesh_inst.visible = false
+		if inertial_ref_inst: inertial_ref_inst.visible = false
+		if heading_guide_inst: heading_guide_inst.visible = false
+		return
+
+	var start_pos: Vector3 = player_ship.global_position
+	start_pos.y = 0.12
+	var cur_vel: Vector3 = player_ship.velocity
+	cur_vel.y = 0.0
+
+	# 1. Short Nose Heading Guide (shows where [W] thrust points)
+	var h_dir := Vector3(cos(player_ship.ship_heading), 0.0, -sin(player_ship.ship_heading)).normalized()
+	var head_pts: Array[Vector3] = [
+		start_pos + h_dir * 2.2,
+		start_pos + h_dir * 11.5
+	]
+	var head_cols: Array[Color] = [
+		Color(0.15, 1.0, 0.65, 0.55),
+		Color(0.15, 1.0, 0.65, 0.0)
+	]
+	_draw_ribbon_strip(heading_guide_inst, heading_guide_imm, head_pts, head_cols, 0.09)
+
+	# 2. Predicted Coast Trajectory (with Gravity Wells & Orbiting Planet Motion)
+	var steps: int = max(8, trajectory_steps)
+	var step_dt: float = trajectory_duration_sec / float(steps)
+	var grav_mult: float = player_ship.gravity_influence_multiplier
+	var ship_max_spd: float = player_ship.max_speed
+
+	var sim_pos: Vector3 = Vector3(start_pos.x, 0.0, start_pos.z)
+	var sim_vel: Vector3 = cur_vel
+	var sim_time: float = 0.0
+
+	var traj_pts: Array[Vector3] = [Vector3(sim_pos.x, 0.12, sim_pos.z)]
+	var traj_cols: Array[Color] = [Color(0.22, 0.92, 1.0, 0.85)]
+
+	var max_gravity_deflection: float = 0.0
+	var total_path_len: float = 0.0
+
+	for s in range(1, steps + 1):
+		sim_time += step_dt
+		var g_info: Dictionary = _sample_gravity_info(sim_pos, sim_time)
+		var g_accel: Vector3 = g_info["accel"]
+		var pull_mag: float = float(g_info["pull_mag"])
+		var is_repel: bool = bool(g_info["repel"])
+
+		sim_vel += g_accel * grav_mult * step_dt
+		if sim_vel.length() > ship_max_spd:
+			sim_vel = sim_vel.normalized() * ship_max_spd
+		sim_vel.y = 0.0
+
+		var next_pos: Vector3 = sim_pos + sim_vel * step_dt
+		total_path_len += sim_pos.distance_to(next_pos)
+		sim_pos = next_pos
+
+		var inertial_pos: Vector3 = Vector3(start_pos.x, 0.0, start_pos.z) + cur_vel * sim_time
+		var defl: float = sim_pos.distance_to(inertial_pos)
+		if defl > max_gravity_deflection:
+			max_gravity_deflection = defl
+
+		var t_norm: float = float(s) / float(steps)
+		var alpha: float = (1.0 - t_norm) * (1.0 - t_norm * 0.35) * 0.85
+		var seg_col: Color
+		if is_repel:
+			seg_col = Color(1.0, 0.35, 0.25, alpha)
+		elif pull_mag > 0.35:
+			var blend_w: float = clamp((pull_mag - 0.35) / 3.2, 0.0, 1.0)
+			seg_col = Color(0.22, 0.92, 1.0, alpha).lerp(Color(1.0, 0.72, 0.12, alpha), blend_w)
+		else:
+			seg_col = Color(0.22, 0.92, 1.0, alpha)
+
+		traj_pts.append(Vector3(sim_pos.x, 0.12, sim_pos.z))
+		traj_cols.append(seg_col)
+
+	if total_path_len < 0.8:
+		if trajectory_mesh_inst: trajectory_mesh_inst.visible = false
+		if inertial_ref_inst: inertial_ref_inst.visible = false
+		return
+
+	_draw_ribbon_strip(trajectory_mesh_inst, trajectory_imm_mesh, traj_pts, traj_cols, 0.18)
+
+	# 3. Straight Inertial Reference Line (only visible when gravity noticeably curves the trajectory!)
+	if max_gravity_deflection > 0.65 and cur_vel.length() > 0.5:
+		var ref_pts: Array[Vector3] = []
+		var ref_cols: Array[Color] = []
+		var ref_steps: int = 16
+		for r in range(ref_steps + 1):
+			var frac: float = float(r) / float(ref_steps)
+			var rp: Vector3 = Vector3(start_pos.x, 0.08, start_pos.z) + cur_vel * (trajectory_duration_sec * frac)
+			ref_pts.append(rp)
+			ref_cols.append(Color(0.75, 0.85, 0.98, (1.0 - frac) * 0.26))
+		_draw_ribbon_strip(inertial_ref_inst, inertial_ref_imm, ref_pts, ref_cols, 0.07)
+	else:
+		if inertial_ref_inst:
+			inertial_ref_inst.visible = false
 
 func _spawn_energy_beam(from_pos: Vector3, to_pos: Vector3, beam_color: Color, duration: float = 0.55) -> void:
 	var diff: Vector3 = to_pos - from_pos
@@ -1083,6 +1270,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif key_event.keycode == KEY_Z:
 			GameState.flight_assist = not GameState.flight_assist
 			GameState.add_log("SYSTEM", "🛸 Flug-Assistent: %s" % ("AN" if GameState.flight_assist else "AUS"))
+		elif key_event.keycode == KEY_V:
+			show_trajectory_line = not show_trajectory_line
+			GameState.add_log("NAV", "📐 Kurs- & Gravitationslinie: %s" % ("AN" if show_trajectory_line else "AUS"))
 
 func _get_target_planet_key(target: Node3D) -> String:
 	var pk: String = str(target.get("planet_key")) if target.get("planet_key") != null else ""

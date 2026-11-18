@@ -494,9 +494,9 @@ func _update_proximity_prompt() -> void:
 			else:
 				target_prompt_label.text = "🎯 %s (%.1f AE)  —  [F] Untersuchen / Kommunizieren  |  [X] Bio-EMP (-18⚡)" % [d_name, dist]
 		else:
-			target_prompt_label.text = "🧭 Nächstes Objekt: %s (%.1f AE)  |  [WASD] Fliegen  [M] Karte  [Tab] Crew/Versorgung  [U] Evolution" % [d_name, dist]
+			target_prompt_label.text = "🧭 Nächstes Objekt: %s (%.1f AE)  |  [WASD] Fliegen  [V] Kurslinie  [M] Karte  [Tab] Crew  [U] Evolution" % [d_name, dist]
 	else:
-		target_prompt_label.text = "[WASD] Steuerung  |  [F] Scannen  [E] Ernten  [R] Entführen  |  [Tab] Crew & Versorgung  [U] Evolution  [M] Karte"
+		target_prompt_label.text = "[WASD] Steuerung  |  [F] Scannen  [E] Ernten  [R] Entführen  |  [V] Kurslinie  [Tab] Crew  [U] Evolution  [M] Karte"
 
 func _on_log_added(category: String, message: String) -> void:
 	log_lines.push_front("[b][%s][/b] %s" % [category, message])

@@ -128,3 +128,19 @@ func update_orbital_position(delta: float) -> void:
 			var target_scale: float = 1.0 + 1.85 * smooth_t
 			var new_s: float = lerpf(scale.x, target_scale, min(1.0, delta * 5.0))
 			scale = Vector3(new_s, new_s, new_s)
+
+func predict_position_after(seconds: float) -> Vector3:
+	if seconds <= 0.0:
+		return global_position
+	if parent_body == null and not use_manual_editor_position and entity_category == "planet" and orbit_radius > 0.1:
+		var fut_angle: float = _current_angle_rad + orbit_speed * seconds
+		return Vector3(cos(fut_angle) * orbit_radius, 0.0, sin(fut_angle) * orbit_radius)
+	elif parent_body and is_instance_valid(parent_body):
+		var p_pos: Vector3 = parent_body.call("predict_position_after", seconds) if parent_body.has_method("predict_position_after") else parent_body.global_position
+		var p_scale: float = max(1.0, parent_body.scale.x)
+		var effective_r: float = orbit_radius
+		if entity_category in ["space_station", "jamal_shuttle", "towing_drone", "moon"]:
+			effective_r = orbit_radius + (p_scale - 1.0) * (orbit_radius * 0.45 + 6.0)
+		var fut_angle: float = _current_angle_rad + orbit_speed * seconds
+		return Vector3(p_pos.x + cos(fut_angle) * effective_r, 0.0, p_pos.z + sin(fut_angle) * effective_r)
+	return global_position
