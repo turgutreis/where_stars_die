@@ -47,10 +47,6 @@ var target_reticle_ring: MeshInstance3D = null
 var target_reticle_mat: StandardMaterial3D = null
 var trajectory_mesh_inst: MeshInstance3D = null
 var trajectory_imm_mesh: ImmediateMesh = null
-var inertial_ref_inst: MeshInstance3D = null
-var inertial_ref_imm: ImmediateMesh = null
-var heading_guide_inst: MeshInstance3D = null
-var heading_guide_imm: ImmediateMesh = null
 var current_star_size: float = 18.0
 var current_star_mass: float = 160.0
 
@@ -1014,14 +1010,6 @@ func _ensure_trajectory_visuals() -> void:
 		var pair_main: Array = _create_trajectory_ribbon_node("TrajectoryPredictionRibbon", true)
 		trajectory_mesh_inst = pair_main[0] as MeshInstance3D
 		trajectory_imm_mesh = pair_main[1] as ImmediateMesh
-	if not inertial_ref_inst or not is_instance_valid(inertial_ref_inst):
-		var pair_ref: Array = _create_trajectory_ribbon_node("InertialReferenceRibbon", false)
-		inertial_ref_inst = pair_ref[0] as MeshInstance3D
-		inertial_ref_imm = pair_ref[1] as ImmediateMesh
-	if not heading_guide_inst or not is_instance_valid(heading_guide_inst):
-		var pair_head: Array = _create_trajectory_ribbon_node("HeadingGuideRibbon", true)
-		heading_guide_inst = pair_head[0] as MeshInstance3D
-		heading_guide_imm = pair_head[1] as ImmediateMesh
 
 func _draw_ribbon_strip(inst: MeshInstance3D, imm: ImmediateMesh, points: Array[Vector3], colors: Array[Color], half_width: float) -> void:
 	if not inst or not imm:
@@ -1057,29 +1045,15 @@ func _draw_ribbon_strip(inst: MeshInstance3D, imm: ImmediateMesh, points: Array[
 func _update_trajectory_prediction() -> void:
 	_ensure_trajectory_visuals()
 	if not show_trajectory_line or not player_ship or QuestManager.is_dialogue_open:
-		if trajectory_mesh_inst: trajectory_mesh_inst.visible = false
-		if inertial_ref_inst: inertial_ref_inst.visible = false
-		if heading_guide_inst: heading_guide_inst.visible = false
+		if trajectory_mesh_inst:
+			trajectory_mesh_inst.visible = false
 		return
 
 	var start_pos: Vector3 = player_ship.global_position
-	start_pos.y = 0.12
 	var cur_vel: Vector3 = player_ship.velocity
 	cur_vel.y = 0.0
 
-	# 1. Short Nose Heading Guide (shows where [W] thrust points)
-	var h_dir := Vector3(cos(player_ship.ship_heading), 0.0, -sin(player_ship.ship_heading)).normalized()
-	var head_pts: Array[Vector3] = [
-		start_pos + h_dir * 2.2,
-		start_pos + h_dir * 11.5
-	]
-	var head_cols: Array[Color] = [
-		Color(0.15, 1.0, 0.65, 0.55),
-		Color(0.15, 1.0, 0.65, 0.0)
-	]
-	_draw_ribbon_strip(heading_guide_inst, heading_guide_imm, head_pts, head_cols, 0.09)
-
-	# 2. Predicted Coast Trajectory (with Gravity Wells & Orbiting Planet Motion)
+	# Single sleek Predicted Coast Trajectory (including Sun & Planet Gravity Wells)
 	var steps: int = max(8, trajectory_steps)
 	var step_dt: float = trajectory_duration_sec / float(steps)
 	var grav_mult: float = player_ship.gravity_influence_multiplier
@@ -1089,10 +1063,8 @@ func _update_trajectory_prediction() -> void:
 	var sim_vel: Vector3 = cur_vel
 	var sim_time: float = 0.0
 
-	var traj_pts: Array[Vector3] = [Vector3(sim_pos.x, 0.12, sim_pos.z)]
-	var traj_cols: Array[Color] = [Color(0.22, 0.92, 1.0, 0.85)]
-
-	var max_gravity_deflection: float = 0.0
+	var traj_pts: Array[Vector3] = [Vector3(sim_pos.x, -0.08, sim_pos.z)]
+	var traj_cols: Array[Color] = [Color(0.22, 0.92, 1.0, 0.58)]
 	var total_path_len: float = 0.0
 
 	for s in range(1, steps + 1):
@@ -1111,13 +1083,8 @@ func _update_trajectory_prediction() -> void:
 		total_path_len += sim_pos.distance_to(next_pos)
 		sim_pos = next_pos
 
-		var inertial_pos: Vector3 = Vector3(start_pos.x, 0.0, start_pos.z) + cur_vel * sim_time
-		var defl: float = sim_pos.distance_to(inertial_pos)
-		if defl > max_gravity_deflection:
-			max_gravity_deflection = defl
-
 		var t_norm: float = float(s) / float(steps)
-		var alpha: float = (1.0 - t_norm) * (1.0 - t_norm * 0.35) * 0.85
+		var alpha: float = (1.0 - t_norm) * (1.0 - t_norm * 0.35) * 0.58
 		var seg_col: Color
 		if is_repel:
 			seg_col = Color(1.0, 0.35, 0.25, alpha)
@@ -1127,30 +1094,15 @@ func _update_trajectory_prediction() -> void:
 		else:
 			seg_col = Color(0.22, 0.92, 1.0, alpha)
 
-		traj_pts.append(Vector3(sim_pos.x, 0.12, sim_pos.z))
+		traj_pts.append(Vector3(sim_pos.x, -0.08, sim_pos.z))
 		traj_cols.append(seg_col)
 
 	if total_path_len < 0.8:
-		if trajectory_mesh_inst: trajectory_mesh_inst.visible = false
-		if inertial_ref_inst: inertial_ref_inst.visible = false
+		if trajectory_mesh_inst:
+			trajectory_mesh_inst.visible = false
 		return
 
-	_draw_ribbon_strip(trajectory_mesh_inst, trajectory_imm_mesh, traj_pts, traj_cols, 0.18)
-
-	# 3. Straight Inertial Reference Line (only visible when gravity noticeably curves the trajectory!)
-	if max_gravity_deflection > 0.65 and cur_vel.length() > 0.5:
-		var ref_pts: Array[Vector3] = []
-		var ref_cols: Array[Color] = []
-		var ref_steps: int = 16
-		for r in range(ref_steps + 1):
-			var frac: float = float(r) / float(ref_steps)
-			var rp: Vector3 = Vector3(start_pos.x, 0.08, start_pos.z) + cur_vel * (trajectory_duration_sec * frac)
-			ref_pts.append(rp)
-			ref_cols.append(Color(0.75, 0.85, 0.98, (1.0 - frac) * 0.26))
-		_draw_ribbon_strip(inertial_ref_inst, inertial_ref_imm, ref_pts, ref_cols, 0.07)
-	else:
-		if inertial_ref_inst:
-			inertial_ref_inst.visible = false
+	_draw_ribbon_strip(trajectory_mesh_inst, trajectory_imm_mesh, traj_pts, traj_cols, 0.08)
 
 func _spawn_energy_beam(from_pos: Vector3, to_pos: Vector3, beam_color: Color, duration: float = 0.55) -> void:
 	var diff: Vector3 = to_pos - from_pos
