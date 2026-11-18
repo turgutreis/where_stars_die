@@ -12,6 +12,7 @@ signal channel_progress_updated(mode: String, progress: float, target_name: Stri
 signal dossier_updated(planet_key: String, dossier: Dictionary)
 signal crew_updated()
 signal mutations_updated()
+signal away_mission_updated(mission: Dictionary)
 
 # --- Player Vitals & Environmental Survival ---
 var health: float = 100.0
@@ -30,15 +31,23 @@ var radiation_source: String = ""
 # --- All 7 Core Resources (matching Three.js prototype) ---
 var bio_res: int = 0
 var silicon_res: int = 0
-var water_res: int = 25
-var food_res: int = 30
+var water_res: int = 35
+var food_res: int = 40
 var alloy_res: int = 10
 var tech_res: int = 0
 var melange_res: int = 0
 
+# --- Bio-Shuttle & Away Missions (Unlocked by liberating Dr. Tariq Jamal's Ar-Riḥla!) ---
+var shuttle_unlocked: bool = false
+var shuttle_ready: bool = true
+var shuttle_hull: float = 100.0
+var shuttle_max_hull: float = 100.0
+var shuttle_name: String = "Forschungsschiff 'Ar-Riḥla'"
+var active_away_mission: Dictionary = {}
+
 # Internal fractional accumulators for smooth per-second life support drain
-var _water_accum: float = 25.0
-var _food_accum: float = 30.0
+var _water_accum: float = 35.0
+var _food_accum: float = 40.0
 var _hud_tick_timer: float = 0.0
 var _warn_cooldown_water: float = 0.0
 var _warn_cooldown_food: float = 0.0
@@ -132,6 +141,7 @@ var crew: Array[Dictionary] = [
 		"species": "Mensch (Sol-Terraner)",
 		"role": "Chef-Quantenphysiker & Co-Pilot",
 		"roleKey": "scientist",
+		"is_abducted": false,
 		"buffDesc": "+25% Spektral-Scan & Quanten-Navigation",
 		"station": "Traum-Kern",
 		"stress": 15.0,
@@ -167,13 +177,14 @@ func _process(delta: float) -> void:
 	if QuestManager.is_dialogue_open:
 		return
 	_process_survival_metabolism(delta)
+	_process_away_mission(delta)
 
 func _process_survival_metabolism(delta: float) -> void:
 	var crew_count: int = crew.size()
 
-	# 1. Water & Food Life-Support Consumption (every organic crew member + Najmafar's metabolism)
-	var water_drain_per_sec: float = 0.08 + float(crew_count) * 0.055
-	var food_drain_per_sec: float = 0.09 + float(crew_count) * 0.06
+	# 1. Gentle early-game Water & Food Life-Support Consumption so player can survive on Biomass/Asteroids while liberating Ar-Riḥla
+	var water_drain_per_sec: float = 0.025 + float(crew_count) * 0.022
+	var food_drain_per_sec: float = 0.028 + float(crew_count) * 0.025
 
 	_water_accum = max(0.0, _water_accum - water_drain_per_sec * delta)
 	_food_accum = max(0.0, _food_accum - food_drain_per_sec * delta)
@@ -387,6 +398,215 @@ func perform_psionic_catharsis() -> bool:
 	add_log("PSIONIK", "🧠 Psionische Katharsis: +38% Mentalkraft & Einsamkeit gesenkt (-6 Wasser, -10 Biomasse)!")
 	return true
 
+func repair_shuttle_with_alloys() -> bool:
+	if not shuttle_unlocked:
+		add_log("WARNUNG", "🔒 Noch kein Shuttle an Bord! Befreie zuerst Dr. Tariq Jamals 'Ar-Riḥla' im INSAN-Depot Zeta-9.")
+		return false
+	if shuttle_hull >= shuttle_max_hull:
+		add_log("SHUTTLE", "🚀 %s ist bereits makellos (100%% Hülle)." % shuttle_name)
+		return false
+	if alloy_res < 8:
+		add_log("WARNUNG", "⚠️ 8 🛡️ Legierungen benötigt für Shuttle-Überholung (Aktuell: %d)!" % alloy_res)
+		return false
+	alloy_res -= 8
+	shuttle_hull = shuttle_max_hull
+	vitals_updated.emit()
+	add_log("SHUTTLE", "🚀 %s generalüberholt: Hülle auf 100%% wiederhergestellt (-8 🛡️ Legierungen)!" % shuttle_name)
+	return true
+
+func get_abducted_crew_count() -> int:
+	var count: int = 0
+	for c in crew:
+		if bool(c.get("is_abducted", false)):
+			count += 1
+	return count
+
+func unlock_jamal_shuttle() -> void:
+	shuttle_unlocked = true
+	shuttle_ready = true
+	shuttle_hull = shuttle_max_hull
+	vitals_updated.emit()
+	add_log("SHUTTLE", "🚀 AUSSENMISSIONEN FREIGESCHALTET: Die 'Ar-Riḥla' dient jetzt als Najmafars Lande-Shuttle! Entführte Crew [R] kann auf geeigneten Planeten nach 💧 Wasser, 🍖 Nahrung, 🛡️ Legierungen & ⚙️ Tech suchen!")
+
+func start_away_mission(planet_key: String, deposit_id: String, selected_crew_ids: Array[int]) -> bool:
+	if not shuttle_unlocked:
+		add_log("WARNUNG", "🔒 Außenmission blockiert: Du hast noch kein Shuttle! Befreie zuerst Jamals 'Ar-Riḥla' in der INSAN-Verwahrstelle Zeta-9!")
+		return false
+	if not shuttle_ready or not active_away_mission.is_empty():
+		add_log("WARNUNG", "🚀 Die 'Ar-Riḥla' befindet sich bereits auf einer Außenmission!")
+		return false
+	if get_abducted_crew_count() <= 0:
+		add_log("WARNUNG", "⚠️ Außenteam benötigt: Entführe zuerst mindestens 1 Lebensform auf einem bewohnbaren Planeten [R], damit du sie steuern und auf Mission schicken kannst!")
+		return false
+	if not planet_dossiers.has(planet_key):
+		return false
+
+	var dossier: Dictionary = planet_dossiers[planet_key]
+	var deposits: Array = dossier.get("deposits", [])
+	var target_dep: Dictionary = {}
+	for d in deposits:
+		if typeof(d) == TYPE_DICTIONARY and str(d.get("id", "")) == deposit_id:
+			target_dep = d
+			break
+	if target_dep.is_empty():
+		add_log("WARNUNG", "Vorkommen nicht gefunden.")
+		return false
+	if bool(target_dep.get("depleted", false)):
+		add_log("WARNUNG", "🔴 Vorkommen '%s' ist bereits vollständig abgebaut!" % str(target_dep.get("name", "Lagerstätte")))
+		return false
+
+	var team: Array[Dictionary] = []
+	var has_abducted_in_team: bool = false
+	for cid in selected_crew_ids:
+		for c in crew:
+			if int(c.get("id", -1)) == cid:
+				team.append(c)
+				if bool(c.get("is_abducted", false)):
+					has_abducted_in_team = true
+				break
+		if team.size() >= 3:
+			break
+
+	if team.is_empty():
+		add_log("WARNUNG", "⚠️ Wähle mindestens 1 Crew-Mitglied für das Außenteam aus!")
+		return false
+	if not has_abducted_in_team:
+		add_log("WARNUNG", "⚠️ Mindestens 1 entführter Symbiont muss am Außeneinsatz teilnehmen!")
+		return false
+
+	shuttle_ready = false
+	active_away_mission = {
+		"planetKey": planet_key,
+		"planetName": str(dossier.get("name", "Planet")),
+		"depositId": deposit_id,
+		"depositName": str(target_dep.get("name", "Oberflächen-Vorkommen")),
+		"depositType": str(target_dep.get("type", "")),
+		"yieldResource": str(target_dep.get("yieldResource", "alloys")),
+		"yieldAmount": int(target_dep.get("yieldAmount", 25)),
+		"hazardType": str(target_dep.get("hazardType", "none")),
+		"hazardSeverity": str(target_dep.get("hazardSeverity", "none")),
+		"team": team,
+		"progress": 0.0,
+		"duration": 14.0,
+		"timer": 14.0,
+		"stage": 0
+	}
+
+	var t_names: Array[String] = []
+	for m in team:
+		t_names.append(str(m.get("name", "Crew")))
+	add_log("EXPEDITION", "🚀 AUSSENMISSION GESTARTET: 'Ar-Riḥla' dockt mit [%s] ab — Ziel: %s (%s)!" % [
+		", ".join(t_names),
+		active_away_mission["depositName"],
+		active_away_mission["planetName"]
+	])
+	away_mission_updated.emit(active_away_mission)
+	return true
+
+func _process_away_mission(delta: float) -> void:
+	if active_away_mission.is_empty():
+		return
+
+	var dur: float = max(1.0, float(active_away_mission.get("duration", 14.0)))
+	var timer: float = float(active_away_mission.get("timer", dur)) - delta
+	active_away_mission["timer"] = timer
+	var prog: float = clamp(1.0 - (timer / dur), 0.0, 1.0)
+	active_away_mission["progress"] = prog
+
+	var stage: int = int(active_away_mission.get("stage", 0))
+	var team: Array = active_away_mission.get("team", [])
+	var has_eng: bool = false
+	var has_sci: bool = false
+	var has_bio: bool = false
+	for m in team:
+		var rk: String = str(m.get("roleKey", ""))
+		if rk == "engineer": has_eng = true
+		elif rk == "scientist": has_sci = true
+		elif rk == "biologist": has_bio = true
+
+	if prog >= 0.25 and stage == 0:
+		active_away_mission["stage"] = 1
+		var h_type: String = str(active_away_mission.get("hazardType", "none"))
+		var h_sev: String = str(active_away_mission.get("hazardSeverity", "none"))
+		if h_type == "thermal" and h_sev != "none":
+			if has_eng:
+				add_log("EXPEDITION", "🔧 Ingenieur im Außenteam kalibriert Thermal-Schilde — kein Hitzeschaden an Ar-Riḥla!")
+			else:
+				shuttle_hull = max(15.0, shuttle_hull - 7.0)
+				add_log("WARNUNG", "⚠️ Extreme Hitze/Kälte auf %s! Ar-Riḥla Shuttle-Hülle leicht beschädigt (%.0f%%)." % [str(active_away_mission["planetName"]), shuttle_hull])
+		elif h_type == "atmosphere" and h_sev != "none":
+			if has_bio:
+				add_log("EXPEDITION", "🧬 Xenobiologe filtert toxische Sporen — Außenteam sicher!")
+			else:
+				shuttle_hull = max(15.0, shuttle_hull - 6.0)
+				add_log("WARNUNG", "⚠️ Korrosive Atmosphäre greift Landungsstützen an (%.0f%% Shuttle-Hülle)." % shuttle_hull)
+		elif h_type == "radiation" and has_sci:
+			add_log("EXPEDITION", "🔬 Wissenschaftler dekodiert Quanten-Strahlungsmuster (+50% Tech-Ausbeute)!")
+	elif prog >= 0.65 and stage == 1:
+		active_away_mission["stage"] = 2
+		add_log("EXPEDITION", "⛏️ Außenteam baut '%s' ab und belädt Frachtraum der Ar-Riḥla..." % str(active_away_mission["depositName"]))
+	elif prog >= 0.90 and stage == 2:
+		active_away_mission["stage"] = 3
+		add_log("EXPEDITION", "🚀 Bergung abgeschlossen — Ar-Riḥla zündet Rückkehrtriebwerke zur Najmafar!")
+
+	away_mission_updated.emit(active_away_mission)
+
+	if prog >= 1.0:
+		_complete_away_mission()
+
+func _complete_away_mission() -> void:
+	var mission: Dictionary = active_away_mission.duplicate(true)
+	active_away_mission.clear()
+	shuttle_ready = true
+
+	var p_key: String = str(mission.get("planetKey", ""))
+	var dep_id: String = str(mission.get("depositId", ""))
+	if planet_dossiers.has(p_key):
+		var d_dict: Dictionary = planet_dossiers[p_key]
+		var deps: Array = d_dict.get("deposits", [])
+		for i in range(deps.size()):
+			if typeof(deps[i]) == TYPE_DICTIONARY and str(deps[i].get("id", "")) == dep_id:
+				deps[i]["depleted"] = true
+				break
+		d_dict["deposits"] = deps
+		planet_dossiers[p_key] = d_dict
+		if active_dossier_key == p_key:
+			dossier_updated.emit(p_key, d_dict)
+
+	var team: Array = mission.get("team", [])
+	var y_res: String = str(mission.get("yieldResource", "alloys"))
+	var base_amt: float = float(mission.get("yieldAmount", 25))
+	var mult: float = 1.0
+	for m in team:
+		var rk: String = str(m.get("roleKey", ""))
+		if rk == "engineer": mult += 0.35
+		elif rk == "biologist" and y_res in ["food", "water"]: mult += 0.35
+		elif rk == "scientist" and y_res == "tech": mult += 0.50
+
+	var final_amt: int = int(round(base_amt * mult))
+	var p_name: String = str(mission.get("planetName", "Planet"))
+
+	match y_res:
+		"water":
+			add_water(final_amt)
+			add_log("EXPEDITION", "💧 AUSSENMISSION ERFOLGREICH: +%d 💧 Frischwasser von %s durch Ar-Riḥla geborgen!" % [final_amt, p_name])
+		"food":
+			add_food(final_amt)
+			add_log("EXPEDITION", "🍖 AUSSENMISSION ERFOLGREICH: +%d 🍖 Nahrung & Biomaterie von %s eingelagert!" % [final_amt, p_name])
+		"alloys":
+			alloy_res += final_amt
+			add_log("EXPEDITION", "🛡️ AUSSENMISSION ERFOLGREICH: +%d 🛡️ Titan-Legierungen von %s geborgen!" % [final_amt, p_name])
+		"tech":
+			tech_res += final_amt
+			add_log("EXPEDITION", "⚙️ AUSSENMISSION ERFOLGREICH: +%d ⚙️ Hoch-Technologie & Datenkerne von %s geborgen!" % [final_amt, p_name])
+		_:
+			bio_res += final_amt
+			add_log("EXPEDITION", "🌿 AUSSENMISSION ERFOLGREICH: +%d 🌿 Biomasse geborgen!" % final_amt)
+
+	loneliness = max(0.0, loneliness - 8.0)
+	vitals_updated.emit()
+	away_mission_updated.emit({})
+
 func load_universe_data() -> void:
 	var path := "res://data/universe_data.json"
 	if not FileAccess.file_exists(path):
@@ -412,17 +632,38 @@ func load_ising_data() -> void:
 
 func ensure_lore_systems() -> void:
 	var has_insan_depot := false
-	for sys in systems:
-		if sys.get("id", -1) == 1:
+	for i in range(systems.size()):
+		var sys: Dictionary = systems[i]
+		var sid: int = int(sys.get("id", -1))
+		if sid == 1:
 			sys["name"] = "Perseus-Rand"
 			sys["sectorName"] = "Äußerer Spiralarm"
+		elif sid == 77:
+			sys["name"] = "INSAN-Verwahrstelle Zeta-9"
+			sys["sectorName"] = "INSAN-Pfand- & Schrottwerft"
+			sys["isInsanDepot"] = true
+			var pls: Array = sys.get("planets", [])
+			if pls.is_empty():
+				pls.append({
+					"name": "Schrott-Gürtel Alpha-9",
+					"type": "Rocky",
+					"size": 3.4,
+					"distance": 24.0,
+					"color": "0x64748b",
+					"temp": "+14°C (Abgeschirmte Schrottwerft)",
+					"atmos": "Industrielle Werksluft & Subraum-Störfelder",
+					"bio": "Keine (Autonome INSAN-Werft)",
+					"species": {"hasSentient": false, "techLevel": "Spacefaring", "name": "INSAN-Bürokratie"}
+				})
+				sys["planets"] = pls
+			has_insan_depot = true
 		if sys.get("isInsanDepot", false) or String(sys.get("name", "")).contains("INSAN"):
 			has_insan_depot = true
 
-	if not has_insan_depot and systems.size() > 3:
-		var depot_sys: Dictionary = systems[min(3, systems.size() - 1)]
+	if not has_insan_depot and systems.size() > 6:
+		var depot_sys: Dictionary = systems[min(6, systems.size() - 1)]
 		depot_sys["name"] = "INSAN-Verwahrstelle Zeta-9"
-		depot_sys["sectorName"] = "Bürokratischer Sperrsektor"
+		depot_sys["sectorName"] = "INSAN-Pfand- & Schrottwerft"
 		depot_sys["isInsanDepot"] = true
 
 func get_current_system() -> Dictionary:
@@ -530,30 +771,35 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 		else:
 			bio = "Extremophile Kristall-Flechten" if (h % 2 == 0) else "Steriles Mineralgestein"
 
-	if res == "":
-		if p_type == "Habitable":
-			res = "🌿 +55 Bio | 🍖 +30 Nahrung | 💧 +35 Wasser | ☕ +8 Qahwun"
-		elif p_type in ["Ice", "Eismond"]:
-			res = "💧 +55 Wasser | 💎 +25 Silizium | 🌿 +15 Bio"
-		elif p_type == "Gas Giant":
-			res = "💧 +40 Wasser (Deuterium) | 🌿 +35 Bio | 💎 +15 Silizium"
-		elif p_type == "Desert":
-			res = "💎 +40 Silizium | ☕ +18 Qahwun (Space-Kaffeebohne) | 🛡️ +12 Legierungen"
-		elif p_type == "Vulkanmond" or temp_c > 90.0:
-			res = "🛡️ +25 Legierungen | 💎 +45 Silizium | ⚙️ +8 Tech"
-		else:
-			res = "💎 +45 Silizium | 🛡️ +15 Legierungen | 💧 +15 Wasser | 🌿 +20 Bio"
+	var tech_level: String = ""
+	var raw_sp = p_data.get("species", null)
+	if typeof(raw_sp) == TYPE_DICTIONARY:
+		tech_level = str(raw_sp.get("techLevel", ""))
+
+	# Strict orbital Bio-Siphon [E] preview (NEVER grants Food/Water/Tech/Alloys from orbit!)
+	if p_type == "Habitable":
+		res = "Orbital-Siphon [E]: 🌿 Biomasse & 💎 Silizium  •  Oberfläche (Shuttle): 🍖 Nahrung, 💧 Wasser" + (", ⚙️ Tech" if tech_level in ["Industrial", "Spacefaring", "Hyper-Advanced", "Automated Bureaucracy"] else "")
+	elif p_type in ["Ice", "Eismond"]:
+		res = "Orbital-Siphon [E]: 💎 Silizium & 🌿 Biomasse  •  Oberfläche (Shuttle): 💧 Eiskern-Wasser"
+	elif p_type == "Gas Giant":
+		res = "Orbital-Siphon [E]: 🌿 Aero-Plankton (Biomasse)  •  ⚠️ Keine Landezone für Nahrung/Tech/Legierungen"
+	elif p_type == "Desert":
+		res = "Orbital-Siphon [E]: 💎 Silizium & ☕ Qahwun-Bohnen  •  Oberfläche (Shuttle): 🛡️ Legierungen"
+	elif p_type == "Vorläufer-Konstrukt" or p_type == "custom":
+		res = "Orbital-Siphon [E]: 💎 Silizium  •  Oberfläche (Shuttle): ⚙️ Tech & 🛡️ Legierungen"
+	else:
+		res = "Orbital-Siphon [E]: 💎 Silizium & 🌿 Biomasse  •  Oberfläche (Shuttle): 🛡️ Titan-Legierungen"
 
 	var candidates: Array = []
 	var is_habitable_or_construct: bool = (p_type == "Habitable" or p_type == "Vorläufer-Konstrukt")
 
 	if is_habitable_or_construct or can_support_outpost:
-		var raw_species = p_data.get("species", null)
-		if typeof(raw_species) == TYPE_DICTIONARY and raw_species.has("candidates"):
-			var raw_cands: Array = raw_species.get("candidates", [])
+		if typeof(raw_sp) == TYPE_DICTIONARY and raw_sp.has("candidates"):
+			var raw_cands: Array = raw_sp.get("candidates", [])
 			for c in raw_cands:
 				if typeof(c) == TYPE_DICTIONARY:
 					candidates.append(c.duplicate())
+					candidates[candidates.size() - 1]["is_abducted"] = true
 
 		if candidates.is_empty():
 			var count: int = 2 if p_type == "Habitable" else 1
@@ -569,6 +815,7 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 					"species": sp_name,
 					"role": role_dict["roleName"],
 					"roleKey": role_dict["role"],
+					"is_abducted": true,
 					"buffDesc": role_dict["buffDesc"],
 					"station": "Synapsen-Deck",
 					"stress": 10.0
@@ -577,6 +824,107 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 			bio = "%s (Abgeschirmte Forschungs-Kuppel aktiv)" % bio
 	else:
 		candidates.clear()
+
+	# Build Planet-Specific Surface Deposits (ONLY obtainable via Shuttle + Crew Away Missions!)
+	var deposits: Array = []
+	if p_type == "Gas Giant" or p_type == "Gefangener Stern" or p_type == "Plasma-Wirbel":
+		# Strictly NO food, NO tech, NO alloys, NO solid surface landings on Gas Giants!
+		deposits.clear()
+	elif p_type == "Habitable":
+		deposits.append({
+			"id": "dep_%d_food" % h,
+			"name": "Biolumineszenter Xeno-Hain",
+			"type": "xeno_grove",
+			"desc": "Dichte organische Früchte & nährstoffreiche Flora.",
+			"yieldResource": "food",
+			"yieldAmount": 48 + (h % 22),
+			"hazardType": "atmosphere",
+			"hazardSeverity": "low",
+			"depleted": false
+		})
+		deposits.append({
+			"id": "dep_%d_water" % h,
+			"name": "Tiefes Grundwasser-Reservoir",
+			"type": "subsurface_water",
+			"desc": "Kristallklare Süßwasser-Kavernen unter der Oberfläche.",
+			"yieldResource": "water",
+			"yieldAmount": 52 + (h % 26),
+			"hazardType": "none",
+			"hazardSeverity": "none",
+			"depleted": false
+		})
+		if tech_level in ["Industrial", "Spacefaring", "Hyper-Advanced", "Automated Bureaucracy"] or candidates.size() > 0:
+			deposits.append({
+				"id": "dep_%d_tech" % h,
+				"name": "Hoch-Technologie Forschungsanlage / Raumhafen",
+				"type": "ruins",
+				"desc": "Hochentwickelte Quanten-Schaltkreise & isolierte Datenkerne.",
+				"yieldResource": "tech",
+				"yieldAmount": 22 + (h % 14),
+				"hazardType": "radiation",
+				"hazardSeverity": "moderate",
+				"depleted": false
+			})
+	elif p_type in ["Ice", "Eismond"]:
+		deposits.append({
+			"id": "dep_%d_ice" % h,
+			"name": "Subglazialer Eiskern-Ozean",
+			"type": "subsurface_water",
+			"desc": "Reines gefrorenes Trinkwasser tief unter der Eiskruste.",
+			"yieldResource": "water",
+			"yieldAmount": 55 + (h % 30),
+			"hazardType": "thermal",
+			"hazardSeverity": "moderate",
+			"depleted": false
+		})
+	elif p_type == "Vorläufer-Konstrukt" or p_type == "custom":
+		deposits.append({
+			"id": "dep_%d_tech" % h,
+			"name": "Antiker Datenkern / Frachtsektion",
+			"type": "derelict_cache",
+			"desc": "Intakte Hyper-Technologie & Quantenprozessoren.",
+			"yieldResource": "tech",
+			"yieldAmount": 26 + (h % 14),
+			"hazardType": "radiation",
+			"hazardSeverity": "moderate",
+			"depleted": false
+		})
+		deposits.append({
+			"id": "dep_%d_alloy" % h,
+			"name": "Verstärkte Struktur-Platten",
+			"type": "geothermal_vent",
+			"desc": "Bergungsfähige Titan-Chitin-Legierungen.",
+			"yieldResource": "alloys",
+			"yieldAmount": 22 + (h % 12),
+			"hazardType": "thermal",
+			"hazardSeverity": "low",
+			"depleted": false
+		})
+	else:
+		# Rocky, Desert, Vulkanmond, Kratermond -> Alloys (and Tech ONLY if technologically advanced/outpost!)
+		deposits.append({
+			"id": "dep_%d_alloy" % h,
+			"name": "Geothermisches Titan- & Erzfeld" if temp_c > 80.0 else "Schwere Titan-Erzader",
+			"type": "geothermal_vent",
+			"desc": "Hochfeste Metall-Legierungen für Hülle & Shuttle-Panzerung.",
+			"yieldResource": "alloys",
+			"yieldAmount": 24 + (h % 18),
+			"hazardType": "thermal" if (temp_c > 80.0 or temp_c < -80.0) else "none",
+			"hazardSeverity": "moderate" if (temp_c > 80.0 or temp_c < -80.0) else "none",
+			"depleted": false
+		})
+		if can_support_outpost or tech_level in ["Industrial", "Spacefaring", "Hyper-Advanced", "Automated Bureaucracy"]:
+			deposits.append({
+				"id": "dep_%d_tech" % h,
+				"name": "Abgeschirmtes Orbital-/Kuppel-Datenzentrum",
+				"type": "ruins",
+				"desc": "Fortschrittliche Elektronik & Archivkerne der Stations-Betreiber.",
+				"yieldResource": "tech",
+				"yieldAmount": 18 + (h % 12),
+				"hazardType": "radiation",
+				"hazardSeverity": "low",
+				"depleted": false
+			})
 
 	var dossier := {
 		"key": planet_key,
@@ -588,7 +936,9 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 		"tempC": temp_c,
 		"bio": bio,
 		"res": res,
+		"techLevel": tech_level,
 		"candidates": candidates,
+		"deposits": deposits,
 		"depleted": is_planet_depleted(planet_key)
 	}
 	planet_dossiers[planet_key] = dossier
@@ -645,16 +995,21 @@ func reset_to_new_game() -> void:
 	loneliness = 45.0
 	bio_res = 0
 	silicon_res = 0
-	water_res = 25
-	food_res = 30
+	water_res = 35
+	food_res = 40
 	alloy_res = 10
 	tech_res = 0
 	melange_res = 0
-	_water_accum = 25.0
-	_food_accum = 30.0
+	_water_accum = 35.0
+	_food_accum = 40.0
+	shuttle_unlocked = false
+	shuttle_ready = true
+	shuttle_hull = shuttle_max_hull
+	active_away_mission.clear()
 	for k in mutations.keys():
 		mutations[k]["purchased"] = false
 	max_crew_capacity = 4
+	crew = [crew[0]] if crew.size() > 0 else []
 	current_system_id = 1
 	visited_system_ids = [1]
 	scanned_planets.clear()

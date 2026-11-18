@@ -865,14 +865,13 @@ func _check_asteroid_collection() -> void:
 			if a_type == "bio":
 				var b_gain: int = int(round(18.0 * GameState.get_bio_harvest_multiplier()))
 				GameState.bio_res += b_gain
-				GameState.add_food(10)
-				GameState.add_log("ASTEROID", "☄️ Organisches Fragment absorbiert: +%d 🌿 Biomasse | +10 🍖 Nahrung!" % b_gain)
+				GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 7.0)
+				GameState.add_log("ASTEROID", "☄️ Organisches Fragment absorbiert: +%d 🌿 Biomasse | +7%% ⚡ Bio-Energie!" % b_gain)
 			else:
 				var s_gain: int = int(round(22.0 * GameState.get_silicon_harvest_multiplier()))
 				GameState.silicon_res += s_gain
-				GameState.add_water(6)
-				GameState.alloy_res += 4
-				GameState.add_log("ASTEROID", "☄️ Kristall-Fragment absorbiert: +%d 💎 Silizium | +6 💧 Wasser | +4 🛡️ Legierungen!" % s_gain)
+				GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 4.0)
+				GameState.add_log("ASTEROID", "☄️ Silizium-Kristall absorbiert: +%d 💎 Silizium | +4%% ⚡ Bio-Energie!" % s_gain)
 			GameState.vitals_updated.emit()
 			active_asteroids.remove_at(i)
 			# Smoothly pull and shrink asteroid into Najmafar's mandibles
@@ -1475,83 +1474,63 @@ func _complete_channeling() -> void:
 			target.call("mark_visual_depleted")
 
 		var dossier: Dictionary = GameState.get_or_create_planet_dossier(p_key, raw_data, is_moon)
-		var temp_c: float = float(dossier.get("tempC", 20.0))
 		var bio_mult: float = GameState.get_bio_harvest_multiplier()
 		var sil_mult: float = GameState.get_silicon_harvest_multiplier()
 
+		# Orbital Bio-Siphon [E] ONLY harvests raw base matter (Biomass, Silicon, raw Qahwun, Bio-Energy)!
+		# Water, Food, Tech and Alloys require a Crew + Shuttle Away Mission on suitable planets!
 		var bio_gain: int = 0
 		var sil_gain: int = 0
-		var water_gain: int = 0
-		var food_gain: int = 0
-		var alloy_gain: int = 0
-		var tech_gain: int = 0
 		var spice_gain: int = 0
 
 		if cat == "custom":
-			# Derelict ships & Precursor Monoliths
-			sil_gain = int(round(30.0 * sil_mult))
-			alloy_gain = 20
-			tech_gain = 18
+			sil_gain = int(round(32.0 * sil_mult))
+			bio_gain = int(round(12.0 * bio_mult))
 		elif p_type == "Habitable":
-			bio_gain = int(round(55.0 * bio_mult))
-			food_gain = int(round(30.0 * bio_mult))
-			water_gain = int(round(35.0 * bio_mult))
-			sil_gain = int(round(15.0 * sil_mult))
-			spice_gain = 8
+			bio_gain = int(round(60.0 * bio_mult))
+			sil_gain = int(round(18.0 * sil_mult))
+			spice_gain = 6
 		elif p_type in ["Ice", "Eismond"]:
-			water_gain = int(round(55.0 * bio_mult))
-			sil_gain = int(round(25.0 * sil_mult))
-			bio_gain = int(round(15.0 * bio_mult))
+			sil_gain = int(round(28.0 * sil_mult))
+			bio_gain = int(round(16.0 * bio_mult))
 		elif p_type == "Gas Giant":
-			water_gain = int(round(40.0 * bio_mult))
-			bio_gain = int(round(35.0 * bio_mult))
-			sil_gain = int(round(15.0 * sil_mult))
+			# Gas Giants yield ONLY atmospheric Bio-Plankton & Bio-Energy (no Food, no Tech, no Alloys!)
+			bio_gain = int(round(42.0 * bio_mult))
+			sil_gain = int(round(10.0 * sil_mult))
 		elif p_type == "Desert":
-			sil_gain = int(round(40.0 * sil_mult))
+			sil_gain = int(round(42.0 * sil_mult))
 			spice_gain = 18
-			alloy_gain = 12
 			bio_gain = int(round(15.0 * bio_mult))
-		elif p_type == "Vulkanmond" or temp_c > 90.0:
-			alloy_gain = 25
-			sil_gain = int(round(45.0 * sil_mult))
-			tech_gain = 8
 		else:
-			sil_gain = int(round(45.0 * sil_mult))
-			alloy_gain = 15
-			water_gain = 15
-			bio_gain = int(round(20.0 * bio_mult))
+			sil_gain = int(round(48.0 * sil_mult))
+			bio_gain = int(round(22.0 * bio_mult))
 
 		if t_name.contains("Arrakis"):
-			spice_gain += 30
+			spice_gain += 28
 
 		GameState.bio_res += bio_gain
 		GameState.silicon_res += sil_gain
-		if water_gain > 0:
-			GameState.add_water(water_gain)
-		if food_gain > 0:
-			GameState.add_food(food_gain)
-		GameState.alloy_res += alloy_gain
-		GameState.tech_res += tech_gain
 		GameState.melange_res += spice_gain
-		GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 22.0)
-		GameState.health = min(GameState.max_health, GameState.health + 12.0)
+		GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 20.0)
+		GameState.health = min(GameState.max_health, GameState.health + 10.0)
 		GameState.vitals_updated.emit()
 
 		var parts: Array[String] = []
 		if bio_gain > 0: parts.append("+%d 🌿 Bio" % bio_gain)
 		if sil_gain > 0: parts.append("+%d 💎 Sil" % sil_gain)
-		if water_gain > 0: parts.append("+%d 💧 Wasser" % water_gain)
-		if food_gain > 0: parts.append("+%d 🍖 Nahrung" % food_gain)
-		if alloy_gain > 0: parts.append("+%d 🛡️ Legierungen" % alloy_gain)
-		if tech_gain > 0: parts.append("+%d ⚙️ Tech" % tech_gain)
 		if spice_gain > 0: parts.append("+%d ☕ Qahwun" % spice_gain)
-		GameState.add_log("ERNTE", "🌿 Assimilation von %s abgeschlossen (%s)! Vorkommen erschöpft." % [t_name, ", ".join(parts)])
+		parts.append("+20%% ⚡ Bio-Energie")
+
+		var dep_count: int = (dossier.get("deposits", []) as Array).size()
+		var away_hint: String = " | 🚀 Oberflächen-Vorkommen per Außenmission [F] bergbar!" if dep_count > 0 else ""
+		GameState.add_log("ERNTE", "🌿 Orbital-Siphon von %s abgeschlossen (%s).%s" % [t_name, ", ".join(parts), away_hint])
 
 	elif mode == "abduct":
 		var dossier: Dictionary = GameState.get_or_create_planet_dossier(p_key, raw_data, is_moon)
 		var cands: Array = dossier.get("candidates", [])
 		if not cands.is_empty():
 			var cand: Dictionary = cands.pop_front()
+			cand["is_abducted"] = true
 			dossier["candidates"] = cands
 			GameState.planet_dossiers[p_key] = dossier
 			GameState.crew.append(cand)

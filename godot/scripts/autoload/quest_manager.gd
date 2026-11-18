@@ -130,7 +130,8 @@ func liberate_real_ship() -> void:
 	GameState.jamal_ship_liberated = true
 	GameState.melange_res += 50
 	GameState.silicon_res += 60
+	GameState.unlock_jamal_shuttle()
 	complete_quest("prologue_jamal_ship")
 	GameState.vitals_updated.emit()
-	GameState.add_log("QUEST", "🎉 Forschungsschiff 'Ar-Riḥla' an Pier 4 geborgen! (+50 Melange, +60 Silizium)")
+	GameState.add_log("QUEST", "🎉 Forschungsschiff 'Ar-Riḥla' an Pier 4 geborgen! (+50 ☕ Qahwun, +60 💎 Silizium) — Lande-Shuttle für Außenmissionen aktiviert!")
 	open_dialogue("real_ship_liberated")
