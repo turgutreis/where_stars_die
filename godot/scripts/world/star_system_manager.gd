@@ -155,18 +155,32 @@ func _setup_milky_way_skybox() -> void:
 		world_env.environment.background_mode = Environment.BG_SKY
 		world_env.environment.sky = sky
 
+const BGM_TRACKS: Array[String] = [
+	"res://assets/music/outer_rim_solitude.wav",
+	"res://assets/music/najmafar_void_theme.wav",
+	"res://assets/music/psionic_resonance.wav"
+]
+var current_bgm_index: int = 0
+
 func _setup_audio() -> void:
 	bgm_player = AudioStreamPlayer.new()
 	bgm_player.volume_db = -10.0
 	add_child(bgm_player)
-	var track_path := "res://assets/music/outer_rim_solitude.wav"
-	if ResourceLoader.exists(track_path):
-		bgm_player.stream = load(track_path)
-		bgm_player.play()
+	bgm_player.finished.connect(_play_next_bgm_track)
+	_play_next_bgm_track()
 
 	sfx_player = AudioStreamPlayer.new()
 	sfx_player.volume_db = -8.0
 	add_child(sfx_player)
+
+func _play_next_bgm_track() -> void:
+	if not bgm_player or BGM_TRACKS.is_empty():
+		return
+	var track_path: String = BGM_TRACKS[current_bgm_index % BGM_TRACKS.size()]
+	current_bgm_index = (current_bgm_index + 1) % BGM_TRACKS.size()
+	if ResourceLoader.exists(track_path):
+		bgm_player.stream = load(track_path)
+		bgm_player.play()
 
 func _play_sfx(sfx_name: String, pitch: float = 1.0, vol_db: float = -8.0) -> void:
 	if not sfx_player:
