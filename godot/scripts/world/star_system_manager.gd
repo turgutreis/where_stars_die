@@ -926,13 +926,13 @@ func _update_target_reticle_ring(target: Node3D, dist: float, delta: float) -> v
 		else:
 			target_reticle_mat.albedo_color = Color(0.0, 1.0, 0.62, 0.36 if dist <= 36.0 else 0.18)
 
-func _sample_gravity_info(sample_pos: Vector3, future_sec: float = 0.0) -> Dictionary:
+func _sample_gravity_info(sample_pos: Vector3, sample_vel: Vector3 = Vector3.ZERO, future_sec: float = 0.0) -> Dictionary:
 	var total_accel := Vector3.ZERO
 	var pull_magnitude: float = 0.0
 	var is_repelling: bool = false
-	var g_const: float = 14.0
+	var g_const: float = 12.0
 
-	# 1. Central Star Gravity & Surface Repulsion Cushion at (0, 0, 0) (Celestial Body Only)
+	# 1. Central Star Gravity & Damped Surface Cushion at (0, 0, 0) (Celestial Body Only)
 	var to_star: Vector3 = Vector3.ZERO - sample_pos
 	to_star.y = 0.0
 	var star_dist: float = to_star.length()
@@ -940,15 +940,19 @@ func _sample_gravity_info(sample_pos: Vector3, future_sec: float = 0.0) -> Dicti
 	if star_dist > 0.1 and star_dist < 140.0:
 		var dir_star: Vector3 = to_star / star_dist
 		if star_dist < star_safe_r:
-			var push_strength: float = (star_safe_r - star_dist) * 8.0
+			var push_strength: float = min(14.0, (star_safe_r - star_dist) * 4.5)
 			total_accel -= dir_star * push_strength
+			var v_in_star: float = sample_vel.dot(dir_star)
+			if v_in_star > 0.0:
+				total_accel -= dir_star * (v_in_star * 6.5)
 			is_repelling = true
 		else:
-			var pull: float = clamp((g_const * current_star_mass) / max(60.0, star_dist * star_dist), 0.0, 10.0)
+			var soft_edge: float = clamp((star_dist - star_safe_r) / 4.0, 0.0, 1.0)
+			var pull: float = clamp((g_const * current_star_mass) / max(80.0, star_dist * star_dist), 0.0, 7.5) * soft_edge
 			total_accel += dir_star * pull
 			pull_magnitude += pull
 
-	# 2. Celestial Bodies Only (Planets & Moons) — Ships, Stations & Probes NEVER push or pull!
+	# 2. Celestial Bodies Only (Planets & Moons) — Smoothly tapered gravity + critically damped surface cushion!
 	for body in interactable_bodies:
 		if not is_instance_valid(body):
 			continue
@@ -962,16 +966,22 @@ func _sample_gravity_info(sample_pos: Vector3, future_sec: float = 0.0) -> Dicti
 		to_body.y = 0.0
 		var d: float = to_body.length()
 		var b_rad: float = (float(body.get("base_radius")) if body.get("base_radius") != null else 3.8) * body.scale.x
-		var grav_range: float = max(22.0, b_rad * 4.2) if cat == "planet" else (b_rad * 3.0 + 4.0)
+		var grav_range: float = max(24.0, b_rad * 4.0) if cat == "planet" else (b_rad * 2.8 + 4.0)
 		if d > 0.1 and d < grav_range:
 			var dir_b: Vector3 = to_body / d
-			var safe_surface: float = b_rad + 1.8
+			var safe_surface: float = b_rad + 2.0
 			if d < safe_surface:
-				total_accel -= dir_b * ((safe_surface - d) * 9.0)
+				var pen: float = safe_surface - d
+				total_accel -= dir_b * min(14.0, pen * 4.5)
+				var v_in: float = sample_vel.dot(dir_b)
+				if v_in > 0.0:
+					total_accel -= dir_b * (v_in * 6.5)
 				is_repelling = true
 			elif cat == "planet":
-				var p_mass: float = b_rad * 4.8
-				var p_pull: float = clamp((g_const * p_mass) / max(25.0, d * d), 0.0, 8.5)
+				# Smoothly taper attraction down to 0 at safe_surface so there is NO harsh snap/bounce oscillation!
+				var soft_taper: float = clamp((d - safe_surface) / 3.5, 0.0, 1.0)
+				var p_mass: float = b_rad * 4.2
+				var p_pull: float = clamp((g_const * p_mass) / max(36.0, d * d), 0.0, 5.5) * soft_taper
 				total_accel += dir_b * p_pull
 				pull_magnitude += p_pull
 
@@ -984,7 +994,7 @@ func _sample_gravity_info(sample_pos: Vector3, future_sec: float = 0.0) -> Dicti
 func _compute_gravity_acceleration() -> Vector3:
 	if not player_ship:
 		return Vector3.ZERO
-	var info: Dictionary = _sample_gravity_info(player_ship.global_position, 0.0)
+	var info: Dictionary = _sample_gravity_info(player_ship.global_position, player_ship.velocity, 0.0)
 	return info["accel"]
 
 func _create_trajectory_ribbon_node(node_name: String, add_blend: bool = true) -> Array:
@@ -1052,9 +1062,11 @@ func _update_trajectory_prediction() -> void:
 	var cur_vel: Vector3 = player_ship.velocity
 	cur_vel.y = 0.0
 
-	# Single sleek Predicted Coast Trajectory (including Sun & Planet Gravity Wells)
+	# Single sleek Predicted Coast Trajectory with Sub-Stepping (no bounce zigzag near surfaces!)
 	var steps: int = max(8, trajectory_steps)
 	var step_dt: float = trajectory_duration_sec / float(steps)
+	var sub_steps: int = 3
+	var sub_dt: float = step_dt / float(sub_steps)
 	var grav_mult: float = player_ship.gravity_influence_multiplier
 	var ship_max_spd: float = player_ship.max_speed
 
@@ -1067,34 +1079,41 @@ func _update_trajectory_prediction() -> void:
 	var total_path_len: float = 0.0
 
 	for s in range(1, steps + 1):
-		sim_time += step_dt
-		var g_info: Dictionary = _sample_gravity_info(sim_pos, sim_time)
-		var g_accel: Vector3 = g_info["accel"]
-		var pull_mag: float = float(g_info["pull_mag"])
-		var is_repel: bool = bool(g_info["repel"])
+		var last_pull: float = 0.0
+		var any_repel: bool = false
+		for _sub in range(sub_steps):
+			sim_time += sub_dt
+			var g_info: Dictionary = _sample_gravity_info(sim_pos, sim_vel, sim_time)
+			var g_accel: Vector3 = g_info["accel"]
+			last_pull = float(g_info["pull_mag"])
+			if bool(g_info["repel"]):
+				any_repel = true
 
-		sim_vel += g_accel * grav_mult * step_dt
-		if sim_vel.length() > ship_max_spd:
-			sim_vel = sim_vel.normalized() * ship_max_spd
-		sim_vel.y = 0.0
+			sim_vel += g_accel * grav_mult * sub_dt
+			if sim_vel.length() > ship_max_spd:
+				sim_vel = sim_vel.normalized() * ship_max_spd
+			sim_vel.y = 0.0
 
-		var next_pos: Vector3 = sim_pos + sim_vel * step_dt
-		total_path_len += sim_pos.distance_to(next_pos)
-		sim_pos = next_pos
+			var next_pos: Vector3 = sim_pos + sim_vel * sub_dt
+			total_path_len += sim_pos.distance_to(next_pos)
+			sim_pos = next_pos
 
 		var t_norm: float = float(s) / float(steps)
 		var alpha: float = (1.0 - t_norm) * (1.0 - t_norm * 0.35) * 0.58
 		var seg_col: Color
-		if is_repel:
+		if any_repel:
 			seg_col = Color(1.0, 0.35, 0.25, alpha)
-		elif pull_mag > 0.35:
-			var blend_w: float = clamp((pull_mag - 0.35) / 3.2, 0.0, 1.0)
+		elif last_pull > 0.35:
+			var blend_w: float = clamp((last_pull - 0.35) / 3.0, 0.0, 1.0)
 			seg_col = Color(0.22, 0.92, 1.0, alpha).lerp(Color(1.0, 0.72, 0.12, alpha), blend_w)
 		else:
 			seg_col = Color(0.22, 0.92, 1.0, alpha)
 
 		traj_pts.append(Vector3(sim_pos.x, -0.08, sim_pos.z))
 		traj_cols.append(seg_col)
+
+		if any_repel and sim_vel.length() < 1.2:
+			break
 
 	if total_path_len < 0.8:
 		if trajectory_mesh_inst:
