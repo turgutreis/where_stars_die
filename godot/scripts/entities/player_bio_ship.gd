@@ -45,6 +45,9 @@ var target_camera_height: float = 95.0
 var anim_time: float = 0.0
 var swim_phase: float = 0.0
 var external_gravity_accel: Vector3 = Vector3.ZERO
+var psi_flare_timer: float = 0.0
+var damage_flash_timer: float = 0.0
+const DEFAULT_BIO_LIGHT_COLOR: Color = Color(0.0, 1.0, 0.533, 1.0)
 
 @onready var visual_root: Node3D = $VisualRoot
 @onready var body_mesh: MeshInstance3D = $VisualRoot/BodyMesh
@@ -72,6 +75,18 @@ func trigger_warp_arrival_zoom() -> void:
 	camera_height = min(max_camera_height, default_camera_height * 1.85)
 	target_camera_height = default_camera_height
 	_update_camera_transform()
+
+func get_forward_dir() -> Vector3:
+	return Vector3(cos(ship_heading), 0.0, -sin(ship_heading)).normalized()
+
+func trigger_psi_cone_flare(recoil_dir: Vector3) -> void:
+	psi_flare_timer = 0.36
+	var flat_dir: Vector3 = Vector3(recoil_dir.x, 0.0, recoil_dir.z)
+	if flat_dir.length_squared() > 0.0001:
+		velocity -= flat_dir.normalized() * 2.0
+
+func trigger_damage_flash() -> void:
+	damage_flash_timer = 0.28
 
 func _update_camera_transform() -> void:
 	if not is_inside_tree() or not camera_3d:
@@ -214,6 +229,10 @@ func _physics_process(delta: float) -> void:
 		return
 
 	anim_time += delta
+	if psi_flare_timer > 0.0:
+		psi_flare_timer = max(0.0, psi_flare_timer - delta)
+	if damage_flash_timer > 0.0:
+		damage_flash_timer = max(0.0, damage_flash_timer - delta)
 
 	# 1. Steering Input (A / D or Left / Right)
 	var turn_input: float = 0.0
@@ -266,7 +285,15 @@ func _physics_process(delta: float) -> void:
 			GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 1.15 * delta)
 
 	if bio_light:
-		bio_light.light_energy = 2.4 + sin(swim_phase) * 0.5 if is_thrusting else 1.6
+		if damage_flash_timer > 0.0:
+			bio_light.light_color = Color(1.0, 0.18, 0.15, 1.0)
+			bio_light.light_energy = 4.2
+		elif psi_flare_timer > 0.0:
+			bio_light.light_color = Color(0.55, 0.38, 1.0, 1.0)
+			bio_light.light_energy = 3.8
+		else:
+			bio_light.light_color = DEFAULT_BIO_LIGHT_COLOR
+			bio_light.light_energy = 2.4 + sin(swim_phase) * 0.5 if is_thrusting else 1.6
 
 	if is_braking:
 		velocity = velocity.move_toward(Vector3.ZERO, retro_thrust_strength * delta)
@@ -313,9 +340,10 @@ func _physics_process(delta: float) -> void:
 		nucleus_core.scale = Vector3(pulse, pulse, pulse)
 
 	if left_mandible and right_mandible:
-		var pinch := sin(swim_phase * 0.8) * 0.12
-		left_mandible.rotation.y = pinch
-		right_mandible.rotation.y = -pinch
+		var pinch: float = sin(swim_phase * 0.8) * 0.12
+		var flare: float = (psi_flare_timer / 0.36) * 0.44 if psi_flare_timer > 0.0 else 0.0
+		left_mandible.rotation.y = pinch + flare
+		right_mandible.rotation.y = -pinch - flare
 
 	# Traveling S-Wave along the Twin 6-Segment Tail Tendrils (in-phase swimming whip)
 	for t_idx in range(tendrils.size()):

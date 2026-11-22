@@ -70,7 +70,7 @@ func get_active_quest_directive_text() -> String:
 			if GameState.current_system_id != int(depot.get("id", -1)):
 				return "🌌 DIREKTIVE: Öffne die Sternenkarte [M] und falte den Raum zur %s (🔶 QUEST-ZIEL)!" % depot_name
 			else:
-				return "🛰️ DIREKTIVE: Fliege zur INSAN-Station (Schalter 7B) [F] oder befreie die echte Ar-Riḥla an Pier 4 mit Bio-EMP [X]!"
+				return "🛰️ DIREKTIVE: Fliege zur INSAN-Station (Schalter 7B) [F] oder befreie die echte Ar-Riḥla an Pier 4 mit dem Psi-Kegel [X]!"
 	return "🧬 DIREKTIVE: Erkunde die Galaxie [M], scanne Welten [F] und suche nach der Anomalie von 2035."
 
 func open_dialogue(node_id: String) -> void:

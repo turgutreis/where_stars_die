@@ -13,6 +13,7 @@ signal dossier_updated(planet_key: String, dossier: Dictionary)
 signal crew_updated()
 signal mutations_updated()
 signal away_mission_updated(mission: Dictionary)
+signal player_emergency_revived()
 
 # --- Player Vitals & Environmental Survival ---
 var health: float = 100.0
@@ -68,6 +69,7 @@ var jamal_ship_liberated: bool = false
 var voyager_scanned: bool = false
 var voyager_liberated: bool = false
 var ftue_step: int = 1
+var combat_kills: int = 0
 
 # --- Navigation & Universe ---
 var universe_data: Dictionary = {}
@@ -965,6 +967,27 @@ func get_thrust_energy_multiplier() -> float:
 			mult *= 0.8
 	return mult
 
+func get_psi_damage_multiplier() -> float:
+	var mult: float = 1.0
+	if is_mutation_purchased("telepathic_focus"):
+		mult += 0.35
+	for c in crew:
+		if str(c.get("roleKey", "")) == "psion":
+			mult += 0.20
+	return mult
+
+func apply_combat_damage(raw_amount: float, source_label: String = "Feindfeuer") -> void:
+	var armor_mult: float = 0.75 if is_mutation_purchased("chitin_armor") else 1.0
+	var dmg: float = max(1.0, raw_amount * armor_mult)
+	health -= dmg
+	if health <= 0.0:
+		health = max_health * 0.45
+		bio_energy = max(15.0, bio_energy - 12.0)
+		mental_energy = max(15.0, mental_energy - 8.0)
+		add_log("NOTFALL", "🚨 CHITIN-NOTSTASIS: Hülle gegen %s kollabiert — Notfall-Regeneration aktiviert (45%% ❤️ Hülle)!" % source_label)
+		player_emergency_revived.emit()
+	vitals_updated.emit()
+
 func warp_to_system(target_id: int) -> void:
 	var warp_bio_cost: float = 20.0
 	var warp_mental_cost: float = 15.0
@@ -1020,6 +1043,7 @@ func reset_to_new_game() -> void:
 	jamal_ship_liberated = false
 	voyager_scanned = false
 	voyager_liberated = false
+	combat_kills = 0
 	locked_target = null
 	nearest_interactable = null
 	vitals_updated.emit()

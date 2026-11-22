@@ -34,12 +34,24 @@ extends Node3D
 @export_range(2.0, 20.0, 0.5) var trajectory_duration_sec: float = 8.0
 @export_range(16, 80, 2) var trajectory_steps: int = 44
 
+@export_category("Kampf & Psi-Kegel")
+@export_range(18.0, 80.0, 1.0) var psi_cone_range: float = 42.0
+@export_range(12.0, 55.0, 1.0) var psi_cone_half_angle_deg: float = 28.0
+@export_range(0.25, 3.0, 0.05) var psi_cone_cooldown: float = 0.75
+@export var psi_cone_base_damage: float = 38.0
+@export var psi_cone_stun_sec: float = 3.2
+
+const HostileDroneScript: GDScript = preload("res://scripts/entities/hostile_drone.gd")
+
 @onready var procedural_container: Node3D = $ProceduralSystemContainer
 @onready var player_ship: PlayerBioShip = $PlayerBioShip
 @onready var world_env: WorldEnvironment = $WorldEnvironment
 
 var interactable_bodies: Array[Node3D] = []
 var active_asteroids: Array[Node3D] = []
+var active_hostiles: Array[Node3D] = []
+var active_enemy_projectiles: Array[Dictionary] = []
+var psi_cone_cooldown_timer: float = 0.0
 var texture_cache: Dictionary = {}
 var bgm_player: AudioStreamPlayer = null
 var sfx_player: AudioStreamPlayer = null
@@ -92,6 +104,7 @@ func _ready() -> void:
 
 	_setup_audio()
 	GameState.system_changed.connect(_on_system_changed)
+	GameState.player_emergency_revived.connect(_on_player_emergency_revived)
 	build_star_system(GameState.get_current_system())
 	# Trigger Dr. Tariq Jamal's initial telepathic greeting shortly after arrival
 	get_tree().create_timer(0.8).timeout.connect(func():
@@ -222,6 +235,9 @@ func build_star_system(sys_data: Dictionary) -> void:
 
 	interactable_bodies.clear()
 	active_asteroids.clear()
+	active_hostiles.clear()
+	active_enemy_projectiles.clear()
+	psi_cone_cooldown_timer = 0.0
 	for child in procedural_container.get_children():
 		child.queue_free()
 
@@ -329,6 +345,10 @@ func build_star_system(sys_data: Dictionary) -> void:
 		_spawn_orbital_station(first_planet, "INSAN-Hauptverwaltung Zeta-9 (Schalter 7B)", true)
 		_spawn_jamal_shuttle(first_planet, true)
 		_spawn_voyager_probe()
+		if not Engine.is_editor_hint():
+			var fp_base: Vector3 = first_planet.global_position
+			_spawn_hostile_drone("scout", fp_base + Vector3(-28.0, 0.0, 8.0), -0.4)
+			_spawn_hostile_drone("enforcer", fp_base + Vector3(30.0, 0.0, 6.0), -2.6)
 
 	# Position Player Ship near the first planet so the player immediately sees the planet, moons & Jamal's shuttle!
 	if not player_ship:
@@ -811,6 +831,7 @@ func _process(delta: float) -> void:
 	_check_asteroid_collection()
 	player_ship.external_gravity_accel = _compute_gravity_acceleration()
 	_update_trajectory_prediction()
+	_update_combat_system(delta)
 
 func _update_environmental_radiation() -> void:
 	if not player_ship:
@@ -1171,58 +1192,245 @@ func _spawn_energy_beam(from_pos: Vector3, to_pos: Vector3, beam_color: Color, d
 			pulse_ring.queue_free()
 	)
 
-func _spawn_bio_emp_shockwave(origin_pos: Vector3, hit_target: Node3D = null, custom_color: Color = Color(0.22, 0.88, 1.0, 0.78)) -> void:
+func _build_psi_arc_mesh(half_angle_rad: float, inner_r: float, outer_r: float, front_col: Color, back_col: Color) -> ImmediateMesh:
+	var imm := ImmediateMesh.new()
+	var segs: int = 24
+	var mid_r: float = (inner_r + outer_r) * 0.5
+	var base_half_w: float = (outer_r - inner_r) * 0.5
+	imm.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	for i in range(segs + 1):
+		var t: float = float(i) / float(segs)
+		var angle: float = lerpf(-half_angle_rad, half_angle_rad, t)
+		var taper: float = sin(t * PI)
+		var w_scale: float = 0.14 + 0.86 * pow(max(0.0, taper), 0.72)
+		var r_in: float = mid_r - base_half_w * w_scale
+		var r_out: float = mid_r + base_half_w * w_scale
+		var dir_local := Vector3(sin(angle), 0.0, -cos(angle))
+		var alpha_edge: float = 0.16 + 0.84 * taper
+
+		var c_back := Color(back_col.r, back_col.g, back_col.b, back_col.a * alpha_edge)
+		var c_front := Color(front_col.r, front_col.g, front_col.b, front_col.a * alpha_edge)
+		imm.surface_set_color(c_back)
+		imm.surface_add_vertex(dir_local * r_in)
+		imm.surface_set_color(c_front)
+		imm.surface_add_vertex(dir_local * r_out)
+	imm.surface_end()
+	return imm
+
+func _append_cone_quad(imm: ImmediateMesh, p0: Vector3, c0: Color, p1: Vector3, c1: Color, p2: Vector3, c2: Color, p3: Vector3, c3: Color) -> void:
+	imm.surface_set_color(c0)
+	imm.surface_add_vertex(p0)
+	imm.surface_set_color(c1)
+	imm.surface_add_vertex(p1)
+	imm.surface_set_color(c2)
+	imm.surface_add_vertex(p2)
+
+	imm.surface_set_color(c0)
+	imm.surface_add_vertex(p0)
+	imm.surface_set_color(c2)
+	imm.surface_add_vertex(p2)
+	imm.surface_set_color(c3)
+	imm.surface_add_vertex(p3)
+
+func _spawn_psi_cone_vfx(origin_pos: Vector3, cone_dir: Vector3, cone_range: float, half_angle_rad: float) -> void:
 	if not procedural_container:
 		return
 
-	var wave_root := Node3D.new()
-	wave_root.position = Vector3(origin_pos.x, 0.15, origin_pos.z)
-	procedural_container.add_child(wave_root)
+	var fwd: Vector3 = Vector3(cone_dir.x, 0.0, cone_dir.z).normalized()
+	if fwd.length_squared() < 0.0001:
+		fwd = Vector3(1.0, 0.0, 0.0)
+	var right: Vector3 = Vector3(-fwd.z, 0.0, fwd.x).normalized()
 
-	var mat := StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.albedo_color = custom_color
+	var cone_root := Node3D.new()
+	cone_root.position = Vector3(origin_pos.x, 0.22, origin_pos.z)
+	cone_root.basis = Basis(right, Vector3.UP, -fwd)
+	procedural_container.add_child(cone_root)
 
-	# Expanding Torus Shockwave Ring
-	var ring_inst := MeshInstance3D.new()
-	var torus := TorusMesh.new()
-	torus.inner_radius = 0.85
-	torus.outer_radius = 1.15
-	torus.rings = 64
-	torus.ring_segments = 12
-	torus.material = mat
-	ring_inst.mesh = torus
-	wave_root.add_child(ring_inst)
+	# Layer A: Volumetric 3D Psionic Cone Body + Sharp Boundary Edge Beams
+	var cone_imm := ImmediateMesh.new()
+	var segs: int = 20
+	var r0: float = 0.04
+	var r_mid: float = 0.46
+	var r1: float = 1.0
+	var y_mid: float = 0.72
+	var y_edge: float = 1.55
+	var col_apex := Color(0.68, 0.96, 1.0, 0.46)
+	var col_mid := Color(0.60, 0.28, 1.0, 0.22)
+	var col_outer := Color(0.24, 0.82, 1.0, 0.03)
+	var col_mantle_outer := Color(0.54, 0.24, 1.0, 0.02)
 
-	# Expanding Energy Dome Sphere
-	var dome_mat := StandardMaterial3D.new()
-	dome_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	dome_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	dome_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	dome_mat.albedo_color = Color(custom_color.r, custom_color.g, custom_color.b, 0.25)
-	var dome_inst := MeshInstance3D.new()
-	var sph := SphereMesh.new()
-	sph.radius = 1.0
-	sph.height = 2.0
-	sph.material = dome_mat
-	dome_inst.mesh = sph
-	wave_root.add_child(dome_inst)
+	cone_imm.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in range(segs):
+		var t_a: float = float(i) / float(segs)
+		var t_b: float = float(i + 1) / float(segs)
+		var a_a: float = lerpf(-half_angle_rad, half_angle_rad, t_a)
+		var a_b: float = lerpf(-half_angle_rad, half_angle_rad, t_b)
+		var d_a := Vector3(sin(a_a), 0.0, -cos(a_a))
+		var d_b := Vector3(sin(a_b), 0.0, -cos(a_b))
+		var env_a: float = 0.35 + 0.65 * sin(t_a * PI)
+		var env_b: float = 0.35 + 0.65 * sin(t_b * PI)
+
+		var ca0 := Color(col_apex.r, col_apex.g, col_apex.b, col_apex.a * env_a)
+		var cb0 := Color(col_apex.r, col_apex.g, col_apex.b, col_apex.a * env_b)
+		var cam := Color(col_mid.r, col_mid.g, col_mid.b, col_mid.a * env_a)
+		var cbm := Color(col_mid.r, col_mid.g, col_mid.b, col_mid.a * env_b)
+		var ca1 := Color(col_outer.r, col_outer.g, col_outer.b, col_outer.a * env_a)
+		var cb1 := Color(col_outer.r, col_outer.g, col_outer.b, col_outer.a * env_b)
+
+		# Flat central fan (apex -> mid -> rim)
+		_append_cone_quad(cone_imm, d_a * r0, ca0, d_b * r0, cb0, d_b * r_mid, cbm, d_a * r_mid, cam)
+		_append_cone_quad(cone_imm, d_a * r_mid, cam, d_b * r_mid, cbm, d_b * r1, cb1, d_a * r1, ca1)
+
+		# Upper & lower 3D frustum mantle layers for true 3D conical depth
+		var up_apex_a: Vector3 = d_a * r0 + Vector3(0.0, 0.06, 0.0)
+		var up_apex_b: Vector3 = d_b * r0 + Vector3(0.0, 0.06, 0.0)
+		var up_mid_a: Vector3 = d_a * r_mid + Vector3(0.0, y_mid, 0.0)
+		var up_mid_b: Vector3 = d_b * r_mid + Vector3(0.0, y_mid, 0.0)
+		var up_out_a: Vector3 = d_a * r1 + Vector3(0.0, y_edge, 0.0)
+		var up_out_b: Vector3 = d_b * r1 + Vector3(0.0, y_edge, 0.0)
+		var cm0 := Color(col_apex.r, col_apex.g, col_apex.b, 0.16 * env_a)
+		var cm1 := Color(col_apex.r, col_apex.g, col_apex.b, 0.16 * env_b)
+		var cmm0 := Color(col_mid.r, col_mid.g, col_mid.b, 0.10 * env_a)
+		var cmm1 := Color(col_mid.r, col_mid.g, col_mid.b, 0.10 * env_b)
+		_append_cone_quad(cone_imm, up_apex_a, cm0, up_apex_b, cm1, up_mid_b, cmm1, up_mid_a, cmm0)
+		_append_cone_quad(cone_imm, up_mid_a, cmm0, up_mid_b, cmm1, up_out_b, col_mantle_outer, up_out_a, col_mantle_outer)
+
+		var dn_apex_a: Vector3 = d_a * r0 - Vector3(0.0, 0.06, 0.0)
+		var dn_apex_b: Vector3 = d_b * r0 - Vector3(0.0, 0.06, 0.0)
+		var dn_mid_a: Vector3 = d_a * r_mid - Vector3(0.0, y_mid, 0.0)
+		var dn_mid_b: Vector3 = d_b * r_mid - Vector3(0.0, y_mid, 0.0)
+		var dn_out_a: Vector3 = d_a * r1 - Vector3(0.0, y_edge, 0.0)
+		var dn_out_b: Vector3 = d_b * r1 - Vector3(0.0, y_edge, 0.0)
+		_append_cone_quad(cone_imm, dn_apex_a, cm0, dn_apex_b, cm1, dn_mid_b, cmm1, dn_mid_a, cmm0)
+		_append_cone_quad(cone_imm, dn_mid_a, cmm0, dn_mid_b, cmm1, dn_out_b, col_mantle_outer, dn_out_a, col_mantle_outer)
+
+	# Crisp Glowing Cone Side Boundary Edges (-half_angle and +half_angle)
+	var edge_angles: Array[float] = [-half_angle_rad, half_angle_rad]
+	var col_edge_in := Color(0.55, 0.94, 1.0, 0.68)
+	var col_edge_out := Color(0.58, 0.30, 1.0, 0.04)
+	for e_angle in edge_angles:
+		var e_dir := Vector3(sin(e_angle), 0.0, -cos(e_angle))
+		var e_perp := Vector3(cos(e_angle), 0.0, sin(e_angle))
+		var p_in_l: Vector3 = e_dir * r0 - e_perp * 0.008
+		var p_in_r: Vector3 = e_dir * r0 + e_perp * 0.008
+		var p_out_l: Vector3 = e_dir * r1 - e_perp * 0.016
+		var p_out_r: Vector3 = e_dir * r1 + e_perp * 0.016
+		_append_cone_quad(cone_imm, p_in_l, col_edge_in, p_in_r, col_edge_in, p_out_r, col_edge_out, p_out_l, col_edge_out)
+	cone_imm.surface_end()
+
+	var cone_mat := StandardMaterial3D.new()
+	cone_mat.vertex_color_use_as_albedo = true
+	cone_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cone_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	cone_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	cone_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	cone_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	cone_mat.albedo_color = Color(1.0, 1.0, 1.0, 1.0)
+
+	var cone_body := MeshInstance3D.new()
+	cone_body.mesh = cone_imm
+	cone_body.material_override = cone_mat
+	cone_body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	cone_body.scale = Vector3(2.2, 0.35, 2.2)
+	cone_root.add_child(cone_body)
+
+	# Layer C: Brief Psionic Muzzle Light Flash at Apex
+	var cone_light := OmniLight3D.new()
+	cone_light.light_color = Color(0.58, 0.38, 1.0)
+	cone_light.light_energy = 4.2
+	cone_light.omni_range = 24.0
+	cone_light.position = Vector3(0.0, 0.5, -1.0)
+	cone_root.add_child(cone_light)
 
 	var tw: Tween = create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(wave_root, "scale", Vector3(34.0, 4.0, 34.0), 0.72).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tw.tween_property(mat, "albedo_color:a", 0.0, 0.72)
-	tw.tween_property(dome_mat, "albedo_color:a", 0.0, 0.72)
+	tw.tween_property(cone_body, "scale", Vector3(cone_range, 1.0, cone_range), 0.24).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_property(cone_mat, "albedo_color:a", 0.0, 0.48).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(cone_light, "light_energy", 0.0, 0.34)
+
+	# Layer B: 3 Staggered Directional Sickle/Crescent Wave Arcs (never a full circle!)
+	var arc_front_colors: Array[Color] = [
+		Color(0.68, 0.96, 1.0, 0.92),
+		Color(0.64, 0.52, 1.0, 0.84),
+		Color(0.45, 0.85, 1.0, 0.72)
+	]
+	var arc_back_colors: Array[Color] = [
+		Color(0.55, 0.32, 1.0, 0.25),
+		Color(0.42, 0.18, 0.95, 0.20),
+		Color(0.32, 0.45, 1.0, 0.15)
+	]
+	for arc_idx in range(3):
+		var delay: float = float(arc_idx) * 0.065
+		var front_col: Color = arc_front_colors[arc_idx]
+		var back_col: Color = arc_back_colors[arc_idx]
+		var arc_mesh: ImmediateMesh = _build_psi_arc_mesh(half_angle_rad, 0.86, 1.0, front_col, back_col)
+		var arc_mat := StandardMaterial3D.new()
+		arc_mat.vertex_color_use_as_albedo = true
+		arc_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		arc_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		arc_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		arc_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		arc_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+		arc_mat.albedo_color = Color(1.0, 1.0, 1.0, 1.0)
+
+		var arc_inst := MeshInstance3D.new()
+		arc_inst.mesh = arc_mesh
+		arc_inst.material_override = arc_mat
+		arc_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		arc_inst.scale = Vector3(2.2, 1.0, 2.2)
+		arc_inst.visible = (arc_idx == 0)
+		cone_root.add_child(arc_inst)
+
+		if arc_idx > 0:
+			tw.tween_callback(func():
+				if is_instance_valid(arc_inst):
+					arc_inst.visible = true
+			).set_delay(delay)
+		tw.tween_property(arc_inst, "scale", Vector3(cone_range, 1.0, cone_range), 0.36).set_delay(delay).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(arc_mat, "albedo_color:a", 0.0, 0.36).set_delay(delay).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
 	tw.chain().tween_callback(func():
-		if is_instance_valid(wave_root):
-			wave_root.queue_free()
+		if is_instance_valid(cone_root):
+			cone_root.queue_free()
 	)
 
-	if hit_target and is_instance_valid(hit_target):
-		_spawn_energy_beam(origin_pos, hit_target.global_position, Color(0.68, 0.35, 1.0, 0.95), 0.65)
+func _is_point_in_psi_cone(origin: Vector3, cone_dir: Vector3, target_pos: Vector3, target_radius: float, max_range: float, half_angle_rad: float) -> bool:
+	var to_t: Vector3 = Vector3(target_pos.x - origin.x, 0.0, target_pos.z - origin.z)
+	var dist: float = to_t.length()
+	if dist > max_range + target_radius:
+		return false
+	if dist <= target_radius + 2.5:
+		return to_t.dot(cone_dir) >= -0.4 or dist < 1.2
+	var angular_pad: float = asin(clamp(target_radius / max(dist, target_radius + 0.01), 0.0, 0.85))
+	var angle: float = acos(clamp((to_t / dist).dot(cone_dir), -1.0, 1.0))
+	return angle <= half_angle_rad + angular_pad
+
+func _spawn_impact_flash(pos: Vector3, flash_color: Color, target_scale: float = 2.8, duration: float = 0.28) -> void:
+	if not procedural_container:
+		return
+	var flash_inst := MeshInstance3D.new()
+	var sph := SphereMesh.new()
+	sph.radius = 0.5
+	sph.height = 1.0
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_color = flash_color
+	sph.material = mat
+	flash_inst.mesh = sph
+	flash_inst.position = Vector3(pos.x, 0.3, pos.z)
+	flash_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	procedural_container.add_child(flash_inst)
+
+	var tw: Tween = create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(flash_inst, "scale", Vector3(target_scale, target_scale * 0.5, target_scale), duration).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	tw.tween_property(mat, "albedo_color:a", 0.0, duration)
+	tw.chain().tween_callback(func():
+		if is_instance_valid(flash_inst):
+			flash_inst.queue_free()
+	)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if Engine.is_editor_hint():
@@ -1235,8 +1443,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_handle_e_harvest()
 		elif key_event.keycode == KEY_R:
 			_handle_r_abduct()
-		elif key_event.keycode == KEY_X:
-			_handle_x_bio_emp()
+		elif key_event.keycode == KEY_X or key_event.keycode == KEY_SPACE:
+			_handle_x_psi_cone()
+		elif key_event.keycode == KEY_K:
+			_handle_k_spawn_combat_test()
 		elif key_event.keycode == KEY_Z:
 			GameState.flight_assist = not GameState.flight_assist
 			GameState.add_log("SYSTEM", "🛸 Flug-Assistent: %s" % ("AN" if GameState.flight_assist else "AUS"))
@@ -1566,26 +1776,265 @@ func _complete_channeling() -> void:
 				GameState.max_crew_capacity
 			])
 
-func _handle_x_bio_emp() -> void:
-	if GameState.bio_energy < 18.0:
-		GameState.add_log("WARNUNG", "⚠️ Unzureichende Bio-Energie (%.0f / 18 ⚡) für Bio-EMP Schockwelle!" % GameState.bio_energy)
+func _spawn_hostile_drone(variant: String, spawn_pos: Vector3, initial_heading: float = 0.0) -> Node3D:
+	if not procedural_container:
+		return null
+	var drone: Node3D = HostileDroneScript.new() as Node3D
+	if not drone:
+		return null
+	drone.position = Vector3(spawn_pos.x, 0.0, spawn_pos.z)
+	procedural_container.add_child(drone)
+	drone.call("setup_drone", variant, spawn_pos, initial_heading)
+	active_hostiles.append(drone)
+	return drone
+
+func _handle_k_spawn_combat_test() -> void:
+	if QuestManager.is_dialogue_open or not player_ship:
 		return
-	GameState.bio_energy = max(0.0, GameState.bio_energy - 18.0)
+	var alive_count: int = 0
+	for h in active_hostiles:
+		if is_instance_valid(h):
+			alive_count += 1
+	if alive_count >= 6:
+		GameState.add_log("KAMPF", "⚔️ Bereits %d aktive Feind-Drohnen im Sektor (Max. 6 für Kampf-Test)!" % alive_count)
+		return
+
+	var fwd: Vector3 = player_ship.get_forward_dir()
+	var base_angle: float = atan2(-fwd.z, fwd.x)
+	var fan_angles: Array[float] = [-24.0, 0.0, 24.0]
+	var fan_dists: Array[float] = [36.0, 40.0, 36.0]
+	var fan_variants: Array[String] = ["scout", "enforcer", "scout"]
+
+	var spawned: int = 0
+	for idx in range(fan_angles.size()):
+		if alive_count + spawned >= 6:
+			break
+		var ang: float = base_angle + deg_to_rad(fan_angles[idx])
+		var offset: Vector3 = Vector3(cos(ang), 0.0, -sin(ang)) * fan_dists[idx]
+		var s_pos: Vector3 = player_ship.global_position + offset
+		s_pos.y = 0.0
+		var face_player: float = ang + PI
+		var d: Node3D = _spawn_hostile_drone(fan_variants[idx], s_pos, face_player)
+		if d:
+			_spawn_impact_flash(s_pos, Color(1.0, 0.25, 0.2, 0.85), 3.4, 0.35)
+			spawned += 1
+
+	if spawned > 0:
+		_play_sfx("sonar_ping.wav", 0.92, -11.0)
+		GameState.add_log("KAMPF-TEST", "⚔️ %d INSAN-Drohnen voraus gespawnt! Ziele mit [A/D] und feuere den Psi-Kegel mit [X] oder [Leertaste]!" % spawned)
+
+func _spawn_enemy_projectile(origin: Vector3, dir: Vector3, spd: float, dmg: float) -> void:
+	if not procedural_container:
+		return
+	var flat_dir: Vector3 = Vector3(dir.x, 0.0, dir.z).normalized()
+	if flat_dir.length_squared() < 0.0001:
+		return
+	var right: Vector3 = Vector3(-flat_dir.z, 0.0, flat_dir.x).normalized()
+
+	var bolt_node := Node3D.new()
+	bolt_node.position = Vector3(origin.x, 0.25, origin.z)
+	bolt_node.basis = Basis(right, Vector3.UP, -flat_dir)
+
+	var bolt_mesh := MeshInstance3D.new()
+	var cap := CapsuleMesh.new()
+	cap.radius = 0.14
+	cap.height = 1.25
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_color = Color(1.0, 0.28, 0.16, 0.95)
+	cap.material = mat
+	bolt_mesh.mesh = cap
+	bolt_mesh.rotation.x = PI * 0.5
+	bolt_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	bolt_node.add_child(bolt_mesh)
+	procedural_container.add_child(bolt_node)
+
+	active_enemy_projectiles.append({
+		"node": bolt_node,
+		"vel": flat_dir * spd,
+		"dmg": dmg,
+		"life": 2.4
+	})
+
+func _update_combat_system(delta: float) -> void:
+	if psi_cone_cooldown_timer > 0.0:
+		psi_cone_cooldown_timer = max(0.0, psi_cone_cooldown_timer - delta)
+	if QuestManager.is_dialogue_open or not player_ship:
+		return
+
+	var p_pos: Vector3 = player_ship.global_position
+	var fire_cb: Callable = Callable(self, "_spawn_enemy_projectile")
+	for i in range(active_hostiles.size() - 1, -1, -1):
+		var d: Node3D = active_hostiles[i]
+		if not is_instance_valid(d):
+			active_hostiles.remove_at(i)
+			continue
+		d.call("update_combat_ai", delta, p_pos, fire_cb)
+
+	for i in range(active_enemy_projectiles.size() - 1, -1, -1):
+		var proj: Dictionary = active_enemy_projectiles[i]
+		var b_node: Node3D = proj.get("node") as Node3D
+		if not b_node or not is_instance_valid(b_node):
+			active_enemy_projectiles.remove_at(i)
+			continue
+		var life: float = float(proj.get("life", 0.0)) - delta
+		if life <= 0.0:
+			b_node.queue_free()
+			active_enemy_projectiles.remove_at(i)
+			continue
+		var vel: Vector3 = proj.get("vel", Vector3.ZERO)
+		b_node.global_position += vel * delta
+		proj["life"] = life
+		active_enemy_projectiles[i] = proj
+
+		var b_flat: Vector3 = Vector3(b_node.global_position.x, 0.0, b_node.global_position.z)
+		var p_flat: Vector3 = Vector3(p_pos.x, 0.0, p_pos.z)
+		if b_flat.distance_to(p_flat) <= 2.2:
+			var dmg: float = float(proj.get("dmg", 6.0))
+			GameState.apply_combat_damage(dmg, "INSAN-Plasmafeuer")
+			player_ship.trigger_damage_flash()
+			_play_sfx("ship_thrust_ignite.wav", 0.58, -10.0)
+			_spawn_impact_flash(b_node.global_position, Color(1.0, 0.25, 0.16, 0.95), 2.4, 0.22)
+			b_node.queue_free()
+			active_enemy_projectiles.remove_at(i)
+
+func _handle_drone_destroyed(drone: Node3D, list_idx: int) -> void:
+	var d_pos: Vector3 = drone.global_position
+	var d_variant: String = str(drone.get("variant")) if drone.get("variant") != null else "scout"
+	var d_name: String = str(drone.get("display_name")) if drone.get("display_name") != null else "Drohne"
+
+	var alloy_gain: int = 11 if d_variant == "enforcer" else 6
+	var tech_gain: int = 8 if d_variant == "enforcer" else 4
+	var sil_gain: int = 16 if d_variant == "enforcer" else 10
+	var energy_gain: float = 18.0 if d_variant == "enforcer" else 12.0
+	var mental_gain: float = 8.0 if d_variant == "enforcer" else 4.0
+
+	GameState.alloy_res += alloy_gain
+	GameState.tech_res += tech_gain
+	GameState.silicon_res += sil_gain
+	GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + energy_gain)
+	GameState.mental_energy = min(GameState.max_mental_energy, GameState.mental_energy + mental_gain)
+	GameState.combat_kills += 1
 	GameState.vitals_updated.emit()
-	_play_sfx("sonar_ping.wav")
-	var target: Node3D = GameState.nearest_interactable
-	var hit_node: Node3D = null
-	if target and is_instance_valid(target):
-		var dist: float = player_ship.global_position.distance_to(target.global_position)
-		if dist <= 36.0:
-			hit_node = target
-	_spawn_bio_emp_shockwave(player_ship.global_position, hit_node)
-	if hit_node and str(hit_node.get_meta("entity_category", "")) == "jamal_shuttle":
-		var sys: Dictionary = GameState.get_current_system()
-		if sys.get("isInsanDepot", false) or String(sys.get("name", "")).contains("INSAN"):
-			QuestManager.liberate_real_ship()
-			return
-	GameState.add_log("EMP", "⚡ Psionische Bio-EMP Schockwelle ausgelöst (-18 ⚡ Bio-Energie)!")
+
+	_play_sfx("ship_thrust_ignite.wav", 1.32, -9.0)
+	_spawn_impact_flash(d_pos, Color(1.0, 0.52, 0.25, 0.95), 5.2, 0.35)
+	GameState.add_log("BEUTE", "💥 %s zerlegt! Bergung: +%d 🛡️ Leg, +%d ⚙️ Tech, +%d 💎 Sil, +%.0f%% ⚡!" % [
+		d_name, alloy_gain, tech_gain, sil_gain, energy_gain
+	])
+	active_hostiles.remove_at(list_idx)
+	drone.queue_free()
+
+func _on_player_emergency_revived() -> void:
+	if not player_ship:
+		return
+	var p_pos: Vector3 = player_ship.global_position
+	for h in active_hostiles:
+		if is_instance_valid(h):
+			var away: Vector3 = Vector3(h.global_position.x - p_pos.x, 0.0, h.global_position.z - p_pos.z)
+			var push_dir: Vector3 = away.normalized() if away.length_squared() > 0.01 else Vector3(1.0, 0.0, 0.0)
+			h.call("apply_psi_hit", 0.0, 3.0, push_dir * 28.0)
+	for proj in active_enemy_projectiles:
+		var b_node: Node3D = proj.get("node") as Node3D
+		if b_node and is_instance_valid(b_node):
+			b_node.queue_free()
+	active_enemy_projectiles.clear()
+
+func _handle_x_psi_cone() -> void:
+	if QuestManager.is_dialogue_open or not player_ship:
+		return
+	if psi_cone_cooldown_timer > 0.0:
+		return
+
+	var bio_cost: float = 10.0
+	var mental_cost: float = 4.0 if GameState.is_mutation_purchased("telepathic_focus") else 6.0
+	if GameState.bio_energy < bio_cost or GameState.mental_energy < mental_cost:
+		GameState.add_log("WARNUNG", "⚠️ Psi-Kegel benötigt %.0f ⚡ Bio-Energie & %.0f 🧠 Mentalkraft (Vorhanden: %.0f ⚡ / %.0f 🧠)!" % [
+			bio_cost, mental_cost, GameState.bio_energy, GameState.mental_energy
+		])
+		return
+
+	GameState.bio_energy = max(0.0, GameState.bio_energy - bio_cost)
+	GameState.mental_energy = max(0.0, GameState.mental_energy - mental_cost)
+	psi_cone_cooldown_timer = psi_cone_cooldown
+	GameState.vitals_updated.emit()
+
+	var p_pos: Vector3 = player_ship.global_position
+	var cone_dir: Vector3 = player_ship.get_forward_dir()
+	var vfx_origin: Vector3 = p_pos + cone_dir * 0.9
+	var half_rad: float = deg_to_rad(psi_cone_half_angle_deg)
+
+	player_ship.trigger_psi_cone_flare(cone_dir)
+	_play_sfx("quantum_scan_complete.wav", 0.72, -9.5)
+	_spawn_psi_cone_vfx(vfx_origin, cone_dir, psi_cone_range, half_rad)
+
+	var eff_dmg: float = psi_cone_base_damage * GameState.get_psi_damage_multiplier()
+	var eff_stun: float = psi_cone_stun_sec + (1.0 if GameState.is_mutation_purchased("telepathic_focus") else 0.0)
+	var hit_count: int = 0
+	var kill_count: int = 0
+
+	# 1. Hit Hostile Drones inside Psi Cone
+	for i in range(active_hostiles.size() - 1, -1, -1):
+		var d: Node3D = active_hostiles[i]
+		if not is_instance_valid(d):
+			active_hostiles.remove_at(i)
+			continue
+		var hit_r: float = float(d.get("hit_radius")) if d.get("hit_radius") != null else 1.8
+		if _is_point_in_psi_cone(p_pos, cone_dir, d.global_position, hit_r, psi_cone_range, half_rad):
+			hit_count += 1
+			var away: Vector3 = Vector3(d.global_position.x - p_pos.x, 0.0, d.global_position.z - p_pos.z)
+			var away_n: Vector3 = away.normalized() if away.length_squared() > 0.01 else cone_dir
+			var kb_vel: Vector3 = (away_n * 0.65 + cone_dir * 0.35).normalized() * 24.0
+			_spawn_impact_flash(d.global_position, Color(0.62, 0.42, 1.0, 0.95), 2.8, 0.25)
+			var destroyed: bool = bool(d.call("apply_psi_hit", eff_dmg, eff_stun, kb_vel))
+			if destroyed:
+				kill_count += 1
+				_handle_drone_destroyed(d, i)
+
+	# 2. Psionically Dissolve Incoming Enemy Plasma Bolts in Cone
+	var vaporized_bolts: int = 0
+	for i in range(active_enemy_projectiles.size() - 1, -1, -1):
+		var proj: Dictionary = active_enemy_projectiles[i]
+		var b_node: Node3D = proj.get("node") as Node3D
+		if not b_node or not is_instance_valid(b_node):
+			active_enemy_projectiles.remove_at(i)
+			continue
+		if _is_point_in_psi_cone(p_pos, cone_dir, b_node.global_position, 1.4, psi_cone_range, half_rad):
+			_spawn_impact_flash(b_node.global_position, Color(0.45, 0.92, 1.0, 0.9), 1.6, 0.18)
+			b_node.queue_free()
+			active_enemy_projectiles.remove_at(i)
+			vaporized_bolts += 1
+
+	# 3. Gentle Physical Push on Asteroids in Cone
+	for ast in active_asteroids:
+		if is_instance_valid(ast) and _is_point_in_psi_cone(p_pos, cone_dir, ast.global_position, 1.4, psi_cone_range, half_rad):
+			var push_target: Vector3 = ast.global_position + cone_dir * 4.5
+			var tw_ast: Tween = create_tween()
+			tw_ast.tween_property(ast, "global_position", push_target, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+	# 4. INSAN Depot Pier 4 Ar-Riḥla Liberation Check (Directional)
+	var sys: Dictionary = GameState.get_current_system()
+	var in_depot: bool = bool(sys.get("isInsanDepot", false)) or String(sys.get("name", "")).contains("INSAN")
+	if in_depot and not GameState.jamal_ship_liberated:
+		for body in interactable_bodies:
+			if is_instance_valid(body) and str(body.get_meta("entity_category", "")) == "jamal_shuttle":
+				if _is_point_in_psi_cone(p_pos, cone_dir, body.global_position, 3.5, psi_cone_range, half_rad):
+					_spawn_impact_flash(body.global_position, Color(0.68, 0.35, 1.0, 0.95), 4.0, 0.35)
+					QuestManager.liberate_real_ship()
+					return
+				elif p_pos.distance_to(body.global_position) <= psi_cone_range + 4.0:
+					GameState.add_log("SENSOR", "🎯 Richte Najmafars Nase auf die Ar-Riḥla aus, um den Psi-Kegel [X] ins Ziel zu lenken!")
+
+	if hit_count > 0 or vaporized_bolts > 0:
+		var extra: String = (" | %d Geschoss(e) abgewehrt" % vaporized_bolts) if vaporized_bolts > 0 else ""
+		var kill_str: String = (" | 💥 %d zerstört" % kill_count) if kill_count > 0 else ""
+		GameState.add_log("KAMPF", "🔮 Psi-Kegel: %d Drohne(n) getroffen (%.0f Schaden, %.1fs Betäubung%s%s)!" % [
+			hit_count, eff_dmg, eff_stun, kill_str, extra
+		])
+	else:
+		GameState.add_log("PSI", "🔮 Gerichteter Psi-Kegel ausgelöst (-%.0f ⚡ / -%.0f 🧠). Nutze [K] für Kampf-Test-Drohnen!" % [bio_cost, mental_cost])
 
 func _parse_hex_color(hex_str: String, fallback: Color) -> Color:
 	var clean := hex_str.replace("0x", "#")

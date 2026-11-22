@@ -606,12 +606,29 @@ func _on_radar_draw() -> void:
 				elif cat == "moon":
 					radar_canvas.draw_circle(center + pos_2d, 1.8, Color(0.7, 0.78, 0.88, 0.75))
 
+	if world_mgr and world_mgr.get("active_hostiles") != null:
+		var hostiles: Array = world_mgr.get("active_hostiles")
+		for h in hostiles:
+			if is_instance_valid(h) and h is Node3D:
+				var h_node: Node3D = h as Node3D
+				var h_2d := Vector2(h_node.global_position.x, h_node.global_position.z) / world_range * radius
+				if h_2d.length() > radius - 4.0:
+					h_2d = h_2d.normalized() * (radius - 4.0)
+				var stunned: bool = bool(h_node.call("is_stunned")) if h_node.has_method("is_stunned") else false
+				var h_col := Color(0.55, 0.72, 1.0, 0.95) if stunned else Color(1.0, 0.22, 0.22, 0.95)
+				radar_canvas.draw_circle(center + h_2d, 3.2, h_col)
+				radar_canvas.draw_arc(center + h_2d, 5.4, 0.0, TAU, 16, Color(h_col.r, h_col.g, h_col.b, 0.7), 1.3)
+
 	var player: Node3D = get_tree().get_first_node_in_group("player_ship") as Node3D
 	if player:
 		var p_pos := Vector2(player.global_position.x, player.global_position.z) / world_range * radius
 		if p_pos.length() > radius - 4.0:
 			p_pos = p_pos.normalized() * (radius - 4.0)
 		radar_canvas.draw_circle(center + p_pos, 4.0, Color(0.0, 1.0, 0.55, 1.0))
+		if player.has_method("get_forward_dir"):
+			var fwd_3d: Vector3 = player.call("get_forward_dir")
+			var fwd_2d := Vector2(fwd_3d.x, fwd_3d.z).normalized() * 8.5
+			radar_canvas.draw_line(center + p_pos, center + p_pos + fwd_2d, Color(0.45, 1.0, 0.8, 0.9), 1.6)
 
 func _process(_delta: float) -> void:
 	_update_proximity_prompt()
@@ -668,6 +685,24 @@ func _update_proximity_prompt() -> void:
 		return
 
 	var player: Node3D = get_tree().get_first_node_in_group("player_ship") as Node3D
+	var world_mgr: Node = get_tree().current_scene
+	if player and world_mgr and world_mgr.get("active_hostiles") != null:
+		var hostiles: Array = world_mgr.get("active_hostiles")
+		var hostile_count: int = 0
+		var nearest_h_dist: float = INF
+		var nearest_h_stunned: bool = false
+		for h in hostiles:
+			if is_instance_valid(h) and h is Node3D:
+				hostile_count += 1
+				var hd: float = player.global_position.distance_to((h as Node3D).global_position)
+				if hd < nearest_h_dist:
+					nearest_h_dist = hd
+					nearest_h_stunned = bool((h as Node3D).call("is_stunned")) if (h as Node3D).has_method("is_stunned") else false
+		if hostile_count > 0 and nearest_h_dist <= 100.0:
+			var stun_tag: String = " • ⚡ BETÄUBT" if nearest_h_stunned else ""
+			target_prompt_label.text = "⚔️ %d FEIND-DROHNE(N) (Nächste: %.1f AE%s)  |  🔮 [X]/[Leertaste] Psi-Kegel (-10⚡ -6🧠)  |  [K] +Test-Drohnen" % [hostile_count, nearest_h_dist, stun_tag]
+			return
+
 	var nearest: Node3D = GameState.nearest_interactable
 	if player and nearest and is_instance_valid(nearest):
 		var dist: float = player.global_position.distance_to(nearest.global_position)
@@ -679,20 +714,20 @@ func _update_proximity_prompt() -> void:
 				var scanned: bool = GameState.is_planet_scanned(p_key)
 				var depleted: bool = GameState.is_planet_depleted(p_key)
 				if not scanned:
-					target_prompt_label.text = "🎯 %s (%.1f AE)  —  🛰️ [F] Spektral-Scan starten (Zeigt Vorkommen & Lebenszeichen)" % [d_name, dist]
+					target_prompt_label.text = "🎯 %s (%.1f AE)  —  🛰️ [F] Spektral-Scan  |  🔮 [X] Psi-Kegel  [K] Kampf-Test" % [d_name, dist]
 				else:
 					var harv_str: String = "🔴 [Orbital erschöpft]" if depleted else "🌿 [E] Orbital-Siphon (-10⚡)"
 					var cand_cnt: int = 0
 					if GameState.planet_dossiers.has(p_key):
 						cand_cnt = (GameState.planet_dossiers[p_key].get("candidates", []) as Array).size()
 					var abd_str: String = ("  |  🔮 [R] Entführen (%d)" % cand_cnt) if cand_cnt > 0 else ""
-					target_prompt_label.text = "🎯 %s (%.1f AE)  —  %s%s  |  📋 [F] Dossier / Außenmission  [U] Evolution" % [d_name, dist, harv_str, abd_str]
+					target_prompt_label.text = "🎯 %s (%.1f AE)  —  %s%s  |  📋 [F] Dossier  [X] Psi-Kegel  [U] Evolution" % [d_name, dist, harv_str, abd_str]
 			else:
-				target_prompt_label.text = "🎯 %s (%.1f AE)  —  [F] Untersuchen / Kommunizieren  |  [X] Bio-EMP (-18⚡)" % [d_name, dist]
+				target_prompt_label.text = "🎯 %s (%.1f AE)  —  [F] Untersuchen / Kommunizieren  |  🔮 [X]/[Leertaste] Psi-Kegel (-10⚡ -6🧠)" % [d_name, dist]
 		else:
-			target_prompt_label.text = "🧭 Nächstes Objekt: %s (%.1f AE)  |  [WASD] Fliegen  [V] Kurslinie  [M] Karte  [Tab] Crew  [U] Evolution" % [d_name, dist]
+			target_prompt_label.text = "🧭 %s (%.1f AE)  |  [WASD] Fliegen  [X]/[Space] Psi-Kegel  [K] Kampf-Test  [V] Kurslinie  [M] Karte" % [d_name, dist]
 	else:
-		target_prompt_label.text = "[WASD] Steuerung  |  [F] Scannen  [E] Ernten  [R] Entführen  |  [V] Kurslinie  [Tab] Crew  [U] Evolution  [M] Karte"
+		target_prompt_label.text = "[WASD] Fliegen  |  [X]/[Leertaste] Psi-Kegel  [K] Kampf-Test  |  [F] Scannen  [E] Ernten  [R] Entführen  [M] Karte"
 
 func _on_log_added(category: String, message: String) -> void:
 	log_lines.push_front("[b][%s][/b] %s" % [category, message])
