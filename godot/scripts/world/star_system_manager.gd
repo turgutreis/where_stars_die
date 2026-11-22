@@ -54,7 +54,10 @@ var active_enemy_projectiles: Array[Dictionary] = []
 var psi_cone_cooldown_timer: float = 0.0
 var texture_cache: Dictionary = {}
 var bgm_player: AudioStreamPlayer = null
-var sfx_player: AudioStreamPlayer = null
+var sfx_pool: Array[AudioStreamPlayer] = []
+var sfx_pool_index: int = 0
+var channel_sfx_player: AudioStreamPlayer = null
+var sfx_cache: Dictionary = {}
 var target_reticle_ring: MeshInstance3D = null
 var target_reticle_mat: StandardMaterial3D = null
 var trajectory_mesh_inst: MeshInstance3D = null
@@ -189,9 +192,16 @@ func _setup_audio() -> void:
 	bgm_player.finished.connect(_play_next_bgm_track)
 	_play_next_bgm_track()
 
-	sfx_player = AudioStreamPlayer.new()
-	sfx_player.volume_db = -8.0
-	add_child(sfx_player)
+	sfx_pool.clear()
+	for _i in range(8):
+		var p := AudioStreamPlayer.new()
+		p.volume_db = -8.0
+		add_child(p)
+		sfx_pool.append(p)
+
+	channel_sfx_player = AudioStreamPlayer.new()
+	channel_sfx_player.volume_db = -9.5
+	add_child(channel_sfx_player)
 
 func _play_next_bgm_track() -> void:
 	if not bgm_player or BGM_TRACKS.is_empty():
@@ -202,19 +212,55 @@ func _play_next_bgm_track() -> void:
 		bgm_player.stream = load(track_path)
 		bgm_player.play()
 
-func _play_sfx(sfx_name: String, pitch: float = 1.0, vol_db: float = -8.0) -> void:
-	if not sfx_player:
-		return
-	var path := "res://assets/sfx/" + sfx_name
+func _load_sfx(sfx_name: String) -> AudioStream:
+	if sfx_cache.has(sfx_name):
+		return sfx_cache[sfx_name] as AudioStream
+	var path: String = "res://assets/sfx/" + sfx_name
 	if ResourceLoader.exists(path):
-		sfx_player.stream = load(path)
-		sfx_player.pitch_scale = pitch
-		sfx_player.volume_db = vol_db
-		sfx_player.play()
+		var stream: AudioStream = load(path) as AudioStream
+		if stream:
+			sfx_cache[sfx_name] = stream
+			return stream
+	return null
+
+func _play_sfx(sfx_name: String, pitch: float = 1.0, vol_db: float = -8.0) -> void:
+	if sfx_pool.is_empty():
+		return
+	var stream: AudioStream = _load_sfx(sfx_name)
+	if not stream:
+		return
+	var target_player: AudioStreamPlayer = null
+	for p in sfx_pool:
+		if is_instance_valid(p) and not p.playing:
+			target_player = p
+			break
+	if not target_player:
+		target_player = sfx_pool[sfx_pool_index % sfx_pool.size()]
+		sfx_pool_index = (sfx_pool_index + 1) % sfx_pool.size()
+	target_player.stream = stream
+	target_player.pitch_scale = pitch
+	target_player.volume_db = vol_db
+	target_player.play()
+
+func _start_channel_sfx(sfx_name: String, pitch: float = 1.0, vol_db: float = -9.5) -> void:
+	if not channel_sfx_player:
+		return
+	var stream: AudioStream = _load_sfx(sfx_name)
+	if not stream:
+		return
+	channel_sfx_player.stop()
+	channel_sfx_player.stream = stream
+	channel_sfx_player.pitch_scale = pitch
+	channel_sfx_player.volume_db = vol_db
+	channel_sfx_player.play()
+
+func _stop_channel_sfx() -> void:
+	if channel_sfx_player and is_instance_valid(channel_sfx_player) and channel_sfx_player.playing:
+		channel_sfx_player.stop()
 
 func _on_system_changed(_sys_id: int, sys_data: Dictionary) -> void:
 	build_star_system(sys_data)
-	_play_sfx("ship_retro_brake.wav", 0.75, -10.0)
+	_play_sfx("warp_slide.wav", 1.0, -7.5)
 	if player_ship:
 		player_ship.trigger_warp_arrival_zoom()
 	var is_depot: bool = sys_data.get("isInsanDepot", false) or String(sys_data.get("name", "")).contains("INSAN")
@@ -238,6 +284,7 @@ func build_star_system(sys_data: Dictionary) -> void:
 	active_hostiles.clear()
 	active_enemy_projectiles.clear()
 	psi_cone_cooldown_timer = 0.0
+	_stop_channel_sfx()
 	for child in procedural_container.get_children():
 		child.queue_free()
 
@@ -1577,7 +1624,11 @@ func _start_channeling(mode: String, target: Node3D, beam_color: Color) -> void:
 	active_channel_mode = mode
 	active_channel_target = target
 	active_channel_progress = 0.0
-	_play_sfx("sonar_ping.wav")
+	if mode == "scan":
+		_start_channel_sfx("waves_scanner.wav", 1.0, -9.5)
+	else:
+		var ch_pitch: float = 0.92 if mode == "harvest" else 1.08
+		_start_channel_sfx("quantum_scan_stream.wav", ch_pitch, -11.0)
 
 	if procedural_container:
 		active_channel_beam = Node3D.new()
@@ -1610,6 +1661,7 @@ func _start_channeling(mode: String, target: Node3D, beam_color: Color) -> void:
 	GameState.channel_progress_updated.emit(active_channel_mode, 0.0, t_name)
 
 func _cleanup_channel_visuals() -> void:
+	_stop_channel_sfx()
 	if active_channel_beam and is_instance_valid(active_channel_beam):
 		active_channel_beam.queue_free()
 	active_channel_beam = null
@@ -1857,6 +1909,7 @@ func _spawn_enemy_projectile(origin: Vector3, dir: Vector3, spd: float, dmg: flo
 		"dmg": dmg,
 		"life": 2.4
 	})
+	_play_sfx("laser_weapon_shot.wav", randf_range(0.93, 1.08), -11.5)
 
 func _update_combat_system(delta: float) -> void:
 	if psi_cone_cooldown_timer > 0.0:
@@ -1967,7 +2020,7 @@ func _handle_x_psi_cone() -> void:
 	var half_rad: float = deg_to_rad(psi_cone_half_angle_deg)
 
 	player_ship.trigger_psi_cone_flare(cone_dir)
-	_play_sfx("quantum_scan_complete.wav", 0.72, -9.5)
+	_play_sfx("psi_cone_blast.wav", randf_range(0.96, 1.04), -6.5)
 	_spawn_psi_cone_vfx(vfx_origin, cone_dir, psi_cone_range, half_rad)
 
 	var eff_dmg: float = psi_cone_base_damage * GameState.get_psi_damage_multiplier()
