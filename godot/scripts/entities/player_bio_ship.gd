@@ -198,7 +198,7 @@ func _build_detailed_bio_anatomy() -> void:
 		tendrils.append(t_root)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if Engine.is_editor_hint():
+	if Engine.is_editor_hint() or QuestManager.is_dialogue_open or GameState.is_map_open:
 		return
 	if event is InputEventMouseButton:
 		var mb: InputEventMouseButton = event as InputEventMouseButton
@@ -225,7 +225,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
-	if QuestManager.is_dialogue_open:
+	if QuestManager.is_dialogue_open or GameState.is_map_open:
 		return
 
 	anim_time += delta

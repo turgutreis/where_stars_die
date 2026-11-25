@@ -61,6 +61,7 @@ var telepathy_active: bool = false
 var stealth_active: bool = false
 var prologue_completed: bool = false
 var prologue_active: bool = false
+var is_map_open: bool = false
 
 # --- Jamal & Quest Flags ---
 var jamal_recruited: bool = true
@@ -1003,6 +1004,7 @@ func warp_to_system(target_id: int) -> void:
 	locked_target = null
 	nearest_interactable = null
 	active_dossier_key = ""
+	is_map_open = false
 	var sys := get_current_system()
 	vitals_updated.emit()
 	add_log("NAV", "🌀 Quantenfeld gefaltet (-20 ⚡ Bio, -15 🧠 Mental): Ankunft im System %s." % sys.get("name", "Unbekannt"))
@@ -1046,6 +1048,7 @@ func reset_to_new_game() -> void:
 	combat_kills = 0
 	locked_target = null
 	nearest_interactable = null
+	is_map_open = false
 	vitals_updated.emit()
 	system_changed.emit(current_system_id, get_current_system())
 

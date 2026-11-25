@@ -1480,7 +1480,7 @@ func _spawn_impact_flash(pos: Vector3, flash_color: Color, target_scale: float =
 	)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if Engine.is_editor_hint():
+	if Engine.is_editor_hint() or GameState.is_map_open:
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var key_event: InputEventKey = event as InputEventKey
@@ -1841,7 +1841,7 @@ func _spawn_hostile_drone(variant: String, spawn_pos: Vector3, initial_heading: 
 	return drone
 
 func _handle_k_spawn_combat_test() -> void:
-	if QuestManager.is_dialogue_open or not player_ship:
+	if QuestManager.is_dialogue_open or GameState.is_map_open or not player_ship:
 		return
 	var alive_count: int = 0
 	for h in active_hostiles:
@@ -1914,7 +1914,7 @@ func _spawn_enemy_projectile(origin: Vector3, dir: Vector3, spd: float, dmg: flo
 func _update_combat_system(delta: float) -> void:
 	if psi_cone_cooldown_timer > 0.0:
 		psi_cone_cooldown_timer = max(0.0, psi_cone_cooldown_timer - delta)
-	if QuestManager.is_dialogue_open or not player_ship:
+	if QuestManager.is_dialogue_open or GameState.is_map_open or not player_ship:
 		return
 
 	var p_pos: Vector3 = player_ship.global_position
@@ -1996,7 +1996,7 @@ func _on_player_emergency_revived() -> void:
 	active_enemy_projectiles.clear()
 
 func _handle_x_psi_cone() -> void:
-	if QuestManager.is_dialogue_open or not player_ship:
+	if QuestManager.is_dialogue_open or GameState.is_map_open or not player_ship:
 		return
 	if psi_cone_cooldown_timer > 0.0:
 		return
