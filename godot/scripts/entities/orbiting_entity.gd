@@ -7,7 +7,7 @@ class_name OrbitingEntity
 
 @export_category("Identity & Quest Binding")
 @export var display_name: String = "Orbital Object"
-@export_enum("planet", "moon", "space_station", "jamal_shuttle", "towing_drone", "voyager_probe", "asteroid", "custom") var entity_category: String = "custom"
+@export_enum("planet", "moon", "space_station", "jamal_shuttle", "towing_drone", "voyager_probe", "derelict_wreck", "asteroid", "custom") var entity_category: String = "custom"
 @export_enum("Habitable", "Rocky", "Gas Giant", "Ice", "Desert", "Vulkanmond", "Kratermond", "Vorläufer-Konstrukt") var planet_type: String = "Habitable"
 @export var spawn_in_system_id: int = 1 ## Set to 1..15 for a specific star system, or -1 to appear in ALL systems!
 @export var dialogue_node_id: String = ""

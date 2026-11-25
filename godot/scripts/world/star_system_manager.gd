@@ -52,6 +52,7 @@ var active_asteroids: Array[Node3D] = []
 var active_hostiles: Array[Node3D] = []
 var active_enemy_projectiles: Array[Dictionary] = []
 var psi_cone_cooldown_timer: float = 0.0
+var monolith_bump_cooldown: float = 0.0
 var texture_cache: Dictionary = {}
 var bgm_player: AudioStreamPlayer = null
 var sfx_pool: Array[AudioStreamPlayer] = []
@@ -108,6 +109,8 @@ func _ready() -> void:
 	_setup_audio()
 	GameState.system_changed.connect(_on_system_changed)
 	GameState.player_emergency_revived.connect(_on_player_emergency_revived)
+	QuestManager.decoy_trap_triggered.connect(_on_decoy_trap_triggered)
+	QuestManager.real_ship_liberated_visual.connect(_on_real_ship_liberated_visual)
 	build_star_system(GameState.get_current_system())
 	# Trigger Dr. Tariq Jamal's initial telepathic greeting shortly after arrival
 	get_tree().create_timer(0.8).timeout.connect(func():
@@ -368,13 +371,16 @@ func build_star_system(sys_data: Dictionary) -> void:
 			m_node.update_orbital_position(0.0)
 			interactable_bodies.append(m_node)
 
-	# 3. Asteroid Field
+	# 3. Rich Fly-Through Asteroid Belt + Local Fragments & Derelict Ship Wrecks
 	var asteroids_list: Array = sys_data.get("asteroids", [])
 	for ast in asteroids_list:
 		if typeof(ast) == TYPE_DICTIONARY:
-			var ast_node := _create_asteroid_node(ast)
+			var ast_node: Node3D = _create_asteroid_node(ast)
 			procedural_container.add_child(ast_node)
 			active_asteroids.append(ast_node)
+
+	var belt_radius: float = _spawn_asteroid_belt(sys_id, planet_nodes)
+	_spawn_derelict_wrecks(sys_id, belt_radius)
 
 	# 4. Space Stations for Spacefaring Planets & Quest Entities
 	for p_idx in range(planet_nodes.size()):
@@ -384,15 +390,16 @@ func build_star_system(sys_data: Dictionary) -> void:
 			_spawn_orbital_station(planet_nodes[p_idx], "%s Orbital-Habitat" % p_data.get("name", "Station"), false)
 
 	var first_planet: OrbitingEntity = planet_nodes[0] if planet_nodes.size() > 0 else null
-	var is_depot: bool = sys_data.get("isInsanDepot", false) or String(sys_data.get("name", "")).contains("INSAN")
+	var is_depot: bool = bool(sys_data.get("isInsanDepot", false)) or String(sys_data.get("name", "")).contains("INSAN")
 
-	if sys_id == 1 and first_planet:
+	if sys_id == 1 and first_planet and not GameState.jamal_decoy_revealed:
 		_spawn_jamal_shuttle(first_planet, false)
 	elif is_depot and first_planet:
 		_spawn_orbital_station(first_planet, "INSAN-Hauptverwaltung Zeta-9 (Schalter 7B)", true)
-		_spawn_jamal_shuttle(first_planet, true)
+		if not GameState.jamal_ship_liberated:
+			_spawn_jamal_shuttle(first_planet, true)
 		_spawn_voyager_probe()
-		if not Engine.is_editor_hint():
+		if not Engine.is_editor_hint() and not GameState.jamal_ship_liberated:
 			var fp_base: Vector3 = first_planet.global_position
 			_spawn_hostile_drone("scout", fp_base + Vector3(-28.0, 0.0, 8.0), -0.4)
 			_spawn_hostile_drone("enforcer", fp_base + Vector3(30.0, 0.0, 6.0), -2.6)
@@ -642,26 +649,202 @@ func _create_moon_node(m_data: Dictionary, parent_planet: OrbitingEntity, m_idx:
 	return m_entity
 
 func _create_asteroid_node(ast_data: Dictionary) -> Node3D:
-	var is_bio: bool = str(ast_data.get("type", "")) == "bio"
-	var size: float = 1.1 + randf() * 1.2
+	var a_type: String = str(ast_data.get("type", "silicon"))
+	if a_type != "bio" and a_type != "ice" and a_type != "monolith":
+		a_type = "silicon"
+
+	var size: float = 1.15 + randf() * 1.15
+	if a_type == "monolith":
+		size = 3.2 + randf() * 1.35
+	elif a_type == "ice":
+		size = 1.05 + randf() * 0.95
+
 	var inst := MeshInstance3D.new()
 	var sph := SphereMesh.new()
 	sph.radius = size
-	sph.height = size * 1.7
-	sph.radial_segments = 7
+	sph.height = size * (1.45 if a_type == "monolith" else 1.7)
+	sph.radial_segments = 8 if a_type == "monolith" else 7
 	sph.rings = 5
 	var mat := StandardMaterial3D.new()
-	var moon_tex := _load_tex(PLANET_TEXTURES["MARS_PHOBOS"])
-	if moon_tex:
+	var moon_tex: Texture2D = _load_tex(PLANET_TEXTURES["MARS_PHOBOS"])
+	if moon_tex and a_type != "ice":
 		mat.albedo_texture = moon_tex
-	mat.albedo_color = Color(0.0, 1.0, 0.53) if is_bio else Color(0.22, 0.74, 0.97)
-	mat.roughness = 0.85
-	mat.metallic = 0.5
+
+	if a_type == "bio":
+		mat.albedo_color = Color(0.05, 0.95, 0.52)
+		mat.emission_enabled = true
+		mat.emission = Color(0.0, 0.45, 0.25)
+		mat.emission_energy_multiplier = 0.45
+		mat.roughness = 0.72
+	elif a_type == "ice":
+		mat.albedo_color = Color(0.68, 0.94, 1.0)
+		mat.metallic = 0.25
+		mat.roughness = 0.16
+		mat.emission_enabled = true
+		mat.emission = Color(0.28, 0.78, 1.0)
+		mat.emission_energy_multiplier = 0.55
+	elif a_type == "monolith":
+		mat.albedo_color = Color(0.32, 0.29, 0.27)
+		mat.metallic = 0.35
+		mat.roughness = 0.92
+		inst.scale = Vector3(1.25, 0.85, 0.92)
+	else:
+		mat.albedo_color = Color(0.35, 0.74, 0.96)
+		mat.roughness = 0.75
+		mat.metallic = 0.62
+
 	sph.material = mat
 	inst.mesh = sph
-	inst.position = Vector3(float(ast_data.get("x", 40.0)) * 2.5, (randf() - 0.5) * 1.5, float(ast_data.get("z", 40.0)) * 2.5)
-	inst.set_meta("asteroid_type", "bio" if is_bio else "silicon")
+	var world_pos: Vector3
+	if ast_data.has("world_x") and ast_data.has("world_z"):
+		world_pos = Vector3(float(ast_data.get("world_x", 0.0)), (randf() - 0.5) * 1.4, float(ast_data.get("world_z", 0.0)))
+	else:
+		world_pos = Vector3(float(ast_data.get("x", 40.0)) * 2.5, (randf() - 0.5) * 1.4, float(ast_data.get("z", 40.0)) * 2.5)
+	inst.position = world_pos
+	inst.rotation = Vector3(randf() * TAU, randf() * TAU, randf() * 0.4)
+	inst.set_meta("asteroid_type", a_type)
+	inst.set_meta("rock_radius", size)
+	inst.set_meta("spin_speed", randf_range(-0.45, 0.45))
 	return inst
+
+func _spawn_asteroid_belt(sys_id: int, planet_nodes: Array[OrbitingEntity]) -> float:
+	if not procedural_container:
+		return 155.0
+
+	var belt_radius: float = 155.0
+	if planet_nodes.size() >= 2:
+		belt_radius = (planet_nodes[0].orbit_radius + planet_nodes[1].orbit_radius) * 0.5
+	elif planet_nodes.size() == 1:
+		belt_radius = planet_nodes[0].orbit_radius + 46.0
+
+	# Subtle dusty belt guide ring so player can see the Asteroid Belt corridor from afar
+	var belt_guide := _create_orbit_ring_mesh(belt_radius, Color(0.56, 0.68, 0.82, 0.08))
+	procedural_container.add_child(belt_guide)
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(sys_id * 7919 + 404)
+	var rock_count: int = 34
+	for i in range(rock_count):
+		# Group slightly into natural belt clusters with wide fly-through lanes
+		var base_ang: float = (float(i) / float(rock_count)) * TAU + rng.randf_range(-0.08, 0.08)
+		var radial_off: float = rng.randf_range(-16.0, 16.0)
+		var r_here: float = max(42.0, belt_radius + radial_off)
+		var wx: float = cos(base_ang) * r_here
+		var wz: float = sin(base_ang) * r_here
+
+		var roll: float = rng.randf()
+		var r_type: String = "silicon"
+		if roll < 0.18:
+			r_type = "monolith"
+		elif roll < 0.44:
+			r_type = "ice"
+		elif roll < 0.74:
+			r_type = "bio"
+
+		var node: Node3D = _create_asteroid_node({
+			"type": r_type,
+			"world_x": wx,
+			"world_z": wz
+		})
+		procedural_container.add_child(node)
+		active_asteroids.append(node)
+
+	return belt_radius
+
+func _spawn_derelict_wrecks(sys_id: int, belt_radius: float) -> void:
+	if not procedural_container:
+		return
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(sys_id * 13337 + 91)
+	var wreck_count: int = 1 if (sys_id == 1 or rng.randf() < 0.78) else 2
+	var wreck_titles: Array[String] = [
+		"Frachter-Wrack 'Al-Qāfila'",
+		"Aufgegebenes Prospektoren-Schiff",
+		"Zerschmetterte Forschungs-Korvette",
+		"Altes Kolonial-Versorgungswrack"
+	]
+
+	for w_idx in range(wreck_count):
+		var w_key: String = "wreck_%d_%d" % [sys_id, w_idx]
+		var already_salvaged: bool = not Engine.is_editor_hint() and GameState.is_wreck_salvaged(w_key)
+		var ang: float = deg_to_rad(32.0 + float(w_idx) * 165.0 + float((sys_id * 47) % 120))
+		var rad: float = belt_radius + (-8.0 if w_idx == 0 else 14.0)
+		if sys_id == 1 and w_idx == 0:
+			# Place the starter system wreck reasonably close to the first planet & belt so player spots it early!
+			ang = deg_to_rad(62.0)
+			rad = max(95.0, belt_radius - 12.0)
+
+		var wreck := OrbitingEntity.new()
+		wreck.name = "DerelictWreck_%d" % w_idx
+		var base_title: String = wreck_titles[(sys_id + w_idx) % wreck_titles.size()]
+		wreck.display_name = ("%s [GEBORGEN]" % base_title) if already_salvaged else ("%s [WRACK]" % base_title)
+		wreck.entity_category = "derelict_wreck"
+		wreck.use_manual_editor_position = true
+		wreck.is_harvestable = false
+		wreck.base_radius = 2.2
+		wreck.planet_key = w_key
+		wreck.position = Vector3(cos(ang) * rad, 0.0, sin(ang) * rad)
+
+		var hull_mat := StandardMaterial3D.new()
+		hull_mat.albedo_color = Color(0.28, 0.31, 0.36) if already_salvaged else Color(0.46, 0.50, 0.56)
+		hull_mat.metallic = 0.78
+		hull_mat.roughness = 0.48
+
+		var scorch_mat := StandardMaterial3D.new()
+		scorch_mat.albedo_color = Color(0.16, 0.17, 0.20)
+		scorch_mat.metallic = 0.65
+		scorch_mat.roughness = 0.62
+
+		var core_mat := StandardMaterial3D.new()
+		core_mat.albedo_color = Color(0.25, 0.28, 0.32) if already_salvaged else Color(1.0, 0.62, 0.14)
+		core_mat.emission_enabled = not already_salvaged
+		core_mat.emission = Color(1.0, 0.55, 0.10)
+		core_mat.emission_energy_multiplier = 1.6
+
+		# Tilted broken main hull cylinder
+		var hull_inst := MeshInstance3D.new()
+		var hull_cyl := CylinderMesh.new()
+		hull_cyl.top_radius = 0.52
+		hull_cyl.bottom_radius = 0.85
+		hull_cyl.height = 3.2
+		hull_cyl.radial_segments = 8
+		hull_cyl.material = hull_mat
+		hull_inst.mesh = hull_cyl
+		hull_inst.rotation = Vector3(PI * 0.44, 0.35 + float(w_idx), 0.28)
+		wreck.add_child(hull_inst)
+
+		# Snapped wing / solar array panel floating slightly askew
+		var panel_inst := MeshInstance3D.new()
+		var p_box := BoxMesh.new()
+		p_box.size = Vector3(2.5, 0.10, 0.95)
+		p_box.material = scorch_mat
+		panel_inst.mesh = p_box
+		panel_inst.position = Vector3(0.55, 0.15, -0.35)
+		panel_inst.rotation = Vector3(0.22, -0.48, 0.42)
+		wreck.add_child(panel_inst)
+
+		# Exposed glowing salvage core
+		var core_inst := MeshInstance3D.new()
+		core_inst.name = "WreckCore"
+		var c_sph := SphereMesh.new()
+		c_sph.radius = 0.38
+		c_sph.height = 0.76
+		c_sph.material = core_mat
+		core_inst.mesh = c_sph
+		core_inst.position = Vector3(-0.2, 0.25, 0.4)
+		wreck.add_child(core_inst)
+
+		var beacon := OmniLight3D.new()
+		beacon.name = "WreckBeacon"
+		beacon.light_color = Color(1.0, 0.62, 0.16)
+		beacon.light_energy = 0.0 if already_salvaged else 1.7
+		beacon.omni_range = 14.0
+		beacon.position = Vector3(0.0, 0.8, 0.0)
+		wreck.add_child(beacon)
+
+		procedural_container.add_child(wreck)
+		interactable_bodies.append(wreck)
 
 func _create_orbit_ring_mesh(radius: float, color: Color) -> MeshInstance3D:
 	var inst := MeshInstance3D.new()
@@ -682,17 +865,17 @@ func _create_orbit_ring_mesh(radius: float, color: Color) -> MeshInstance3D:
 func _spawn_jamal_shuttle(parent_planet: Node3D, is_real_at_depot: bool) -> void:
 	var shuttle := OrbitingEntity.new()
 	shuttle.name = "JamalResearchShuttle"
-	shuttle.display_name = "Echte 'Ar-Riḥla' [PIER 4]" if is_real_at_depot else "Dr. Tariq Jamals Forschungsschiff [FALSPARKER]"
+	shuttle.display_name = "Echte 'Ar-Riḥla' [PIER 4 • PARKKRALLE]" if is_real_at_depot else "Dr. Jamals Forschungsschiff [PARKKRALLE]"
 	shuttle.entity_category = "jamal_shuttle"
 	shuttle.parent_body = parent_planet
 	shuttle.base_radius = 0.85
 	var p_rad: float = float(parent_planet.get("base_radius")) if parent_planet.get("base_radius") != null else 4.2
 	shuttle.orbit_radius = max(24.0, p_rad * 3.4 + 10.0)
-	shuttle.orbit_angle_deg = 205.0 if is_real_at_depot else 75.0
-	shuttle.orbit_speed = 0.035
+	shuttle.orbit_angle_deg = 215.0 if is_real_at_depot else 75.0
+	shuttle.orbit_speed = 0.025 if is_real_at_depot else 0.035
 	shuttle.is_harvestable = false
 	shuttle.emits_radiation = false
-	shuttle.dialogue_node_id = "insan_station_bypass_plan" if is_real_at_depot else "jamal_ship_scanned"
+	shuttle.dialogue_node_id = "pier4_clamped_inspect" if is_real_at_depot else "jamal_ship_scanned"
 
 	# Detailed Ar-Riḥla Science Shuttle + Industrial Parking Clamp + Towing Drone
 	var s_scale := 1.15
@@ -751,6 +934,7 @@ func _spawn_jamal_shuttle(parent_planet: Node3D, is_real_at_depot: bool) -> void
 
 	# Engine Nacelles + Parking Clamp Ring (Parkkralle)
 	var clamp_ring := MeshInstance3D.new()
+	clamp_ring.name = "ClampRing"
 	var c_torus := TorusMesh.new()
 	c_torus.inner_radius = 0.65 * s_scale
 	c_torus.outer_radius = 0.82 * s_scale
@@ -832,10 +1016,11 @@ func _spawn_orbital_station(parent_planet: Node3D, station_name: String, is_insa
 func _spawn_voyager_probe() -> void:
 	var probe := OrbitingEntity.new()
 	probe.name = "Voyager2Probe"
-	probe.display_name = "Voyager 2 (Archaische Raumsonde, 1977)"
+	probe.display_name = "Voyager 2 [GEBORGEN]" if GameState.voyager_liberated else "Voyager 2 (Abgeschleppte Raumsonde, 1977)"
 	probe.entity_category = "voyager_probe"
+	probe.use_manual_editor_position = true
 	probe.position = Vector3(-95.0, 0.0, 120.0)
-	probe.dialogue_node_id = "insan_voyager_liberated"
+	probe.dialogue_node_id = ""
 
 	var dish := MeshInstance3D.new()
 	var cyl := CylinderMesh.new()
@@ -872,10 +1057,13 @@ func _process(delta: float) -> void:
 				best_node = node
 	GameState.nearest_interactable = best_node
 
+	if monolith_bump_cooldown > 0.0:
+		monolith_bump_cooldown = max(0.0, monolith_bump_cooldown - delta)
+
 	_update_target_reticle_ring(best_node, best_dist, delta)
 	_update_active_channeling(delta)
 	_update_environmental_radiation()
-	_check_asteroid_collection()
+	_check_asteroid_collection(delta)
 	player_ship.external_gravity_accel = _compute_gravity_acceleration()
 	_update_trajectory_prediction()
 	_update_combat_system(delta)
@@ -917,7 +1105,7 @@ func _update_environmental_radiation() -> void:
 	GameState.ambient_radiation = amb_rad
 	GameState.radiation_source = rad_src
 
-func _check_asteroid_collection() -> void:
+func _check_asteroid_collection(delta: float = 0.016) -> void:
 	if not player_ship or active_asteroids.is_empty():
 		return
 	var p_pos: Vector3 = player_ship.global_position
@@ -926,23 +1114,48 @@ func _check_asteroid_collection() -> void:
 		if not is_instance_valid(ast):
 			active_asteroids.remove_at(i)
 			continue
-		if p_pos.distance_to(ast.global_position) <= 6.2:
-			var a_type: String = str(ast.get_meta("asteroid_type", "silicon"))
-			# Soft, deep organic absorption gulp sound instead of sonar ping, and no beam/wave!
+		var spin_spd: float = float(ast.get_meta("spin_speed", 0.2))
+		ast.rotate_y(spin_spd * delta)
+
+		var a_type: String = str(ast.get_meta("asteroid_type", "silicon"))
+		var d_ast: float = p_pos.distance_to(ast.global_position)
+		if a_type == "monolith":
+			var rock_r: float = float(ast.get_meta("rock_radius", 3.5))
+			if d_ast <= rock_r + 1.45:
+				var push_away: Vector3 = p_pos - ast.global_position
+				push_away.y = 0.0
+				var push_n: Vector3 = push_away.normalized() if push_away.length_squared() > 0.01 else Vector3(1.0, 0.0, 0.0)
+				player_ship.velocity = push_n * max(11.0, player_ship.velocity.length() * 0.65)
+				player_ship.global_position = ast.global_position + push_n * (rock_r + 1.65)
+				player_ship.global_position.y = 0.0
+				if monolith_bump_cooldown <= 0.0:
+					monolith_bump_cooldown = 0.9
+					GameState.apply_combat_damage(3.5, "Gesteins-Monolith")
+					player_ship.trigger_damage_flash()
+					_play_sfx("ship_thrust_ignite.wav", 0.52, -10.5)
+					GameState.add_log("GÜRTEL", "🪨 Kollision mit schwerem Monolith! (Tipp: Sprenge große Felsen mit dem Psi-Kegel [X] in Ressourcen-Splitter!)")
+			continue
+
+		if d_ast <= 6.4:
 			_play_sfx("ship_thrust_ignite.wav", 0.68 + randf() * 0.14, -12.5)
 			if a_type == "bio":
 				var b_gain: int = int(round(18.0 * GameState.get_bio_harvest_multiplier()))
 				GameState.bio_res += b_gain
-				GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 7.0)
-				GameState.add_log("ASTEROID", "☄️ Organisches Fragment absorbiert: +%d 🌿 Biomasse | +7%% ⚡ Bio-Energie!" % b_gain)
+				GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 8.0)
+				GameState.add_log("ASTEROID", "☄️ Sporen-Fragment absorbiert: +%d 🌿 Biomasse | +8%% ⚡ Bio-Energie!" % b_gain)
+			elif a_type == "ice":
+				GameState.add_water(5)
+				GameState.add_food(4)
+				GameState.mental_energy = min(GameState.max_mental_energy, GameState.mental_energy + 6.0)
+				GameState.add_log("KOMET", "❄️ Kometen-Eiskern absorbiert: +5 💧 Wasser | +4 🍖 Kryo-Nährstoffe | +6%% 🧠 Mental!")
 			else:
 				var s_gain: int = int(round(22.0 * GameState.get_silicon_harvest_multiplier()))
 				GameState.silicon_res += s_gain
 				GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 4.0)
-				GameState.add_log("ASTEROID", "☄️ Silizium-Kristall absorbiert: +%d 💎 Silizium | +4%% ⚡ Bio-Energie!" % s_gain)
+				GameState.health = min(GameState.max_health, GameState.health + 3.0)
+				GameState.add_log("ASTEROID", "☄️ Silizium-Erzsplitter absorbiert: +%d 💎 Silizium | +4%% ⚡ Bio-Energie | +3 ❤️ Hülle!" % s_gain)
 			GameState.vitals_updated.emit()
 			active_asteroids.remove_at(i)
-			# Smoothly pull and shrink asteroid into Najmafar's mandibles
 			var tw: Tween = create_tween()
 			tw.set_parallel(true)
 			tw.tween_property(ast, "global_position", player_ship.global_position, 0.22)
@@ -989,7 +1202,7 @@ func _update_target_reticle_ring(target: Node3D, dist: float, delta: float) -> v
 
 	var cat: String = str(target.get_meta("entity_category", ""))
 	if target_reticle_mat:
-		if cat == "jamal_shuttle" or cat == "space_station" or cat == "voyager_probe":
+		if cat == "jamal_shuttle" or cat == "space_station" or cat == "voyager_probe" or cat == "derelict_wreck":
 			target_reticle_mat.albedo_color = Color(1.0, 0.68, 0.1, 0.45 if dist <= 36.0 else 0.22)
 		else:
 			target_reticle_mat.albedo_color = Color(0.0, 1.0, 0.62, 0.36 if dist <= 36.0 else 0.18)
@@ -1522,6 +1735,21 @@ func _handle_f_interaction() -> void:
 
 	var cat: String = str(target.get_meta("entity_category", ""))
 	var dlg: String = str(target.get_meta("dialogue_node_id", ""))
+	if cat == "voyager_probe":
+		_play_sfx("quantum_scan_complete.wav")
+		_spawn_energy_beam(player_ship.global_position, target.global_position, Color(1.0, 0.82, 0.25, 0.9), 0.6)
+		target.set("display_name", "Voyager 2 [GEBORGEN]")
+		target.set_meta("display_name", "Voyager 2 [GEBORGEN]")
+		QuestManager.liberate_voyager_on_site()
+		return
+	if cat == "derelict_wreck":
+		var w_key: String = _get_target_planet_key(target)
+		if GameState.is_wreck_salvaged(w_key):
+			GameState.add_log("WRACK", "🔩 %s wurde bereits vollständig durchsucht." % str(target.get("display_name")))
+			return
+		_start_channeling("salvage_wreck", target, Color(1.0, 0.68, 0.22, 0.9))
+		GameState.add_log("WRACK", "🔧 Untersuche Schiffswrack & öffne Frachtschotten von %s..." % str(target.get("display_name")))
+		return
 	if cat == "jamal_shuttle" and GameState.jamal_decoy_revealed and GameState.current_system_id == 1:
 		_play_sfx("quantum_scan_complete.wav")
 		_spawn_energy_beam(player_ship.global_position, target.global_position, Color(0.22, 0.88, 1.0, 0.9), 0.6)
@@ -1624,8 +1852,8 @@ func _start_channeling(mode: String, target: Node3D, beam_color: Color) -> void:
 	active_channel_mode = mode
 	active_channel_target = target
 	active_channel_progress = 0.0
-	if mode == "scan":
-		_start_channel_sfx("waves_scanner.wav", 1.0, -9.5)
+	if mode == "scan" or mode == "salvage_wreck":
+		_start_channel_sfx("waves_scanner.wav", 1.0 if mode == "scan" else 0.88, -9.5)
 	else:
 		var ch_pitch: float = 0.92 if mode == "harvest" else 1.08
 		_start_channel_sfx("quantum_scan_stream.wav", ch_pitch, -11.0)
@@ -1712,6 +1940,8 @@ func _update_active_channeling(delta: float) -> void:
 		speed_pct_per_sec = 42.0 # ~2.4s for harvest
 	elif active_channel_mode == "abduct":
 		speed_pct_per_sec = 46.0 # ~2.2s for abduction
+	elif active_channel_mode == "salvage_wreck":
+		speed_pct_per_sec = 62.0 # ~1.6s for wreck salvage
 
 	active_channel_progress = min(100.0, active_channel_progress + speed_pct_per_sec * delta)
 	var t_name: String = str(active_channel_target.get("display_name")) if active_channel_target.get("display_name") != null else active_channel_target.name
@@ -1740,14 +1970,23 @@ func _complete_channeling() -> void:
 	var p_type: String = str(target.get("planet_type")) if target.get("planet_type") != null else "Rocky"
 	var t_name: String = str(target.get("display_name")) if target.get("display_name") != null else target.name
 
-	if mode == "scan":
+	if mode == "salvage_wreck":
+		_complete_wreck_salvage(target)
+		return
+	elif mode == "scan":
 		var dossier: Dictionary = GameState.get_or_create_planet_dossier(p_key, raw_data, is_moon)
 		GameState.mark_planet_scanned(p_key, dossier)
-		GameState.mental_energy = min(GameState.max_mental_energy, GameState.mental_energy + 10.0)
+		var mental_bonus: float = 10.0
+		var ruins_hint: String = ""
+		if bool(dossier.get("hasRuins", false)):
+			mental_bonus += 8.0
+			GameState.tech_res += 3
+			ruins_hint = " | 🏛️ %s geortet (+3 ⚙️ Orbital-Tech; Shuttle für Tiefenbergung!)" % str(dossier.get("ruinsName", "Ruinen"))
+		GameState.mental_energy = min(GameState.max_mental_energy, GameState.mental_energy + mental_bonus)
 		GameState.vitals_updated.emit()
 		var cand_count: int = (dossier.get("candidates", []) as Array).size()
-		var life_hint: String = " | 🧬 %d Lebenszeichen geortet ([R] Entführen)" % cand_count if cand_count > 0 else ""
-		GameState.add_log("SCAN", "✅ Spektral-Scan abgeschlossen: %s (+10 Mentalkraft%s). [E] zum Ernten." % [t_name, life_hint])
+		var life_hint: String = " | 🧬 %d Lebenszeichen ([R] Entführen)" % cand_count if cand_count > 0 else ""
+		GameState.add_log("SCAN", "✅ Spektral-Scan abgeschlossen: %s (+%.0f 🧠%s%s). [E] zum Ernten." % [t_name, mental_bonus, life_hint, ruins_hint])
 
 	elif mode == "harvest":
 		GameState.mark_planet_depleted(p_key)
@@ -1980,6 +2219,124 @@ func _handle_drone_destroyed(drone: Node3D, list_idx: int) -> void:
 	active_hostiles.remove_at(list_idx)
 	drone.queue_free()
 
+func _complete_wreck_salvage(wreck: Node3D) -> void:
+	if not wreck or not is_instance_valid(wreck):
+		return
+	var w_key: String = _get_target_planet_key(wreck)
+	if GameState.is_wreck_salvaged(w_key):
+		return
+	GameState.mark_wreck_salvaged(w_key)
+
+	var h_seed: int = abs(w_key.hash())
+	var sil_gain: int = 15 + (h_seed % 9)
+	var alloy_gain: int = 5 + (h_seed % 5)
+	var water_gain: int = 6 + (h_seed % 4)
+	var food_gain: int = 5 + (h_seed % 5)
+	var tech_gain: int = 3 if (h_seed % 3 == 0) else 0
+
+	GameState.silicon_res += sil_gain
+	GameState.alloy_res += alloy_gain
+	GameState.add_water(water_gain)
+	GameState.add_food(food_gain)
+	GameState.tech_res += tech_gain
+	GameState.bio_energy = min(GameState.max_bio_energy, GameState.bio_energy + 16.0)
+	GameState.vitals_updated.emit()
+
+	var cur_title: String = str(wreck.get("display_name")) if wreck.get("display_name") != null else "Wrack"
+	var clean_title: String = cur_title.replace(" [WRACK]", "") + " [GEBORGEN]"
+	wreck.set("display_name", clean_title)
+	wreck.set_meta("display_name", clean_title)
+
+	var beacon: OmniLight3D = wreck.get_node_or_null("WreckBeacon") as OmniLight3D
+	if beacon:
+		beacon.light_energy = 0.0
+	var core_mesh: MeshInstance3D = wreck.get_node_or_null("WreckCore") as MeshInstance3D
+	if core_mesh and core_mesh.mesh and core_mesh.mesh.surface_get_material(0) is StandardMaterial3D:
+		var c_mat: StandardMaterial3D = core_mesh.mesh.surface_get_material(0) as StandardMaterial3D
+		c_mat.emission_enabled = false
+		c_mat.albedo_color = Color(0.24, 0.26, 0.30)
+
+	_spawn_impact_flash(wreck.global_position, Color(1.0, 0.72, 0.22, 0.9), 3.6, 0.32)
+	var log_snippets: Array[String] = [
+		"Logbuch: 'INSAN-Drohnen haben unseren Antrieb gesperrt — wir lassen die Vorräte zurück!'",
+		"Logbuch: 'Kometen-Eis im Gürtel hat uns gerettet, bevor der Reaktor ausfiel.'",
+		"Logbuch: 'Seltsame Gravitations-Echos aus dem inneren Sektor gemessen...'",
+		"Logbuch: 'Notkapseln gestartet. Wer diese Fracht findet: haltet euch von den Abschleppern fern!'"
+	]
+	var snippet: String = log_snippets[h_seed % log_snippets.size()]
+	var tech_str: String = (", +%d ⚙️ Tech" % tech_gain) if tech_gain > 0 else ""
+	GameState.add_log("WRACK-BERGUNG", "🔩 %s geborgen: +%d 💎 Sil, +%d 🛡️ Leg, +%d 💧 H2O, +%d 🍖 Food%s, +16%% ⚡! (%s)" % [
+		clean_title.replace(" [GEBORGEN]", ""), sil_gain, alloy_gain, water_gain, food_gain, tech_str, snippet
+	])
+
+func _shatter_monolith_asteroid(ast: Node3D, list_idx: int) -> void:
+	if not ast or not is_instance_valid(ast):
+		return
+	var origin_p: Vector3 = ast.global_position
+	active_asteroids.remove_at(list_idx)
+	_play_sfx("ship_thrust_ignite.wav", 1.18, -9.5)
+	_spawn_impact_flash(origin_p, Color(0.55, 0.88, 1.0, 0.92), 4.4, 0.30)
+
+	var shard_types: Array[String] = ["ice", "bio", "silicon"]
+	for s_i in range(shard_types.size()):
+		var ang: float = float(s_i) * (TAU / 3.0) + randf() * 0.5
+		var target_p: Vector3 = origin_p + Vector3(cos(ang), 0.0, sin(ang)) * randf_range(5.5, 9.0)
+		var shard: Node3D = _create_asteroid_node({
+			"type": shard_types[s_i],
+			"world_x": origin_p.x,
+			"world_z": origin_p.z
+		})
+		if procedural_container:
+			procedural_container.add_child(shard)
+			active_asteroids.append(shard)
+			var tw_s: Tween = create_tween()
+			tw_s.tween_property(shard, "global_position", Vector3(target_p.x, 0.0, target_p.z), 0.32).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	ast.queue_free()
+
+func _on_decoy_trap_triggered() -> void:
+	for i in range(interactable_bodies.size() - 1, -1, -1):
+		var body: Node3D = interactable_bodies[i]
+		if is_instance_valid(body) and str(body.get_meta("entity_category", "")) == "jamal_shuttle":
+			var trap_pos: Vector3 = body.global_position
+			interactable_bodies.remove_at(i)
+			body.set_process(false)
+			_play_sfx("sonar_ping.wav", 1.35, -8.5)
+			_spawn_impact_flash(trap_pos, Color(1.0, 0.28, 0.35, 0.95), 5.5, 0.42)
+			var tw: Tween = create_tween()
+			tw.tween_property(body, "scale", Vector3(0.02, 2.4, 0.02), 0.38).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+			tw.chain().tween_callback(func():
+				if is_instance_valid(body):
+					body.queue_free()
+			)
+			if not Engine.is_editor_hint() and player_ship:
+				var to_p: Vector3 = player_ship.global_position - trap_pos
+				var face_ang: float = atan2(-to_p.z, to_p.x)
+				_spawn_hostile_drone("scout", trap_pos + Vector3(3.0, 0.0, -3.0), face_ang)
+				GameState.add_log("HINTERHALT", "🤖 INSAN-Köderdrohne enttarnt! Bekämpfe sie mit dem Psi-Kegel [X] oder falte den Raum [M]!")
+			break
+
+func _on_real_ship_liberated_visual() -> void:
+	for i in range(interactable_bodies.size() - 1, -1, -1):
+		var body: Node3D = interactable_bodies[i]
+		if is_instance_valid(body) and str(body.get_meta("entity_category", "")) == "jamal_shuttle":
+			interactable_bodies.remove_at(i)
+			body.set_process(false)
+			var clamp_node: Node = body.get_node_or_null("ClampRing")
+			if clamp_node:
+				clamp_node.queue_free()
+			_play_sfx("quantum_scan_complete.wav", 1.08, -7.5)
+			_spawn_impact_flash(body.global_position, Color(1.0, 0.72, 0.18, 0.95), 5.0, 0.38)
+			var dock_pos: Vector3 = player_ship.global_position if player_ship else body.global_position
+			var tw: Tween = create_tween()
+			tw.set_parallel(true)
+			tw.tween_property(body, "global_position", dock_pos, 0.85).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+			tw.tween_property(body, "scale", Vector3(0.08, 0.08, 0.08), 0.85).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+			tw.chain().tween_callback(func():
+				if is_instance_valid(body):
+					body.queue_free()
+			)
+			break
+
 func _on_player_emergency_revived() -> void:
 	if not player_ship:
 		return
@@ -2060,34 +2417,64 @@ func _handle_x_psi_cone() -> void:
 			active_enemy_projectiles.remove_at(i)
 			vaporized_bolts += 1
 
-	# 3. Gentle Physical Push on Asteroids in Cone
-	for ast in active_asteroids:
-		if is_instance_valid(ast) and _is_point_in_psi_cone(p_pos, cone_dir, ast.global_position, 1.4, psi_cone_range, half_rad):
-			var push_target: Vector3 = ast.global_position + cone_dir * 4.5
-			var tw_ast: Tween = create_tween()
-			tw_ast.tween_property(ast, "global_position", push_target, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	# 3. Shatter Heavy Monolith Boulders into Collectible Shards & Push Small Asteroids
+	var shattered_rocks: int = 0
+	for a_idx in range(active_asteroids.size() - 1, -1, -1):
+		var ast: Node3D = active_asteroids[a_idx]
+		if not is_instance_valid(ast):
+			active_asteroids.remove_at(a_idx)
+			continue
+		var a_type: String = str(ast.get_meta("asteroid_type", "silicon"))
+		var r_rad: float = float(ast.get_meta("rock_radius", 1.5))
+		if _is_point_in_psi_cone(p_pos, cone_dir, ast.global_position, r_rad, psi_cone_range, half_rad):
+			if a_type == "monolith":
+				_shatter_monolith_asteroid(ast, a_idx)
+				shattered_rocks += 1
+			else:
+				var push_target: Vector3 = ast.global_position + cone_dir * 4.5
+				var tw_ast: Tween = create_tween()
+				tw_ast.tween_property(ast, "global_position", push_target, 0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
-	# 4. INSAN Depot Pier 4 Ar-Riḥla Liberation Check (Directional)
+	# 4. Crack Open Derelict Wrecks + Quest Shuttle Clamp Interactions
+	var cracked_wrecks: int = 0
 	var sys: Dictionary = GameState.get_current_system()
 	var in_depot: bool = bool(sys.get("isInsanDepot", false)) or String(sys.get("name", "")).contains("INSAN")
-	if in_depot and not GameState.jamal_ship_liberated:
-		for body in interactable_bodies:
-			if is_instance_valid(body) and str(body.get_meta("entity_category", "")) == "jamal_shuttle":
+	for body in interactable_bodies:
+		if not is_instance_valid(body):
+			continue
+		var b_cat: String = str(body.get_meta("entity_category", ""))
+		if b_cat == "derelict_wreck":
+			var w_key: String = _get_target_planet_key(body)
+			if not GameState.is_wreck_salvaged(w_key) and _is_point_in_psi_cone(p_pos, cone_dir, body.global_position, 2.8, psi_cone_range, half_rad):
+				_complete_wreck_salvage(body)
+				cracked_wrecks += 1
+		elif b_cat == "jamal_shuttle":
+			if GameState.current_system_id == 1 and not GameState.jamal_decoy_revealed:
+				if _is_point_in_psi_cone(p_pos, cone_dir, body.global_position, 3.2, psi_cone_range, half_rad):
+					QuestManager.trigger_decoy_trap_sequence()
+					return
+			elif in_depot and not GameState.jamal_ship_liberated:
 				if _is_point_in_psi_cone(p_pos, cone_dir, body.global_position, 3.5, psi_cone_range, half_rad):
-					_spawn_impact_flash(body.global_position, Color(0.68, 0.35, 1.0, 0.95), 4.0, 0.35)
 					QuestManager.liberate_real_ship()
 					return
-				elif p_pos.distance_to(body.global_position) <= psi_cone_range + 4.0:
-					GameState.add_log("SENSOR", "🎯 Richte Najmafars Nase auf die Ar-Riḥla aus, um den Psi-Kegel [X] ins Ziel zu lenken!")
+				elif p_pos.distance_to(body.global_position) <= psi_cone_range + 6.0:
+					GameState.add_log("SENSOR", "🎯 Richte Najmafars Nase direkt auf die Ar-Riḥla aus, um ihre Parkkralle mit dem Psi-Kegel [X] zu sprengen!")
 
-	if hit_count > 0 or vaporized_bolts > 0:
-		var extra: String = (" | %d Geschoss(e) abgewehrt" % vaporized_bolts) if vaporized_bolts > 0 else ""
-		var kill_str: String = (" | 💥 %d zerstört" % kill_count) if kill_count > 0 else ""
-		GameState.add_log("KAMPF", "🔮 Psi-Kegel: %d Drohne(n) getroffen (%.0f Schaden, %.1fs Betäubung%s%s)!" % [
-			hit_count, eff_dmg, eff_stun, kill_str, extra
-		])
+	if hit_count > 0 or vaporized_bolts > 0 or shattered_rocks > 0 or cracked_wrecks > 0:
+		var parts_log: Array[String] = []
+		if hit_count > 0:
+			parts_log.append("%d Drohne(n) getroffen (%.0f Dmg)" % [hit_count, eff_dmg])
+		if kill_count > 0:
+			parts_log.append("💥 %d zerstört" % kill_count)
+		if vaporized_bolts > 0:
+			parts_log.append("%d Geschoss(e) aufgelöst" % vaporized_bolts)
+		if shattered_rocks > 0:
+			parts_log.append("🪨 %d Monolith(en) in Ressourcen-Splitter gesprengt" % shattered_rocks)
+		if cracked_wrecks > 0:
+			parts_log.append("🔩 %d Wrack aufgebrochen" % cracked_wrecks)
+		GameState.add_log("PSI-KEGEL", "🔮 %s!" % " | ".join(parts_log))
 	else:
-		GameState.add_log("PSI", "🔮 Gerichteter Psi-Kegel ausgelöst (-%.0f ⚡ / -%.0f 🧠). Nutze [K] für Kampf-Test-Drohnen!" % [bio_cost, mental_cost])
+		GameState.add_log("PSI", "🔮 Gerichteter Psi-Kegel ausgelöst (-%.0f ⚡ / -%.0f 🧠)." % [bio_cost, mental_cost])
 
 func _parse_hex_color(hex_str: String, fallback: Color) -> Color:
 	var clean := hex_str.replace("0x", "#")

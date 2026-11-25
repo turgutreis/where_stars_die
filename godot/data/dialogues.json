@@ -278,18 +278,13 @@
     "speakerType": "character",
     "eyebrow": "🛰️ INSAN-VERWAHRSTELLE ZETA-9 • ANKUNFT",
     "mainText": "„Unglaublich ... die Drohnen haben hier draußen buchstäblich alles abgeschleppt, was sie finden konnten!“",
-    "subText": "„Sieh dir dieses Schrottdepot an, Najmafar! Dort drüben an Pier 4 liegt tatsächlich meine echte Ar-Riḥla! Aber wir haben ein Problem: Hier herrscht eine extrem starke Interferenz, die das gesamte Kommunikationssystem stört. Und meine Sensoren zeigen noch etwas Verrücktes im Schrottfeld: Die Insan-Drohnen haben sogar die alten Voyager-Sonden der Menschheit abgeschleppt!“",
+    "subText": "„Sieh dir dieses Schrottdepot im Orbit an, Najmafar! Dort drüben an Pier 4 hängt tatsächlich meine echte Ar-Riḥla in einer schweren Notstrom-Parkkralle – bewacht von INSAN-Patrouillendrohnen! Außerdem sehe ich die zentrale INSAN-Verwaltungsstation (Schalter 7B) und weiter draußen im Schrottfeld sogar eine uralte Voyager-Raumsonde der Menschheit. Fliegen wir hin!“",
     "sound": "sonar",
     "options": [
       {
-        "label": "„Versuchen wir es zuerst am bürokratischen Schalter der Station.“",
-        "targetNodeId": "insan_station_bureaucracy",
-        "keyHint": "1"
-      },
-      {
-        "label": "„Ich sehe mich direkt bei Pier 4 und den Voyager-Sonden um. [Schließen]“",
+        "label": "„Verstanden. Ich steuere den Orbit an und sehe mir Station, Voyager und Pier 4 aus der Nähe an! [Schließen]“",
         "action": "close",
-        "keyHint": "2"
+        "keyHint": "1"
       }
     ]
   },
@@ -304,12 +299,12 @@
     "sound": "alarm",
     "options": [
       {
-        "label": "„Tariq, das Bezahlen geht immer noch nicht. Wie umgehen wir diese Bürokratie?“",
+        "label": "„Tariq, das Bezahlen geht immer noch nicht. Wie bekommen wir dein Schiff frei?“",
         "targetNodeId": "insan_station_bypass_plan",
         "keyHint": "1"
       },
       {
-        "label": "„Ich sehe mich im Schrottfeld um. [Schließen]“",
+        "label": "„Abdocken – ich fliege direkt weiter. [Schließen]“",
         "action": "close",
         "keyHint": "2"
       }
@@ -320,20 +315,32 @@
     "speakerName": "Dr. Tariq Jamal",
     "speakerTitle": "Quantenphysiker",
     "speakerType": "character",
-    "eyebrow": "💡 TARIQS PLAN • INTERFERENZ NUTZEN",
+    "eyebrow": "💡 TARIQS PLAN • PIER 4 DIREKT ANGREIFEN",
     "mainText": "„Die starke Interferenz im Kommunikationssystem spielt uns in die Karten!“",
-    "subText": "„Weil die zentrale Verwaltungs-KI durch die Störung isoliert ist, hängen die Klammern an Pier 4 nur am lokalen Notstrom. Wenn du sie mit einem psionischen Impuls überlädst, ist mein Forschungsschiff frei! Und wenn wir schon hier sind: Befreie unbedingt auch die Voyager-Sonde aus dem Schrottplatz – ihre alten Aufzeichnungen könnten spannende Infos für uns bereithalten!“",
+    "subText": "„Weil die Verwaltungs-KI durch die Störung isoliert ist, hängt die Parkkralle an Pier 4 nur am lokalen Notstrom! Fliege direkt zur echten Ar-Riḥla an Pier 4, richte deine Nase auf die Parkkralle und überlade sie mit deinem gerichteten Psi-Kegel [X] (oder [Leertaste])! Und schau auch bei der alten Voyager-Sonde vorbei!“",
     "sound": "synapse",
     "options": [
       {
-        "label": "„Verstanden! Ich befreie die echte Ar-Riḥla an Pier 4!“",
-        "action": "liberate_real_ship_at_station",
+        "label": "„Alles klar – ich fliege jetzt zu Pier 4 und sprenge die Kralle mit dem Psi-Kegel [X]! [Schließen]“",
+        "action": "close",
         "keyHint": "1"
-      },
+      }
+    ]
+  },
+  "pier4_clamped_inspect": {
+    "id": "pier4_clamped_inspect",
+    "speakerName": "Dr. Tariq Jamal",
+    "speakerTitle": "Quantenphysiker",
+    "speakerType": "character",
+    "eyebrow": "🔒 PIER 4 • ECHTE AR-RIḤLA IN PARKKRALLE",
+    "mainText": "„Das ist sie – meine echte Ar-Riḥla! Kein Hologramm diesmal!“",
+    "subText": "„Die magnetische INSAN-Parkkralle blockiert noch die Triebwerke, hängt aber wegen der Sektor-Interferenz nur am Notstrom. Richte deine Mandibeln direkt auf das Schiff und feuere deinen Psi-Kegel mit [X] oder [Leertaste], um die Kralle zu sprengen, damit ich an Bord docken kann!“",
+    "sound": "sonar",
+    "options": [
       {
-        "label": "„Ich befreie zuerst die abgeschleppte Voyager-Sonde!“",
-        "action": "liberate_voyager_probe",
-        "keyHint": "2"
+        "label": "„Ich ziele auf die Kralle und feuere den Psi-Kegel [X]! [Schließen]“",
+        "action": "close",
+        "keyHint": "1"
       }
     ]
   },
@@ -344,11 +351,11 @@
     "speakerType": "character",
     "eyebrow": "🛰️ VOYAGER-SONDE BEFREIT • GEHEIME TELEMETRIE",
     "mainText": "„Unglaublich ... die Sonde hat auf ihrer Reise am Rand des Sonnensystems alles aufgezeichnet!“",
-    "subText": "„Die goldene Schallplatte der Menschheit berührt deinen verletzten Geist (+30 Mentalkraft, Einsamkeit gelindert). Und im alten Telemetrie-Speicher der Voyager steckt noch mehr: Bevor sie abgeschleppt wurde, hat ihre Antenne im Jahr 2035 schwache, fremdartige Signale aufgefangen – wie ein fernes Echo in der Dunkelheit!“",
+    "subText": "„Die goldene Schallplatte der Menschheit berührt deinen verletzten Geist (+30 🧠 Mentalkraft, Einsamkeit gelindert). Im alten Telemetrie-Speicher der Voyager steckt noch ein schwaches Echo fremdartiger Signale aus den tiefen Sektoren!“",
     "sound": "sonar",
     "options": [
       {
-        "label": "„Spannende Daten ... Holen wir jetzt dein Forschungsschiff! [Schließen]“",
+        "label": "„Wertvolle Daten ... weiter geht's! [Schließen]“",
         "action": "close",
         "keyHint": "1"
       }
@@ -359,13 +366,13 @@
     "speakerName": "Dr. Tariq Jamal",
     "speakerTitle": "Quantenphysiker",
     "speakerType": "character",
-    "eyebrow": "🎉 ECHTES FORSCHUNGSSCHIFF GEBORGEN!",
-    "mainText": "„Die echte Ar-Riḥla ist frei! Unser Quanten-Logbuch ist online!“",
-    "subText": "„Endlich habe ich wieder Zugriff auf meine Labore und die Melange-Vorräte (+50 Melange-Spice, +60 Silizium)! Ich habe meinen Schiffscomputer mit deinen Synapsen gekoppelt – ab sofort steht dir das Direktiven-Logbuch zur Verfügung. Wir wissen noch nicht alles über deine Vergangenheit, Najmafar ... aber jetzt haben wir die Mittel, der Spur von 2035 nachzugehen!“",
+    "eyebrow": "🎉 AR-RIḤLA GEBORGEN & ANGEDOCKT!",
+    "mainText": "„Die Parkkralle ist zersplittert! Die Ar-Riḥla ist frei und dockt an deiner Bio-Hülle an!“",
+    "subText": "„Endlich habe ich wieder Zugriff auf meine Vorräte (+50 ☕ Qahwun, +60 💎 Silizium) und den Quanten-Navigationsrechner (+45 Lj Sprungreichweite)! Ab sofort dient die Ar-Riḥla außerdem als unser Lande-Shuttle: Wenn du auf bewohnbaren Welten Crew-Symbionten aufnimmst [R], können wir Außenteams in Ruinen und Vorkommen schicken!“",
     "sound": "synapse",
     "options": [
       {
-        "label": "„Bereite die Sensoren vor, Tariq. Unsere Suche beginnt. [Schließen]“",
+        "label": "„Willkommen an Bord, Tariq. Schauen wir, wohin uns die Reise führt! [Schließen]“",
         "action": "close",
         "keyHint": "1"
       }

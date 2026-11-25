@@ -262,6 +262,9 @@ func _on_channel_progress_updated(mode: String, progress: float, target_name: St
 	elif mode == "abduct":
 		channel_title_label.text = "🔮 Psionischer Traktorstrahl: %s (%.0f%%)" % [target_name, progress]
 		channel_title_label.add_theme_color_override("font_color", Color(0.75, 0.42, 1.0))
+	elif mode == "salvage_wreck":
+		channel_title_label.text = "🔧 Schiffswrack-Bergung: %s (%.0f%%)" % [target_name, progress]
+		channel_title_label.add_theme_color_override("font_color", Color(1.0, 0.72, 0.22))
 
 func _on_dossier_updated(planet_key: String, dossier: Dictionary) -> void:
 	active_deck_tab = "dossier"
@@ -620,6 +623,12 @@ func _on_radar_draw() -> void:
 					radar_canvas.draw_arc(center + pos_2d, 6.8, 0.0, TAU, 16, Color(1.0, 0.65, 0.0, 0.85), 1.5)
 				elif cat == "space_station":
 					radar_canvas.draw_rect(Rect2(center + pos_2d - Vector2(3.0, 3.0), Vector2(6.0, 6.0)), Color(0.75, 0.45, 0.98, 0.95))
+				elif cat == "derelict_wreck":
+					var w_salvaged: bool = GameState.is_wreck_salvaged(p_key) if p_key != "" else false
+					var w_col := Color(0.45, 0.48, 0.54, 0.55) if w_salvaged else Color(1.0, 0.72, 0.22, 0.95)
+					radar_canvas.draw_rect(Rect2(center + pos_2d - Vector2(2.6, 2.6), Vector2(5.2, 5.2)), w_col)
+				elif cat == "voyager_probe":
+					radar_canvas.draw_circle(center + pos_2d, 3.2, Color(1.0, 0.88, 0.28, 0.95))
 				elif cat == "moon":
 					radar_canvas.draw_circle(center + pos_2d, 1.8, Color(0.7, 0.78, 0.88, 0.75))
 
@@ -749,7 +758,17 @@ func _update_proximity_prompt() -> void:
 					var abd_str: String = ("  |  🔮 [R] Entführen (%d)" % cand_cnt) if cand_cnt > 0 else ""
 					target_prompt_label.text = "🎯 %s (%.1f AE)  —  %s%s  |  📋 [F] Dossier  [X] Psi-Kegel  [U] Evolution" % [d_name, dist, harv_str, abd_str]
 			else:
-				target_prompt_label.text = "🎯 %s (%.1f AE)  —  [F] Untersuchen / Kommunizieren  |  🔮 [X]/[Leertaste] Psi-Kegel (-10⚡ -6🧠)" % [d_name, dist]
+				var e_cat: String = str(nearest.get_meta("entity_category", ""))
+				if e_cat == "derelict_wreck":
+					var w_key: String = str(nearest.get("planet_key")) if nearest.get("planet_key") != null else ""
+					if w_key != "" and GameState.is_wreck_salvaged(w_key):
+						target_prompt_label.text = "🔩 %s (%.1f AE)  —  Bereits geborgen ✓  |  [WASD] Weiterfliegen  [M] Sternenkarte" % [d_name, dist]
+					else:
+						target_prompt_label.text = "🔩 %s (%.1f AE)  —  🔧 [F] Wrack bergen  oder  🔮 [X] Schotten aufsprengen!" % [d_name, dist]
+				elif e_cat == "jamal_shuttle" and GameState.current_system_id != 1:
+					target_prompt_label.text = "🎯 %s (%.1f AE)  —  🔮 [X]/[Leertaste] Parkkralle sprengen!  |  [F] Info" % [d_name, dist]
+				else:
+					target_prompt_label.text = "🎯 %s (%.1f AE)  —  [F] Untersuchen / Kommunizieren  |  🔮 [X]/[Leertaste] Psi-Kegel" % [d_name, dist]
 		else:
 			target_prompt_label.text = "🧭 %s (%.1f AE)  |  [WASD] Fliegen  [X]/[Space] Psi-Kegel  [K] Kampf-Test  [V] Kurslinie  [M] Karte" % [d_name, dist]
 	else:
@@ -895,12 +914,13 @@ func _setup_galaxy_map_ui() -> void:
 
 	map_filter_select = OptionButton.new()
 	map_filter_select.add_item("Alle (1.000)", 0)
-	map_filter_select.add_item("🧭 Nach Distanz", 1)
-	map_filter_select.add_item("⭐ Story & Quest", 2)
-	map_filter_select.add_item("🕳️ Galaktischer Kern", 3)
-	map_filter_select.add_item("🪐 Mittlerer Gürtel", 4)
-	map_filter_select.add_item("🌌 Äußerer Rand", 5)
-	map_filter_select.add_item("✅ Besucht", 6)
+	map_filter_select.add_item("🟢 In Sprungreichweite", 1)
+	map_filter_select.add_item("🧭 Nach Distanz", 2)
+	map_filter_select.add_item("⭐ Story & Quest", 3)
+	map_filter_select.add_item("🕳️ Galaktischer Kern", 4)
+	map_filter_select.add_item("🪐 Mittlerer Gürtel", 5)
+	map_filter_select.add_item("🌌 Äußerer Rand", 6)
+	map_filter_select.add_item("✅ Besucht", 7)
 	map_filter_select.item_selected.connect(func(_idx: int):
 		_refresh_galaxy_map_list(true)
 	)
@@ -1037,6 +1057,7 @@ func _refresh_galaxy_map_list(preserve_selection: bool = true) -> void:
 	var filter_mode: int = map_filter_select.selected if map_filter_select else 0
 	var cur_id: int = GameState.current_system_id
 	var cur_pos: Vector2 = _get_system_coords(cur_id)
+	var max_rng: float = GameState.get_max_warp_range()
 
 	var pinned_top: Array[Dictionary] = []
 	var rest_matches: Array[Dictionary] = []
@@ -1049,19 +1070,22 @@ func _refresh_galaxy_map_list(preserve_selection: bool = true) -> void:
 			if not blob.contains(query):
 				continue
 
+		var d_here: float = cur_pos.distance_to(Vector2(float(e.get("x", 0.0)), float(e.get("z", 0.0))))
 		var is_visited: bool = GameState.visited_system_ids.has(sid)
 		var is_lore: bool = bool(e.get("is_lore", false))
 		var sec_id: String = str(e.get("sector_id", ""))
 
-		if filter_mode == 2 and not (is_lore or is_visited or sid == cur_id):
+		if filter_mode == 1 and d_here > max_rng + 0.5:
 			continue
-		elif filter_mode == 3 and sec_id != "sector_core":
+		elif filter_mode == 3 and not (is_lore or is_visited or sid == cur_id):
 			continue
-		elif filter_mode == 4 and sec_id != "sector_mid_rim":
+		elif filter_mode == 4 and sec_id != "sector_core":
 			continue
-		elif filter_mode == 5 and sec_id != "sector_outer_rim":
+		elif filter_mode == 5 and sec_id != "sector_mid_rim":
 			continue
-		elif filter_mode == 6 and not is_visited:
+		elif filter_mode == 6 and sec_id != "sector_outer_rim":
+			continue
+		elif filter_mode == 7 and not is_visited:
 			continue
 
 		visible_ids[sid] = true
@@ -1070,7 +1094,7 @@ func _refresh_galaxy_map_list(preserve_selection: bool = true) -> void:
 		else:
 			rest_matches.append(e)
 
-	if filter_mode == 1:
+	if filter_mode in [1, 2]:
 		rest_matches.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 			var da: float = cur_pos.distance_to(Vector2(float(a.get("x", 0.0)), float(a.get("z", 0.0))))
 			var db: float = cur_pos.distance_to(Vector2(float(b.get("x", 0.0)), float(b.get("z", 0.0))))
@@ -1084,7 +1108,7 @@ func _refresh_galaxy_map_list(preserve_selection: bool = true) -> void:
 		filtered_galaxy_entries.append(r_item)
 
 	if map_canvas:
-		if query == "" and filter_mode in [0, 1]:
+		if query == "" and filter_mode in [0, 2]:
 			map_canvas.call("set_filtered_ids", {})
 		else:
 			map_canvas.call("set_filtered_ids", visible_ids)
@@ -1100,10 +1124,13 @@ func _refresh_galaxy_map_list(preserve_selection: bool = true) -> void:
 		var is_dep: bool = bool(item.get("is_depot", false))
 		var is_vis: bool = GameState.visited_system_ids.has(sid)
 		var is_lr: bool = bool(item.get("is_lore", false))
+		var in_rng: bool = (dist_ly <= max_rng + 0.5)
 
 		var tags: String = ""
 		if is_cur:
 			tags += " 📍 [AKTUELL]"
+		elif in_rng:
+			tags += " 🟢"
 		if is_dep:
 			tags += " 🔶 [QUEST]"
 		elif is_lr and not is_cur:
@@ -1121,18 +1148,21 @@ func _refresh_galaxy_map_list(preserve_selection: bool = true) -> void:
 			map_item_list.set_item_custom_fg_color(idx, Color(0.22, 1.0, 0.65))
 		elif is_dep:
 			map_item_list.set_item_custom_fg_color(idx, Color(1.0, 0.76, 0.22))
+		elif in_rng:
+			map_item_list.set_item_custom_fg_color(idx, Color(0.72, 0.98, 0.85))
 		elif is_lr:
 			map_item_list.set_item_custom_fg_color(idx, Color(0.55, 0.85, 1.0))
 		elif is_vis:
-			map_item_list.set_item_custom_fg_color(idx, Color(0.72, 0.94, 0.84))
+			map_item_list.set_item_custom_fg_color(idx, Color(0.68, 0.88, 0.80))
 
 		if sid == selected_map_sys_id:
 			selected_row = idx
 
 	if map_count_label:
-		map_count_label.text = "%d / %d Sternensysteme angezeigt (Doppelklick zum Raumfalten)" % [
+		map_count_label.text = "%d / %d Systeme  •  🟢 Max. Sprungreichweite: %.0f Lj" % [
 			filtered_galaxy_entries.size(),
-			galaxy_entries.size()
+			galaxy_entries.size(),
+			max_rng
 		]
 
 	if not preserve_selection or not galaxy_entry_by_id.has(selected_map_sys_id):
@@ -1211,9 +1241,16 @@ func _refresh_selected_map_detail() -> void:
 	if is_dep and not GameState.jamal_ship_liberated:
 		status_tag = "[color=#fbbf24]🔶 QUEST-ZIEL: Dr. Jamals Ar-Riḥla liegt hier an Pier 4![/color]"
 
+	var max_rng: float = GameState.get_max_warp_range()
+	var in_rng: bool = (dist_ly <= max_rng + 0.5)
+	var costs: Dictionary = GameState.get_warp_cost_for_distance(dist_ly)
+	var b_cost: float = float(costs.get("bio", 18.0))
+	var m_cost: float = float(costs.get("mental", 14.0))
+
+	var rng_badge: String = "[color=#34d399]In Reichweite ✓[/color]" if in_rng else ("[color=#f97316]Außer Reichweite (Max. %.0f Lj — Zwischensprung wählen!)[/color]" % max_rng)
 	var detail_lines: Array[String] = [
 		"[b][color=#38bdf8]#%d  %s[/color][/b]  •  %s" % [sid, sname, sec_name],
-		"⭐ [b]Stern:[/b] %s  |  🪐 [b]Planeten:[/b] %d%s  |  📏 [b]Distanz:[/b] %.1f Lj" % [star_type, p_cnt, hab_info, dist_ly],
+		"⭐ [b]Stern:[/b] %s  |  🪐 [b]Planeten:[/b] %d%s  |  📏 [b]Distanz:[/b] %.1f Lj (%s)" % [star_type, p_cnt, hab_info, dist_ly, rng_badge],
 		"📡 [b]Status:[/b] %s" % status_tag
 	]
 	map_detail_label.text = "\n".join(detail_lines)
@@ -1221,15 +1258,22 @@ func _refresh_selected_map_detail() -> void:
 	if is_cur:
 		map_warp_btn.disabled = true
 		map_warp_btn.text = "📍 Najmafar befindet sich aktuell in %s" % sname
-	elif GameState.bio_energy < 20.0 or GameState.mental_energy < 15.0:
+	elif not in_rng:
 		map_warp_btn.disabled = true
-		map_warp_btn.text = "⚠️ Zu wenig Energie für Raumfaltung (Benötigt 20⚡ & 15🧠)"
+		map_warp_btn.text = "🔒 Zu weit entfernt (%.0f / %.0f Lj) — Wähle einen Zwischenstern im grünen Kreis!" % [dist_ly, max_rng]
+	elif GameState.bio_energy < b_cost or GameState.mental_energy < m_cost:
+		map_warp_btn.disabled = true
+		map_warp_btn.text = "⚠️ Zu wenig Energie (Benötigt %.0f⚡ & %.0f🧠 — Tanke an Asteroiden/Wracks!)" % [b_cost, m_cost]
 	else:
 		map_warp_btn.disabled = false
-		map_warp_btn.text = "🌀 RAUM FALTEN → #%d %s (-20 ⚡ Bio, -15 🧠 Mental)" % [sid, sname]
+		map_warp_btn.text = "🌀 RAUM FALTEN → #%d %s (-%.0f ⚡ Bio, -%.0f 🧠 Mental)" % [sid, sname, b_cost, m_cost]
 
 func _execute_map_warp(target_sys_id: int) -> void:
 	if target_sys_id == GameState.current_system_id:
+		return
+	var dist_ly: float = GameState.get_distance_between_systems(GameState.current_system_id, target_sys_id)
+	if dist_ly > GameState.get_max_warp_range() + 0.5:
+		GameState.warp_to_system(target_sys_id)
 		return
 	_close_galaxy_map()
 	GameState.warp_to_system(target_sys_id)
@@ -1255,5 +1299,5 @@ func _toggle_galaxy_map() -> void:
 	selected_map_sys_id = GameState.current_system_id
 	_refresh_galaxy_map_list(true)
 	if map_canvas:
-		map_canvas.call("reset_full_galaxy_view")
+		map_canvas.call("center_on_system", GameState.current_system_id, 1.45)
 		map_canvas.call("set_current_and_selected", GameState.current_system_id, selected_map_sys_id)

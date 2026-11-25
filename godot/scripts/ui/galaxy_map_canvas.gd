@@ -213,14 +213,21 @@ func _draw() -> void:
 		draw_string(font, origin_sp + Vector2(-52.0, -r_mid + 14.0), "Mittlerer Gürtel", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 11, Color(0.38, 0.82, 1.0, 0.48))
 		draw_string(font, origin_sp + Vector2(-56.0, -r_outer + 14.0), "Äußerer Spiralarm", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 11, Color(0.55, 0.75, 0.92, 0.45))
 
-	# 2. Fold Vector Line between Current System and Selected Target System
+	# 2. Najmafar's Psionic Warp Range Circle & Fold Vector Line
 	var cur_wx: float = 0.0
 	var cur_wz: float = 0.0
 	var has_cur: bool = entry_by_id.has(current_sys_id)
+	var max_warp_ly: float = GameState.get_max_warp_range()
 	if has_cur:
 		var ce: Dictionary = entry_by_id[current_sys_id]
 		cur_wx = float(ce.get("x", 0.0))
 		cur_wz = float(ce.get("z", 0.0))
+		var cur_sp_ring: Vector2 = world_to_screen(cur_wx, cur_wz)
+		var range_px: float = max_warp_ly * sc
+		draw_circle(cur_sp_ring, range_px, Color(0.0, 0.95, 0.58, 0.045))
+		draw_arc(cur_sp_ring, range_px, 0.0, TAU, 96, Color(0.12, 0.96, 0.62, 0.52), 1.6)
+		if font and range_px > 28.0:
+			draw_string(font, cur_sp_ring + Vector2(-46.0, -range_px - 6.0), "🟢 Reichweite: %.0f Lj" % max_warp_ly, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 11, Color(0.28, 1.0, 0.68, 0.86))
 
 	if has_cur and selected_sys_id != current_sys_id and entry_by_id.has(selected_sys_id):
 		var se: Dictionary = entry_by_id[selected_sys_id]
@@ -228,13 +235,18 @@ func _draw() -> void:
 		var sel_wz: float = float(se.get("z", 0.0))
 		var p_from: Vector2 = world_to_screen(cur_wx, cur_wz)
 		var p_to: Vector2 = world_to_screen(sel_wx, sel_wz)
-		draw_line(p_from, p_to, Color(0.28, 0.88, 1.0, 0.22), 4.0)
-		draw_dashed_line(p_from, p_to, Color(0.45, 0.95, 1.0, 0.85), 1.8, 7.0)
+		var dist_ly: float = Vector2(cur_wx, cur_wz).distance_to(Vector2(sel_wx, sel_wz))
+		var in_range: bool = (dist_ly <= max_warp_ly + 0.5)
+		var line_glow: Color = Color(0.18, 0.95, 0.65, 0.24) if in_range else Color(1.0, 0.42, 0.22, 0.22)
+		var line_core: Color = Color(0.35, 1.0, 0.72, 0.90) if in_range else Color(1.0, 0.52, 0.25, 0.88)
+		draw_line(p_from, p_to, line_glow, 4.0)
+		draw_dashed_line(p_from, p_to, line_core, 1.8, 7.0)
 		if font:
-			var dist_ly: float = Vector2(cur_wx, cur_wz).distance_to(Vector2(sel_wx, sel_wz))
 			var mid_pt: Vector2 = (p_from + p_to) * 0.5
-			draw_rect(Rect2(mid_pt + Vector2(-34.0, -18.0), Vector2(68.0, 18.0)), Color(0.02, 0.06, 0.14, 0.88), true)
-			draw_string(font, mid_pt + Vector2(-28.0, -5.0), "%.0f Lj" % dist_ly, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 11, Color(0.55, 0.95, 1.0, 0.98))
+			var badge_txt: String = ("%.0f Lj ✓" % dist_ly) if in_range else ("%.0f Lj (Zwischensprung!)" % dist_ly)
+			var bw: float = float(badge_txt.length()) * 6.5 + 14.0
+			draw_rect(Rect2(mid_pt + Vector2(-bw * 0.5, -18.0), Vector2(bw, 18.0)), Color(0.02, 0.06, 0.14, 0.90), true)
+			draw_string(font, mid_pt + Vector2(-bw * 0.5 + 7.0, -5.0), badge_txt, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 11, line_core)
 
 	# 3. Render all 1,000 Star Systems
 	var base_dot_r: float = clamp(1.75 + zoom_level * 0.42, 1.9, 5.2)

@@ -80,9 +80,10 @@ var visited_system_ids: Array[int] = [1]
 var locked_target: Node3D = null
 var nearest_interactable: Node3D = null
 
-# --- Core Loop Registries (Scan, Depletion & Dossiers) ---
+# --- Core Loop Registries (Scan, Depletion, Wrecks & Dossiers) ---
 var scanned_planets: Dictionary = {}   # planet_key -> bool
 var depleted_planets: Dictionary = {}  # planet_key -> bool
+var salvaged_wrecks: Dictionary = {}   # wreck_key -> bool
 var planet_dossiers: Dictionary = {}   # planet_key -> Dictionary
 var active_dossier_key: String = ""
 
@@ -643,7 +644,10 @@ func ensure_lore_systems() -> void:
 			sys["sectorName"] = "Äußerer Spiralarm"
 		elif sid == 77:
 			sys["name"] = "INSAN-Verwahrstelle Zeta-9"
-			sys["sectorName"] = "INSAN-Pfand- & Schrottwerft"
+			sys["sectorId"] = "sector_outer_rim"
+			sys["sectorName"] = "INSAN-Pfand- & Schrottwerft (Äußerer Rand)"
+			sys["x"] = 185.0
+			sys["z"] = 115.0
 			sys["isInsanDepot"] = true
 			var pls: Array = sys.get("planets", [])
 			if pls.is_empty():
@@ -698,6 +702,12 @@ func is_planet_scanned(planet_key: String) -> bool:
 
 func is_planet_depleted(planet_key: String) -> bool:
 	return bool(depleted_planets.get(planet_key, false))
+
+func is_wreck_salvaged(wreck_key: String) -> bool:
+	return bool(salvaged_wrecks.get(wreck_key, false))
+
+func mark_wreck_salvaged(wreck_key: String) -> void:
+	salvaged_wrecks[wreck_key] = true
 
 func mark_planet_scanned(planet_key: String, dossier: Dictionary) -> void:
 	scanned_planets[planet_key] = true
@@ -929,6 +939,39 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 				"depleted": false
 			})
 
+	# Ancient Surface Ruins on ~42% of solid worlds (never on Gas Giants!)
+	var has_ancient_ruins: bool = false
+	var ruins_title: String = ""
+	var is_solid_world: bool = not (p_type in ["Gas Giant", "Gefangener Stern", "Plasma-Wirbel"])
+	if is_solid_world and ((h % 100) < 42 or p_type == "Vorläufer-Konstrukt"):
+		has_ancient_ruins = true
+		var ruin_variants: Array[String] = [
+			"Versunkene Vorläufer-Zitadelle",
+			"Verlassenes Kolonie-Archiv",
+			"Uralter Monolith-Tempel",
+			"Abgestürztes Fracht-Relikt"
+		]
+		ruins_title = ruin_variants[h % ruin_variants.size()]
+		var already_has_ruin_dep: bool = false
+		for dep_item in deposits:
+			if typeof(dep_item) == TYPE_DICTIONARY and str((dep_item as Dictionary).get("id", "")).ends_with("_ruins"):
+				already_has_ruin_dep = true
+				break
+		if not already_has_ruin_dep:
+			var ruin_yield_res: String = "tech" if (h % 2 == 0) else "alloys"
+			deposits.append({
+				"id": "dep_%d_ruins" % h,
+				"name": "🏛️ %s" % ruins_title,
+				"type": "ruins",
+				"desc": "Uralte Oberflächen-Ruinen mit seltenen Artefakten & Strukturplatten (Shuttle-Bergung).",
+				"yieldResource": ruin_yield_res,
+				"yieldAmount": (16 + (h % 12)) if ruin_yield_res == "tech" else (24 + (h % 16)),
+				"hazardType": "radiation" if (h % 3 == 0) else "none",
+				"hazardSeverity": "low",
+				"depleted": false
+			})
+		res += "  •  🏛️ Ruinen geortet (%s)" % ruins_title
+
 	var dossier := {
 		"key": planet_key,
 		"name": p_name,
@@ -940,6 +983,8 @@ func get_or_create_planet_dossier(planet_key: String, p_data: Dictionary, is_moo
 		"bio": bio,
 		"res": res,
 		"techLevel": tech_level,
+		"hasRuins": has_ancient_ruins,
+		"ruinsName": ruins_title,
 		"candidates": candidates,
 		"deposits": deposits,
 		"depleted": is_planet_depleted(planet_key)
@@ -989,11 +1034,59 @@ func apply_combat_damage(raw_amount: float, source_label: String = "Feindfeuer")
 		player_emergency_revived.emit()
 	vitals_updated.emit()
 
+func get_system_by_id(sys_id: int) -> Dictionary:
+	for raw in systems:
+		if typeof(raw) == TYPE_DICTIONARY and int((raw as Dictionary).get("id", -1)) == sys_id:
+			return raw as Dictionary
+	return {}
+
+func get_max_warp_range() -> float:
+	var rng: float = 85.0
+	if jamal_ship_liberated:
+		rng += 45.0
+	if is_mutation_purchased("telepathic_focus"):
+		rng += 40.0
+	if is_mutation_purchased("vector_tentacles"):
+		rng += 35.0
+	for c in crew:
+		var r_key: String = str(c.get("roleKey", ""))
+		if r_key == "navigator" or r_key == "psion":
+			rng += 20.0
+	return rng
+
+func get_distance_between_systems(from_id: int, to_id: int) -> float:
+	var s_from: Dictionary = get_system_by_id(from_id)
+	var s_to: Dictionary = get_system_by_id(to_id)
+	if s_from.is_empty() or s_to.is_empty():
+		return 0.0
+	var p1 := Vector2(float(s_from.get("x", 0.0)), float(s_from.get("z", 0.0)))
+	var p2 := Vector2(float(s_to.get("x", 0.0)), float(s_to.get("z", 0.0)))
+	return p1.distance_to(p2)
+
+func get_warp_cost_for_distance(dist_ly: float) -> Dictionary:
+	var ratio: float = clamp(dist_ly / 85.0, 0.15, 2.2)
+	var b_cost: float = round(9.0 + ratio * 13.0)
+	var m_mult: float = 0.75 if is_mutation_purchased("telepathic_focus") else 1.0
+	var m_cost: float = round((7.0 + ratio * 10.0) * m_mult)
+	return {
+		"bio": b_cost,
+		"mental": m_cost
+	}
+
 func warp_to_system(target_id: int) -> void:
-	var warp_bio_cost: float = 20.0
-	var warp_mental_cost: float = 15.0
+	if target_id == current_system_id:
+		return
+	var dist_ly: float = get_distance_between_systems(current_system_id, target_id)
+	var max_rng: float = get_max_warp_range()
+	if dist_ly > max_rng + 0.5:
+		add_log("WARNUNG", "⚠️ Ziel außerhalb der Sprungreichweite (%.0f Lj > %.0f Lj)! Wähle ein Zwischensystem im grünen Kreis [M]!" % [dist_ly, max_rng])
+		return
+
+	var costs: Dictionary = get_warp_cost_for_distance(dist_ly)
+	var warp_bio_cost: float = float(costs.get("bio", 18.0))
+	var warp_mental_cost: float = float(costs.get("mental", 14.0))
 	if bio_energy < warp_bio_cost or mental_energy < warp_mental_cost:
-		add_log("WARNUNG", "⚠️ Raumfaltung blockiert! Benötigt %.0f ⚡ Bio-Energie & %.0f 🧠 Mentalkraft (Ernte Planeten oder nutze Versorgung [Tab]!)" % [warp_bio_cost, warp_mental_cost])
+		add_log("WARNUNG", "⚠️ Raumfaltung blockiert! Benötigt %.0f ⚡ Bio-Energie & %.0f 🧠 Mentalkraft (Tanke an Asteroiden, Wracks oder Planeten auf!)" % [warp_bio_cost, warp_mental_cost])
 		return
 
 	bio_energy = max(0.0, bio_energy - warp_bio_cost)
@@ -1005,9 +1098,9 @@ func warp_to_system(target_id: int) -> void:
 	nearest_interactable = null
 	active_dossier_key = ""
 	is_map_open = false
-	var sys := get_current_system()
+	var sys: Dictionary = get_current_system()
 	vitals_updated.emit()
-	add_log("NAV", "🌀 Quantenfeld gefaltet (-20 ⚡ Bio, -15 🧠 Mental): Ankunft im System %s." % sys.get("name", "Unbekannt"))
+	add_log("NAV", "🌀 Quantenfeld über %.0f Lj gefaltet (-%.0f ⚡ Bio, -%.0f 🧠 Mental): Ankunft in %s." % [dist_ly, warp_bio_cost, warp_mental_cost, str(sys.get("name", "Unbekannt"))])
 	system_changed.emit(current_system_id, sys)
 
 func reset_to_new_game() -> void:
@@ -1039,6 +1132,7 @@ func reset_to_new_game() -> void:
 	visited_system_ids = [1]
 	scanned_planets.clear()
 	depleted_planets.clear()
+	salvaged_wrecks.clear()
 	planet_dossiers.clear()
 	active_dossier_key = ""
 	jamal_decoy_revealed = false

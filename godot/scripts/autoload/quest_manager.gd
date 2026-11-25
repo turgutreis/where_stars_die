@@ -6,6 +6,8 @@ extends Node
 signal dialogue_opened(node_data: Dictionary)
 signal dialogue_closed()
 signal quest_updated(quest_id: String, stage: int)
+signal decoy_trap_triggered()
+signal real_ship_liberated_visual()
 
 var quests_db: Dictionary = {}
 var dialogues_db: Dictionary = {}
@@ -63,15 +65,15 @@ func complete_quest(quest_id: String) -> void:
 func get_active_quest_directive_text() -> String:
 	if not GameState.jamal_ship_liberated:
 		if not GameState.jamal_decoy_revealed:
-			return "🛰️ DIREKTIVE: Fliege zu Dr. Tariq Jamals Forschungsschiff im Orbit des ersten Planeten und scanne es mit [F]."
+			return "🛰️ PHASE 1: Fliege zu Dr. Jamals Schiff im Orbit des ersten Planeten und untersuche es mit [F] (Sammle unterwegs Asteroiden & Wracks)."
 		else:
-			var depot := GameState.get_insan_depot_system()
-			var depot_name: String = depot.get("name", "INSAN-Verwahrstelle Zeta-9")
+			var depot: Dictionary = GameState.get_insan_depot_system()
+			var depot_name: String = str(depot.get("name", "INSAN-Verwahrstelle Zeta-9"))
 			if GameState.current_system_id != int(depot.get("id", -1)):
-				return "🌌 DIREKTIVE: Öffne die Sternenkarte [M] und falte den Raum zur %s (🔶 QUEST-ZIEL)!" % depot_name
+				return "🌌 PHASE 1: Reise über Zwischensysteme im grünen Sprungkreis [M] zur %s (🔶) — tanke an Asteroidengürteln & Wracks auf!" % depot_name
 			else:
-				return "🛰️ DIREKTIVE: Fliege zur INSAN-Station (Schalter 7B) [F] oder befreie die echte Ar-Riḥla an Pier 4 mit dem Psi-Kegel [X]!"
-	return "🧬 DIREKTIVE: Erkunde die Galaxie [M], scanne Welten [F] und suche nach der Anomalie von 2035."
+				return "🎯 PIER 4: Fliege im Orbit direkt zur echten 'Ar-Riḥla' [PIER 4] und sprenge ihre Parkkralle mit dem Psi-Kegel [X] / [Leertaste]!"
+	return "🚀 ÜBERLEBEN & AUSBAU: Erkunde Systeme [M], birg Wracks [F], nimm Crew auf [R] und schicke die Ar-Riḥla in Planeten-Ruinen!"
 
 func open_dialogue(node_id: String) -> void:
 	if not dialogues_db.has(node_id):
@@ -102,23 +104,14 @@ func select_dialogue_option(option_index: int) -> void:
 	if action == "close":
 		close_dialogue()
 		return
-	elif action == "trigger_decoy_trap":
-		GameState.jamal_decoy_revealed = true
-		advance_quest("prologue_jamal_ship", 2)
-		var depot := GameState.get_insan_depot_system()
-		GameState.add_log("ALARM", "🚨 HOLOGRAPHISCHE KÖDERFALLE! Die echte Ar-Riḥla liegt in: %s!" % depot.get("name", "INSAN-Verwahrstelle Zeta-9"))
-		open_dialogue("hologram_trap_revealed")
+	elif action in ["trigger_decoy_trap", "hack_clamp_attempt", "smash_clamp_attempt"]:
+		trigger_decoy_trap_sequence()
 		return
 	elif action == "liberate_real_ship_at_station":
 		liberate_real_ship()
 		return
 	elif action == "liberate_voyager_probe":
-		GameState.voyager_liberated = true
-		GameState.voyager_scanned = true
-		GameState.mental_energy = min(GameState.max_mental_energy, GameState.mental_energy + 30.0)
-		GameState.loneliness = max(10.0, GameState.loneliness - 25.0)
-		GameState.vitals_updated.emit()
-		open_dialogue("insan_voyager_liberated")
+		liberate_voyager_on_site()
 		return
 
 	if target_node != "":
@@ -126,12 +119,37 @@ func select_dialogue_option(option_index: int) -> void:
 	else:
 		close_dialogue()
 
+func trigger_decoy_trap_sequence() -> void:
+	if GameState.jamal_decoy_revealed:
+		open_dialogue("hologram_trap_revealed")
+		return
+	GameState.jamal_decoy_revealed = true
+	advance_quest("prologue_jamal_ship", 2)
+	var depot: Dictionary = GameState.get_insan_depot_system()
+	GameState.add_log("ALARM", "🚨 HOLOGRAPHISCHE KÖDERFALLE! Die Projektion zerfällt — die echte Ar-Riḥla liegt 2 Sprünge weiter in: %s!" % str(depot.get("name", "INSAN-Verwahrstelle Zeta-9")))
+	decoy_trap_triggered.emit()
+	open_dialogue("hologram_trap_revealed")
+
+func liberate_voyager_on_site() -> void:
+	if not GameState.voyager_liberated:
+		GameState.voyager_liberated = true
+		GameState.voyager_scanned = true
+		GameState.mental_energy = min(GameState.max_mental_energy, GameState.mental_energy + 30.0)
+		GameState.loneliness = max(10.0, GameState.loneliness - 25.0)
+		GameState.tech_res += 5
+		GameState.vitals_updated.emit()
+		GameState.add_log("RELIKT", "🛰️ Voyager 2 geborgen: +30% 🧠 Mentalkraft, -25% Einsamkeit, +5 ⚙️ Tech-Telemetrie!")
+	open_dialogue("insan_voyager_liberated")
+
 func liberate_real_ship() -> void:
+	if GameState.jamal_ship_liberated:
+		return
 	GameState.jamal_ship_liberated = true
 	GameState.melange_res += 50
 	GameState.silicon_res += 60
 	GameState.unlock_jamal_shuttle()
 	complete_quest("prologue_jamal_ship")
 	GameState.vitals_updated.emit()
-	GameState.add_log("QUEST", "🎉 Forschungsschiff 'Ar-Riḥla' an Pier 4 geborgen! (+50 ☕ Qahwun, +60 💎 Silizium) — Lande-Shuttle für Außenmissionen aktiviert!")
+	GameState.add_log("QUEST", "🎉 Forschungsschiff 'Ar-Riḥla' an Pier 4 befreit & angedockt! (+50 ☕ Qahwun, +60 💎 Silizium, +45 Lj Sprungreichweite)!")
+	real_ship_liberated_visual.emit()
 	open_dialogue("real_ship_liberated")
